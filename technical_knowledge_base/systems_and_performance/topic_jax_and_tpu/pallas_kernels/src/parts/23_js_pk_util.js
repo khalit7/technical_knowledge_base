@@ -18,10 +18,12 @@ window.PKU=(function(){
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   // segmented buttons: el holds <button data-m>; f(value) on click
   function seg(el,f){if(!el)return;el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)})}
-  // step animation in any tab: o = {card, ctl, tab, n, draw(i), ms, label}; never autoplays (waits on step 0 for the reader)
+  // a widget the reader drives (the long-replay rule, case b, 2026-11-06): o = {card, ctl, tab, n, draw(i), ms, label, start};
+  // it never plays by itself; start 'last' opens it (and every reset) on its last step, the informative frame. Explained animations use RD.anim.
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
+    const first=n=>o.start==='last'?n-1:0;
+    const st={i:first(o.n),n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
     ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
       '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
       '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
@@ -44,7 +46,7 @@ window.PKU=(function(){
       kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(o.tab,()=>{show();kick()});show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+    return {reset(n){setPlay(false);st.n=n;st.i=first(n);show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
       redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
   }
   // predict-then-reveal blocks: <div class="pr"><div class="opts"><button data-ok>...</div><div class="ans" hidden>

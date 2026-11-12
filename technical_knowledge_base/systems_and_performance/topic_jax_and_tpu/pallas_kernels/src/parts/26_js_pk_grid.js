@@ -64,7 +64,7 @@
       (s[1]?'The body runs.':'The body is skipped by <code>pl.when</code>'+(copied.length?', but its blocks were still copied.':', and nothing was copied for it.'))+'</p>';
     $('pg-cnt').innerHTML=U.stat('Body ran',runs+' of '+(i+1),'steps so far')+L.ops.map((o,t)=>U.stat(U.esc(o.name)+(o.kind==='out'?' write-backs':' copies'),st.copies[t],'of '+(o.shape[0]/o.block[0])*(o.shape[1]/o.block[1])+' blocks')).join('')+
       U.stat('Bytes moved',U.bytes(moved),'minimum '+U.bytes(minB)+': each needed block once')}
-  const A=U.anim({card:'pg-card',ctl:'pg-ctl',tab:'t-read',n:16,ms:900,label:'Grid step',draw,autoplay:false});
+  const A=U.anim({card:'pg-card',ctl:'pg-ctl',tab:'t-read',n:16,ms:900,label:'Grid step',draw,start:'last'});
   U.seg($('pg-kern'),m=>{kname=m;order='lex';setup()});
   $('pg-var').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;variant=b.dataset.m;setup()});
   $('pg-ord').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;order=b.dataset.m;setup()});

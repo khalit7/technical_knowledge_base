@@ -1,6 +1,13 @@
+<div class="s3sp"><div class="s3L">
 <section id="pk-s9">
 <h2>9. Testing a kernel without a TPU, and what it cannot tell you</h2>
 <p>Five rungs, each catching a different class of bug. Every kernel on this page climbed the first four on a laptop:</p>
+
+
+<p><b>Tolerances.</b> Compare with <code>numpy.testing.assert_allclose</code> against the jnp reference, with tolerances set by dtype, not by hope. On this page float32 kernels land at a relative 1e-7 (rounding), a long float32 sum such as <code>dscale</code> over 4,096 rows at a few e-5 absolute on values near 176, and bf16 inputs at a few e-3. A kernel 1e-4 off in float32 has a bug.</p>
+<p><b>What interpret mode cannot tell you.</b> It runs the kernel body as ordinary XLA:CPU code inside a loop over the grid, so it knows nothing about the MXU, VMEM capacity, DMA bandwidth or how Mosaic will schedule the code. What transfers to a TPU is correctness, legality of the block shapes, VMEM arithmetic and copy counts; speed has to be measured on the chip, with the profiler, against the XLA version you are trying to beat. The flash kernel took <span class="pkv" data-k="K.timing.flash.interp_ms" data-f="f0">150</span> ms in interpret mode against <span class="pkv" data-k="K.timing.flash.xla_ms" data-f="f1">2.0</span> ms for XLA's attention on this CPU, a ratio that says nothing about a TPU.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="pk-flow" id="pk-ladder">
 <div style="--sc:var(--c1)"><b>1. jnp reference</b><i>the function you want, in plain jax.numpy: the oracle for every test</i></div>
 <div style="--sc:var(--c3)"><b>2. interpret=True</b><i>runs the kernel body as ordinary JAX on CPU: values, shapes, gradients</i><span class="v">10 of 11 kernels run</span></div>
@@ -11,8 +18,8 @@
 <div class="pk-card"><h4>Each rung catches what the one before misses: eight planted bugs</h4>
 <div class="pk-tw"><table class="pk-cards"><thead><tr><th>Planted bug</th><th>interpret=True</th><th>TPU interpreter</th><th>Lowering for TPU</th></tr></thead><tbody id="pk-bugtab"></tbody></table></div>
 <p class="pk-note">Four bugs planted here (sections 4, 6 and 7), four in the root's lab. <code>interpret=True</code> caught 1 of 8 (the accumulator never zeroed); the TPU interpreter 6 of 8; lowering for TPU caught the one illegal block shape that both interpreters accept. <span class="pk-tag m">measured here</span></p></div>
-<p><b>Tolerances.</b> Compare with <code>numpy.testing.assert_allclose</code> against the jnp reference, with tolerances set by dtype, not by hope. On this page float32 kernels land at a relative 1e-7 (rounding), a long float32 sum such as <code>dscale</code> over 4,096 rows at a few e-5 absolute on values near 176, and bf16 inputs at a few e-3. A kernel 1e-4 off in float32 has a bug.</p>
-<p><b>What interpret mode cannot tell you.</b> It runs the kernel body as ordinary XLA:CPU code inside a loop over the grid, so it knows nothing about the MXU, VMEM capacity, DMA bandwidth or how Mosaic will schedule the code. What transfers to a TPU is correctness, legality of the block shapes, VMEM arithmetic and copy counts; speed has to be measured on the chip, with the profiler, against the XLA version you are trying to beat. The flash kernel took <span class="pkv" data-k="K.timing.flash.interp_ms" data-f="f0">150</span> ms in interpret mode against <span class="pkv" data-k="K.timing.flash.xla_ms" data-f="f1">2.0</span> ms for XLA's attention on this CPU, a ratio that says nothing about a TPU.</p>
+</div></div></div>
+<section>
 <details class="dp"><summary>Interpret-mode timings, to be ignored</summary><div class="b">
 <div class="pk-tw"><table><thead><tr><th>Kernel</th><th class="num">XLA, ms</th><th class="num">interpret mode, ms</th><th class="num">ratio</th></tr></thead><tbody id="pk-timetab"></tbody></table></div>
 <p class="pk-note">Measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority, 1-minute load about <span class="pkv" data-k="K.load_start" data-f="f0">53</span> at the start of the run; median of 3 wall-clock runs after a warm-up (CPU time recorded in <code>out/kernels.json</code>). On a TPU the kernel is compiled by Mosaic and the reference by XLA's TPU backend, and neither runs a loop like this.</p>
@@ -36,6 +43,7 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="pk-s11">
 <h2>11. Choosing block sizes</h2>
 <p><b>The cost model.</b> For a matmul tiled (bm, bk, bn), the Pallas TPU guide counts HBM traffic as (m k n / bn + k n m / bm + m n) &times; bytes per element: A is re-read once per column of blocks, B once per row of blocks (<code>docs/pallas/tpu/matmul.md</code>:<span class="pkv" data-k="SR.line.doc_matmul_perf" data-f="ln">341</span>). Its advice: "to be compute bound, make the blocks as big as possible", limited by VMEM and by pipeline bubbles (with few grid steps, the first copy and last write-back are not hidden); and in practice "sweep over a large set of candidate block sizes, profile the kernel, and pick the best one". The root's lab tabulates that traffic for the running example and a 7B-class matmul; the {{Kernel playground|#t-pkplay}} tab adds the VMEM each of this page's kernels needs at each block size, logical and padded to (8, 128) tiles, against each generation's VMEM (flash attention at 128 &times; 128 blocks needs about seven times its logical bytes once its 32-wide head dimension and its one-number-per-row statistics are padded to 128 lanes).</p>
@@ -45,21 +53,35 @@
 <li><b>A checked-in table</b>: ragged paged attention looks its block sizes up in <code>TUNED_BLOCK_SIZES</code> (<code>tuned_block_sizes.py</code>:<span class="pkv" data-k="SR.line.rpa_table" data-f="ln">37</span>), <span class="pkv" data-k="SR.rpa.n.TPU v5" data-f="i">668</span> entries for "TPU v5" and <span class="pkv" data-k="SR.rpa.n.TPU v6" data-f="i">668</span> for "TPU v6", keyed by dtypes, heads per block, head dimension, page size, batched tokens and maximum model length, each giving (KV pages per block, queries per block). The two generations share every key but disagree on <span class="pkv" data-k="SR.rpa.differ" data-f="i">237</span> of them: <b>tuned values do not transfer between chips.</b></li>
 <li><b>Search at run time</b>: tokamax's ops declare a search space and <code>tokamax.autotune</code> measures it, for example ragged_dot's row tiles from 128 to 1,024 ("we found that there is no need on current TPU generations to search for larger tiles for m", <code>ops/ragged_dot/pallas_mosaic_tpu.py</code>:<span class="pkv" data-k="SR.line.tok_rd_space" data-f="ln">453</span>). Its README warns that "autotuning is fundamentally non-deterministic" and that different configs "can lead to different numerics": serialise the result and reuse it.</li>
 </ul>
+
+</section></div><div class="s3R"><div class="s3side">
 <div class="pk-card"><h4>The same keys, tuned on v5 and on v6, often pick different blocks</h4>
 <div class="pk-seg" id="pk-rpa-gen"><button data-m="TPU v5" class="on">TPU v5</button><button data-m="TPU v6">TPU v6</button><button data-m="diff">Where they differ</button></div>
 <div class="pk-svg" id="pk-rpa-svg"></div>
 <div class="pk-note">Best (KV pages per block, queries per block), from <code>ragged_paged_attention/tuned_block_sizes.py</code> at jax-v0.11.2 <span class="pk-tag g">Google, published in source</span>; the slice is <span class="pkv" data-k="SR.rpa.slice.desc" data-f="s">q heads per block 8, kv heads per block 2, head_dim 128, max_num_batched_tokens 512</span>, bf16. Rows: page size; columns: maximum model length. How the table was measured is not stated in the file.</div></div>
-</section>
+</div></div></div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-be"></div></div><div class="s3L">
 <section id="pk-s12">
 <h2>12. Pallas against Triton, and against writing nothing</h2>
-<p>The same Python kernel lowers per platform: on TPU to a <code>tpu_custom_call</code> holding a Mosaic module (an MLIR dialect that libtpu compiles); on cuda and rocm to Triton unless you pass Mosaic GPU's compiler parameters (<code>pallas_call.py</code>:<span class="pkv" data-k="SR.line.gpu_default_triton" data-f="ln">922</span>: with no <code>compiler_params</code> it constructs Triton's). Here is the fused softmax of section 3 compiled for each, on this CPU:</p>
+<p>The same Python kernel lowers per platform: on TPU to a <code>tpu_custom_call</code> holding a Mosaic module (an MLIR dialect that libtpu compiles); on cuda and rocm to Triton unless you pass Mosaic GPU's compiler parameters (<code>pallas_call.py</code>:<span class="pkv" data-k="SR.line.gpu_default_triton" data-f="ln">922</span>: with no <code>compiler_params</code> it constructs Triton's). Fig. 4 follows the fused softmax of section 3 down both paths; the code each produced, compiled on this CPU, is under the figure.</p>
+<ol class="sx" id="sx-be">
+<li><b>One Python kernel, one array.</b> <code>softmax_kernel</code> on the scores s [16,384 &times; 128] float32. Lowered with <code>jax.export</code> for <code>platforms=["tpu"]</code> it becomes Mosaic; for <code>["cuda"]</code>, Triton.</li>
+<li><b>TPU: <span class="pkv" data-k="K.kernels.softmax_rows.grid.0" data-f="i">32</span> blocks of 512 rows, one after another.</b> One core walks the grid in order; before each step the BlockSpec's DMA copies the next block from HBM into VMEM.</li>
+<li><b>The tile is already in VMEM when the body starts.</b> In Mosaic the refs arrive as <code>memref&lt;512x128xf32, #tpu.memory_space&lt;vmem&gt;&gt;</code>: the copy from HBM already happened, decided by the BlockSpec, and the body is <code>vector.load</code>, two <code>vector.multi_reduction</code>s and a <code>tpu.vector_store</code>.</li>
+<li><b>GPU: 1,024 programs of 16 rows, launched at once.</b> 16,384 / 16 = 1,024 <span class="pk-tag d">derived</span>: the Triton block is 16 rows (Triton blocks must be powers of two and small enough for registers), and every program runs at the same time.</li>
+<li><b>Each program computes its own addresses.</b> In Triton the refs arrive as raw pointers (<code>!tt.ptr&lt;f32&gt;</code>), and the lowering builds a 16 &times; 128 tensor of addresses (<code>tt.make_range</code>, <code>tt.addptr</code>) before <code>tt.load</code>, which is what a Triton programmer writes by hand.</li>
+<li><b>Same maths, two schedules.</b> On the TPU the grid is a loop, so a block that several steps share can stay in VMEM and accumulate (section 4); on the GPU the programs run at once, so a sum across them needs atomics or a second kernel.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <div class="pk-card" id="pk-be-card"><h4>On a TPU the BlockSpec has already copied the tile; on a GPU it becomes pointer arithmetic</h4>
 <div class="pk-seg" id="pk-be-seg"><button data-m="py" class="on">Python kernel</button><button data-m="mosaic">Mosaic for TPU v5e</button><button data-m="triton">Triton for an H100</button></div>
 <pre class="pk-code" id="pk-be-code"></pre>
 <div class="pk-cap" id="pk-be-cap"></div>
-<div class="pk-note">Both produced by <code>src/runs/pk_run.py</code> with <code>jax.export(..., platforms=["tpu"])</code> and <code>platforms=["cuda"]</code> under an abstract device (the TPU lowering targets "TPU v5 lite"; the GPU one an "NVIDIA H100 80GB HBM3"). Not compiled: that needs libtpu or CUDA. The Triton block is 16 rows (Triton blocks must be powers of two and small enough for registers); the TPU block is 512 rows.</div></div>
-<p>In Mosaic the refs arrive as <code>memref&lt;512x128xf32, #tpu.memory_space&lt;vmem&gt;&gt;</code>: the copy from HBM already happened, decided by the BlockSpec, and the body is <code>vector.load</code>, two <code>vector.multi_reduction</code>s and a <code>tpu.vector_store</code>. In Triton the refs arrive as raw pointers (<code>!tt.ptr&lt;f32&gt;</code>), and the lowering builds a 16 &times; 128 tensor of addresses (<code>tt.make_range</code>, <code>tt.addptr</code>) before <code>tt.load</code>, which is what a Triton programmer writes by hand.</p>
+<div class="pk-note">Both produced by <code>src/runs/pk_run.py</code> with <code>jax.export(..., platforms=["tpu"])</code> and <code>platforms=["cuda"]</code> under an abstract device (the TPU lowering targets "TPU v5 lite"; the GPU one an "NVIDIA H100 80GB HBM3"). Not compiled: that needs libtpu or CUDA.</div></div>
 <div class="pk-tw"><table class="pk-cards"><thead><tr><th></th><th>Pallas on TPU (Mosaic)</th><th>Triton on GPU (or Pallas lowered to it)</th><th>No kernel: XLA</th></tr></thead>
 <tbody>
 <tr><td>Grid</td><td data-h="Pallas TPU">A sequential loop; blocks shared by steps stay in VMEM</td><td data-h="Triton">Parallel programs; shared results need atomics or a second kernel</td><td data-h="XLA">The compiler chooses</td></tr>

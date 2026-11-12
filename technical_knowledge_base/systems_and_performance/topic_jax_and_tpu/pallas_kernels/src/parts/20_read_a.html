@@ -73,12 +73,22 @@ details.dp>.b{padding:0 12px 10px;min-width:0}
 <a href="#pk-s0">The idea</a><a href="#pk-s1">1 When to write one</a><a href="#pk-s2">2 Grid and BlockSpec</a><a href="#pk-s3">3 Row kernels</a><a href="#pk-s4">4 LayerNorm and its VJP</a><a href="#pk-s5">5 Flash attention</a><a href="#pk-s6">6 Pipelining</a><a href="#pk-s7">7 Scalar prefetch</a><a href="#pk-s8">8 Semantics, megacore</a><a href="#pk-s9">9 Testing</a><a href="#pk-s10">10 Production kernels</a><a href="#pk-s11">11 Block sizes</a><a href="#pk-s12">12 vs Triton</a><a href="#pk-dp">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="pk-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core"><dfn>Pallas</dfn> is JAX's kernel language: you write one Python function that works on <span class="hl">tiles in VMEM</span>, the TPU core's fast on-chip memory, and a <dfn>grid</dfn> (a loop) plus one <dfn>BlockSpec</dfn> per array decide which tile of each array is copied in at every step, with the copies overlapped behind the compute. You write one only when the win comes from <b>doing less</b> than the compiler (XLA) can derive: not storing an intermediate, choosing tiles from data, or skipping known-zero work.</p>
-<div class="pk-card" id="pk-hero-card"><h4>One grid step: the BlockSpec has copied block i into VMEM, block i+1 is already on its way, the bias was copied once</h4>
-<div class="pk-svg" id="pk-hero"></div>
-<p class="pk-note">The bias + GELU kernel of section 3 on the running example's MLP pre-activation x [4,096 &times; 512]: <code>grid=(8,)</code>, one 512-row band per step. x and o move band by band (8 copies in, 8 write-backs); the bias's index map always returns block (0, 0), so it is copied once and given a single buffer. On a TPU core the 8 steps run one after another; on a GPU they would be 8 parallel programs. Section 2 steps through this and nine other grids.</p></div>
+<p>Fig. 1 follows the bias + GELU kernel of section 3 on the running example's MLP pre-activation x [4,096 &times; 512]: <code>grid=(8,)</code>, one 512-row band per step. Section 2 steps through this and nine other grids.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The arrays stay in HBM.</b> x and o are cut by their BlockSpec, <code>pl.BlockSpec((512, 512), lambda i: (i, 0))</code>, into 8 blocks of 512 rows; the bias b [1 &times; 512] is one block. HBM is the chip's large, slow memory; nothing is computed there.</li>
+<li><b>Step 0: the BlockSpecs copy block 0 of x, and the bias, into VMEM.</b> Before each step Pallas evaluates every index map and issues a DMA for each block whose index changed. An index map returns <i>block</i> coordinates, so <code>(i, 0)</code> at step 0 means rows 0 to 511.</li>
+<li><b>The body runs on the tile.</b> The kernel reads <code>x_ref[...]</code> and <code>b_ref[...]</code> from VMEM and writes <code>o_ref[...]</code> there; it never touches HBM. On a TPU core the 8 steps run one after another; on a GPU they would be 8 parallel programs.</li>
+<li><b>Double buffering: the next block is on its way while this one computes.</b> At step 2, x block 2 is being computed, x block 3 is already being copied into the second slot, and o block 1 is written back to HBM. x and o move band by band, so the copies hide behind the compute when the compute is the longer of the two (section 6).</li>
+<li><b>The bias is copied once.</b> The bias's index map always returns block (0, 0), so it is copied once and given a single buffer: Mosaic marks it <code>#tpu.pipeline_mode&lt;synchronous&gt;</code> (section 3).</li>
+<li><b>After 8 steps: x <span class="pkv" data-k="G.ix.bias_gelu.copies.0" data-f="i">8</span> copies in, b <span class="pkv" data-k="G.ix.bias_gelu.copies.1" data-f="i">1</span>, o <span class="pkv" data-k="G.ix.bias_gelu.copies.2" data-f="i">8</span> write-backs</b>, counted from the kernel's own index maps by <code>src/runs/pk_grid.py</code>. Each element of x and o crossed between HBM and VMEM exactly once.</li>
+</ol>
+</section>
+</div></div>
+<section id="pk-s0b">
 <p><b>You need:</b> <code>jax.jit</code> and <code>jax.custom_vjp</code> ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}, section 6 for custom rules); what VMEM, HBM and the MXU are and how big they are per generation ({{TPU programming and performance|n:3c65c17b0d0d8129b0a5fd82e44ecf6e}}); the five ideas of Pallas, its tiled matmul and the (8, 128) block rule, from the root's {{TPU and Pallas lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}. The PyTorch counterpart is a Triton kernel ({{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}); CUDA kernel concepts are on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
 <dl class="terms">
 <dt>Ref</dt><dd>a mutable view of one tile in fast memory; the kernel reads <code>x_ref[...]</code> and writes <code>o_ref[...] = ...</code>.</dd>

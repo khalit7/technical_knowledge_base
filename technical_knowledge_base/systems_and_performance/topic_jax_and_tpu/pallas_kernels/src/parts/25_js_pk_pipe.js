@@ -28,7 +28,7 @@
     cnt.innerHTML=U.stat('Elapsed',U.comma(tnow,2)+' &#181;s',mode==='serial'?'serial':'double-buffered')+U.stat('DMA lane busy',U.comma(dma,2)+' &#181;s','of '+U.comma(c.dma_total,2)+' in all')+
       U.stat('MXU busy',U.comma(mx,2)+' &#181;s','of '+U.comma(c.mxu_total,2)+' in all')+U.stat('MXU idle so far',tnow>0?U.comma(100*(1-mx/tnow),0)+'%':'&#8211;','the cost of waiting for copies');
   }
-  const A=U.anim({card:'pk-pipe-card',ctl:'pk-pipe-ctl',tab:'t-read',n:C().steps.length,ms:700,label:'Grid step',draw});
+  const A=U.anim({card:'pk-pipe-card',ctl:'pk-pipe-ctl',tab:'t-read',n:C().steps.length,ms:700,label:'Grid step',draw,start:'last'});
   U.seg($('pk-pipe-case'),m=>{cs=m;A.reset(C().steps.length)});
   U.seg($('pk-pipe-mode'),m=>{mode=m;A.redraw()});
   addEventListener('resize',()=>{if(!$('t-read').hidden)A.redraw()});

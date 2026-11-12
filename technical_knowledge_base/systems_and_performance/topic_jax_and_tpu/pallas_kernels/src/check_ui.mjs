@@ -14,7 +14,7 @@ fs.mkdirSync(outdir, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const TABS = ['t-read', 't-pkplay', 't-more'];
-const SHOTS = { 't-read': ['pk-hero-card', 'pk-be-card', 'pk-pipe-card', 'pk-pg-svg', 'pk-rpa-svg', 'pk-mg-bars', 'pk-ladder', 'pg-card', 'ft-card'], 't-pkplay': ['kp-calc-card'] };
+const SHOTS = { 't-read': ['stg-hero', 'pk-be-card', 'pk-pipe-card', 'pk-pg-svg', 'pk-rpa-svg', 'pk-mg-bars', 'pk-ladder', 'pg-card', 'ft-card'], 't-pkplay': ['kp-calc-card'] };
 let bad = 0, actions = 0;
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage();

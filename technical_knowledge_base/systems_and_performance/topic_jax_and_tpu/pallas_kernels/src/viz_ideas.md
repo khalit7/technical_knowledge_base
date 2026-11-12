@@ -20,3 +20,9 @@ Central question: what does a Pallas kernel do that XLA cannot, and how do you k
 | PK14 | A real TPU roofline per kernel | none | | rejected: belongs to TPU programming and performance; no chip here |
 | PK15 | Hero: one grid step of the bias + GELU kernel, static annotated (HBM arrays in bands, VMEM slots with the double buffer, the single-buffered bias, the body on the core, the write-back) | Reading top | the kernel's own shapes | built 2026-10-23 |
 | PK16 | A photo of a TPU board or die | none | | rejected 2026-10-23: the page is about a programming model; the hardware belongs to TPU programming and performance, and a photo shows nothing about tiles or copies |
+| PK17 | 3D Fig. 1: one grid step of bias + GELU on HBM, VMEM (double-buffered x and o, single-buffered b) and the core, with flows | Reading top (replaces PK15) | the kernel's grid data | built 2026-11-12 |
+| PK18 | 3D Fig. 2: LayerNorm backward's accumulator on one core, then two (megacore, "parallel"), with the interpreter's three seeds | Reading s4 | pk_grid.py, bugs[0] | built 2026-11-12 |
+| PK19 | 3D Fig. 3: causal flash forward grid, naive against clamped K and V maps, copies and wasted copies per step | Reading s5 | pk_grid.py | built 2026-11-12 |
+| PK20 | 3D Fig. 4: one softmax kernel lowered for TPU (32 sequential blocks into VMEM) and GPU (1,024 programs, pointer arithmetic) | Reading s12 | kernels.json, the printed modules | built 2026-11-12 |
+| PK21 | 3D paged decode (pool, table, pages flowing into VMEM) | none | | rejected 2026-11-12: the 2D page table already shows the scatter and the lab the copy counts |
+| PK22 | 3D double-buffer timeline | none | | rejected 2026-11-12: Fig. 1 step 4 shows the overlap; timings read best flat (PK4) |

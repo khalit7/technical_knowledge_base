@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="pk-s1">
 <h2>1. When a kernel wins, and when it cannot</h2>
 <p>In PyTorch you reach for a Triton or CUDA kernel when the framework's kernels move too much memory. In JAX the compiler, XLA, already writes most kernels and fuses chains of elementwise work into one pass ({{XLA and compilation, section 4|n:3fa5c17b0d0d8135adcedefac9e1bb48}}). What a compiler cannot do is change the algorithm. Four kinds of work need one:</p>
@@ -8,12 +9,17 @@
 <li><b>Skip work known to be zero.</b> Causal or block-sparse masks empty whole tiles; a kernel skips computing them and even copying them (sections 2 and 5).</li>
 <li><b>Overlap communication with compute by hand</b>, for example a matmul that pulls the next shard from a neighbouring chip while multiplying the current one (<code>pltpu.make_async_remote_copy</code>; not run here: it needs several chips).</li>
 </ul>
-<p><b>When not to.</b> Google's Pallas TPU matmul guide measured a plain Pallas matmul against <code>jnp.matmul</code> (XLA) on a TPU v5e: the best block size only reached the compiler, and small blocks were 15 times worse <span class="pk-tag g">Google, published</span>:</p>
+<p><b>When not to.</b> Google's Pallas TPU matmul guide measured a plain Pallas matmul against <code>jnp.matmul</code> (XLA) on a TPU v5e: the best block size only reached the compiler, and small blocks were 15 times worse <span class="pk-tag g">Google, published</span> (the chart).</p>
+
+<p>The same guide's sparse chapter is the counter-example: a block-sparse &times; dense matmul (16,384 square, blocks of 512) took <span class="pkv" data-k="SR.sparse_guide.kernel_ms.0" data-f="f3">8.136</span> ms against <span class="pkv" data-k="SR.sparse_guide.reference_ms.0" data-f="f3">46.953</span> ms for the dense XLA reference <span class="pk-tag g">Google, published</span>, because the kernel never touches the zero blocks. <b>A kernel wins by doing less, not by doing the same thing better than the compiler.</b></p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="pk-card"><h4>The best Pallas matmul only matches XLA; small blocks lose by 15 times</h4>
 <div class="pk-seg" id="pk-mg-n"></div>
 <div class="pk-bars" id="pk-mg-bars"></div>
 <div class="pk-note">Share of v5e bf16 peak reached by a square bf16 matmul (N &times; N &times; N). Source: <code>docs/pallas/tpu/matmul.ipynb</code> cell outputs at jax-v0.11.2 (the guide states "This notebook was run on a TPU v5e chip"; run date not stated). Utilisation = 2N<sup>3</sup> / time / 197 TFLOP/s, as the guide computes it. Blocks are (bm, bk, bn); at 8,192 the guide's best is 91.5% against XLA's 92.3%, and 128-cubed blocks reach 6.1%.</div></div>
-<p>The same guide's sparse chapter is the counter-example: a block-sparse &times; dense matmul (16,384 square, blocks of 512) took <span class="pkv" data-k="SR.sparse_guide.kernel_ms.0" data-f="f3">8.136</span> ms against <span class="pkv" data-k="SR.sparse_guide.reference_ms.0" data-f="f3">46.953</span> ms for the dense XLA reference <span class="pk-tag g">Google, published</span>, because the kernel never touches the zero blocks. <b>A kernel wins by doing less, not by doing the same thing better than the compiler.</b></p>
+</div></div></div>
+<section>
 <div class="pr" data-pr="1"><div class="q">Predict: for which of these would you expect a hand-written Pallas kernel to beat XLA on a TPU by a wide margin?</div>
 <div class="opts"><button data-ok="0">A large bf16 matmul</button><button data-ok="0">LayerNorm over the hidden dimension</button><button data-ok="1">Attention with a block-sparse mask</button><button data-ok="0">Bias add followed by GELU</button></div>
 <div class="ans" hidden>Attention with a block-sparse mask: the kernel skips whole tiles of work and memory traffic that XLA's dense attention must do. The matmul is XLA's best case (92.3% against 91.5%). LayerNorm and bias-plus-GELU are memory-bound elementwise chains that XLA already fuses into one pass; a kernel can at most match it (section 3 shows them anyway, because they teach the mechanics).</div></div>
@@ -26,6 +32,7 @@
 </tbody></table></div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="pk-s2">
 <h2>2. The model: one call, a grid and BlockSpecs</h2>
 <p>Everything is one call, <code>pl.pallas_call(kernel, out_shape, *, grid, in_specs, out_specs, scratch_shapes, input_output_aliases, compiler_params, interpret, ...)</code> (<code>pallas_call.py</code>:<span class="pkv" data-k="SR.line.pallas_call" data-f="ln">1091</span> at jax-v0.11.2 <span class="pk-tag s">read in source</span>), which returns a function you call on arrays inside <code>jax.jit</code>. The bias + GELU kernel of the hero, in full:</p>
@@ -37,7 +44,12 @@
     out_specs=pl.BlockSpec((512, 512), lambda i: (i, 0)),
     compiler_params=pltpu.CompilerParams(dimension_semantics=("parallel",)))(x, b)</pre>
 <div class="pk-codecap">Condensed from <code>src/runs/pk_kernels.py</code> (the bias_gelu section, shown in full in section 3), with the running example's shapes filled in.</div>
-<p><b>The one rule that explains every copy.</b> Before each step Pallas evaluates every index map; it copies an input block only when its block index differs from the one the previous step used, and writes an output block back when its index changes (or at the end). An index map returns <i>block</i> coordinates, not element offsets. So x and o move 8 times and b once. Step any kernel on this page through its grid:</p>
+<p><b>The one rule that explains every copy.</b> Before each step Pallas evaluates every index map; it copies an input block only when its block index differs from the one the previous step used, and writes an output block back when its index changes (or at the end). An index map returns <i>block</i> coordinates, not element offsets. So x and o move 8 times and b once. Step any kernel on this page through its grid with the lab (a tool: it opens on the last step and moves only when you do).</p>
+<div class="try"><b>Try:</b> Bias + GELU to the last step (x 8 copies, b 1, o 8). Then Flash fwd with "Before: naive index map" against "After: clamped": the same 16 steps and the same 10 computed tiles, but K and V are copied 16 times against 9 (section 5). LayerNorm bwd: dscale and dbias are copied once and written back once, the reason its axis must be "arbitrary" (section 4). Paged decode: the page index jumps around the pool (section 7).</div>
+
+
+</section>
+</div><div class="s3R"><div class="s3side">
 <div id="pk-gridlab">
 <div class="pk-seg" id="pg-kern"></div>
 <div class="pk-seg" id="pg-var"></div>
@@ -50,9 +62,11 @@
 <div class="pk-cnt" id="pg-cnt"></div>
 <div class="pk-ctl" id="pg-ctl"></div>
 </div>
-<div class="try"><b>Try:</b> Bias + GELU to the last step (x 8 copies, b 1, o 8). Then Flash fwd with "Before: naive index map" against "After: clamped": the same 16 steps and the same 10 computed tiles, but K and V are copied 16 times against 9 (section 5). LayerNorm bwd: dscale and dbias are copied once and written back once, the reason its axis must be "arbitrary" (section 4). Paged decode: the page index jumps around the pool (section 7).</div>
+
 <details class="dp"><summary>How the lab is drawn and where its numbers come from</summary><div class="b"><p class="pk-note">The index maps are the kernels' own, evaluated in <code>src/runs/pk_grid.py</code>; the body conditions are their <code>pl.when</code> tests. Each operand is drawn to its own scale (the arrays range from 8 &#215; 32 to 16,384 &#215; 128), with its block grid; an operand that is a single tall column of more than 8 blocks is drawn wrapped, its blocks numbered in order; three-dimensional operands are drawn as the two dimensions a block covers (flash: one head; paged: the pool as 40 pages of 16 tokens). Bytes count bf16 for activations and weights and float32 for statistics and fp32 outputs, the dtypes a TPU kernel would use. "Minimum" is every element read or written once. The recorded orders come from <code>pltpu.InterpretParams(grid_point_recorder=...)</code> on the real kernels; with "parallel" axes the interpreter shuffles them on purpose, even on one core, and a copy count in that order is computed here from the recorded order, per core.</p></div></details>
 </div>
+</div></div></div>
+<section>
 <p><b>The pieces</b>, each against what a PyTorch, Triton or CUDA programmer already knows:</p>
 <div class="tw"><table>
 <thead><tr><th>Piece</th><th>What it is</th><th>Triton or CUDA counterpart</th></tr></thead>

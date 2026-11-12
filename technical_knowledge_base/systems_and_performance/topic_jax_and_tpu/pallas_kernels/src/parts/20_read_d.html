@@ -1,13 +1,4 @@
-<section id="pk-s5">
-<h2>5. Flash attention: the worked kernel, forward with its residual and backward</h2>
-<p>The root's lab ran the causal flash attention forward. A training kernel needs three more things: the forward must save something for the backward, the backward must exist, and the two must be joined by <code>custom_vjp</code>. All three are below, checked against plain attention and against the two production kernels that ship with jax, on the same tensors (<span class="pkv" data-k="K.kernels.flash.inp" data-f="s">layer 0 q, k, v of all 32 sequences x 4 heads [128 x 128 x 32]; upstream gradient N(0, 1), key 1</span>).</p>
-<p><b>The forward loop</b> walks the key blocks for one query block, keeping three running quantities per row in VMEM scratch and rescaling them whenever a row's maximum grows:</p>
-<div class="fm"><div class="eq">m<sub>new</sub> = max(m, rowmax S<sub>j</sub>), &alpha; = e<sup>m &minus; m<sub>new</sub></sup>, l &larr; &alpha; l + rowsum e<sup>S<sub>j</sub> &minus; m<sub>new</sub></sup>, acc &larr; &alpha; acc + e<sup>S<sub>j</sub> &minus; m<sub>new</sub></sup> V<sub>j</sub></div>
-<dl><dt>S<sub>j</sub></dt><dd>the scores of one query block against key block j, q k<sup>T</sup> / &radic;d<sub>h</sub>, causally masked</dd>
-<dt>m, l, acc</dt><dd>running row max, running softmax denominator, running numerator: VMEM scratch, kept across the key loop</dd>
-<dt>&alpha;</dt><dd>rescales everything accumulated so far when the row max grows; the output is acc / l after the last block, and the saved residual is the logsumexp L = m + log l</dd></dl></div>
-<p>The same loop on real numbers: one block of 32 queries (positions 96 to 127) of a trained attention head against the keys in 8 blocks of 16, exactly the arithmetic of <code>flash_fwd_kernel</code>. <b>Predict</b> before you step: if &alpha; is left out, will row 100's output be slightly off or badly off?</p>
-<div id="pk-tilelab">
+<div class="s3sp"><div class="s3R"><div id="pk-tilelab">
 <div class="pk-seg" id="ft-mode"><button data-m="online" class="on">After: online (flash)</button><button data-m="wrong">Online without rescaling (wrong)</button><button data-m="naive">Before: naive (store the row)</button></div>
 <div class="pk-card" id="ft-card"><h4>The running max climbs block by block, and &alpha; shrinks what was accumulated before</h4>
 <div class="ft-svg" id="ft-heat"></div>
@@ -17,11 +8,58 @@
 <div class="pk-cnt" id="ft-cnt"></div>
 <div class="pk-ctl" id="ft-ctl"></div>
 </div>
-<p class="pk-note">The kernel itself, run with the same 32 &#215; 16 blocks, agrees with this float32 replay to <span class="pkv" data-k="TI.err_kernel_vs_replay" data-f="e2">1.2e-7</span> and with plain attention to <span class="pkv" data-k="TI.err_kernel" data-f="e2">3.0e-7</span> <span class="pk-tag m">measured here</span>. Without rescaling the block ends off by <span class="pkv" data-k="TI.err_wrong" data-f="f2">1.08</span>, on outputs up to <span class="pkv" data-k="TI.max_ref" data-f="f2">1.25</span>: badly off, not slightly.</p>
+<p class="pk-note">The kernel itself, run with the same 32 &#215; 16 blocks, agrees with this float32 replay to <span class="pkv" data-k="TI.err_kernel_vs_replay" data-f="e2">1.2e-7</span> and with plain attention to <span class="pkv" data-k="TI.err_kernel" data-f="e2">3.0e-7</span> <span class="pk-tag m">measured here</span>.</p>
 <details class="dp"><summary>Where the replay's data comes from</summary><div class="b"><p class="pk-note"><code>src/runs/pk_tiles.py</code>: sequence 0, head 0, layer 1 of the running example, training batch 0, with the weights after the root's 500-step training run (at initialisation attention is nearly uniform and the rescaling barely matters; trained, it does). The replay is float32 NumPy following the kernel line by line. The scores are q k<sup>T</sup> / &radic;32.</p></div></details>
 </div>
+</div><div class="s3L">
+<section id="pk-s5">
+<h2>5. Flash attention: the worked kernel, forward with its residual and backward</h2>
+<p>The root's lab ran the causal flash attention forward. A training kernel needs three more things: the forward must save something for the backward, the backward must exist, and the two must be joined by <code>custom_vjp</code>. All three are below, checked against plain attention and against the two production kernels that ship with jax, on the same tensors (<span class="pkv" data-k="K.kernels.flash.inp" data-f="s">layer 0 q, k, v of all 32 sequences x 4 heads [128 x 128 x 32]; upstream gradient N(0, 1), key 1</span>).</p>
+<p><b>The forward loop</b> walks the key blocks for one query block, keeping three running quantities per row in VMEM scratch and rescaling them whenever a row's maximum grows:</p>
+<div class="fm"><div class="eq">m<sub>new</sub> = max(m, rowmax S<sub>j</sub>), &alpha; = e<sup>m &minus; m<sub>new</sub></sup>, l &larr; &alpha; l + rowsum e<sup>S<sub>j</sub> &minus; m<sub>new</sub></sup>, acc &larr; &alpha; acc + e<sup>S<sub>j</sub> &minus; m<sub>new</sub></sup> V<sub>j</sub></div>
+<dl><dt>S<sub>j</sub></dt><dd>the scores of one query block against key block j, q k<sup>T</sup> / &radic;d<sub>h</sub>, causally masked</dd>
+<dt>m, l, acc</dt><dd>running row max, running softmax denominator, running numerator: VMEM scratch, kept across the key loop</dd>
+<dt>&alpha;</dt><dd>rescales everything accumulated so far when the row max grows; the output is acc / l after the last block, and the saved residual is the logsumexp L = m + log l</dd></dl></div>
+<p>The same loop on real numbers: one block of 32 queries (positions 96 to 127) of a trained attention head against the keys in 8 blocks of 16, exactly the arithmetic of <code>flash_fwd_kernel</code>. <b>Predict</b> before you step: if &alpha; is left out, will row 100's output be slightly off or badly off?</p>
+<ol class="sx" id="sx-ft">
+<li><b>Key block 0 (keys 0 to 15).</b> Row 100's first tile: its largest score becomes the running max, m = <span class="pkv" data-k="TI.steps.0.m.4" data-f="f2">-22.09</span>. Nothing has been accumulated yet, so there is nothing to rescale.</li>
+<li><b>Key blocks 1 to 5: the max climbs at every block.</b> m rises to <span class="pkv" data-k="TI.steps.5.m.4" data-f="f2">14.59</span>. Each time, &alpha; = e<sup>m<sub>old</sub> &minus; m<sub>new</sub></sup> is at most <span class="pkv" data-k="TI.steps.2.focus_alpha" data-f="f4">0.0046</span>, so what was accumulated before shrinks almost to nothing: earlier keys hardly count once a much larger score arrives.</li>
+<li><b>Key block 6: the rescale that keeps both.</b> The max moves only to <span class="pkv" data-k="TI.steps.6.m.4" data-f="f2">15.55</span>, &alpha; = <span class="pkv" data-k="TI.steps.6.focus_alpha" data-f="f2">0.38</span>: the old sum is kept at that weight and the new block added. The block straddles the diagonal, so its keys after the query are masked.</li>
+<li><b>Key block 7: masked for row 100.</b> Keys 112 to 127 come after position 100, so nothing changes (&alpha; = 1). The output acc / l matches plain attention to <span class="pkv" data-k="TI.err_online" data-f="e2">2.4e-7</span> over the whole block, with <span class="pkv" data-k="TI.floats_online" data-f="i">1,600</span> floats held on chip.</li>
+</ol>
+<ol class="sx" id="sx-ftw" hidden>
+<li><b>Key block 0.</b> As in the online version: one tile, nothing to combine.</li>
+<li><b>Key blocks 1 to 5: each block's exponentials against its own max, simply added.</b> Blocks with small scores get the same weight as blocks with large ones.</li>
+<li><b>Key block 6.</b> Added at full weight again, though its max is far above the early blocks'.</li>
+<li><b>Badly off, not slightly.</b> Off by <span class="pkv" data-k="TI.err_wrong" data-f="f2">1.08</span> on this block (row 100: <span class="pkv" data-k="TI.err_wrong_focus" data-f="f2">0.68</span>), on outputs up to <span class="pkv" data-k="TI.max_ref" data-f="f2">1.25</span>.</li>
+</ol>
+<ol class="sx" id="sx-ftn" hidden>
+<li><b>All 128 scores of every row computed and kept.</b> Before any normalising, the kernel holds a whole row of scores per query: <span class="pkv" data-k="TI.floats_naive" data-f="i">4,096</span> floats for this block of 32 rows (and, in plain attention, the whole T &times; T matrix goes to HBM).</li>
+<li><b>Row maximum over all 128 keys.</b> Only now is the true maximum known: <span class="pkv" data-k="TI.steps.7.m.4" data-f="f2">15.55</span> for row 100.</li>
+<li><b>Exponentials and row sums.</b> Each score becomes e<sup>s &minus; max</sup> and each row is summed.</li>
+<li><b>Probabilities times V.</b> The output: exact, but it needed the whole row in memory first.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <p>The algorithm's IO argument, with HBM and on-chip memory animated on random input, is on the {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}; the GPU schedules (FlashAttention-2's split across warps, atomics in its backward, Flash-Decoding) are on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
 <p>The forward here is the root's kernel plus one output, <code>lse</code>; the output matches the root kernel exactly (difference <span class="pkv" data-k="K.kernels.flash.same_as_root" data-f="e2">0</span>) and the logsumexp matches <code>jax.nn.logsumexp</code> of the scores to <span class="pkv" data-k="K.kernels.flash.err_lse" data-f="e2">9.5e-7</span>.</p>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-fl"></div></div><div class="s3L">
+<section id="pk-s5b">
+<p><b>Skipping, and not even copying.</b> With causal masking the tiles above the diagonal are all <code>-inf</code>. The kernels skip their arithmetic with <code>pl.when</code>, but a BlockSpec would still copy K and V for them. The forward's K and V index map therefore re-uses the last block the query block needs, <code>min(j, last)</code>; an unchanged block index means no copy. The production kernel does exactly this with <code>lax.select</code> (<code>flash_attention.py</code>:<span class="pkv" data-k="SR.line.fa_clamp" data-f="ln">626</span>). Fig. 3 plays both maps on the recorded grid (section 2's lab steps them block by block):</p>
+<div class="s3chips" id="pk-fl-mode"><button data-m="naive" class="on">Before: naive map, j</button><button data-m="clamped">After: clamped, min(j, last)</button></div>
+<ol class="sx" id="sx-fl">
+<li><b>One head, a 4 &times; 4 grid.</b> q, k and v [128 &times; 32] in blocks of 32; the grid runs query block i (rows) by key block j (columns), the key axis "arbitrary". The 6 tiles above the diagonal are fully masked.</li>
+<li><b>Query block 0.</b> Only tile (0, 0) is on the diagonal: the body runs once and <code>pl.when</code> skips three. The naive map still asks for K and V blocks 1, 2 and 3, so they are copied for nothing (dark grey marks); the clamped map keeps returning block 0, so nothing is copied.</li>
+<li><b>Query block 1.</b> Two tiles run. Clamped, step (1, 0) needs block 0, which is still in VMEM from the row before: no copy at all.</li>
+<li><b>Query block 2.</b> Three tiles run; one wasted copy under the naive map.</li>
+<li><b>Query block 3.</b> All four tiles touch keys at or before their queries, so every step runs and copies.</li>
+<li><b>Same arithmetic, fewer copies.</b> K copies: <span class="pkv" data-k="G.ix.flash_fwd_naive.copies.1" data-f="i">16</span> naive, <span class="pkv" data-k="G.ix.flash_fwd_clamped.copies.1" data-f="i">9</span> clamped (and the same for V); the body runs on <span class="pkv" data-k="G.ix.flash_fwd_clamped.runs" data-f="i">10</span> of 16 tiles either way.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <p><b>The backward</b>, from the softmax derivative. With P = e<sup>S &minus; L</sup> recomputed tile by tile from the saved L, and D = rowsum(dO &#8728; O) computed once outside the kernels:</p>
 <div class="fm"><div class="eq">dV = P<sup>T</sup> dO, dP = dO V<sup>T</sup>, dS = P &#8728; (dP &minus; D), dK = dS<sup>T</sup> Q / &radic;d<sub>h</sub>, dQ = dS K / &radic;d<sub>h</sub></div>
 <dl><dt>D</dt><dd>rowsum(dO &#8728; O): the term the softmax Jacobian subtracts; the production kernel calls it <code>di</code></dd>
@@ -35,7 +73,7 @@
 <tbody id="pk-fa-tab"></tbody></table></div>
 <p class="pk-note">Max abs. error against plain attention (<code>jax.vjp</code> of the model's attention core) in float32: every kernel within <span class="pkv" data-k="K.production.gpu_mha_grad_err.dv" data-f="e2">2.4e-6</span>; the largest reference values are <span class="pkv" data-k="K.kernels.flash.max_ref" data-f="f2">0.93</span> (output) and <span class="pkv" data-k="K.kernels.flash.grads.dv.max_ref" data-f="f2">5.29</span> (dV). The production TPU kernel ran under <code>pltpu.force_tpu_interpret_mode()</code>; the GPU one with <code>interpret=True</code>. <span class="pk-tag m">measured here</span></p>
 <div class="co warn"><div class="t">The production TPU kernel does not scale the scores unless you ask</div><p><code>flash_attention(q, k, v, causal=True)</code> has <code>sm_scale: float = 1.0</code> (<code>flash_attention.py</code>:<span class="pkv" data-k="SR.line.fa_sm_scale" data-f="ln">148</span>), not 1/&radic;d<sub>h</sub>. Called without it on the running example's tensors, its output differs from the model's attention by <span class="pkv" data-k="K.production.fa_default_scale_err" data-f="f3">0.198</span> on values below 1 <span class="pk-tag m">measured here</span>, and no error is raised: the model just trains differently. The GPU <code>mha</code> has the same default. Pass <code>sm_scale=1/math.sqrt(head_dim)</code>, or scale q first.</p></div>
-<p><b>Skipping, and not even copying.</b> With causal masking the tiles above the diagonal are all <code>-inf</code>. The kernels skip their arithmetic with <code>pl.when</code>, but a BlockSpec would still copy K and V for them. The forward's K and V index map therefore re-uses the last block the query block needs, <code>min(j, last)</code>; an unchanged block index means no copy. For one head with 32-wide blocks that is <span class="pkv" data-k="G.ix.flash_fwd_naive.copies.1" data-f="i">16</span> K copies against <span class="pkv" data-k="G.ix.flash_fwd_clamped.copies.1" data-f="i">9</span> (and the same for V), while the arithmetic runs on <span class="pkv" data-k="G.ix.flash_fwd_clamped.runs" data-f="i">10</span> of 16 tiles. The production kernel does exactly this with <code>lax.select</code> (<code>flash_attention.py</code>:<span class="pkv" data-k="SR.line.fa_clamp" data-f="ln">626</span>). Step both maps in section 2's lab (Flash fwd, before and after).</p>
+
 <details class="dp"><summary>Block sizes and bf16 inputs for the flash forward</summary><div class="b">
 <p>Every block shape tried computes the same answer and lowers for TPU v5e; they differ in how many steps run and how much is skipped:</p>
 <div class="pk-tw"><table><thead><tr><th class="num">bq</th><th class="num">bk</th><th class="num">grid steps per head</th><th class="num">tiles computed</th><th class="num">max abs. error</th><th>lowers for TPU</th></tr></thead><tbody id="pk-fa-sweep"></tbody></table></div>
@@ -43,9 +81,14 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="pk-s6">
 <h2>6. Pipelining: what a BlockSpec does for you, written by hand</h2>
-<p><b>The problem.</b> A TensorCore computes only on data in VMEM; the arrays live in HBM. Copy a tile in, compute, copy the result out, one after the other, and the matrix unit idles during every copy. Every BlockSpec kernel on this page is pipelined automatically: while step s computes, Pallas's generated code is already copying the blocks step s+1 needs into a second buffer (<dfn>double buffering</dfn>, the dashed slots of the hero), and writes each output block back once it is final. "The default buffer count is 2 for all inputs and outputs" (the Pallas TPU pipelining guide, <code>docs/pallas/tpu/pipelining.md</code>:<span class="pkv" data-k="SR.line.doc_multibuf" data-f="ln">140</span>).</p>
+<p><b>The problem.</b> A TensorCore computes only on data in VMEM; the arrays live in HBM. Copy a tile in, compute, copy the result out, one after the other, and the matrix unit idles during every copy. Every BlockSpec kernel on this page is pipelined automatically: while step s computes, Pallas's generated code is already copying the blocks step s+1 needs into a second buffer (<dfn>double buffering</dfn>, step 4 of Fig. 1), and writes each output block back once it is final. "The default buffer count is 2 for all inputs and outputs" (the Pallas TPU pipelining guide, <code>docs/pallas/tpu/pipelining.md</code>:<span class="pkv" data-k="SR.line.doc_multibuf" data-f="ln">140</span>).</p>
+
+<p>The running example's matmul moves more bytes than it computes, so even perfectly overlapped it takes as long as its copies (<span class="pkv" data-k="PL.cases.toy.t_overlap" data-f="f2">9.05</span> &micro;s against <span class="pkv" data-k="PL.cases.toy.dma_total" data-f="f2">8.96</span> &micro;s of copies); the 7B-class matmul with 512 &times; 1,024 &times; 1,024 blocks computes longer than it copies, and overlap hides almost every copy (<span class="pkv" data-k="PL.cases.big.t_overlap" data-f="f1">73.7</span> &micro;s against <span class="pkv" data-k="PL.cases.big.t_serial" data-f="f1">119.2</span> serial for the first 12 steps). Overlap can only bring the time down to the longer of the two lanes; block sizes decide which lane that is (section 11).</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="pk-card" id="pk-pipe-card"><h4>Overlap hides the copies only when the compute lane is the longer one</h4>
 <div class="pk-seg" id="pk-pipe-case"><button data-m="toy" class="on">Running example (copy-bound)</button><button data-m="big">7B-class (compute-bound)</button></div>
 <div class="pk-seg" id="pk-pipe-mode"><button data-m="serial" class="on">Serial: copy, compute, copy</button><button data-m="overlap">Double-buffered (BlockSpec)</button></div>
@@ -54,7 +97,8 @@
 <div class="pk-cnt" id="pk-pipe-cnt"></div>
 <div class="pk-ctl" id="pk-pipe-ctl"></div>
 <div class="pk-note">Calculated, not measured: every copy at v5e's published 819 GB/s and every block matmul at its 197 TFLOP/s bf16 peak (the figures the Pallas TPU matmul guide uses), bf16 inputs, float32 outputs, a copy issued only for blocks whose index changed. No DMA latency, issue cost or pipeline overhead is modelled, so real times are longer; the shape of the timeline is the point. <span class="pk-tag d">derived</span></div></div>
-<p>The running example's matmul moves more bytes than it computes, so even perfectly overlapped it takes as long as its copies (<span class="pkv" data-k="PL.cases.toy.t_overlap" data-f="f2">9.05</span> &micro;s against <span class="pkv" data-k="PL.cases.toy.dma_total" data-f="f2">8.96</span> &micro;s of copies); the 7B-class matmul with 512 &times; 1,024 &times; 1,024 blocks computes longer than it copies, and overlap hides almost every copy (<span class="pkv" data-k="PL.cases.big.t_overlap" data-f="f1">73.7</span> &micro;s against <span class="pkv" data-k="PL.cases.big.t_serial" data-f="f1">119.2</span> serial for the first 12 steps). Overlap can only bring the time down to the longer of the two lanes; block sizes decide which lane that is (section 11).</p>
+</div></div></div>
+<section>
 <p><b>Written by hand.</b> Put an operand in <code>pl.ANY</code> and Pallas copies nothing; you allocate VMEM slots and DMA semaphores as scratch and issue the copies with <code>pltpu.make_async_copy(src, dst, sem)</code> (<code>mosaic/primitives.py</code>:<span class="pkv" data-k="SR.line.make_async_copy" data-f="ln">703</span>), a descriptor with <code>.start()</code> and <code>.wait()</code>. This is the root lab's matmul with A's copies written out, the code a BlockSpec generates for you (code below). It matches <code>jnp.dot</code> exactly in both interpreters (error <span class="pkv" data-k="K.pipeline.err_manual" data-f="e2">0</span>) and lowers to a Mosaic loop with two <code>tpu.enqueue_dma</code> (the prologue and the prefetch) and the waits.</p>
 <details class="dp"><summary>The code with copies by hand, and the Mosaic loop it lowers to</summary><div class="b"><pre class="pk-code" id="pk-man-code"></pre><pre class="pk-code pk-out" id="pk-man-mos"></pre></div></details>
 <div class="co warn"><div class="t">The bug the TPU interpreter exists for</div><p>Move the <code>.wait()</code> to after the matmul that uses the slot. In the plain interpreter a DMA completes the moment it starts, so the result is still exact (error <span class="pkv" data-k="K.bugs.1.plain_err" data-f="e2">0</span>). On a TPU the matmul would read a half-copied buffer. The TPU interpreter executes DMAs only when the kernel waits on their semaphore (<code>dma_execution_mode="on_wait"</code>, the default, <code>interpret/params.py</code>:<span class="pkv" data-k="SR.line.dma_on_wait" data-f="ln">178</span>) and fills fresh buffers with NaN, so <span class="pkv" data-k="K.bugs.1.tpu_nan_rows" data-f="i">1,024</span> of the 4,096 output rows came out NaN <span class="pk-tag m">measured here</span>. Always test hand-written DMAs under <code>pltpu.InterpretParams()</code>.</p></div>
