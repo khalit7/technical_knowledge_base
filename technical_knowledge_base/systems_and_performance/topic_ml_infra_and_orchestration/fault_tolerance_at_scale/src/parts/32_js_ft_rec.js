@@ -24,7 +24,7 @@ function evalDesign(d,n){
 }
 // ---- chart 1: where the time per failure goes, every design, at N
 function drawBars(){
-  const el=$('rc-bars'),w=RD.width(el),narrow=w<560,lw=narrow?0:170,rowH=narrow?44:28,top=6;
+  const el=$('rc-bars'),w=RD.width(el),narrow=w<760,lw=narrow?0:170,rowH=narrow?44:28,top=6;
   const rows=D.designs.map(d=>({d,e:evalDesign(d,N)}));
   const mx=Math.max(...rows.map(r=>r.e.Reff+r.e.rework));
   const sx=(w-lw-70)/Math.log10(mx*1.2/0.5+1);
@@ -73,39 +73,39 @@ function drawTable(){
   const M=1/(N*rateOf(RATE));
   $('rc-mtbf').innerHTML='At '+N.toLocaleString('en-US')+' GPUs and the '+E(RATES.find(r=>r.k===RATE).label)+' failure rate, the job fails on average every <b>'+fmtT(M)+'</b> (job MTBF = 1 / (GPUs &times; rate per GPU)).';
 }
-// ---- animation: one failure, two designs, on one time axis
+// ---- animation: one failure, two designs, on one time axis. Seven fixed steps, one per part of the lost time (the step list #sx-rc on the left):
+// 0 the failure, 1..5 the components in D.components order (detect, wait, replace, start, load), 6 the rework. A part a design does not pay is a zero-width segment.
 let A;
-function steps(d){const out=[];COMP.forEach(c=>{const v=(d.R[c.k]||0)*(1-(d.keep||0));if(v)out.push({c,v})});return out}
+const KS=['fail'].concat(COMP.map(c=>c.k),['rework']);
+function parts(d){const e=evalDesign(d,N);return COMP.map(c=>({c,v:(d.R[c.k]||0)*(1-(d.keep||0))})).concat([{c:{k:'rework',label:'redo the work since the last checkpoint',col:'var(--bad)'},v:e.rework}])}
 function drawAnim(i){
   const el=$('rc-anim'),w=RD.width(el),l=8,lane=40,top=22;
   const ds=SEL.map(id=>D.designs.find(d=>d.id===id));
-  const seqs=ds.map(d=>{const e=evalDesign(d,N);const st=steps(d);st.push({c:{k:'rework',label:'redo the work since the last checkpoint',col:'var(--bad)'},v:e.rework});return st});
+  const seqs=ds.map(parts);
   const tot=Math.max(...seqs.map(q=>q.reduce((a,x)=>a+x.v,0)));
-  const maxk=Math.max(...seqs.map(q=>q.length));
-  const k=Math.min(i,maxk);
   const sx=(w-l-8)/tot;let s='';
   ds.forEach((d,j)=>{const y=top+j*(lane+18);
     s+=RD.t(l,y-5,E(d.name),{fs:12,w:600});
     s+='<rect x="'+l+'" y="'+y+'" width="'+(w-l-8)+'" height="'+lane+'" rx="4" fill="var(--soft)" stroke="var(--line)"/>';
     let x=l,acc=0;
-    seqs[j].forEach((p,q)=>{if(q>=k)return;const ww=p.v*sx;
-      s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,ww).toFixed(1)+'" height="'+lane+'" fill="'+p.c.col+'" opacity="'+(p.c.k==='rework'?.55:.9)+'"/>';x+=ww;acc+=p.v});
-    s+=RD.t(Math.min(x+4,w-60),y+lane/2+4,k?fmtT(acc):'',{fs:11,fill:'var(--ink)'});
+    seqs[j].forEach((p,q)=>{if(q>=i||!p.v)return;const ww=p.v*sx;
+      s+='<rect'+(q===i-1?' class="rd-new"':'')+' x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,ww).toFixed(1)+'" height="'+lane+'" fill="'+p.c.col+'" opacity="'+(p.c.k==='rework'?.55:.9)+'"/>';x+=ww;acc+=p.v});
+    s+=RD.t(Math.min(x+4,w-60),y+lane/2+4,i?fmtT(acc):'',{fs:12,fill:'var(--ink)'});
   });
   el.innerHTML=RD.svg(w,top+ds.length*(lane+18),s,'One failure under two recovery designs, drawn to the same time scale');
-  if(i===0){$('rc-anim-cap').innerHTML='A GPU fails on a '+N.toLocaleString('en-US')+'-GPU job. Both lanes start at the failure and end when the job is back where it was: each segment is time in which the whole job makes no new progress (for replica groups, the lost share of the job). Drawn to the same scale: '+fmtT(tot)+' across.';return}
-  const parts=ds.map((d,j)=>{const p=seqs[j][i-1];return p?'<b>'+E(d.name)+'</b>: '+E(p.c.label)+', '+fmtT(p.v)+(p.c.k!=='rework'&&d.notes&&d.notes[p.c.k]?' ('+E(d.notes[p.c.k])+')':''):'<b>'+E(d.name)+'</b>: back to new work.'});
-  $('rc-anim-cap').innerHTML=parts.join('<br>');
+  if(i===0){$('rc-anim-cap').innerHTML='A failure on a '+N.toLocaleString('en-US')+'-GPU job; both lanes to the same scale, '+fmtT(tot)+' across.';return}
+  const out=ds.map((d,j)=>{const p=seqs[j][i-1];return '<b>'+E(d.name)+'</b>: '+(p.v?fmtT(p.v)+(p.c.k!=='rework'&&d.notes&&d.notes[p.c.k]?' ('+E(d.notes[p.c.k])+')':''):'none: this design does not pay it')});
+  $('rc-anim-cap').innerHTML=out.join('<br>');
 }
 function fillSel(){
   ['rc-a','rc-b'].forEach((id,j)=>{$(id).innerHTML=D.designs.map(d=>'<option value="'+d.id+'"'+(d.id===SEL[j]?' selected':'')+'>'+E(d.name)+'</option>').join('');
-    $(id).addEventListener('change',e=>{SEL[j]=e.target.value;A.reset(nSteps());drawCurves()})});
+    $(id).addEventListener('change',e=>{SEL[j]=e.target.value;A.redraw();drawCurves()})});
   $('rc-rate').innerHTML=RATES.map(r=>'<option value="'+r.k+'">'+E(r.label)+'</option>').join('');
   $('rc-rate').addEventListener('change',e=>{RATE=e.target.value;all()});
   $('rc-n').addEventListener('input',e=>{N=Math.round(Math.pow(2,+e.target.value));$('rc-n-v').textContent=N.toLocaleString('en-US')+' GPUs';all()});
   $('rc-ymin').addEventListener('input',drawCurves);
 }
-const nSteps=()=>1+Math.max(...SEL.map(id=>steps(D.designs.find(d=>d.id===id)).length+1));
+const nSteps=()=>KS.length;
 function drawStatic(){
   $('rc-bars-leg').innerHTML=COMP.map(c=>'<span><i style="background:'+c.col+'"></i>'+E(c.label)+'</span>').join('')+'<span><i style="background:var(--bad);opacity:.55"></i>expected rework</span>';
   const r1=RATES.find(r=>r.k==='rsc1').per_gpu_s,g=(n,C,R)=>(100*best(C,R,1/(n*r1)).g).toFixed(1)+'%';
@@ -114,9 +114,9 @@ function drawStatic(){
   D.designs.forEach(d=>{t+='<tr><td><b>'+E(d.name)+'</b></td><td>'+E(d.what)+'</td><td><b>pause C</b> '+fmtT(d.C_s)+': '+E(d.C_note)+'<br>'+COMP.filter(c=>d.R[c.k]).map(c=>'<b>'+E(c.label)+'</b> '+fmtT(d.R[c.k])+': '+E(d.notes[c.k])).join('<br>')+(d.keep?'<br><b>kept share</b> '+E(d.keep_note):'')+'</td></tr>'});
   $('rc-src').innerHTML=t+'</tbody></table></div><p class="ft-cap">Rates: '+RATES.map(r=>E(r.label)).join('; ')+'. Source extracts in <code>src/inputs/rec_*.txt</code>; inputs assembled by <code>src/scripts/rec_build.py</code>; every goodput shown is recomputed in <code>src/scripts/recompute.py</code>.</p>';
 }
-function all(){drawBars();drawCurves();drawTable();if(A)A.reset(nSteps())}
+function all(){drawBars();drawCurves();drawTable();if(A)A.redraw()}
 let inited=false;
-function render(){if(!inited){inited=true;fillSel();$('rc-n').value=Math.log2(N);$('rc-n-v').textContent=N.toLocaleString('en-US')+' GPUs';A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:nSteps(),draw:drawAnim,ms:1800,label:'Step'});drawStatic();RD.tabLinks($('rc-repro'));RD.tabLinks($('rc-src'));all()}else{all()}}
+function render(){if(!inited){inited=true;fillSel();$('rc-n').value=Math.log2(N);$('rc-n-v').textContent=N.toLocaleString('en-US')+' GPUs';A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:nSteps(),draw:drawAnim,ms:4200,label:'Step',list:'sx-rc'});drawStatic();RD.tabLinks($('rc-repro'));RD.tabLinks($('rc-src'));all()}else{all()}}
 RD.onRender(render);RD.onResize(()=>{if(inited){drawBars();drawCurves();A.redraw()}});render();
 window.FTREC={evalDesign,goodput,best,setN:n=>{N=n},setRate:k=>{RATE=k}};
 })();

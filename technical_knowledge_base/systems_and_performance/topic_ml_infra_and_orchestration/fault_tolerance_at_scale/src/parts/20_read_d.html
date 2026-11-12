@@ -1,10 +1,4 @@
-<section id="s-recover">
-<h2>5. Recovery designs: which part of the lost time each one removes</h2>
-<p class="lead">After a failure the job loses the time to <b>detect</b> it, to <b>wait</b> for the scheduler, to <b>get a healthy machine</b>, to <b>start</b> (processes, rendezvous, communicator set-up), to <b>load</b> the checkpoint, and then to <b>redo</b> the work since that checkpoint; on top, it pays the checkpoint <b>pause</b> on every save, failure or not. Every design attacks some of these and leaves the rest.</p>
-<div class="ft-pr" id="pr-rec"><div class="q">Predict: a 16,384-GPU job at Llama 3's failure rate (one failure every 3.1 hours). Which single change raises goodput most: cutting detection from 10 minutes to 10 seconds, adding hot spares so no machine is provisioned, or making checkpoints asynchronous (a 0.78 s pause instead of 5 minutes)?</div>
-<div class="opts"><button data-r="0">Fast detection</button><button data-r="0">Hot spares</button><button data-r="1">Asynchronous checkpoints</button><button data-r="0">They are about equal</button></div>
-<div class="ans">Asynchronous checkpoints, by far, in this model <span class="ft-der">calculation</span>: from 68.9% (all defaults) to 72.7% with fast detection, 77.1% with spares as well, and 97.0% once checkpoints pause for 0.78 s instead of 5 minutes, because a cheap checkpoint can be taken every couple of minutes, which shrinks both the pauses and the rework. The other two only shorten the recovery itself, which here is a smaller part of the loss than the 40-minute optimal interval's pauses and rework. With inputs from several published systems combined (see the tab), so read the ranking, not the decimals.</div></div>
-<div class="ft-card" id="rc-card"><h4>One failure, two designs, same clock: pick any pair</h4>
+<div class="s3sp"><div class="s3R"><div class="ft-card" id="rc-card"><h4>One failure, two designs, same clock: pick any pair</h4>
 <div class="ft-ctl"><label>Before <select id="rc-a"></select></label><label>After <select id="rc-b"></select></label></div>
 <div class="ft-ctl"><label for="rc-n">Job size</label><input type="range" id="rc-n" min="9" max="17" value="14" step="0.5"><span id="rc-n-v" class="ft-num"></span></div>
 <div class="ft-ctl"><label>Failure rate <select id="rc-rate"></select></label></div>
@@ -12,12 +6,26 @@
 <div id="rc-anim" class="ft-svg"></div>
 <div class="ft-anc" id="rc-anim-cap"></div>
 <p class="small" id="rc-mtbf"></p>
-</div>
-<div class="ft-card" id="rc-bars-card"><h4>Time lost per failure, every design, at the job size above</h4>
-<div id="rc-bars" class="ft-svg"></div>
-<div class="ft-leg" id="rc-bars-leg"></div>
-<p class="ft-cap">Segments in the order they happen; the red end is the expected rework, half of (interval + pause) at the design's interval. The time axis is compressed (logarithmic) so that seconds and tens of minutes fit; hover a segment for its value. <span class="ft-der">calculation</span>, inputs <span class="ft-der">illustrative</span> per design (sources in the closed block below).</p>
-</div>
+</div></div><div class="s3L">
+<section id="s-recover">
+<h2>5. Recovery designs: which part of the lost time each one removes</h2>
+<p class="lead">After a failure the job loses the time to <b>detect</b> it, to <b>wait</b> for the scheduler, to <b>get a healthy machine</b>, to <b>start</b> (processes, rendezvous, communicator set-up), to <b>load</b> the checkpoint, and then to <b>redo</b> the work since that checkpoint; on top, it pays the checkpoint <b>pause</b> on every save, failure or not. Every design attacks some of these and leaves the rest.</p>
+<div class="ft-pr" id="pr-rec"><div class="q">Predict: a 16,384-GPU job at Llama 3's failure rate (one failure every 3.1 hours). Which single change raises goodput most: cutting detection from 10 minutes to 10 seconds, adding hot spares so no machine is provisioned, or making checkpoints asynchronous (a 0.78 s pause instead of 5 minutes)?</div>
+<div class="opts"><button data-r="0">Fast detection</button><button data-r="0">Hot spares</button><button data-r="1">Asynchronous checkpoints</button><button data-r="0">They are about equal</button></div>
+<div class="ans">Asynchronous checkpoints, by far, in this model <span class="ft-der">calculation</span>: from 68.9% (all defaults) to 72.7% with fast detection, 77.1% with spares as well, and 97.0% once checkpoints pause for 0.78 s instead of 5 minutes, because a cheap checkpoint can be taken every couple of minutes, which shrinks both the pauses and the rework. The other two only shorten the recovery itself, which here is a smaller part of the loss than the 40-minute optimal interval's pauses and rework. With inputs from several published systems combined (see the closed blocks under the design table), so read the ranking, not the decimals.</div></div>
+<ol class="sx" id="sx-rc">
+<li><b>A GPU fails.</b> Both lanes start at the failure and end when the job is back where it was: each segment is time in which the whole job makes no new progress (for replica groups, the lost share of the job). Pick any two designs, a job size and a failure rate in the card.</li>
+<li><b>Detect.</b> Nothing happens until a timeout or an inspection notices: 10 minutes with the NCCL watchdog's default for a failure that leaves sockets open, 10 to 15 s with health inspection (section 3).</li>
+<li><b>Wait for the scheduler.</b> A requeue goes back through the queue: the lab's Slurm requeue hold was 121 s. Hot spares and an in-job restart skip it.</li>
+<li><b>Get a healthy machine.</b> A replacement instance took 4 to 7 minutes in Gemini's (SOSP 2023) measurements; a hot spare is already up.</li>
+<li><b>Start.</b> Processes, rendezvous and communicators: Gemini's restart warm-up took "more than four minutes"; MegaScale's initialisation is under 30 s on more than 10,000 GPUs after its fixes.</li>
+<li><b>Load the checkpoint.</b> 162 s from storage in the model's default design; under 3 s from a peer's CPU memory (Fig. 1, step 6).</li>
+<li><b>Redo the work.</b> Back to the last checkpoint: on average half of (interval + pause) at the design's interval. A cheap pause allows a short interval, which is why asynchronous checkpoints win the prediction above.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 <div class="tw"><table class="ft-tbl"><thead><tr><th>Design</th><th>How it works</th><th>Removes</th></tr></thead><tbody>
 <tr><td><b>Requeue</b> (Slurm <code>--requeue</code>, a JobSet restart)</td><td>The scheduler restarts the whole job, the script "is initiated from its beginning with the same job ID" ({{sbatch|https://slurm.schedmd.com/sbatch.html}}), and it loads the latest checkpoint.</td><td>Nothing; pays every part.</td></tr>
 <tr><td><b>In-job restart</b> (torchrun <code>--max-restarts</code>; NVIDIA Resiliency Extension's <code>ft_launcher</code>)</td><td>The launcher restarts every worker inside the same allocation; ft_launcher adds a monitor per rank that kills a rank whose heartbeat or section timeout lapses.</td><td>Wait, replace (if the failure was software).</td></tr>
@@ -50,17 +58,28 @@
 <div class="co"><div class="t">How to read the numbers</div>The model is the one built for the root page's Failure lab (its curve against the checkpoint interval is section 6 of the {{reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}}): failures arrive at random with job MTBF M = 1 / (GPUs &times; failure rate per GPU); a checkpoint pauses training for C every &tau; of work; each failure costs the recovery time R plus the work since the last checkpoint; expected goodput = &tau; / (M e<sup>R/M</sup> (e<sup>(&tau;+C)/M</sup> &minus; 1)) (Daly 2006), with &tau; at its optimum unless the design fixes it. For replica groups only the failed group's share of R is lost (R &times; (1 &minus; kept share)), our approximation. <span class="ft-der">calculation</span> Inputs are published figures from different systems and hardware, combined per design, so each design row is <b>illustrative</b> as a whole even where every input is sourced: no single source reports these exact combinations. The two bottom designs are this topic's own measured runs of the tiny job, for scale. Not modelled: storage bandwidth (frequent checkpoints of a large model must fit the storage fabric), the window in which an asynchronous checkpoint is still being written (a failure then falls back to the previous one), queue time, and failures during recovery beyond the formula's own.</div>
 <div id="rc-src"></div>
 </div></details>
-<h3>Elastic training and a hot spare, measured with torchrun</h3>
-<p><dfn>Elastic training</dfn> lets a job continue with fewer machines instead of stopping: <code>torchrun --nnodes=1:2</code> accepts any number of nodes between 1 and 2. Each node runs an agent; the agents meet at a rendezvous (the c10d backend: a small key-value store that one agent hosts) to agree who is in the job, then start the workers. When a worker fails, every agent stops its workers, meets again with whoever is still there, and restarts them all from the latest checkpoint with the new world size.</p>
-<div class="ft-card" id="fl-el-card">
-<h4>Lose one of two nodes, then add one back</h4>
-<div class="ft-seg" id="fl-el-mode" role="group" aria-label="Run"><button data-m="el" class="on">No spare: shrink, then grow</button><button data-m="sp">Spare agent waiting</button></div>
-<div class="ft-svg" id="fl-el-svg"></div>
-<div class="ft-ctl" id="fl-el-ctl"></div>
-<div class="ft-anc" id="fl-el-cap" aria-live="polite"></div>
-<p class="small mute"><span class="ft-meas">measured</span> in one container capped at 2 CPUs and 2.2 GB: two torchrun agents (A, B) of 2 ranks each, c10d rendezvous on localhost, 400 steps, checkpoints every 50; B and its ranks are killed with SIGKILL (root page, <code>src/fail/scripts/fl_elastic.sh</code>, <code>fl_spare.sh</code>; runs <code>el3</code>, <code>el4</code>).</p>
 </div>
-<p><b>Where the 44 seconds go.</b> Agent A saw its ranks fail 1.5 s after the kill. It then waited for the rendezvous to forget B, whose keep-alive stops counting after 5 s x 3 attempts, and for the <dfn>last call</dfn>: once the minimum number of nodes is present the rendezvous still waits 30 s for more before closing. With a spare already waiting, the job was full again at once and only paid detection and restart: 18.1 s.</p>
+<div class="s3R"><div class="s3side"><div class="ft-card" id="rc-bars-card"><h4>Time lost per failure, every design, at the job size above</h4>
+<div id="rc-bars" class="ft-svg"></div>
+<div class="ft-leg" id="rc-bars-leg"></div>
+<p class="ft-cap">Segments in the order they happen; the red end is the expected rework, half of (interval + pause) at the design's interval. The time axis is compressed (logarithmic) so that seconds and tens of minutes fit; hover a segment for its value. <span class="ft-der">calculation</span>, inputs <span class="ft-der">illustrative</span> per design (sources in the closed block below).</p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-el"></div></div><div class="s3L">
+<h3 id="s-elastic">Elastic training and a hot spare, measured with torchrun</h3>
+<p><dfn>Elastic training</dfn> lets a job continue with fewer machines instead of stopping: <code>torchrun --nnodes=1:2</code> accepts any number of nodes between 1 and 2. Each node runs an agent; the agents meet at a rendezvous (the c10d backend: a small key-value store that one agent hosts) to agree who is in the job, then start the workers. When a worker fails, every agent stops its workers, meets again with whoever is still there, and restarts them all from the latest checkpoint with the new world size.</p>
+<p>Fig. 2 follows the measured run: the ranks, the batch each one takes, and what moves between them. The chart beside the rendezvous details below replays both runs against the clock.</p>
+<ol class="sx" id="sx-el">
+<li><b>Four ranks, one batch.</b> Agents A and B each run 2 ranks of the running example: world size 4, and the global batch of 32 sequences is split 8 per rank. Every step ends in an all-reduce over all four.</li>
+<li><b>B is killed.</b> Agent B and its two ranks get SIGKILL after step 120. A's ranks fail in their next all-reduce, and agent A sees it <span id="el-seen">1.5</span> s after the kill.</li>
+<li><b>The rendezvous forgets B.</b> Most of the 44 seconds go here: A waits until B's keep-alive lapses (5 s x 3 attempts), then for the <dfn>last call</dfn>: once the minimum number of nodes is present the rendezvous still waits 30 s for more before closing.</li>
+<li><b>Shrink to world size 2.</b> A's two ranks restart from step_000100.pt, <span id="el-shrink">44.0</span> s after the kill: the global batch stays 32 sequences, so each rank now takes 16 rows instead of 8. Steps 101 to 120 are done again.</li>
+<li><b>C joins: grow back to 4.</b> Agent C starts; the agents restart the workers to let it in, from step_000250.pt, <span id="el-grow">6.2</span> s after C started. Shrinking counted as a restart; growing does not.</li>
+<li><b>With a spare already waiting.</b> In the second run agent C was started first and waited as a spare while the job was full; when B was killed the job went straight back to 4 ranks from step_000150.pt, <span id="el-spare">18.1</span> s after the kill: only detection and restart.</li>
+</ol>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 
 <details class="dp"><summary>The rendezvous defaults behind the 44 seconds, and why the shrunk run is not the same computation <span class="mute">(depth)</span></summary><div class="b">
 <div class="ft-srcq"><div class="f">torch/distributed/elastic/rendezvous/dynamic_rendezvous.py @ v2.14.1, lines 144-147 and 1430, 1435</div>
@@ -74,7 +93,16 @@
 <p><b>Shrinking counts as a restart; growing does not.</b> The restart counter went to 1 when B was lost and stayed at 1 when C joined: "membership changes do not count as retries" (<code>elastic/agent/server/api.py</code> line 958). And the shrunk run is not the same computation: the global batch stays 32 sequences, but each of 2 ranks now averages 16 rows instead of 8, so the sums happen in a different order and the loss differs in the last bits at <span id="fl-el-nd">7</span> of the <span id="fl-el-nt">15</span> logged steps run at world size 2 (by up to <span id="fl-el-mx">4.8e-7</span>) against an uninterrupted 4-rank run <span class="ft-meas">measured</span>. With a batch that does not divide evenly, or a data loader that shards by rank, it would also change which data each step sees.</p>
 </div></details>
 <p>Most large pre-training runs do not shrink: they restart at full size on spare capacity, as Gemini Ultra did with "a small number of cubes per superpod" kept for hot standbys ({{Gemini 1.0, section 3|https://arxiv.org/abs/2312.11805}}) <span class="ft-pub">published</span>; the spare run above is that pattern at toy scale. The store-host single point of failure and the shared-store restart bug these runs also hit are traps 1 and 2 of section 6; the rendezvous mechanism in full is on {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="ft-card" id="fl-el-card">
+<h4>Lose one of two nodes, then add one back</h4>
+<div class="ft-seg" id="fl-el-mode" role="group" aria-label="Run"><button data-m="el" class="on">No spare: shrink, then grow</button><button data-m="sp">Spare agent waiting</button></div>
+<div class="ft-svg" id="fl-el-svg"></div>
+<div class="ft-ctl" id="fl-el-ctl"></div>
+<div class="ft-anc" id="fl-el-cap" aria-live="polite"></div>
+<p class="small mute"><span class="ft-meas">measured</span> in one container capped at 2 CPUs and 2.2 GB: two torchrun agents (A, B) of 2 ranks each, c10d rendezvous on localhost, 400 steps, checkpoints every 50; B and its ranks are killed with SIGKILL (root page, <code>src/fail/scripts/fl_elastic.sh</code>, <code>fl_spare.sh</code>; runs <code>el3</code>, <code>el4</code>).</p>
+</div></div></div></div>
+
 <p>Google reports a 1,024-GPU job going from about 80% to over 90% goodput, the largest gain from asynchronous checkpoints (+3 to 4 points) and the rest from more frequent checkpoints, faster recovery and elastic scale-down <span class="ft-ven">vendor</span>: the same order as the prediction above, make checkpoints cheap first.</p>
 <details class="dp"><summary>Managed versions, and Google's gains point by point <span class="mute">(depth)</span></summary><div class="b"><p><b>Managed versions exist</b> and package several rows: {{AWS SageMaker HyperPod|https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency-slurm-auto-resume.html}} replaces nodes found by its health agent and deep checks (DCGM level 4, EFA, NCCL tests) and resumes with <code>srun --auto-resume=1</code> (what the managed platforms take off your hands, SageMaker jobs against HyperPod included, is {{ML platforms and workflows|n:3c65c17b0d0d81b9943cf6c72600f96b}}, section 10); its December 2025 {{"checkpointless" training|https://aws.amazon.com/blogs/machine-learning/checkpointless-training-on-amazon-sagemaker-hyperpod-production-scale-training-with-faster-fault-recovery/}} reports recovery cut from "15 to 30+ min" to under 2 minutes (under 90 s at 2,304 GPUs) <span class="ft-ven">vendor</span>. Google reports a 1,024-GPU (A3 Mega) job going from about 80% to over 90% goodput by stacking asynchronous checkpoints (+3 to 4 points), checkpoints every 20 minutes instead of hours (+2 to 3), recovery from 20 to about 2 minutes (+1 to 2) and elastic scale-down (+1 to 2) <span class="ft-ven">vendor</span> ({{Google Cloud blog, May 2025|https://cloud.google.com/blog/products/ai-machine-learning/elastic-training-and-optimized-checkpointing-improve-ml-goodput}}). The order of those gains is the same as the prediction above: make checkpoints cheap first.</p></div></details>
 <div class="co"><div class="t">Choosing, in one paragraph</div>Measure your failure rate and your current R and C first (section 9). Asynchronous checkpoints are the cheapest large win at almost any scale. Hot spares and fast detection matter once recovery is a large share of the MTBF, roughly from thousands of GPUs. In-memory checkpoints and replica groups matter when the MTBF falls to tens of minutes (about 30 minutes at 100,000 GPUs at Llama 3's rate), where even a fast storage restart is a large share of every interval. Elastic resizing and redundant computation fit preemptible capacity better than a reserved cluster. Every design needs its restart path exercised before the real run needs it.</div>
-</section>

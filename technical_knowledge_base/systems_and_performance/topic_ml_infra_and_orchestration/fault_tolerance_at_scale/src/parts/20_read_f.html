@@ -1,20 +1,31 @@
+<div class="s3sp"><div class="s3R"><div id="stg-sdc"></div></div><div class="s3L">
 <section id="s-sdc">
 <h2>7. Silent data corruption: one bit, measured</h2>
 <p class="lead">A <b>silent data corruption</b> (SDC) is a wrong result that raises no error: a marginal transistor in a multiplier, a bit flipped in a register or a cache line that ECC does not cover. ECC protects data at rest in memory; it does not check arithmetic, so the run keeps going on wrong numbers. At Gemini's scale Google expected "SDC events to impact training every week or two"; Llama 3 attributes 6 of its 419 interruptions (1.4%) to SDC, the ones that were caught <span class="ft-pub">published</span>. The hardware side and the CPU fleet studies are on the {{reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}}, section 7; this section is what one flipped bit does to a data-parallel run and which detector catches it.</p>
-<p><b>The experiment.</b> We took the running example (4 data-parallel replicas, 200 steps, deterministic), and in six runs flipped exactly one bit at step 120 on replica 2: either in its local gradient just before the all-reduce (the corruption happened in the backward pass), or in one of its weights just after the optimiser step (the corruption happened in the update, or in memory on that one chip). Three bit positions each: a low mantissa bit, an exponent bit and the top exponent bit. Every step logged the global loss, the global gradient norm, a checksum of every replica's weights (the sum of their bit patterns, compared across replicas), and a fingerprint of each replica's local gradients. A clean run is the reference; a replay from the step-100 checkpoint recomputes steps 101 to 150 on healthy hardware.</p>
-<div class="ft-card" id="sd-card"><h4>Where one flipped bit goes <span class="ft-meas">measured</span></h4>
-<div class="ft-ctl"><span class="small">Corrupted:</span><div class="ft-seg" id="sd-kind"><button data-m="grad" class="on">a gradient, before the all-reduce</button><button data-m="w">a weight, after the optimiser step</button></div></div>
-<div class="ft-ctl"><span class="small">Bit:</span><div class="ft-seg" id="sd-bit"><button data-m="lo">low mantissa</button><button data-m="mid">exponent</button><button data-m="hi" class="on">top exponent</button></div></div>
-<div id="sd-ctl" class="ft-ctl"></div>
-<div id="sd-anim" class="ft-svg"></div>
-<div class="ft-anc" id="sd-cap"></div>
-<h4 style="margin-top:10px">Global loss: difference from the clean run, steps 101 to 200</h4>
-<div id="sd-diff" class="ft-svg"></div>
-<p class="ft-cap">Bars: |loss &minus; clean loss| at each step on a log scale (no bar: identical bit for bit); the dashed line is the flip; a red band is a NaN loss. Measured on Apple M1 Pro, natively (macOS), shared machine, 2026-10-16: <code>src/scripts/ft_lab.py --mode sdc</code>, runs in <code>src/runs/</code>.</p>
-<div id="sd-tbl"></div>
-<p class="ft-cap">Detectors, each run over the logged values by <code>src/scripts/make_data.py</code>: <b>loss spike</b>, the global loss is non-finite or more than 6 median absolute deviations from the median of the previous 20 steps; <b>gradient norm</b>, non-finite or more than 10 times the median of the previous 20 steps; <b>checksum</b>, the replicas' weight checksums differ; <b>replay</b>, a replica's local-gradient fingerprint differs from the replayed one. The loss-spike rule also fired once on the clean run (step 84): a real bump in the loss, a false alarm.</p>
-</div>
+<p><b>The experiment.</b> We took the running example (4 data-parallel replicas, 200 steps, deterministic), and in six runs flipped exactly one bit at step 120 on replica 2: either in its local gradient just before the all-reduce (the corruption happened in the backward pass), or in one of its weights just after the optimiser step (the corruption happened in the update, or in memory on that one chip). Three bit positions each: a low mantissa bit, an exponent bit and the top exponent bit. Every step logged the global loss, the global gradient norm, a checksum of every replica's weights (the sum of their bit patterns, compared across replicas), and a fingerprint of each replica's local gradients. A clean run is the reference; a replay from the step-100 checkpoint recomputes steps 101 to 150 on healthy hardware. Fig. 3 follows one flip through the run; pick where it lands and which bit.</p>
+<p class="sxh">Corrupted</p><div class="ft-seg" id="sd-kind"><button data-m="grad" class="on">a gradient, before the all-reduce</button><button data-m="w">a weight, after the optimiser step</button></div>
+<p class="sxh">Bit</p><div class="ft-seg" id="sd-bit"><button data-m="lo">low mantissa</button><button data-m="mid">exponent</button><button data-m="hi" class="on">top exponent</button></div>
+<p class="small mute" id="sd-bitx"></p>
+<ol class="sx" id="sx-sdc-grad">
+<li><b>Four replicas, step 120.</b> Four data-parallel replicas hold identical weights, and each computes gradients on its own quarter of the batch. Nothing is wrong yet.</li>
+<li><b>A bit flips in replica 2's gradient.</b> The largest element of replica 2's local gradient bucket changes (<span class="sd-flip"></span>). Nothing raises an error: there is no ECC on an arithmetic result.</li>
+<li><b>The all-reduce spreads it.</b> The all-reduce averages the bad gradient into everyone's, and every replica applies the same wrong update. The replicas stay identical to each other: they are all wrong together.</li>
+<li><b>The checksums agree.</b> Cross-replica weight checksums agree at every step (measured, all three gradient flips): a checksum comparison cannot see a corruption that happened before the all-reduce.</li>
+<li><b>Training goes on.</b> <span class="sd-loss"></span></li>
+<li><b>Replay names the chip.</b> Replaying steps 101 to 150 from the step-100 checkpoint on healthy hardware and comparing each replica's local-gradient fingerprint with the logged one points at replica 2 at step 120, and only there. <span class="sd-fin"></span></li>
+</ol>
+<ol class="sx" id="sx-sdc-w" hidden>
+<li><b>Four replicas, step 120.</b> Four data-parallel replicas hold identical weights, and each computes gradients on its own quarter of the batch. Nothing is wrong yet.</li>
+<li><b>A clean all-reduce and optimiser step.</b> The gradients are averaged and every replica applies the same update: the replicas are still identical.</li>
+<li><b>A bit flips in one of replica 2's weights.</b> One weight of the first MLP layer, in that replica's memory, after the optimiser step (<span class="sd-flip"></span>). DDP will never notice, because it only averages gradients.</li>
+<li><b>The checksums disagree.</b> Replica 2's weight checksum differs from the other three at step 120, the step of the flip (measured, all three weight flips): comparing replicas catches corruption that happened after the all-reduce, on one replica.</li>
+<li><b>Training goes on.</b> <span class="sd-loss"></span></li>
+<li><b>Replay names the chip.</b> <span class="sd-rep"></span> <span class="sd-fin"></span></li>
+</ol>
+</section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <ul>
 <li><b>Most flips are invisible in the loss.</b> In five of the six runs the global loss never moved by more than 1e-4, far below its step-to-step noise; only the top exponent bit of a weight made noise, by overflowing to NaN. A loss-curve alarm catches the loud tail, not SDC in general.</li>
 <li><b>A huge gradient did not blow up training.</b> Flipping the top exponent bit of the largest gradient element made it about 1.6e37 and the gradient norm about 3.9e36, yet the final loss moved only in the fourth decimal. AdamW divides each update by the square root of a running mean of squared gradients; our reading is that the square overflowed to infinity in float32, so this one weight's update collapsed to almost nothing and stayed there for the rest of the run, leaving one weight silently frozen <span class="ft-ours">our reading</span>. A one-weight AdamW fed the same gradient shows exactly that: its update falls from about 1e-3 to under 1e-6 per step and the squared-gradient average stays infinite (<code>src/scripts/recompute.py</code>). A gradient-norm monitor is the only alarm that fired.</li>
@@ -23,6 +34,13 @@
 </ul>
 <div class="co"><div class="t">What transfers to a real cluster, and what does not</div>Transfers: where the corruption enters relative to the all-reduce, and which comparison can see it; NaN spreading to every replica within one step; Adam's normalisation hiding a large gradient. Does not transfer directly: bf16 and fp8 training have fewer mantissa and exponent bits, so the same flip lands differently; GPU kernels are often nondeterministic, so replay needs deterministic algorithms or a tolerance; and the checksum costs a reduction over every weight, which large runs do periodically, not every step.</div>
 
+</div>
+<div class="s3R"><div class="s3side"><div class="ft-card" id="sd-card"><h4>Global loss: difference from the clean run, steps 101 to 200 <span class="ft-meas">measured</span></h4>
+<div id="sd-diff" class="ft-svg"></div>
+<p class="ft-cap">Bars: |loss &minus; clean loss| at each step on a log scale (no bar: identical bit for bit); the dashed line is the flip; a red band is a NaN loss. The run is the one picked beside Fig. 3. Measured on Apple M1 Pro, natively (macOS), shared machine, 2026-10-16: <code>src/scripts/ft_lab.py --mode sdc</code>, runs in <code>src/runs/</code>.</p>
+<div id="sd-tbl"></div>
+<p class="ft-cap">Detectors, each run over the logged values by <code>src/scripts/make_data.py</code>: <b>loss spike</b>, the global loss is non-finite or more than 6 median absolute deviations from the median of the previous 20 steps; <b>gradient norm</b>, non-finite or more than 10 times the median of the previous 20 steps; <b>checksum</b>, the replicas' weight checksums differ; <b>replay</b>, a replica's local-gradient fingerprint differs from the replayed one. The loss-spike rule also fired once on the clean run (step 84): a real bump in the loss, a false alarm.</p>
+</div></div></div></div>
 <details class="dp"><summary>What has been published about SDC in training <span class="mute">(evidence)</span></summary><div class="b">
 <div class="tw"><table class="ft-tbl"><thead><tr><th>Source</th><th>What it found</th></tr></thead><tbody>
 <tr><td>Gemini 1.0 ({{report sec. 3|https://arxiv.org/abs/2312.11805}}, Dec 2023)</td><td>At Gemini's scale "we can expect SDC events to impact training every week or two"; found with "deterministic replay to isolate incorrect computations, combined with proactive SDC scanners on idle machines and hot standbys" <span class="ft-pub">published</span>.</td></tr>
@@ -33,4 +51,3 @@
 <tr><td>Megatron-LM ({{rerun_state_machine.py|https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/rerun_state_machine.py}}, read 2026-10-16)</td><td>An experimental re-run mechanism: when a loss or gradient check fails, the step is re-run; an error that does not reproduce on the same GPU is TRANSIENT, one that reproduces there but not on another GPU is PERSISTENT (a bad chip). Marked "alpha-level" in the code.</td></tr>
 </tbody></table></div>
 </div></details>
-</section>

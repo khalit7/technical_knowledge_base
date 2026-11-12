@@ -30,7 +30,10 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (copied from the root'
 | `inputs/` | text extracts of every source read 2026-10-16 (`tax_*`, `rec_*`, `det_*`, `sdc_*`, `str_*`), `tax.json`, `rec.json`, `source_quotes.json` |
 | `runs/` | the 14 native runs (2026-10-16) |
 | `check/check_data.py` | page embeds exactly the data; prose numbers; source lines; privacy |
-| `check/check_ui.mjs`, `check/wide.mjs`, `check/no_autoplay.mjs` | every control at 390 dark and 920 light; wide elements (`node check/wide.mjs <index.html> t-read 390`); nothing moves before the reader acts |
+| `check/check_ui.mjs`, `check/wide.mjs` | every control at 390 dark and 920 light; wide elements (`node check/wide.mjs <index.html> t-read 390`) |
+| `check/check_stages.mjs` | the 2026-11-06 rollout checks (see the last section); `no_autoplay.mjs` was removed when the rule became autoplay on view |
+| `parts/02_split.html`, `parts/25_js_s3.js` | skill templates, unchanged: the split layout and the 3D renderer v2 |
+| `parts/40_js_sc_ck.js`, `41_js_sc_el.js`, `42_js_sc_sdc.js` | the three 3D stages (Fig. 1 to 3) |
 | `facts.md`, `viz_ideas.md`, `coverage.md`, `ledger.json` | verified facts, visual ideas, old-page note, knowledge ledger (2026-10-24) |
 
 Rerun: `sh scripts/ft_run.sh <scratch> <root src/data> <scratch>/mi/ft/runs` (native, no cluster lock needed; run the scratch guard first), `python3 scripts/ft_save_runs.py <scratch>/mi/ft/runs runs`, `python3 scripts/tax_build.py`, `python3 scripts/rec_build.py`, `<venv>/bin/python scripts/recompute.py`, `python3 scripts/make_data.py`, `sh build.sh`, `python3 check/check_data.py`, then from the repo root `node <this>/check/check_ui.mjs <index.html> <shots dir>` and `sh html_utils/checkpage.sh <page folder>`.
@@ -66,3 +69,43 @@ Why 35 minutes is right: the page teaches nine linked subjects (failure rates, f
 493 units: core 282, depth 185, fat 25, owned 1 (the interval calculator's simulation check, carried by the reliability page's Monte Carlo). 486 were drafted by `ledger.py init`; keys were matched to the rebuilt page by a phrase search and every unmatched or short key reviewed by hand; 7 units were added by hand for script-rendered tables and for the new checkpoint-strategy section. Fat units carry a `note` (navigation, pointers to removed tabs, wind-ups, restatements).
 
 2026-10-24 topic close: section 5's managed-versions block links ML platforms and workflows section 10 (SageMaker against HyperPod); section 9 points to Observability and cost section 5 for the fleet goodput values (Meta's ETTR, Google's scheduling goodput, the value of one point), which stay there as metering; Further reading names Ray's Ray Train section, not the removed Train failure replay tab.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `ft-tab`). `build.sh` now writes the em-dash it greps for as bytes. No new runs; no change to `ft_data.json`, the scripts or the inputs: every scene draws from `window.FT`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | 2D hero (one failure, two designs, to scale) | no |
+| Reading | 1 What fails | split | 2D Meta tables chart | no |
+| Reading | 2 Five shapes | split | 2D time-to-notice chart | no |
+| Reading | 3 Detection | full width | none (timer table, logs, transcripts) | no |
+| Reading | 4 What a checkpoint buys | split | 2D measured replay, a widget opening on its last frame | no |
+| Reading | 4 Four strategies | split | **3D** `stg-ck` (Fig. 1): one save and one restore, four nodes and storage | yes, 8 |
+| Reading | 4 Sharding, atomic writes | split | 2D strips (what stops training) | no |
+| Reading | 5 Recovery designs | split | 2D animation (RD.anim), one failure under two designs, seven fixed parts | yes, 7 |
+| Reading | 5 Design table, evidence, model | split | 2D time lost per design | no |
+| Reading | 5 Elastic training | split | **3D** `stg-el` (Fig. 2): lose a node, shrink, grow back, spare | yes, 6 |
+| Reading | 5 Rendezvous details | split | 2D measured elastic replay, a widget opening on its last frame | no |
+| Reading | 6 Restore traps | full width | none | no |
+| Reading | 7 Silent corruption | split | **3D** `stg-sdc` (Fig. 3): where one flipped bit goes; chips swap the list (gradient or weight) and the run (bit) | yes, 6 + 6 |
+| Reading | 7 What the runs show | split | 2D loss-difference chart and detector table | no |
+| Reading | 8 Stragglers, probe | split | 2D backward-time probe | no |
+| Reading | 8 The replay | split | 2D straggler replay, a widget (295 frames) opening on step 77 | no |
+| Reading | 8 Detectors | split | 2D detector bench (a tool) | no |
+| Reading | 9 Goodput accounting | split | 2D measured runs | no |
+| Reading | 9 Recovery against interval | split | 2D goodput against job size | no |
+| Reading | Mistakes, interview | full width | closed blocks | no |
+| Failure taxonomies | | split (notes and agreements left, eleven-report chart right); report detail full width | 2D | no |
+| Further reading | | unchanged | | |
+
+**Stages and their data.** Fig. 1 (`40_js_sc_ck.js`): the default design's 5-minute pause and 162 s load and the in-memory design's 3 s load from `FT.rec` (exported as `FT_CK`), the measured and published pauses as quoted in section 4 (1.81 s, 78 ms, 148.8 s, 0.78 s, 0.01 to 0.04 s) and Gemini's 6.7% fallback; four nodes, the ring of peer copies and distances are schematic. Fig. 2 (`41_js_sc_el.js`): `FT.fl.elastic` and `.spare` (the root Failure lab's runs): 44.0 s to shrink, 6.2 s to grow after C started, 18.1 s with a spare; restarts from steps 100, 250 and 150; 32 sequences split 8 or 16 per rank (run configuration as stated in the text). Fig. 3 (`42_js_sc_sdc.js`): the picked run of `FT.sdc.runs` (flipped value, checksum step, NaN step, replay verdict); the red bar is log10 of |after| / |before|.
+
+**Long replays** (2026-11-06 rule): the with/without checkpoint run (60 frames), the elastic run (70) and the straggler replay (295) are widgets (case b): they never play by themselves, open on an informative frame and are explained by the paragraph on their left; `16_js_ft_flh.js` gained `start` and `data-playing`. The recovery animation (7 steps) plays once in view, its parts written out in `#sx-rc`; its live caption gives the two picked designs' numbers for the current part. The 2D bit-flip animation and its caption carousel were removed (Fig. 3 and its lists replace them).
+
+**Kept 2D** and why: the hero is a timeline whose message is lengths on one axis (the failure stopping every GPU is the reliability page's Fig. 3, linked from "You need"); the failure tables, time-to-notice, time-lost bars, goodput curves, loss differences and the straggler Gantt are quantities on axes; the interval curve is owned by the reliability page; failure attribution stays bars (no spatial structure).
+
+**Checks**: `check/check_stages.mjs` at 1400 px light, 920 px light and 390 px dark: the three stages play once in view, step to the end with one list item per step, stop redrawing off screen and never move under reduced motion; Fig. 3's chips swap the list and replay; the recovery animation plays once in view and not under reduced motion; the three widgets never play by themselves and open on their frame; 17 Reading splits and 1 taxonomy split are two columns at 1400 px and one below 1100 px; canvas labels do not overlap or leave the card at 1400 px; the step lists' numbers equal `FT`. Prose mentions of NaN losses are allowed; a NaN in a number's place is not.
+
+**Length judgement.** Reading core 35.5 min before (8,167 words), 41.6 min after (9,567, `audit_pages.mjs`); closed details 27.3 min both times; Failure taxonomies 3.2 and Further reading 2.8 unchanged. The added words are the step lists that explain the three stages and the recovery animation, as the rollout requires; the elastic "where the 44 seconds go" paragraph, the bit-flip caption carousel and the long strategy descriptions under the strips were folded into the lists. Nothing the ledger holds was cut.
+
+**Ledger**: 495 units (core 284, depth 185, fat 25, owned 1); two added (the 6.2 s grow and the peer restore against storage), keys 179 to 182, 242, 400 and 417 updated. `ledger.py check` problems 0 here and on the root.

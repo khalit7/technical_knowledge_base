@@ -41,7 +41,7 @@ function drawAnim(i){
   $('st-anim-cap').innerHTML='<b>Step '+step+'.</b> '+(slow.length?'Planted slowness on rank '+slow.join(', ')+'. It computes for '+f1(comp[slow[0]])+' ms against '+f1(med([0,1,2,3].filter(r=>!slow.includes(r)).map(r=>comp[r])))+' ms for the others, then waits only '+f1(comm[slow[0]])+' ms, because it arrives last; the others wait '+f1(med([0,1,2,3].filter(r=>!slow.includes(r)).map(r=>comm[r])))+' ms for it.':'No planted slowness on this step: compute '+f1(Math.min(...comp))+' to '+f1(Math.max(...comp))+' ms, wait '+f1(Math.min(...comm))+' to '+f1(Math.max(...comm))+' ms (the all-reduce itself plus small differences in arrival).')+' Every rank\'s step takes about the same time ('+f1(Math.min(...stp))+' to '+f1(Math.max(...stp))+' ms): the step-time log cannot tell who was slow.';
   $('st-anim-out').innerHTML=[0,1,2,3].map(r=>RD.stat('rank '+r,f1(comp[r])+' + '+f1(comm[r])+' ms','compute + wait')).join('');
 }
-function initAnim(){A=RD.anim({card:'st-anim-card',ctl:'st-anim-ctl',n:R().steps.length-STEPS_SHOWN+1,draw:drawAnim,ms:450,label:'First step shown'})}
+function initAnim(){A=RD.anim({card:'st-anim-card',ctl:'st-anim-ctl',n:R().steps.length-STEPS_SHOWN+1,draw:drawAnim,ms:450,label:'First step shown',auto:false,start:76})} // a 295-frame replay: a widget the reader drives (long-replay rule, case b), opening on step 77
 
 // ---- detectors
 function flags(rule,stat,win,thr){
@@ -123,9 +123,9 @@ function drawDet(){
   $('st-det-cap').innerHTML='<b>The rule</b> '+RULE_TXT[rule]+' The statistic is the '+(stat==='med'?'median':'maximum')+' over the last '+win+' step'+(win>1?'s':'')+'. <b>False alarms</b> on this run: '+(rule==='step'?sc.fpj+' job-level flags at steps with no planted slowness in the window':sc.fp+' (rank, step) flags on a rank with no planted slowness in the window')+'.';
 }
 function initDet(){['st-rule','st-stat'].forEach(id=>$(id).addEventListener('change',drawDet));['st-win','st-thr'].forEach(id=>$(id).addEventListener('input',drawDet));drawDet()}
-RD.seg($('st-run'),m=>{RUN=m;A.reset(R().steps.length-STEPS_SHOWN+1);A.go(m==='strag_none'?75:76);drawDet()});
+RD.seg($('st-run'),m=>{RUN=m;A.reset(R().steps.length-STEPS_SHOWN+1);A.go(m==='strag_none'?75:76,true);drawDet()});
 let inited=false;
-function render(){if(!inited){inited=true;initAnim();A.go(76);initDet()}else{A.redraw();drawDet()}}
+function render(){if(!inited){inited=true;initAnim();initDet()}else{A.redraw();drawDet()}}
 RD.onRender(render);RD.onResize(()=>{if(inited){A.redraw();drawDet()}});render();
 window.FTSTR={flags,score,setRun:m=>{RUN=m},isSlow};
 })();

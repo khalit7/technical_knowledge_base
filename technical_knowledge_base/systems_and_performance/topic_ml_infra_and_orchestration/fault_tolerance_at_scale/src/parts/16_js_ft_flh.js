@@ -1,7 +1,8 @@
 // ---- Charts moved from the root's Failure lab (2026-10-19): its helpers, bound to the tab each chart lives in ----
 // FLH(tabId) returns the root lab's helper set (step-animation controller, SVG helpers, render registration) for one tab.
-// Animations run only while their card is on screen in the visible tab and never autoplay: they wait on their first
-// frame until the reader presses play or steps (2026-10-24, the teaching contract). window.FL_DATA is the root lab's recorded data (window.FT.fl, written
+// These are long replays (60 and 70 frames), so under the long-replay rule (2026-11-06, case b) they are widgets the reader drives:
+// they never play by themselves, open on an informative frame (o.start, the last one here) and are explained by the paragraph on their left.
+// A replay the reader starts runs only while its card is on screen in the visible tab, and sets data-playing on its card while it plays. window.FL_DATA is the root lab's recorded data (window.FT.fl, written
 // by scripts/make_data.py from ../src/fail/fl_data.json and fl_recompute.json).
 window.FL_DATA=window.FT&&window.FT.fl;
 window.FLH=function(TAB){
@@ -18,10 +19,10 @@ window.FLH=function(TAB){
   const rect=(x,y,w,h,fill,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="'+(o.rx==null?2:o.rx)+'" fill="'+fill+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+(o.stroke?' stroke="'+o.stroke+'" stroke-width="'+(o.sw||1)+'"':'')+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'};
   const line=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+c+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
   const seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
-  // o: {card, ctl, n, draw(i), ms, label}
+  // o: {card, ctl, n, draw(i), ms, label, start}
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
     ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
       '<button id="'+pid+'p" class="ft-play" aria-label="Play">&#9654; Play</button>'+
       '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
@@ -34,7 +35,7 @@ window.FLH=function(TAB){
       if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
       st.timer=setTimeout(tick,(o.ms||1200)/st.spd)}
     function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1200)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;g('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',p?'Pause':'Play');
+    function setPlay(p){st.play=p;if(p)card.dataset.playing='1';else delete card.dataset.playing;g('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
     g('p').addEventListener('click',()=>setPlay(!st.play));
     g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});

@@ -30,8 +30,8 @@
     $('fl-ck-cap').textContent=cap;
     $('fl-ck-out').innerHTML=[['Wall-clock',tnow.toFixed(1)+' s'],['Step reached',String(lastStep)],['Steps redone',String(redone)],['Total time',tnow>=run.end_t?run.end_t.toFixed(1)+' s':'running']].map(([k,v])=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>').join('');
   }
-  const A=H.anim({card:'fl-ck-card',ctl:'fl-ck-ctl',n:N,draw,ms:220,label:'Time'});
-  H.seg($('fl-ck-mode'),m=>{mode=m;A.go(0)});
+  const A=H.anim({card:'fl-ck-card',ctl:'fl-ck-ctl',n:N,draw,ms:220,label:'Time',start:N-1});
+  H.seg($('fl-ck-mode'),m=>{mode=m;A.go(N-1)});
   // bit-for-bit tables
   const sysName={slurm:'Slurm',k8s:'Kubernetes',ray:'Ray Train'};
   const bx=$('fl-bx-tbl');

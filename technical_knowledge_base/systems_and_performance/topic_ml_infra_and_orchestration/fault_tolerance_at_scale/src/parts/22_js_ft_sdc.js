@@ -6,44 +6,19 @@ let KIND='grad',BIT='hi';
 const key=()=>KIND+'_'+BIT;
 const sci=x=>x===null||x===undefined?'n/a':(Math.abs(x)>=1e4||(Math.abs(x)<1e-3&&x!==0))?(+x).toExponential(2).replace('e+','e'):(+x).toPrecision(4);
 const BITTXT={lo:'bit 3 (a low mantissa bit: changes the value in its 7th significant digit)',mid:'bit 27 (an exponent bit: multiplies or divides the value by 2<sup>16</sup>)',hi:'bit 30 (the top exponent bit: multiplies a value below 2 by 2<sup>128</sup>)'};
-// frames of the animation
-const FR=6;
-function drawAnim(i){
-  const r=D.runs[key()],f=r.flip,el=$('sd-anim'),w=RD.width(el);
-  const narrow=w<520,bw=narrow?(w-18)/2:(w-30)/4,bh=78,gap=10,rows=narrow?2:1;
-  const H=rows*(bh+gap)+70;let s='';
-  const bad=k=>{ // is replica k's state corrupted at this frame?
-    if(KIND==='grad')return i>=2;           // after the all-reduce every replica holds the bad average
-    return k===f.rank&&i>=2;};
-  const gbad=k=>KIND==='grad'&&k===f.rank&&i>=1;
-  for(let k=0;k<4;k++){
-    const col=narrow?k%2:k,row=narrow?Math.floor(k/2):0,x=4+col*(bw+gap),y=row*(bh+gap);
-    const stroke=(gbad(k)||bad(k))?'var(--bad)':'var(--line)';
-    s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="'+stroke+'" stroke-width="'+((gbad(k)||bad(k))?2:1)+'"/>';
-    s+=RD.t(x+8,y+17,'replica '+k+(k===f.rank?' (faulty chip)':''),{fs:12,w:600});
-    const lg=i<1?'local gradient: ok':(gbad(k)?'local gradient: 1 bit flipped':'local gradient: ok');
-    s+=RD.t(x+8,y+36,lg,{fs:11,fill:gbad(k)?'var(--bad)':'var(--mute)'});
-    let wt='weights: identical';
-    if(i>=2)wt=KIND==='grad'?'weights: identical (all wrong)':(k===f.rank?'weights: 1 bit differs':'weights: identical');
-    s+=RD.t(x+8,y+53,wt,{fs:11,fill:bad(k)?'var(--bad)':'var(--mute)'});
-    if(i>=3)s+=RD.t(x+8,y+70,'checksum '+(KIND==='grad'?'matches':(k===f.rank?'DIFFERS':'matches')),{fs:11,w:600,fill:(KIND!=='grad'&&k===f.rank)?'var(--bad)':'var(--good)'});
-  }
-  const yb=rows*(bh+gap)+4;
-  s+='<rect x="4" y="'+yb+'" width="'+(w-8)+'" height="22" rx="6" fill="'+(i===1||i===2?'var(--acc2)':'var(--soft)')+'" stroke="var(--line)"/>';
-  s+=RD.t(w/2,yb+15,'gradient all-reduce (average over the 4 replicas)'+(KIND==='grad'&&i>=1?': carries the flipped value to everyone':''),{fs:11.5,a:'middle'});
-  s+=RD.t(4,yb+44,['step 120: each replica computes gradients on its rows','step 120: one bit flips on replica '+f.rank,'step 120: optimiser step','step 120: replicas compare weight checksums','step 121 to 200: training continues','step 200: the end of the run'][i],{fs:12,w:600});
-  el.innerHTML=RD.svg(w,H,s,'Four replicas of the running example and where one flipped bit goes');
-  const flipTxt=(KIND==='grad'?'the largest element of replica '+f.rank+'\'s local gradient bucket':'one weight of the first MLP layer on replica '+f.rank)+', '+BITTXT[BIT]+': '+sci(f.before)+' became '+sci(f.after);
-  const cap=[
-    'Four data-parallel replicas hold identical weights and each computes gradients on its own quarter of the batch. Nothing is wrong yet.',
-    'A bit flips in '+flipTxt+'. Nothing raises an error: there is no ECC on an arithmetic result.',
-    KIND==='grad'?'The all-reduce averages the bad gradient into everyone\'s, and every replica applies the same wrong update. The replicas stay identical to each other: they are all wrong together.':'The flip happened after the all-reduce, in one replica\'s memory: replica '+f.rank+' now holds a different weight from the other three, and DDP will never notice, because it only averages gradients.',
-    KIND==='grad'?'Cross-replica checksums agree at every step (measured: '+(r.cks_first===null?'never disagreed':'disagreed at '+r.cks_first)+'). A checksum comparison cannot see a corruption that happened before the all-reduce.':'The checksums disagree at step '+r.cks_first+', the step of the flip (measured): comparing replicas catches corruption that happened after the all-reduce, on one replica.',
-    r.nan_step?'Replica '+f.rank+'\'s forward pass overflows at step '+r.nan_step+': its loss is NaN, its NaN gradient is averaged into everyone\'s, and at step '+(r.nan_step+1)+' every replica\'s loss is NaN (measured). The loud case.':(r.first_diff===null?'No logged number changes: the global loss equals the clean run\'s at all 200 steps (measured).':'The global loss first differs from the clean run at step '+r.first_diff+', by at most '+sci(r.max_abs_diff)+' over '+r.n_diff+' steps (measured): far below the step-to-step noise of the loss.'),
-    'Final global loss '+(r.final===null?'NaN':sci(r.final))+' against '+sci(r.final_clean)+' clean. '+(r.replay?'Replaying steps '+(r.replay.from+1)+' to '+r.replay.to+' from the step-'+r.replay.from+' checkpoint on healthy hardware and comparing each replica\'s local-gradient fingerprint with the logged one points at replica '+r.replay.first[1]+' at step '+r.replay.first[0]+(r.replay.first_step_ranks.length===1?', and only there':'')+'.':'Here the NaN itself is the alarm.')];
-  $('sd-cap').innerHTML=cap[i];
+// the step lists beside Fig. 3 (40-series scene 42_js_sc_sdc.js draws the stage): run-specific numbers filled into their spans
+function fillText(){
+  const r=D.runs[key()],f=r.flip;
+  document.querySelectorAll('.sd-flip').forEach(x=>x.innerHTML=BITTXT[BIT]+': '+sci(f.before)+' became '+sci(f.after));
+  const loss=r.nan_step?'Replica '+f.rank+'\'s forward pass overflows at step '+r.nan_step+': its loss is NaN, its NaN gradient is averaged into everyone\'s, and at step '+(r.nan_step+1)+' every replica\'s loss is NaN (measured). The loud case.':(r.first_diff===null?'No logged number changes: the global loss equals the clean run\'s at all 200 steps (measured).':'The global loss first differs from the clean run at step '+r.first_diff+', by at most '+sci(r.max_abs_diff)+' over '+r.n_diff+' steps (measured): far below the step-to-step noise of the loss.');
+  document.querySelectorAll('.sd-loss').forEach(x=>x.innerHTML=loss);
+  document.querySelectorAll('.sd-rep').forEach(x=>x.innerHTML=r.replay?'Replaying steps '+(r.replay.from+1)+' to '+r.replay.to+' from the step-'+r.replay.from+' checkpoint on healthy hardware points at replica '+r.replay.first[1]+' at step '+r.replay.first[0]+', the first computation that used the bad weight.':'Not needed here: the NaN itself is the alarm.');
+  document.querySelectorAll('.sd-fin').forEach(x=>x.innerHTML='Final global loss '+(r.final===null?'NaN':sci(r.final))+' against '+sci(r.final_clean)+' clean.');
+  $('sd-bitx').innerHTML='This run: '+E(r.label)+'.';
 }
-let A;
+window.FTSDC={get kind(){return KIND},get bit(){return BIT},run:()=>D.runs[key()],sci};
+const stg=()=>(window.FTSTG||{})['stg-sdc'];
+
 function drawDiff(){
   const r=D.runs[key()],el=$('sd-diff'),w=RD.width(el),H=150,l=46,b=22,t=8;
   const xs=[],n=r.diff.length,x0=100;
@@ -69,9 +44,8 @@ function drawTable(){
   t+='</tbody></table></div>';
   $('sd-tbl').innerHTML=t;
 }
-function all(){if(A)A.redraw();drawDiff();drawTable()}
-RD.seg($('sd-kind'),m=>{KIND=m;all()});
+function all(){fillText();drawDiff();drawTable();const t=stg();if(t)t.draw()}
+RD.seg($('sd-kind'),m=>{KIND=m;$('sx-sdc-grad').hidden=m!=='grad';$('sx-sdc-w').hidden=m==='grad';all();const t=stg();if(t)t.list(m==='grad'?'sx-sdc-grad':'sx-sdc-w')});
 RD.seg($('sd-bit'),m=>{BIT=m;all()});
-A=RD.anim({card:'sd-card',ctl:'sd-ctl',n:FR,draw:drawAnim,ms:2200,label:'Frame'});
 RD.onRender(all);RD.onResize(all);all();
 })();

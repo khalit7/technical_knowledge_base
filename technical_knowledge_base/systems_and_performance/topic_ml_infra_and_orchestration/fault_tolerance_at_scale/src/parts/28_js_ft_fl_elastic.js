@@ -35,6 +35,6 @@
     const E=events(r).filter(e=>e[0]<=tnow);const last=E.length?E[E.length-1]:[0,'Starting.'];
     $('fl-el-cap').innerHTML='<b>'+tnow.toFixed(1)+' s.</b> '+last[1];
   }
-  const A=H.anim({card:'fl-el-card',ctl:'fl-el-ctl',n:N,draw,ms:180,label:'Time'});
-  H.seg($('fl-el-mode'),v=>{mode=v;A.go(0)});
+  const A=H.anim({card:'fl-el-card',ctl:'fl-el-ctl',n:N,draw,ms:180,label:'Time',start:N-1});
+  H.seg($('fl-el-mode'),v=>{mode=v;A.go(N-1)});
 })();
