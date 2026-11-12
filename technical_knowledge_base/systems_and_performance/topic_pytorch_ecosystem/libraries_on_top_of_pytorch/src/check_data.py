@@ -52,7 +52,18 @@ checks = [
     ("<code>checkpoint_wrapper</code> on the 6 blocks", sum(e[4] for e in J("calls_titan_fsdp")["edges"] if e[3].split("  ")[0].endswith(".checkpoint_wrapper")) == 6),
     ("only the 12 larger block matrices", J("calls_ds_z3")["partitioned_params"] == 12),
     ("a plain causal mask over 256 positions hides 49.8%", round(100 * (256 * 255 / 2) / 256 ** 2, 1) == 49.8),
-    ("2.1 GFLOP/s for a bf16 matmul against 1,854", True),  # FACTS.md, fst key (Making training fast)
+    ("2.1 GFLOP/s for a bf16 matmul against 1,854", True),
+    # Fig. 1 and Fig. 2 step lists (2026-11-12): calls into PyTorch per step from the traces, and the accumulation weights
+    ("calls into PyTorch per step were 5 (plain loop), 91 (Trainer), 5 (Accelerate), 110 (Lightning), 583 (DeepSpeed ZeRO-0, 2 processes) and 3,787 (torchtitan",
+     emb is not None and [round(sum(emb["tr"][k]["tot"]["loop"].values()) / emb["tr"][k]["steps"]) for k in ["plain", "hf", "accelerate", "lightning", "ds_z0", "titan_1p"]] == [5, 91, 5, 110, 583, 3787]),
+    ("The whole step: 91 calls into PyTorch", emb is not None and round(sum(emb["tr"]["hf"]["tot"]["loop"].values()) / 3) == 91),
+    ("The whole step: 110 calls into PyTorch", emb is not None and round(sum(emb["tr"]["lightning"]["tot"]["loop"].values()) / 3) == 110),
+    ("each token weighs 1/496", 4 * a["tokens_per_micro"][0] == 496),
+    ("each token weighs 1/40, about 5.9 times", 4 * a["tokens_per_micro"][1] == 40 and round(237 / 40, 1) == 5.9),
+    ("Each token weighs 1/360", 4 * a["tokens_per_micro"][2] == 360),
+    ("Each token weighs 1/52, about 4.6 times", 4 * a["tokens_per_micro"][3] == 52 and round(237 / 52, 1) == 4.6),
+    ("rows of 64, 60, 4, 6, 50, 40, 8 and 5 tokens", a["tokens_per_row"] == [64, 60, 4, 6, 50, 40, 8, 5]),
+    ("first step\'s call was already seen in setup", emb is not None and any(e[0] == "setup" and e[3].endswith("Adam.step") and "optimizer_step" in e[1] for e in emb["tr"]["lightning"]["key"])),  # FACTS.md, fst key (Making training fast)
 ]
 # the defaults bars in prose: libraries identical
 for k in ["hf_matched", "pl_default", "acc_default"]:

@@ -1,13 +1,31 @@
+<div class="s3sp"><div class="s3R"><div class="rd-card" id="lib-acc-card"><h4>The same 8 rows as 4 micro-batches: the mean of means over-weights the 10-token micro-batch</h4>
+<div class="seg" id="lib-acc-mode"><button data-m="naive" class="on">Mean of micro-batch means (divide by 4)</button><button data-m="weighted">Sum, divide by all 237 tokens</button></div>
+<div class="rd-svg" id="lib-acc-svg"></div>
+<div class="an-cnt" id="lib-acc-cnt"></div>
+<div class="an-ctl" id="lib-acc-ctl"></div>
+<p class="small mute">Batch 0 of the running example with targets past the lengths shown set to -100 (lengths chosen to make the micro-batches unequal: 124, 10, 90 and 13 real tokens). Grey bar: the share of the gradient each row gets in the full batch (tokens / 237). Coloured bar: its share under the chosen scheme. The relative error is <code>|g - g<sub>full</sub>| / |g<sub>full</sub>|</code> over all 3,186,944 gradient entries, computed by <code>src/exp/accum_lab.py</code> on the real model <span class="meas">measured on Apple M1 Pro, CPU</span>: 59.1% for the mean of means, 0 for token weighting.</p></div></div><div class="s3L">
 <section id="lib-s3">
 <h2>3. Loss averaging under gradient accumulation</h2>
 <p class="lead">A language-model batch rarely has the same number of real tokens in every row: padding positions get the label <code>-100</code> and the loss is a mean over the real tokens. Split the batch into micro-batches, take each one's mean, divide by the number of micro-batches and add, and you get a <b>mean of means</b>, not the mean over the whole batch. Tokens in a short micro-batch count for more.</p>
-<div class="rd-card" id="lib-acc-card"><h4>The same 8 rows as 4 micro-batches: the mean of means over-weights the 10-token micro-batch</h4>
-<div class="seg" id="lib-acc-mode"><button data-m="naive" class="on">Mean of micro-batch means (divide by 4)</button><button data-m="weighted">Sum, divide by all 237 tokens</button></div>
-<div class="rd-svg" id="lib-acc-svg"></div>
-<div class="an-cap" id="lib-acc-cap"></div>
-<div class="an-cnt" id="lib-acc-cnt"></div>
-<div class="an-ctl" id="lib-acc-ctl"></div>
-<p class="small mute">Batch 0 of the running example with targets past the lengths shown set to -100 (lengths chosen to make the micro-batches unequal: 124, 10, 90 and 13 real tokens). Grey bar: the share of the gradient each row gets in the full batch (tokens / 237). Coloured bar: its share under the chosen scheme. The relative error is <code>|g - g<sub>full</sub>| / |g<sub>full</sub>|</code> over all 3,186,944 gradient entries, computed by <code>src/exp/accum_lab.py</code> on the real model <span class="meas">measured on Apple M1 Pro, CPU</span>: 59.1% for the mean of means, 0 for token weighting.</p></div>
+<p class="sxh">The animation, step by step</p>
+<ol class="sx" id="sx-acc-naive">
+<li><b>8 rows, 237 real tokens.</b> The full batch weights every real token by 1/237, so a row's share of the gradient is its token count over 237 (grey bars: rows of 64, 60, 4, 6, 50, 40, 8 and 5 tokens). Now split it into 4 micro-batches of 2 rows and accumulate.</li>
+<li><b>Micro-batch 1: 124 real tokens.</b> Its mean loss divides by 124, then by 4: each token weighs 1/496, about half its full-batch weight.</li>
+<li><b>Micro-batch 2: 10 real tokens.</b> Divided by 10, then by 4: each token weighs 1/40, about 5.9 times its full-batch weight. These two short rows now pull as hard as micro-batch 1's long ones.</li>
+<li><b>Micro-batch 3: 90 real tokens.</b> Each token weighs 1/360, about two thirds of its full-batch weight.</li>
+<li><b>Micro-batch 4: 13 real tokens.</b> Each token weighs 1/52, about 4.6 times its full-batch weight.</li>
+<li><b>A different gradient.</b> Measured on the real model, the accumulated gradient is 59.1% away from the full batch's (relative error). The 10 tokens of micro-batch 2 count as much as the 124 of micro-batch 1.</li>
+</ol>
+<ol class="sx" id="sx-acc-weighted" hidden>
+<li><b>8 rows, 237 real tokens.</b> The full batch weights every real token by 1/237 (grey bars). This time the step first counts the real tokens of all 4 micro-batches: 237.</li>
+<li><b>Micro-batch 1: 124 real tokens.</b> Its summed loss is divided by all 237 tokens: each token weighs 1/237, exactly as in the full batch.</li>
+<li><b>Micro-batch 2: 10 real tokens.</b> Summed and divided by 237: its two short rows keep their small share.</li>
+<li><b>Micro-batch 3: 90 real tokens.</b> Summed and divided by 237.</li>
+<li><b>Micro-batch 4: 13 real tokens.</b> Summed and divided by 237; the shares now add up to 1.000, as in one batch.</li>
+<li><b>The full-batch gradient.</b> Measured on the real model: relative error 0. Same as one batch of 8, at a quarter of the activation memory.</li>
+</ol>
+
+
 <p><b>The formula, same names.</b> The full-batch loss is <code>sum of token losses / N</code>, with N the real tokens in the whole batch, so each token's gradient weight is <code>1/N</code>. The mean of means gives a token in micro-batch <i>j</i> the weight <code>1/(K &middot; n<sub>j</sub>)</code>, with K micro-batches and n<sub>j</sub> tokens in micro-batch <i>j</i>. The fix is to sum each micro-batch's token losses and divide by N, which must be known before the first backward: count the labels of all micro-batches first, and across ranks with one all-reduce of a single integer.</p>
 <p><b>What each library computes</b>, read from the gradient just before <code>optimizer.step()</code> after 4 micro-batches of these rows:</p>
 <div class="tw"><table class="rd-tbl"><thead><tr><th>Library and setting</th><th>What it divides by</th><th>Gradient error vs full batch</th><th>Source</th></tr></thead><tbody id="lib-acc-tbl"></tbody></table></div>
@@ -16,6 +34,9 @@
 <div class="opts"><button data-a="0">Within a few hundredths</button><button data-a="1">About 0.3</button><button data-a="2">The mean of means diverges</button></div>
 <div class="ans" hidden><b>Within a few hundredths</b>: <span id="lib-pr3-a"></span> against <span id="lib-pr3-b"></span> at step 100 <span class="meas">measured on Apple M1 Pro, CPU</span>, and the gap changes sign along the way. On a toy run AdamW absorbs much of a per-step reweighting, so the curves look alike; the gradient is still a different estimator, biased towards short sequences. It matters most when sequence lengths vary a lot and correlate with content (short chat turns against long documents), with SGD-like optimisers, and whenever you compare a run with accumulation to one without.</div></div>
 <p><b>How to check your own setup.</b> Run one step as one batch and as K micro-batches on the same rows with clipping off, and compare the gradients with <code>torch.allclose</code> or the relative error above: the only way to know what your library and model combination does.</p>
+</section>
+</div></div>
+<section id="lib-s3b">
 <details class="dp"><summary>Source lines and history: when the libraries fixed it <span class="mute">(provenance)</span></summary><div class="b">
 <p>The Trainer counts the real tokens of all the micro-batches of one step ({{trainer.py L2281 to L2342|https://github.com/huggingface/transformers/blob/v5.19.0/src/transformers/trainer.py#L2281-L2342}}) and passes the count only to a <code>forward</code> with <code>**kwargs</code> ({{L519 to L529|https://github.com/huggingface/transformers/blob/v5.19.0/src/transformers/trainer.py#L519-L529}}), else divides by the number of micro-batches ({{L2089 to L2094|https://github.com/huggingface/transformers/blob/v5.19.0/src/transformers/trainer.py#L2089-L2094}}). Checked on a transformers model: <span id="lib-hf-items"></span>. torchtitan sums <code>labels != -100</code> over every micro-batch, all-reduces the count and divides each micro-batch's summed loss by it ({{trainer.py L884 to L904|https://github.com/pytorch/torchtitan/blob/v0.3.0/torchtitan/trainer.py#L884-L904}}), then sets FSDP2's divide factor to 1.0 ({{fsdp.py L27 to L41|https://github.com/pytorch/torchtitan/blob/v0.3.0/torchtitan/distributed/fsdp.py#L27-L41}}).</p>
 <p>The Trainer's token-count path arrived in October 2024 ({{PR 34191|https://github.com/huggingface/transformers/pull/34191}}; the {{Hugging Face blog post|https://huggingface.co/blog/gradient_accumulation}} tells the story). Its extension across data-parallel ranks, <code>average_tokens_across_devices</code> (default <code>True</code> at 5.19.0), answers {{issue 34242|https://github.com/huggingface/transformers/issues/34242}} (2024-10-18), which pointed out that averaging per rank has the same flaw.</p>

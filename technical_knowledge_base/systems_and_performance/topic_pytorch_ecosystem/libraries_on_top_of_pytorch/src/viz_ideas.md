@@ -35,3 +35,7 @@ Central question: what does a training library do on top of the loop I would wri
 ## What the methodology lacked
 
 A rule for "defaults" pages: a default is only a fact with its version, and the strongest evidence is the same script run before and after the default (here the DeepSpeed 0.19.2 to 0.19.3 change, reproduced by toggling the key). Also: when a trace tool reports calls, say what it cannot see (C++-issued collectives), or a reader concludes DDP makes no collectives.
+
+## 2026-11-12 (layout rollout)
+- Built: Fig. 1, libraries as towers of the same eight duties (3D, from the duty table and the traces' calls per step). Fig. 2, one step's recorded calls by caller layer (3D, three modes).
+- Considered and not built: towers labelled with line counts per layer (no line counts measured for these libraries; the counts would be new runs, and the duties are what the page compares); a 3D ZeRO memory scene (owned by Distributed Training); a 3D accumulation scene (rows of bars read flat).

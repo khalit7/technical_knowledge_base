@@ -1,13 +1,22 @@
+<div class="s3sp"><div class="s3L">
 <section id="lib-s2">
 <h2>2. Defaults that change results</h2>
 <p class="lead">Porting a loop into a library, or upgrading one, swaps your decision for the library's wherever you did not set it. Clipping is the clearest case.</p>
 <div class="pr" id="lib-pr2"><div class="q">Predict: the running example's gradient norm, over 150 steps of the plain loop. On how many steps would a clip at 1.0 change anything?</div>
 <div class="opts"><button data-a="0">A handful, early on</button><button data-a="1">About half</button><button data-a="2">Almost all of them</button></div>
 <div class="ans" hidden><b>Almost all</b>: the norm was above 1.0 on <span id="lib-pr2-n"></span> of 150 steps (median <span id="lib-pr2-med"></span>, first step <span id="lib-pr2-g0"></span>) <span class="meas">measured on Apple M1 Pro, CPU</span>. Clipping at 1.0 is not a safety net here; it rescales nearly every update. With Adam that mostly changes the early steps: Adam divides by a running scale of the gradient, so a constant rescaling cancels once the running averages catch up. On this run clipping lowered the probe loss after 150 steps from <span id="lib-pr2-p0"></span> to <span id="lib-pr2-p1"></span>.</div></div>
-<div class="rd-card" id="lib-gn-card"><h4>The norm sits above the default clip line on almost every step</h4><div class="rd-svg" id="lib-gn"></div>
-<p class="small mute">The L2 norm of all 52 gradients before the optimiser step, plain loop, each of 150 steps (median 1.77, first step 11.10); dashed line: the Trainer's and torchtitan's default limit, 1.0. Recorded by an optimiser pre-step hook in <code>src/exp/defaults_lab.py</code>.</p></div>
+
+</section>
+</div><div class="s3R"><div class="s3side"><div class="rd-card" id="lib-gn-card"><h4>The norm sits above the default clip line on almost every step</h4><div class="rd-svg" id="lib-gn"></div>
+<p class="small mute">The L2 norm of all 52 gradients before the optimiser step, plain loop, each of 150 steps (median 1.77, first step 11.10); dashed line: the Trainer's and torchtitan's default limit, 1.0. Recorded by an optimiser pre-step hook in <code>src/exp/defaults_lab.py</code>.</p></div></div></div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>Each default, one at a time.</b> The same 150 steps through the plain loop, the Trainer matched and with one default restored at a time, Lightning and Accelerate. Predict which setting leaves the plain loop's curve furthest, then pick it and step.</p>
-<div class="rd-card" id="dl-card">
+<ul>
+<li><b>Three runs are exactly the plain loop</b>: the matched Trainer, Lightning with defaults, Accelerate. The Trainer with clipping and Lightning with <code>gradient_clip_val=1.0</code> agree with each other (both call <code>clip_grad_norm_</code>).</li>
+<li><b>The optimiser defaults are the biggest swing</b>, mostly the 12 times smaller learning rate (5e-5 against 6e-4; "all defaults, lr 6e-4" recovers most of the gap): the Trainer's defaults are tuned for fine-tuning pretrained weights, not training from scratch.</li>
+<li><b>A toy run on 1.3 KB of text</b>, so the direction of each move is not advice (a linear decay to zero is worse here only because 150 steps is short). What transfers is the size: a default moved the 150-step probe loss by up to 0.601; the libraries themselves, by 0.</li>
+</ul>
+</div><div class="s3R"><div class="s3side"><div class="rd-card" id="dl-card">
 <h4>One default at a time moves the curve; the libraries on their own never do</h4>
 <div class="dl-sel"><label>Compare the plain loop with <select id="dl-focus"></select></label></div>
 <div class="seg" id="dl-metric"><button data-m="probe" class="on">Probe loss (4 fixed batches)</button><button data-m="loss">Training loss (10-step mean)</button><button data-m="lr">Learning rate</button><button data-m="gn">Gradient norm</button></div>
@@ -17,12 +26,8 @@
 <div class="an-cnt" id="dl-cnt"></div>
 <div class="an-ctl" id="dl-ctl"></div>
 <p class="small mute">Probe loss is read after step 1 and every 10 steps; training loss is each step's own batch averaged over the last 10 steps; gradient norm is before clipping. The chips add more runs to the chart. Every curve is a real deterministic run <span class="meas">measured on Apple M1 Pro, CPU, 2 threads, torch 2.14.1</span> (<code>src/exp/defaults_lab.py</code>).</p>
-</div>
-<ul>
-<li><b>Three runs are exactly the plain loop</b>: the matched Trainer, Lightning with defaults, Accelerate. The Trainer with clipping and Lightning with <code>gradient_clip_val=1.0</code> agree with each other (both call <code>clip_grad_norm_</code>).</li>
-<li><b>The optimiser defaults are the biggest swing</b>, mostly the 12 times smaller learning rate (5e-5 against 6e-4; "all defaults, lr 6e-4" recovers most of the gap): the Trainer's defaults are tuned for fine-tuning pretrained weights, not training from scratch.</li>
-<li><b>A toy run on 1.3 KB of text</b>, so the direction of each move is not advice (a linear decay to zero is worse here only because 150 steps is short). What transfers is the size: a default moved the 150-step probe loss by up to 0.601; the libraries themselves, by 0.</li>
-</ul>
+</div></div></div></div>
+<section id="lib-s2b">
 <details class="dp"><summary>All 11 runs: data order, optimiser, schedule, clip, final probe loss <span class="mute">(table)</span></summary><div class="b">
 <div class="tw"><table class="rd-tbl wide"><thead><tr><th>Run</th><th>Data order</th><th>Optimiser</th><th>Schedule</th><th>Clip</th><th>Probe loss at 150</th><th>Largest step-loss difference from plain</th></tr></thead><tbody id="dl-tbl"></tbody></table></div>
 <p class="small mute">Optimiser columns are read from the optimiser object each run actually used (class, defaults, per-group weight decay); the Trainer wraps it in Accelerate's <code>AcceleratedOptimizer</code>. "Trainer, all defaults" is <code>TrainingArguments(output_dir, max_steps=150, per_device_train_batch_size=8, use_cpu=True)</code> and nothing else. Under Lightning an optimiser pre-step hook sees no gradients yet (section 5), so its norms were read in <code>on_before_optimizer_step</code>.</p>

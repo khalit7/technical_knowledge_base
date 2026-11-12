@@ -66,16 +66,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length || box) bad = 1;
   await p.close();
 }
-// nothing may move before the reader acts: scroll through every card, normal and reduced motion
+// motion (2026-11-12): the accumulation animation plays by itself once in view; the two widgets (defaults lab, What calls what) never do;
+// under reduced motion nothing plays. The 3D stages are checked by check_stages.mjs.
 for (const rm of ['no-preference', 'reduce']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.goto('file://' + path.resolve(file));
+  await p.goto('file://' + path.resolve(file)); await p.click('button[data-t=t-read]'); // the earlier pages left another tab remembered
   const playing = await p.evaluate(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms)); const on = [];
-    for (const c of document.querySelectorAll('#t-read .rd-card')) { c.scrollIntoView(); await sleep(600);
+    for (const c of document.querySelectorAll('#t-read .rd-card')) { c.scrollIntoView({ block: 'center' }); await sleep(1200);
       for (const b of c.querySelectorAll('.an-play')) if (/Pause/.test(b.textContent)) on.push(c.id) }
     return on });
-  console.log('autoplay check', rm, playing.length ? 'PLAYING ' + playing.join(',') : 'nothing plays');
-  if (playing.length) bad = 1; await p.close();
+  const want = rm === 'reduce' ? [] : ['lib-acc-card'];
+  const ok = JSON.stringify(playing) === JSON.stringify(want);
+  console.log('autoplay check', rm, 'playing', JSON.stringify(playing), ok ? 'as expected' : 'EXPECTED ' + JSON.stringify(want));
+  if (!ok) bad = 1; await p.close();
 }
 await b.close(); process.exit(bad);

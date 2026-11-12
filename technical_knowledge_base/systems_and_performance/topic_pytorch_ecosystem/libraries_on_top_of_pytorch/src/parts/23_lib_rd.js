@@ -54,18 +54,13 @@
       if(done){const v=share(i,mode);s+='<rect x="'+l+'" y="'+(y+10)+'" width="'+(bw*v/maxS).toFixed(1)+'" height="8" rx="2" fill="'+(mode==='naive'?'var(--c2)':'var(--c3)')+'"/>'+RD.t(l+bw*v/maxS+4,y+18,pct(v),{fs:10,fill:'var(--mute)'});}
     });
     el.innerHTML=RD.svg(w,h,s,'Gradient share per row');
-    let cap,cnt;
+    // the step's explanation is the step list on the left (#sx-acc-naive, #sx-acc-weighted)
     const err=mode==='naive'?acc.rel_err.naive:acc.rel_err.weighted;
-    if(st===0){cap='<div class="t">8 rows, 237 real tokens</div><p>The full batch weights every real token by 1/237, so a row\'s share of the gradient is its token count over 237 (grey). Now split into 4 micro-batches of 2 rows and accumulate.</p>'}
-    else if(st<=K){const j=st-1,wt=mode==='naive'?1/(K*TM[j]):1/N;
-      cap='<div class="t">Micro-batch '+st+': '+TM[j]+' real tokens</div><p>'+(mode==='naive'?'Its mean loss divides by '+TM[j]+', then by 4: each token weighs 1/'+(K*TM[j])+', '+(N*wt).toFixed(2)+' times its full-batch weight.':'Its summed loss is divided by all 237 tokens: each token weighs 1/237, exactly as in the full batch.')+'</p>'}
-    else{cap='<div class="t">'+(mode==='naive'?'A different gradient':'The full-batch gradient')+'</div><p>Measured on the real model: relative error of the accumulated gradient against the full batch\'s = <b>'+pct(err)+'</b>. '+(mode==='naive'?'The 10 tokens of micro-batch 2 count as much as the 124 of micro-batch 1.':'Same as one batch of 8, at a quarter of the activation memory.')+'</p>'}
-    set('lib-acc-cap',cap);
     const done=Math.min(st,K),tok=TM.slice(0,done).reduce((a,b)=>a+b,0),sh=T.map((_,i)=>Math.floor(i/M)<done?share(i,mode):0).reduce((a,b)=>a+b,0);
     set('lib-acc-cnt',RD.stat('Micro-batches done',done+' / '+K)+RD.stat('Tokens seen',tok+' / '+N)+RD.stat('Gradient weight so far',sh.toFixed(3),'full batch: 1.000')+RD.stat('Error vs full batch',st>K?pct(err):'...','measured'));
   }
-  const an=RD.anim({card:'lib-acc-card',ctl:'lib-acc-ctl',n:K+2,ms:1700,draw:drawAcc,label:'Accumulation step'});
-  RD.seg($('lib-acc-mode'),m=>{mode=m;an.reset(K+2)});
+  const an=RD.anim({card:'lib-acc-card',ctl:'lib-acc-ctl',n:K+2,ms:4200,draw:drawAcc,label:'Accumulation step',list:'sx-acc-naive'});
+  RD.seg($('lib-acc-mode'),m=>{mode=m;['naive','weighted'].forEach(x=>$('sx-acc-'+x).hidden=x!==m);an.reset(K+2,'sx-acc-'+m)});
   RD.onResize(()=>an.redraw());
   // library table
   const LIBN={hf_no_kwargs:['HF Trainer, model without <code>**kwargs</code>','loss / 4 (micro-batches)','trainer.py L2089 to L2094'],

@@ -37,7 +37,8 @@
     const pa=pv(A),pb=pv(B);
     $('dl-cnt').innerHTML=RD.stat('Step',st+' / '+D.steps)+RD.stat('Probe loss, plain',pa==null?'...':pa.toFixed(3))+RD.stat('Probe loss, '+(focus.startsWith('pl')?'Lightning':focus.startsWith('acc')?'Accelerate':'Trainer'),pb==null?'...':pb.toFixed(3))+RD.stat('Difference',pa==null||pb==null?'...':(pb-pa>=0?'+':'')+(pb-pa).toFixed(3));
   }
-  const an=RD.anim({card:'dl-card',ctl:'dl-ctl',n:D.steps+1,start:D.steps,ms:110,draw,label:'Step'});
+  // a widget the reader drives (151 frames, the long-replay rule, case b): it opens on the last step and never plays by itself
+  const an=RD.anim({card:'dl-card',ctl:'dl-ctl',n:D.steps+1,start:D.steps,ms:110,draw,label:'Step',auto:false});
   $('dl-focus').addEventListener('change',e=>{focus=e.target.value;on.add(focus);syncChips();an.go(D.steps)});
   RD.seg($('dl-metric'),m=>{metric=m;an.redraw()});
   function syncChips(){$('dl-chips').querySelectorAll('button').forEach(b=>b.classList.toggle('on',on.has(b.dataset.k)))}
