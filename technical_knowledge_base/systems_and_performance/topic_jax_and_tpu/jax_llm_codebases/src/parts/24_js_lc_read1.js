@@ -1,12 +1,12 @@
 // ---- Reading tab, part 1: recorded values in the prose, summary tiles, the five boxes, the config demo,
-// the porting animation and table. Every number comes from window.LC (src/build_data.py). ----
+// the porting animation (RD.anim, explained by the step lists in 20_read_c.html) and table. Every number comes from window.LC (src/build_data.py). ----
 (function(){
   const U=LCU, esc=U.esc, $=id=>document.getElementById(id);
   const set=(id,h)=>{const e=$(id);if(e)e.innerHTML=h};
   U.fillRefs();
   const F=LC.fwd,T=LC.train,TX=LC.tunix,H=LC.hal;
   set('lc-v-fwd-tanh',U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin));
-  set('lc-v-fwd-tanh2',U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin));
+  set('lc-v-fwd-tanh2',U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin));set('lc-v-fwd-tanh3',U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin));
   set('lc-v-fwd-exact',U.sci(F.max_abs_logit_diff_vs_running_example_exact_gelu));
   set('lc-v-fwd-loss',F.loss_maxtext.toFixed(6));set('lc-v-fwd-loss-re',F.loss_running_example.toFixed(6));
   set('lc-v-tr-diff',U.sci(T.diff_twin));set('lc-v-tr-med',(T.step_med*1000).toFixed(0)+' ms');set('lc-v-tr-load',Math.round(T.load));
@@ -38,21 +38,21 @@
   const shapes=F.shapes;
   const PORT={
     q:{name:'attention query weight',steps:[
-      {cap:'<b>PyTorch.</b> Four separate tensors <code>blocks.{0..3}.attn.wq.weight</code>, each <code>[128 out, 128 in]</code>: <code>nn.Linear</code> stores the output dimension first and computes <code>x @ W.T</code>.',shape:'4 x [128, 128]',v:'pt'},
-      {cap:'<b>Transpose.</b> MaxText\'s <code>DenseGeneral</code> stores <code>[in, out]</code> and computes <code>x @ W</code>, like Flax and the plain-JAX twin. The rows are now the input (<code>embed</code>) dimension.',shape:'4 x [128, 128]',v:'tr'},
-      {cap:'<b>Name the output axes.</b> The 128 outputs are 4 heads of 32: reshape to <code>[embed, heads, kv] = [128, 4, 32]</code>. Each colour is one head; nothing moves in memory.',shape:'4 x [128, 4, 32]',v:'heads'},
-      {cap:'<b>Stack the layers.</b> With <code>scan_layers=true</code> and <code>param_scan_axis=1</code>, the four layers become one array with the layer axis second: <code>[embed, layers, heads, kv]</code>. This is the tensor MaxText created, path <code>decoder.layers.self_attention.query.kernel</code>.',shape:'[128, 4, 4, 32]',v:'stack'},
-      {cap:'<b>The bias follows.</b> <code>wq.bias [128]</code> per layer becomes <code>[heads, layers, kv] = [4, 4, 32]</code>. Then MaxText runs the forward pass on the first batch: logits within '+U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin)+' of the tanh-GELU twin.',shape:'[4, 4, 32]',v:'bias'}]},
+      {shape:'4 x [128, 128]',v:'pt'},
+      {shape:'4 x [128, 128]',v:'tr'},
+      {shape:'4 x [128, 4, 32]',v:'heads'},
+      {shape:'[128, 4, 4, 32]',v:'stack'},
+      {shape:'[4, 4, 32]',v:'bias'}]},
     ln:{name:'LayerNorm scale',steps:[
-      {cap:'<b>PyTorch.</b> <code>blocks.{0..3}.ln1.weight</code>, four vectors of 128 ones at initialisation; the output is <code>normalised x weight + bias</code>.',shape:'4 x [128]',v:'ln1'},
-      {cap:'<b>Subtract 1.</b> <code>Gpt3LayerNorm</code> starts its scale at zeros and multiplies by <code>scale + 1</code>, so the stored value is the offset from 1. 1.0 becomes 0.0.',shape:'4 x [128]',v:'ln0'},
-      {cap:'<b>Stack on axis 1:</b> <code>[norm, layers] = [128, 4]</code>, path <code>decoder.layers.pre_self_attention_norm.scale</code>.',shape:'[128, 4]',v:'lnstack'},
-      {cap:'<b>Forget the subtraction</b> and every norm multiplies by 2.0: the model runs, the loss is wrong, nothing errors. Only a logits check catches it.',shape:'[128, 4]',v:'lnbad'}]},
+      {shape:'4 x [128]',v:'ln1'},
+      {shape:'4 x [128]',v:'ln0'},
+      {shape:'[128, 4]',v:'lnstack'},
+      {shape:'[128, 4]',v:'lnbad'}]},
     wi:{name:'MLP input weight',steps:[
-      {cap:'<b>PyTorch.</b> <code>blocks.{0..3}.mlp.fc1.weight</code>, four <code>[512 out, 128 in]</code> matrices.',shape:'4 x [512, 128]',v:'wpt'},
-      {cap:'<b>Transpose</b> to <code>[embed, mlp] = [128, 512]</code>.',shape:'4 x [128, 512]',v:'wtr'},
-      {cap:'<b>Stack on axis 1:</b> <code>[embed, layers, mlp] = [128, 4, 512]</code>, path <code>decoder.layers.mlp.wi.kernel</code>. Logical names <code>("embed", "layers", "mlp")</code>, the same names the Llama weights carry in the sharding section.',shape:'[128, 4, 512]',v:'wstack'},
-      {cap:'<b>The activation is not a tensor.</b> <code>mlp_activations=[gelu]</code> means <code>jax.nn.gelu</code>, the tanh form. Against the exact-GELU running example the logits differ by up to '+U.sci(F.max_abs_logit_diff_vs_running_example_exact_gelu)+'.',shape:'[128, 4, 512]',v:'wgelu'}]}};
+      {shape:'4 x [512, 128]',v:'wpt'},
+      {shape:'4 x [128, 512]',v:'wtr'},
+      {shape:'[128, 4, 512]',v:'wstack'},
+      {shape:'[128, 4, 512]',v:'wgelu'}]}};
   let pmode='q';
   function rect(x,y,w,h,fill,op,stroke){return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" fill="'+fill+'" fill-opacity="'+(op==null?.75:op)+'"'+(stroke?' stroke="'+stroke+'"':'')+'/>'}
   function grid(x,y,w,h,nr,nc){let s='';for(let i=1;i<nc;i++)s+='<line x1="'+(x+w*i/nc).toFixed(1)+'" y1="'+y+'" x2="'+(x+w*i/nc).toFixed(1)+'" y2="'+(y+h)+'" stroke="var(--bg)" stroke-width=".5" stroke-opacity=".6"/>';
@@ -67,39 +67,39 @@
         s+=grid(x,y0,sz,sz,16,16);
         if(st.v==='pt'){s+=rect(x,y0+sz*3/16,sz,sz/16,'var(--c2)',.95)}else{s+=rect(x+sz*3/16,y0,sz/16,sz,st.v==='heads'?'var(--ink)':'var(--c2)',st.v==='heads'?.35:.95)}
         s+=t(x+sz/2,y0-8,lay[L],{a:'middle',fs:11});
-        s+=t(x+sz/2,y0+sz+14,st.v==='pt'?'cols: in 128':(st.v==='heads'?'4 heads x 32':'cols: out 128'),{a:'middle',fs:10,fill:'var(--mute)'});}
+        s+=t(x+sz/2,y0+sz+14,st.v==='pt'?'cols: in 128':(st.v==='heads'?'4 heads x 32':'cols: out 128'),{a:'middle',fs:11,fill:'var(--mute)'});}
       s+=t(4,y0+sz/2,'',{});H=y0+sz+24;
-      s+=t(10,H+2,st.v==='pt'?'rows: out 128 (highlighted row: output 3)':'rows: in = embed 128 (highlighted column: output 3)',{fs:10,fill:'var(--mute)'});H+=10;
+      s+=t(10,H+2,st.v==='pt'?'rows: out 128 (highlighted row: output 3)':'rows: in = embed 128 (highlighted column: output 3)',{fs:11,fill:'var(--mute)'});H+=10;
     } else if(st.v==='stack'||st.v==='bias'){
       const bw=Math.min(W-30,640),bh=st.v==='bias'?60:120,x0=10,y0=26;
       if(st.v==='stack'){for(let L=0;L<4;L++)for(let h=0;h<4;h++){const x=x0+(L*4+h)*bw/16;s+=rect(x,y0,bw/16,bh,COL[h],.35+.15*L)}
         s+=grid(x0,y0,bw,bh,8,64);
         for(let L=0;L<4;L++){s+='<line x1="'+(x0+L*bw/4)+'" y1="'+(y0-4)+'" x2="'+(x0+L*bw/4)+'" y2="'+(y0+bh+4)+'" stroke="var(--ink)" stroke-width="1.2"/>';s+=t(x0+L*bw/4+bw/8,y0-8,lay[L],{a:'middle',fs:11})}
-        s+=t(x0,y0+bh+16,'[embed 128, layers 4, heads 4, kv 32]: rows embed, then 4 layer groups of 4 heads x 32',{fs:10,fill:'var(--mute)'});H=y0+bh+26}
+        s+=t(x0,y0+bh+16,'[embed 128, layers 4, heads 4, kv 32]: rows embed, then 4 layer groups of 4 heads x 32',{fs:11,fill:'var(--mute)'});H=y0+bh+26}
       else{for(let h=0;h<4;h++)for(let L=0;L<4;L++){s+=rect(x0+(h*4+L)*bw/16,y0,bw/16,bh,COL[h],.35+.15*L)}
         s+=grid(x0,y0,bw,bh,1,64);for(let h=0;h<4;h++)s+=t(x0+h*bw/4+bw/8,y0-8,'head '+h,{a:'middle',fs:11});
-        s+=t(x0,y0+bh+16,'bias [heads 4, layers 4, kv 32]: heads first, then layers',{fs:10,fill:'var(--mute)'});H=y0+bh+26}
+        s+=t(x0,y0+bh+16,'bias [heads 4, layers 4, kv 32]: heads first, then layers',{fs:11,fill:'var(--mute)'});H=y0+bh+26}
     } else if(st.v.startsWith('ln')){
       const bw=Math.min(W-30,560),y0=24,cw=bw/128;
-      if(st.v==='lnstack'||st.v==='lnbad'){for(let L=0;L<4;L++){s+=rect(10,y0+L*22,bw,16,st.v==='lnbad'?'var(--bad)':'var(--dim)',st.v==='lnbad'?.5:.9);s+=t(14+bw,y0+L*22+12,lay[L],{fs:10})}
-        s+=t(10,y0+4*22+12,st.v==='lnbad'?'stored 1.0 instead of 0.0: effective scale (1 + 1) = 2.0':'[norm 128, layers 4], every value 0.0: effective scale 0 + 1 = 1.0',{fs:10,fill:'var(--mute)'});H=y0+4*22+22}
-      else{for(let L=0;L<4;L++){s+=rect(10,y0+L*22,bw,16,st.v==='ln1'?'var(--c3)':'var(--dim)',.85);s+=t(14+bw,y0+L*22+12,lay[L]+(st.v==='ln1'?': 1.0':': 0.0'),{fs:10})}
+      if(st.v==='lnstack'||st.v==='lnbad'){for(let L=0;L<4;L++){s+=rect(10,y0+L*22,bw,16,st.v==='lnbad'?'var(--bad)':'var(--dim)',st.v==='lnbad'?.5:.9);s+=t(14+bw,y0+L*22+12,lay[L],{fs:11})}
+        s+=t(10,y0+4*22+12,st.v==='lnbad'?'stored 1.0 instead of 0.0: effective scale (1 + 1) = 2.0':'[norm 128, layers 4], every value 0.0: effective scale 0 + 1 = 1.0',{fs:11,fill:'var(--mute)'});H=y0+4*22+22}
+      else{for(let L=0;L<4;L++){s+=rect(10,y0+L*22,bw,16,st.v==='ln1'?'var(--c3)':'var(--dim)',.85);s+=t(14+bw,y0+L*22+12,lay[L]+(st.v==='ln1'?': 1.0':': 0.0'),{fs:11})}
         H=y0+4*22+6}
     } else {
       const sz=Math.min(140,(W-40)/4-12),y0=30,tall=st.v==='wpt';
       if(st.v==='wstack'||st.v==='wgelu'){const bw=Math.min(W-30,640),bh=64;for(let L=0;L<4;L++)s+=rect(10+L*bw/4,y0,bw/4,bh,'var(--c3)',.35+.15*L);s+=grid(10,y0,bw,bh,4,64);
         for(let L=0;L<4;L++){s+='<line x1="'+(10+L*bw/4)+'" y1="'+(y0-4)+'" x2="'+(10+L*bw/4)+'" y2="'+(y0+bh+4)+'" stroke="var(--ink)" stroke-width="1.2"/>';s+=t(10+L*bw/4+bw/8,y0-8,lay[L],{a:'middle',fs:11})}
-        s+=t(10,y0+bh+16,'[embed 128, layers 4, mlp 512]'+(st.v==='wgelu'?'  then jax.nn.gelu (approximate=True)':''),{fs:10,fill:st.v==='wgelu'?'var(--bad)':'var(--mute)'});H=y0+bh+26}
+        s+=t(10,y0+bh+16,'[embed 128, layers 4, mlp 512]'+(st.v==='wgelu'?'  then jax.nn.gelu (approximate=True)':''),{fs:11,fill:st.v==='wgelu'?'var(--bad)':'var(--mute)'});H=y0+bh+26}
       else{const w=tall?sz/4:sz,h=tall?sz:sz/4;for(let L=0;L<4;L++){const x=10+L*(sz+12);s+=rect(x,y0,w,h,'var(--c3)',tall?.45:.75);s+=grid(x,y0,w,h,tall?16:4,tall?4:16);s+=t(x+sz/2,y0-8,lay[L],{a:'middle',fs:11})}
-        s+=t(10,y0+(tall?sz:sz/4)+16,tall?'[out 512, in 128] (drawn 4 cells wide, 16 tall)':'[in 128, out 512]',{fs:10,fill:'var(--mute)'});H=y0+(tall?sz:sz/4)+26}
+        s+=t(10,y0+(tall?sz:sz/4)+16,tall?'[out 512, in 128] (drawn 4 cells wide, 16 tall)':'[in 128, out 512]',{fs:11,fill:'var(--mute)'});H=y0+(tall?sz:sz/4)+26}
     }
     $('lc-port-svg').innerHTML=RD.svg(W,H,s,PORT[pmode].name+', step '+(i+1));
-    $('lc-port-cap').innerHTML='<b>Step '+(i+1)+' of '+PORT[pmode].steps.length+'.</b> '+st.cap;
     const path={q:'decoder.layers.self_attention.query.kernel',ln:'decoder.layers.pre_self_attention_norm.scale',wi:'decoder.layers.mlp.wi.kernel'}[pmode];
     $('lc-port-cnt').innerHTML=RD.stat('Shape now',st.shape,'')+RD.stat('MaxText created',JSON.stringify(shapes[path]).replace(/,/g,', '),path)+RD.stat('Numbers','unchanged','reshapes and a transpose; the scale shifts by 1');
   }
-  const pa=U.anim({card:'lc-port-card',ctl:'lc-port-ctl',n:PORT.q.steps.length,tab:'t-read',draw:drawPort,label:'Porting step'});
-  U.seg($('lc-port-mode'),m=>{pmode=m;pa.reset(PORT[m].steps.length)});
+  // the step lists on the left (#sx-port-q, -ln, -wi) explain each step; a tensor button swaps the list and replays
+  const pa=RD.anim({card:'lc-port-card',ctl:'lc-port-ctl',n:PORT.q.steps.length,draw:drawPort,label:'Porting step',list:'sx-port-q',ms:4200});
+  U.seg($('lc-port-mode'),m=>{pmode=m;['q','ln','wi'].forEach(k=>{$('sx-port-'+k).hidden=k!==m});pa.reset(PORT[m].steps.length,'sx-port-'+m)});
 
   // mapping table (conversion rules used by runs/lc_fwd.py)
   const MAP=[['tok_emb.weight [65, 128]','token_embedder.embedding','none'],['pos_emb.weight [128, 128]','decoder.position_embedder.embedding','none'],

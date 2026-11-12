@@ -26,6 +26,17 @@ has(f"{D['shard']['cases'][2]['n']} arrays", "unscanned arrays")
 has(f"{D['fwd']['n_params_maxtext']:,} parameters", "running example in MaxText")
 has(f"{D['map']['totals_py']['maxtext']['lines']:,} lines of Python", "MaxText size")
 has(f"{D['map']['totals_py']['levanter']['files']} Python files, {D['map']['totals_py']['levanter']['lines']:,} lines", "Levanter size")
+# Fig. 1 step list (2026-11-12): lines per part, summed by the map's own groups
+grp = {"config": 0, "model": 1, "sharding": 2, "train": 3, "post": 3, "data": 4, "ckpt": 4}
+L = {}
+for c in D["map"]["components"]:
+    if c["group"] in grp: L.setdefault(c["repo"], [0] * 5)[grp[c["group"]]] += c["lines"]
+has(f"{L['maxtext'][0]:,} lines of Python and YAML", "MaxText config lines")
+has(f"{L['maxtext'][2]:,} lines) because the rules are data", "MaxText sharding lines")
+has(f"hold {L['tunix'][3]:,} lines", "Tunix train-step lines"); has(f"Tunix, {D['map']['totals_py']['tunix']['lines']:,} lines", "Tunix size")
+has(f"names ({L['levanter'][2]:,} lines)", "Levanter sharding lines"); has(f"checkpoints ({L['levanter'][4]:,} lines)", "Levanter data lines")
+has(f"Equinox plus Haliax ({L['levanter'][1]:,} lines)", "Levanter model lines")
+
 T = D["train"]; s0 = sum(T["s0"]["calls"].values()); s1 = sum(T["s1"]["calls"].values())
 has(f"{s0:,} Python calls, {T['s0']['calls']['maxtext']:,} of them in MaxText's own code across {len(T['s0']['fns'])} functions, {T['s0']['wall']:.2f} s", "step 0")
 has(f"Step 1: {s1} calls", "step 1"); has(f"none in MaxText, {T['s1']['wall']:.3f} s", "step 1 time")

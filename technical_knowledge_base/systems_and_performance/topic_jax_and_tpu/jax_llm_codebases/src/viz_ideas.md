@@ -25,3 +25,12 @@ Question the page keeps returning to: what does each piece of a production JAX t
 
 Inspiration: the DeepSeek MLA explainer (before/after on one input), the root's Tool map, the sharding child's propagation explorer.
 What the methodology lacked: a rule for "a codebase as the subject": we used the five boxes as the axis and an equivalence run as the "reproduces a figure" criterion.
+
+## 2026-11-12 (split layout, renderer v2)
+| Visual | Decision | Why |
+|---|---|---|
+| Fig. 1, four towers of the same five boxes (3D) | built | stacks of the same layers: depth shows the shared structure and where each codebase invests at once; slab labels carry measured lines per part |
+| Fig. 3, a weight's logical names onto 8 chips (3D) | built | a mesh of devices is spatial; plate, blocks and flows show which slice each chip holds and where replication happens |
+| The porting steps in 3D (four plates stacking into one array) | considered, not built | the 2D layouts with colour per head already read clearly; three modes with different step counts; time went to the two stages above |
+| Tunix GRPO loop in 3D | rejected | no recorded numbers (Tunix's RL was not run here); a loop drawn in depth would be decoration |
+| Remat, loss differences, MFU in 3D | rejected | a log axis, bars and tables read best flat |

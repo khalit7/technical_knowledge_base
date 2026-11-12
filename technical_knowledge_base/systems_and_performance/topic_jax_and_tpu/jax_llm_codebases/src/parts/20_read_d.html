@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-shard"></div></div><div class="s3L">
 
 <section id="s-shard">
 <h2>3. How a config becomes a sharding: logical axis names and rules</h2>
@@ -7,16 +8,20 @@
 <li><b>The 80 logical axis rules</b> (<code data-src="base_yml_rules"></code>), applied by <code>logical_to_spec</code> (<code data-src="sharding_logical_to_spec"></code>): "A dimension takes the first matching rule whose mesh axes no other dimension uses yet" (<code data-src="sharding_first_rule"></code>).</li>
 <li><b>Size-1 axes are dropped</b>, which is why long rule lists collapse to a short <code>PartitionSpec</code>. Flax Linen's <code>logical_to_mesh_axes</code> does the same; what a <code>PartitionSpec</code> does and which collectives the compiler inserts is on {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}.</li>
 </ul>
-<div class="lc-card" id="lc-rule-card">
-<h4>One weight walks the rule table: a rule whose mesh axis is taken is skipped, so changing one degree re-shards the model without touching it</h4>
-<div class="seg" id="lc-rule-w" role="group" aria-label="Weight"><span class="lbl">Weight (Llama 2 7B)</span><button data-m="wi" class="on">MLP wi_0 [embed, layers, mlp]</button><button data-m="q">query [embed_attn, layers, q_heads, kv]</button><button data-m="emb">token embedding [vocab, embed_vocab]</button></div>
-<div class="seg" id="lc-rule-m" role="group" aria-label="Mesh"><span class="lbl">Mesh (8 devices)</span><button data-m="f8" class="on">fsdp 8 (the default: ici_fsdp_parallelism=-1)</button><button data-m="f2t4">fsdp 2 &times; tensor 4 (ici_tensor_parallelism=4)</button></div>
-<div class="lc-svg" id="lc-rule-svg"></div>
-<div class="lc-cap" id="lc-rule-cap"></div>
-<div class="lc-cnt" id="lc-rule-cnt"></div>
-<div class="an-ctl" id="lc-rule-ctl"></div>
-<p class="small mute">The rules are base.yml's at 1a95d1e5 as MaxText's parser returned them; the page applies <code>logical_to_spec</code>'s algorithm in your browser and checks the result against the <code>PartitionSpec</code> MaxText produced for the same weight on 8 simulated CPU devices (<code>runs/lc_shard.py</code>). The device grid is drawn to the weight's aspect ratio, layer axis left out.</p>
-</div>
+<p>A rule whose mesh axis is taken is skipped, so changing one degree re-shards the model without touching it. Pick a weight of Llama 2 7B and a mesh of 8 devices; the figure walks the weight through the rules:</p>
+<div class="seg" id="lc-rule-w" role="group" aria-label="Weight"><span class="lbl">Weight</span><button data-m="wi" class="on">MLP wi_0 [embed, layers, mlp]</button><button data-m="q">query [embed_attn, layers, q_heads, kv]</button><button data-m="emb">token embedding [vocab, embed_vocab]</button></div>
+<div class="seg" id="lc-rule-m" role="group" aria-label="Mesh"><span class="lbl">Mesh</span><button data-m="f8" class="on">fsdp 8 (the default: ici_fsdp_parallelism=-1)</button><button data-m="f2t4">fsdp 2 &times; tensor 4 (ici_tensor_parallelism=4)</button></div>
+<p class="sxh">Fig. 3, step by step: one weight walks the rule table onto 8 chips</p>
+<ol class="sx" id="sx-shard">
+<li><b>The weight and its logical names.</b> The glass plate is the weight drawn by its two largest dimensions (the stacked <code>layers</code> axis left out), each edge labelled with its logical name and size. The model never says more than this about placement.</li>
+<li><b>The mesh.</b> Eight chips with named axes. Under <code>fsdp 8</code> all eight sit on <code>fsdp</code>; under <code>fsdp 2 &times; tensor 4</code> the rows are <code>fsdp</code> and the columns <code>tensor</code>. MaxText's other mesh axes have size 1.</li>
+<li><b>The rules, in order.</b> Each rule naming one of this weight's dimensions is tried in config order; a dimension takes the first rule whose mesh axes no other dimension uses yet, and a rule whose axis is taken is skipped. The table under this list shows every rule tried for the chosen weight and mesh.</li>
+<li><b>Drop size-1 axes.</b> What is left is the <code>PartitionSpec</code>; the plate is cut into one block per distinct shard. The page computes it in your browser and checks it against the spec MaxText's own code produced for the same weight.</li>
+<li><b>Onto the chips.</b> Each block flows to the chips that hold it: one block per chip when every mesh axis is used, the same block on several chips (replicated over the unused axis) when not. The label gives the bytes each chip holds.</li>
+</ol>
+<div class="tw"><table class="rd-cmp narrow lc-rt" id="lc-rt"><thead><tr><th>Rule</th><th>Dimension</th><th>Result</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute" id="lc-rt-res"></p>
+<p class="small mute">The rules are base.yml's at 1a95d1e5 as MaxText's parser returned them; the page applies <code>logical_to_spec</code>'s algorithm in your browser and checks the result against the <code>PartitionSpec</code> MaxText produced for the same weight on 8 simulated CPU devices (<code>runs/lc_shard.py</code>). Shapes, specs, block shapes and bytes per device are those recorded; the plate's longer edge is the weight's longer dimension, not to scale.</p>
 <p>Rule order explains a puzzle in the YAML: <code>embed</code> has two rules, one with <code>fsdp_transpose</code> and one without (<code data-src="base_yml_rule_embed"></code>). <code>mlp</code>'s rule comes first (<code data-src="base_yml_rule_mlp"></code>) and takes <code>fsdp_transpose</code>; the first <code>embed</code> rule collides and is skipped, the second applies. One table serves every weight, and two-dimensional FSDP falls out of rule order.</p>
 <p><b>What MaxText's own code produced</b> <span class="meas">measured</span> (<code>runs/lc_shard.py</code>, abstract model, 8 simulated devices). Llama 2 7B: 6,738,415,616 parameters in 12 arrays (32 layers stacked), 26.95 GB in float32 and 3.37 GB per device under FSDP over 8. Adding tensor parallelism splits <code>mlp</code>, <code>q_heads</code> and <code>vocab</code> over <code>tensor</code> and keeps <code>embed</code> on <code>fsdp</code>. Under fsdp 2 &times; tensor 4 the norm scales are split only two ways and copied over <code>tensor</code>, because <code>llama2-7b.yml</code> replaces base.yml's <code>['norm', ['tensor']]</code> with <code>['norm', 'fsdp']</code> (<code data-src="llama2_7b_norm_rule"></code>): an extra 399,360 bytes per device. With <code>scan_layers=false</code> the same model is 291 arrays and the specs lose the <code>layers</code> dimension.</p>
 <details class="mist"><summary>Every parameter of Llama 2 7B and of the running example, sharded by MaxText's own code (five cases)</summary><div class="b">
@@ -31,3 +36,4 @@
 <p><b>When it fails.</b> The running example's vocabulary of 65 cannot be split four ways. Under <code>ici_tensor_parallelism=4</code> MaxText still builds the abstract model, with <code>P('tensor', 'fsdp')</code> and <code>P('fsdp', 'tensor')</code> on the embedding and output kernel, and asking for their per-device shape raises <code>IndivisibleError: ... implies that array axis 1 is partitioned 4 times, but the dimension size is 65</code>. base.yml's comment on <code>vocab_size</code> says "powers of 2 for sharding"; real vocabularies are padded to a multiple of 128 or more (which also suits the MXU).</p>
 <p><b>How to check.</b> Print the shardings of the abstract model before compiling anything (<code>debug_sharding=true</code> makes <code>setup_train_loop</code> call <code>print_shardings_params</code>); at start-up <code>assert_params_sufficiently_sharded</code> allows <code>sharding_tolerance</code> (2% by default) of parameters unsharded. Pipeline parallelism uses the <code>stage</code> axis; its bubble formula is in base.yml (<code data-src="base_yml_bubble"></code>) and measured on {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}.</p>
 </section>
+</div></div>

@@ -50,19 +50,32 @@ details.mist .b h3{font-size:14.5px;margin:12px 0 4px}
 #t-read .st-fn.done{color:var(--ink)}#t-read .st-fn.off{opacity:.35;text-decoration:line-through}
 #t-read .st-side{min-width:0}#t-read .st-re{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--soft);font-size:13px;margin:8px 0}
 #t-read .st-re pre{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+/* 2026-11-12: inside the split's right column the traced-step card stacks its list over its panel; stage controls keep the template's margins */
+#t-read .s3R .st-lay{grid-template-columns:minmax(0,1fr)}#t-read .s3R .st-stack{max-height:260px}
+.tab .stg .stg-bar{margin:0}
+.lc-rt{font-size:13px;margin:6px 0 12px}.lc-rt td,.lc-rt th{padding:3px 8px}.lc-rt .as{color:var(--good);font-weight:600}.lc-rt .sk{color:var(--bad)}
 </style>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav" aria-label="Sections">
 <a href="#s-one">The idea</a><a href="#s-cfg">1 Config</a><a href="#s-model">2 Model</a><a href="#s-shard">3 Sharding</a><a href="#s-step">4 Train step</a><a href="#s-remat">5 Scan, remat</a><a href="#s-mfu">6 MFU</a><a href="#s-tunix">7 Tunix</a><a href="#s-lev">8 Levanter</a><a href="#s-others">9 The others</a><a href="#s-start">10 Start from</a><a href="#s-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <p class="lead"><b>A production JAX LLM codebase is the same five boxes as your own training loop (configuration, model, sharding, train step, data and checkpoints) with one difference that reshapes all of them: the model never names a device, so a config decides the shapes, the sharding and the remat policy, and one jitted pure step turns them into a single XLA program.</b> The codebases differ in which box they invest in: MaxText in <span class="lc-hl">config and sharding</span> for scale on TPU, Tunix in the train step for post-training, Levanter in named axes and reproducible data.</p>
+<p class="sxh">Fig. 1, step by step: same five boxes, different investments</p>
+<ol class="sx" id="sx-hero">
+<li><b>Five boxes in 268 lines.</b> The running example is the topic's 826,368-parameter character model (268 lines: <code>model_jax.py</code> plus <code>common.py</code>): a <code>CFG</code> dict, an <code>apply()</code> model, no sharding (one device: the faint slab), a six-line step under <code>jit</code> with donation, numpy batches and no checkpoint. The config sits on top because it feeds every box below it.</li>
+<li><b>MaxText holds the same boxes in 213,293 lines of Python.</b> Highlighted, what it is built for: config (<code>configs/</code>, 17,445 lines of Python and YAML) and sharding (logical names plus 80 rules). The dots run from the config into every box: shapes, sharding and remat are config values read while the step is traced. The sharding code is small (<code>utils/sharding.py</code>, 1,262 lines) because the rules are data.</li>
+<li><b>Tunix, 47,599 lines, is built around the train step.</b> <code>sft/</code>, <code>rl/</code> and <code>distillation/</code> hold 18,164 lines: <code>PeftTrainer</code> and the RL learners for post-training. Config, sharding and data have no part of their own in the map (faint slabs): YAML configs and mesh helpers sit in <code>cli/</code> and <code>utils/</code>, RL placement is <code>role_to_mesh</code> per RL role inside <code>rl/</code> (section 7), and checkpoints go through Orbax's <code>CheckpointManager</code>.</li>
+<li><b>Levanter, 87,114 lines, is built around named axes and reproducible data.</b> Sharding is a mapping dictionary from the model's own axis names (228 lines); data and checkpoints (12,418 lines) give a seekable cache and checkpoints that keep the keys (section 8). The model is Equinox plus Haliax (20,762 lines); the config is draccus dataclasses, with no part of its own in the map.</li>
+<li><b>Side by side.</b> The arc is a real dependency: MaxText's post-training entry points import Tunix's trainers. Reading a large codebase is finding these five boxes and the one or two ideas it adds to each.</li>
+</ol>
+<p class="small mute">Slabs are equal in height; their labels give lines per part from the {{Codebase map|#t-lcmap}} tab's measurement (<code>runs/lc_map.py</code>: Python files, plus YAML for MaxText's configs, tests excluded). A faint slab is a box with no part of its own in the map. The Codebase map tab has every part of the three repositories with its size and the symbols worth reading at their lines.</p>
+</section>
+</div></div>
 
-<div class="lc-fig" id="lc-hero-card"><div class="ft">Same five boxes, different investments: the highlighted cell is what each codebase is built for</div>
-<div class="lc-svg" id="lc-hero"></div>
-<p class="lc-figcap">The running example is the topic's 826,368-parameter character model (268 lines: <code>model_jax.py</code> plus <code>common.py</code>); MaxText holds the same boxes in 213,293 lines of Python. Reading a large codebase is finding these five boxes and the one or two ideas it adds to each. The {{Codebase map|#t-lcmap}} tab has every part of the three repositories with its size and the symbols worth reading at their lines.</p></div>
-
+<section id="s-terms">
 <p><b>You need</b>: tracing and <code>jax.jit</code> ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}), meshes and <code>PartitionSpec</code> ({{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}), Flax NNX split and merge, optax and Orbax ({{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}}). <b>New terms</b>:</p>
 <div class="lc-terms">
 <div><dfn>Logical axis names</dfn>: one name per dimension of a weight or activation (<code>embed</code>, <code>mlp</code>, <code>heads</code>), never a device.</div>

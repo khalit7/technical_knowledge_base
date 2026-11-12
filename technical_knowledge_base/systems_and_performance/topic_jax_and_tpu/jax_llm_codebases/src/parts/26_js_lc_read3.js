@@ -9,10 +9,10 @@
     const y0=o.log?Math.log10(o.floor):o.ymin,y1=o.log?Math.log10(o.ymax):o.ymax;
     const X=i=>L+pw*i/(n-1),Y=v=>Tp+ph*(1-(tr(v)-y0)/(y1-y0));
     let s='<rect x="'+L+'" y="'+Tp+'" width="'+pw+'" height="'+ph+'" fill="none" stroke="var(--line)"/>';
-    if(o.log){for(let e=Math.ceil(y0);e<=y1;e++){const y=Tp+ph*(1-(e-y0)/(y1-y0));s+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(L+pw)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)"/>'+t(L-4,y+3,'1e'+e,{a:'end',fs:9.5,fill:'var(--mute)'})}}
-    else{for(let k=0;k<=4;k++){const v=o.ymin+(o.ymax-o.ymin)*k/4,y=Y(v);s+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(L+pw)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)"/>'+t(L-4,y+3,v.toFixed(o.dp||2),{a:'end',fs:9.5,fill:'var(--mute)'})}}
-    for(let k=0;k<=4;k++){const i=Math.round((n-1)*k/4);s+=t(X(i),H-Bm+14,String(i),{a:'middle',fs:9.5,fill:'var(--mute)'})}
-    s+=t(L+pw/2,H-4,o.xl||'step',{a:'middle',fs:10,fill:'var(--mute)'});
+    if(o.log){for(let e=Math.ceil(y0);e<=y1;e++){const y=Tp+ph*(1-(e-y0)/(y1-y0));s+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(L+pw)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)"/>'+t(L-4,y+3,'1e'+e,{a:'end',fs:11,fill:'var(--mute)'})}}
+    else{for(let k=0;k<=4;k++){const v=o.ymin+(o.ymax-o.ymin)*k/4,y=Y(v);s+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(L+pw)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)"/>'+t(L-4,y+3,v.toFixed(o.dp||2),{a:'end',fs:11,fill:'var(--mute)'})}}
+    for(let k=0;k<=4;k++){const i=Math.round((n-1)*k/4);s+=t(X(i),H-Bm+14,String(i),{a:'middle',fs:11,fill:'var(--mute)'})}
+    s+=t(L+pw/2,H-4,o.xl||'step',{a:'middle',fs:11,fill:'var(--mute)'});
     series.forEach(se=>{let d='';se.y.forEach((v,i)=>{d+=(i?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1)});
       s+='<path d="'+d+'" fill="none" stroke="'+se.color+'" stroke-width="'+(se.w||1.6)+'"'+(se.dash?' stroke-dasharray="4 3"':'')+'/>'});
     el.innerHTML=RD.svg(W,H,s,o.label||'chart')+'<div class="lc-leg">'+series.map(se=>'<span><i style="background:'+se.color+'"></i>'+esc(se.label)+'</span>').join('')+'</div>';
@@ -40,7 +40,7 @@
     '<tr><td colspan="7" class="small mute"><sup>*</sup> loop body counted once by XLA\'s cost analysis.</td></tr>';
   function drawRemat(){const el=$('lc-remat-svg'),W=U.width(el),rows=RR.filter(r=>r.scan_layers),mx=Math.max(...rows.map(r=>r.temp_bytes));
     const L=Math.min(170,W*.42),bw=W-L-70;let s='';
-    rows.forEach((r,i)=>{const y=6+i*22,w=bw*r.temp_bytes/mx;s+=t(L-6,y+12,r.remat_policy,{a:'end',fs:10.5});s+='<rect x="'+L+'" y="'+y+'" width="'+w.toFixed(1)+'" height="15" rx="2" fill="var(--c'+(r.remat_policy==='full'?2:1)+')" fill-opacity=".7"/>'+t(L+w+4,y+12,(r.temp_bytes/1e6).toFixed(1)+' MB',{fs:10})});
+    rows.forEach((r,i)=>{const y=6+i*22,w=bw*r.temp_bytes/mx;s+=t(L-6,y+12,r.remat_policy,{a:'end',fs:10.5});s+='<rect x="'+L+'" y="'+y+'" width="'+w.toFixed(1)+'" height="15" rx="2" fill="var(--c'+(r.remat_policy==='full'?2:1)+')" fill-opacity=".7"/>'+t(L+w+4,y+12,(r.temp_bytes/1e6).toFixed(1)+' MB',{fs:11})});
     el.innerHTML=RD.svg(W,rows.length*22+10,s,'XLA temporary memory per remat policy, scanned')+'<p class="small mute">XLA temporary bytes of the compiled step, scanned layers. The unrolled rows in the table give the FLOPs: full 28.90 G against minimal 24.61 G.</p>'}
   drawRemat();U.onTab('t-read',drawRemat);RD.onResize(drawRemat);
 
@@ -62,29 +62,29 @@
 
   // ---------- GRPO through RLCluster ----------
   const G=[
-    {k:'prompts',cap:'<b>A batch of prompts</b> arrives from the data iterator. The learner asks the cluster for completions.',on:['data']},
-    {k:'gen',cap:'<b>Generate</b> (<code>rl_cluster.generate</code>): the <b>rollout</b> role samples <code>num_generations</code> completions per prompt (default 2) with the vanilla JAX sampler, vLLM or SGLang-JAX.',on:['rollout']},
-    {k:'reward',cap:'<b>Score</b>: reward functions (Python, often a verifier) give each completion a scalar.',on:['reward']},
-    {k:'ref',cap:'<b>Reference log-probabilities</b> (<code>get_ref_per_token_logps</code>) on the <b>reference</b> role\'s mesh, for the KL penalty (beta = 0.04 by default). With LoRA the reference is the actor\'s frozen backbone, so no second copy.',on:['ref']},
-    {k:'adv',cap:'<b>Advantages</b>: each completion\'s reward minus its group\'s mean, divided by the group\'s sample standard deviation plus 1e-6 (the "grpo" estimator, '+U.ref('tunix_adv_std')+'). No critic model.',on:['learner']},
-    {k:'train',cap:'<b>Update the actor</b> (<code>update_actor</code>): a PeftTrainer step on the <b>actor</b> role\'s mesh with the clipped objective (epsilon = 0.2) plus the KL term.',on:['actor']},
-    {k:'sync',cap:'',on:['actor','rollout']}];
+    {k:'prompts',on:['data']},
+    {k:'gen',on:['rollout']},
+    {k:'reward',on:['reward']},
+    {k:'ref',on:['ref']},
+    {k:'adv',on:['learner']},
+    {k:'train',on:['actor']},
+    {k:'sync',on:['actor','rollout']}];
   let gm='co';
   function drawGrpo(i){const el=$('lc-grpo-svg'),W=U.width(el),st=G[i],co=gm==='co';let s='';
-    const H=200,box=(id,x,y,w,h,lab,sub)=>{const hot=st.on.includes(id);s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(hot?'var(--acc2)':'var(--soft)')+'" stroke="'+(hot?'var(--acc)':'var(--line)')+'" stroke-width="'+(hot?2:1)+'"/>'+t(x+w/2,y+h/2-2,lab,{a:'middle',fs:11.5,w:600})+(sub?t(x+w/2,y+h/2+13,sub,{a:'middle',fs:9.5,fill:'var(--mute)'}):'')};
+    const H=200,box=(id,x,y,w,h,lab,sub)=>{const hot=st.on.includes(id);s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(hot?'var(--acc2)':'var(--soft)')+'" stroke="'+(hot?'var(--acc)':'var(--line)')+'" stroke-width="'+(hot?2:1)+'"/>'+t(x+w/2,y+h/2-2,lab,{a:'middle',fs:11.5,w:600})+(sub?t(x+w/2,y+h/2+13,sub,{a:'middle',fs:11,fill:'var(--mute)'}):'')};
     const bw=Math.min(130,(W-40)/4);
-    if(co){s+='<rect x="6" y="40" width="'+(W-12)+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c3)" stroke-dasharray="5 3"/>'+t(14,56,'one mesh: actor, rollout, reference share devices',{fs:10,fill:'var(--c3)'});
+    if(co){s+='<rect x="6" y="40" width="'+(W-12)+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c3)" stroke-dasharray="5 3"/>'+t(14,56,'one mesh: actor, rollout, reference share devices',{fs:11,fill:'var(--c3)'});
       box('actor',16,70,bw,46,'actor','trainer (NNX)');box('rollout',26+bw,70,bw,46,'rollout','same weights');box('ref',36+2*bw,70,bw,46,'reference','frozen');box('reward',46+3*bw,70,Math.min(bw,W-60-3*bw),46,'reward','Python fns');}
-    else{const half=(W-18)/2;s+='<rect x="6" y="40" width="'+half+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c3)" stroke-dasharray="5 3"/>'+t(14,56,'mesh A: training',{fs:10,fill:'var(--c3)'});
-      s+='<rect x="'+(12+half)+'" y="40" width="'+half+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c2)" stroke-dasharray="5 3"/>'+t(20+half,56,'mesh B: generation',{fs:10,fill:'var(--c2)'});
+    else{const half=(W-18)/2;s+='<rect x="6" y="40" width="'+half+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c3)" stroke-dasharray="5 3"/>'+t(14,56,'mesh A: training',{fs:11,fill:'var(--c3)'});
+      s+='<rect x="'+(12+half)+'" y="40" width="'+half+'" height="'+(H-48)+'" rx="10" fill="none" stroke="var(--c2)" stroke-dasharray="5 3"/>'+t(20+half,56,'mesh B: generation',{fs:11,fill:'var(--c2)'});
       const w2=Math.min(120,(half-30)/2);box('actor',16,70,w2,46,'actor','trainer');box('ref',26+w2,70,w2,46,'reference','frozen');box('rollout',22+half,70,w2,46,'rollout','vLLM TPU copy');box('reward',32+half+w2,70,Math.min(w2,half-40-w2),46,'reward','Python fns');}
     box('data',16,6,Math.min(140,W/3),26,'prompts','');box('learner',W-16-Math.min(170,W/2.4),6,Math.min(170,W/2.4),26,'learner: advantages','');
     if(st.k==='sync'){const y=150;if(co)s+=t(16,y,'sync_weights: actor and rollout share one backbone, nothing to copy',{fs:11,fill:'var(--good)'});
       else{const half=(W-18)/2;s+='<path d="M'+(16+60)+',122 C '+(16+60)+',170 '+(22+half+40)+',170 '+(22+half+40)+',122" fill="none" stroke="var(--bad)" stroke-width="2.4" marker-end="url(#lcArr)"/>'+t(W/2,y+30,'sync_weights: actor parameters copied to the rollout engine every step',{a:'middle',fs:11,fill:'var(--bad)'})}}
     const defs='<defs><marker id="lcArr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--bad)"/></marker></defs>';
-    el.innerHTML=RD.svg(W,H,defs+s,'GRPO step '+(i+1));
-    $('lc-grpo-cap').innerHTML='<b>Step '+(i+1)+' of '+G.length+'.</b> '+(st.k==='sync'?(co?'<b>Sync weights</b> (<code>sync_weights</code>): colocated, the actor and rollout are the same NNX model on the same mesh (the backbone-sharing map), so the next generation already sees the update; no transfer.':'<b>Sync weights</b> (<code>sync_weights</code>): disaggregated, the rollout engine holds its own copy, so the actor\'s parameters (only the LoRA ones if LoRA is on) are pushed to it after every step. That transfer is the price of running generation and training on separate chips.'):st.cap)}
-  const ga=U.anim({card:'lc-grpo-card',ctl:'lc-grpo-ctl',n:G.length,tab:'t-read',draw:drawGrpo,label:'GRPO step',ms:1700});
+    el.innerHTML=RD.svg(W,H,defs+s,'GRPO step '+(i+1))}
+  // explained by the step list #sx-grpo (20_read_f.html; its last item covers both placements); a placement button replays
+  const ga=RD.anim({card:'lc-grpo-card',ctl:'lc-grpo-ctl',n:G.length,draw:drawGrpo,label:'GRPO step',list:'sx-grpo',ms:3800});
   U.seg($('lc-grpo-mode'),m=>{gm=m;ga.reset(G.length)});
 
   // ---------- Levanter against MaxText ----------

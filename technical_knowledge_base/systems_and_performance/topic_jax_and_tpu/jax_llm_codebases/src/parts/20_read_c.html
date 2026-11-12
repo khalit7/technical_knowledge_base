@@ -1,3 +1,13 @@
+<div class="s3sp"><div class="s3R"><div class="s3side">
+<div class="lc-card" id="lc-port-card">
+<h4>A PyTorch weight becomes a MaxText weight by transpose, reshape and stack; the LayerNorm scale also shifts by 1</h4>
+<div class="seg" id="lc-port-mode" role="group" aria-label="Which tensor"><span class="lbl">Tensor</span><button data-m="q" class="on">attention query weight</button><button data-m="ln">LayerNorm scale</button><button data-m="wi">MLP input weight</button></div>
+<div class="lc-svg" id="lc-port-svg"></div>
+<div class="lc-cnt" id="lc-port-cnt"></div>
+<div class="an-ctl" id="lc-port-ctl"></div>
+<p class="small mute">Shapes and transforms are those <code>runs/lc_fwd.py</code> applied; every final shape matched the one MaxText created (the script asserts it). One cell is 8 &times; 8 numbers for matrices, one number for the scale.</p>
+</div>
+</div></div><div class="s3L">
 
 <section id="s-model">
 <h2>2. The model, with the running example inside it</h2>
@@ -7,24 +17,30 @@
 base_mlp_dim=512 base_num_decoder_layers=4 vocab_size=65 max_target_length=128
 trainable_position_size=128 mlp_activations=[gelu] logits_via_embedding=false fused_qkv=false
 enable_dropout=false dtype=float32 attention=dot_product normalization_layer_epsilon=1e-5</pre>
-<p>MaxText builds <b>826,368 parameters</b>, the running example's count exactly, in 21 arrays instead of 69 because the four layers are stacked. With the running example's initial weights copied in (<code>runs/lc_fwd.py</code>), MaxText's forward pass on the first batch (32 &times; 128 characters) gives logits within <b><span id="lc-v-fwd-tanh"></span></b> of the plain-JAX twin, loss <span id="lc-v-fwd-loss"></span> against <span id="lc-v-fwd-loss-re"></span>. Four conversions got it there; step through each tensor:</p>
-<div class="lc-card" id="lc-port-card">
-<h4>A PyTorch weight becomes a MaxText weight by transpose, reshape and stack; the LayerNorm scale also shifts by 1</h4>
-<div class="seg" id="lc-port-mode" role="group" aria-label="Which tensor"><span class="lbl">Tensor</span><button data-m="q" class="on">attention query weight</button><button data-m="ln">LayerNorm scale</button><button data-m="wi">MLP input weight</button></div>
-<div class="lc-svg" id="lc-port-svg"></div>
-<div class="lc-cap" id="lc-port-cap"></div>
-<div class="lc-cnt" id="lc-port-cnt"></div>
-<div class="an-ctl" id="lc-port-ctl"></div>
-<p class="small mute">Shapes and transforms are those <code>runs/lc_fwd.py</code> applied; every final shape matched the one MaxText created (the script asserts it). One cell is 8 &times; 8 numbers for matrices, one number for the scale.</p>
-</div>
-<ul>
-<li><b>Layout.</b> PyTorch stores a linear weight <code>[out, in]</code>; MaxText's <code>DenseGeneral</code> <code>[in, out...]</code> with the output split into named axes (<code>[embed, heads, kv]</code>).</li>
-<li><b>Stacking.</b> With <code>scan_layers=true</code> each per-layer weight gains a <code>layers</code> axis at <code>param_scan_axis = 1</code> (<code data-src="base_yml_param_scan_axis"></code>): four <code>[128, 128]</code> query weights become one <code>[128, 4, 4, 32]</code> array. This is why checkpoint converters exist.</li>
-<li><b>An offset scale.</b> <code>Gpt3LayerNorm</code> initialises its scale to zeros (<code data-src="gpt3_scale_init"></code>) and multiplies by <code>scale + 1</code> (<code data-src="gpt3_scale_plus_one"></code>). Copy PyTorch's weight unchanged and every LayerNorm doubles its output, silently. Weight decay also pulls this scale toward 1, not 0.</li>
-<li><b>The activation.</b> <code>mlp_activations=[gelu]</code> resolves to <code>getattr(jax.nn, "gelu")</code> (<code data-src="linears_activation"></code>), the tanh approximation; the running example uses exact erf GELU, and no MaxText flag spells it. Against exact GELU the logits differ by up to <span id="lc-v-fwd-exact"></span>; with a tanh-GELU twin the gap falls to <span id="lc-v-fwd-tanh2"></span>, float32 rounding.</li>
-</ul>
+<p>MaxText builds <b>826,368 parameters</b>, the running example's count exactly, in 21 arrays instead of 69 because the four layers are stacked. With the running example's initial weights copied in (<code>runs/lc_fwd.py</code>), MaxText's forward pass on the first batch (32 &times; 128 characters) gives logits within <b><span id="lc-v-fwd-tanh"></span></b> of the plain-JAX twin, loss <span id="lc-v-fwd-loss"></span> against <span id="lc-v-fwd-loss-re"></span>. Four conversions got it there: transpose to <code>[in, out]</code> with named output axes, stack the layers on axis 1, store each LayerNorm scale as its offset from 1 (copied unchanged, every LayerNorm silently doubles its output), and accept tanh GELU. Pick a tensor on the figure:</p>
+<p class="sxh">Fig. 2, step by step: one tensor from PyTorch to MaxText</p>
+<ol class="sx" id="sx-port-q">
+<li><b>PyTorch.</b> Four separate tensors <code>blocks.{0..3}.attn.wq.weight</code>, each <code>[128 out, 128 in]</code>: <code>nn.Linear</code> stores the output dimension first and computes <code>x @ W.T</code>. The highlighted row is output 3.</li>
+<li><b>Layout: transpose.</b> PyTorch stores a linear weight <code>[out, in]</code>; MaxText's <code>DenseGeneral</code> stores <code>[in, out...]</code> and computes <code>x @ W</code>, like Flax and the plain-JAX twin. The rows are now the input (<code>embed</code>) dimension and output 3 is a column.</li>
+<li><b>Name the output axes.</b> The 128 outputs are 4 heads of 32: reshape to <code>[embed, heads, kv] = [128, 4, 32]</code>. Each colour is one head; nothing moves in memory.</li>
+<li><b>Stack the layers.</b> With <code>scan_layers=true</code> each per-layer weight gains a <code>layers</code> axis at <code>param_scan_axis = 1</code> (<code data-src="base_yml_param_scan_axis"></code>): four <code>[128, 128]</code> query weights become one <code>[128, 4, 4, 32]</code> array, the tensor MaxText created at <code>decoder.layers.self_attention.query.kernel</code>. This is why checkpoint converters exist.</li>
+<li><b>The bias follows.</b> <code>wq.bias [128]</code> per layer becomes <code>[heads, layers, kv] = [4, 4, 32]</code>. With every tensor converted, MaxText's forward pass on the first batch gives logits within <span id="lc-v-fwd-tanh3"></span> of the tanh-GELU twin.</li>
+</ol>
+<ol class="sx" id="sx-port-ln" hidden>
+<li><b>PyTorch.</b> <code>blocks.{0..3}.ln1.weight</code>, four vectors of 128 ones at initialisation; the output is <code>normalised x weight + bias</code>.</li>
+<li><b>An offset scale: subtract 1.</b> <code>Gpt3LayerNorm</code> initialises its scale to zeros (<code data-src="gpt3_scale_init"></code>) and multiplies by <code>scale + 1</code> (<code data-src="gpt3_scale_plus_one"></code>), so the stored value is the offset from 1: 1.0 becomes 0.0.</li>
+<li><b>Stack on axis 1:</b> <code>[norm, layers] = [128, 4]</code>, path <code>decoder.layers.pre_self_attention_norm.scale</code>.</li>
+<li><b>Forget the subtraction:</b> copy PyTorch's weight unchanged and every LayerNorm doubles its output (scale 1.0 + 1). The model runs, the loss is wrong, nothing errors. Only a logits check catches it. Weight decay also pulls this scale toward 1, not 0.</li>
+</ol>
+<ol class="sx" id="sx-port-wi" hidden>
+<li><b>PyTorch.</b> <code>blocks.{0..3}.mlp.fc1.weight</code>, four <code>[512 out, 128 in]</code> matrices.</li>
+<li><b>Transpose</b> to <code>[embed, mlp] = [128, 512]</code>.</li>
+<li><b>Stack on axis 1:</b> <code>[embed, layers, mlp] = [128, 4, 512]</code>, path <code>decoder.layers.mlp.wi.kernel</code>, logical names <code>("embed", "layers", "mlp")</code>: the same names the Llama weights carry in section 3.</li>
+<li><b>The activation is not a tensor.</b> <code>mlp_activations=[gelu]</code> resolves to <code>getattr(jax.nn, "gelu")</code> (<code data-src="linears_activation"></code>), the tanh approximation; the running example uses exact erf GELU, and no MaxText flag spells it. Against exact GELU the logits differ by up to <span id="lc-v-fwd-exact"></span>; with a tanh-GELU twin the gap falls to <span id="lc-v-fwd-tanh2"></span>, float32 rounding.</li>
+</ol>
 <details class="mist"><summary>Every tensor's conversion, and what looks different but is not</summary><div class="b">
 <div class="tw"><table class="rd-cmp" id="lc-port-table"><thead><tr><th>Running example (PyTorch name, shape)</th><th>MaxText (path, shape)</th><th>Conversion</th></tr></thead><tbody></tbody></table></div>
 <p>Logits against the exact-GELU running example differed by 7.0e-5: enough to fail a tight equivalence test, small for training. MaxText divides the query by &radic;head_dim right after the projection (<code data-src="gpt3_depth_scaling"></code>) where the running example divides the scores; the product is the same. Both runs set <code>matmul_precision=highest</code> (no effect on CPU). What transfers to TPU: every conversion above. What does not: on TPU the default precision runs float32 matmuls in bfloat16 passes, so a TPU comparison needs <code>highest</code> or a looser tolerance. Porting defaults in general (GELU, epsilon, initialisers) are on {{PyTorch to JAX|n:3fa5c17b0d0d81c5abb9fedab418578d}}.</p>
 </div></details>
 </section>
+</div></div>

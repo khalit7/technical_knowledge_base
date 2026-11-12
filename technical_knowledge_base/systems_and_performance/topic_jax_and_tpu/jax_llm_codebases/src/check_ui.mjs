@@ -1,4 +1,4 @@
-// Every tab of the JAX LLM codebases page: click every control at 390 px dark and 920 px light; fail on page errors,
+// Every tab of the JAX LLM codebases page: click every control at 390 px dark and 920 px light (reduced motion); fail on page errors,
 // undefined / [object / NaN / Infinity in the text, unfilled value spans or source references, or sideways scroll.
 // Optional third argument: a folder for element screenshots of every card (for looking at).
 // Usage (repo root): NPM_CONFIG_USERCONFIG=<empty file> node <this file> <index.html> [shots dir]
@@ -10,7 +10,7 @@ const page_path=path.resolve(process.argv[2]),shots=process.argv[3];
 const b=await puppeteer.launch({headless:'shell'});
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
 const TABS=['t-read','t-lcmap','t-lccfg','t-more'];
-const CARDS={'t-read':['#lc-hero-card','#lc-cfgdemo','#lc-port-card','#lc-port-table','#lc-rule-card','#lc-shtab-card','#st-card','#lc-var-card','#lc-remat-card','#lc-mfu-card','#lc-lora-card','#lc-grpo-card','#lc-lev-tab'],
+const CARDS={'t-read':['#stg-hero','#lc-cfgdemo','#lc-port-card','#lc-port-table','#stg-shard','#lc-shtab-card','#st-card','#lc-var-card','#lc-remat-card','#lc-mfu-card','#lc-lora-card','#lc-grpo-card','#lc-lev-tab'],
   't-lcmap':['#t-lcmap'],'t-lccfg':['#t-lccfg']};
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];
@@ -46,7 +46,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       const sleep=()=>new Promise(r=>setTimeout(r,3));
       const walk=async(segSel,fwdSel)=>{for(const bb of [...root.querySelectorAll(segSel+' button[data-m]')]){bb.click();await sleep();const f=root.querySelector(fwdSel);for(let i=0;i<20&&f;i++){f.click();c++;await sleep()}}};
       if(t==='t-read'){await walk('#lc-port-mode','#lc-port-ctl-f');
-        for(const wb of [...root.querySelectorAll('#lc-rule-w button[data-m]')])for(const mb of [...root.querySelectorAll('#lc-rule-m button[data-m]')]){wb.click();mb.click();const f=root.querySelector('#lc-rule-ctl-f');for(let i=0;i<14;i++){f.click();c++;await sleep()}}
+        for(const wb of [...root.querySelectorAll('#lc-rule-w button[data-m]')])for(const mb of [...root.querySelectorAll('#lc-rule-m button[data-m]')]){wb.click();mb.click();const f=root.querySelector('#stg-shard-f');for(let i=0;i<6;i++){f.click();c++;await sleep()}}
+        {const f=root.querySelector('#stg-hero-f');for(let i=0;i<6;i++){f.click();c++;await sleep()}}
         await walk('#lc-grpo-mode','#lc-grpo-ctl-f');await walk('#st-mode','#st-ctl-f')}
       return c},tab);
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);
@@ -63,11 +64,13 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   ok(errs.length===0&&!shown,`${w} ${scheme}: no page errors or network requests ${errs.slice(0,3).join(' | ')} ${shown.slice(0,300)}`);
   await p.close();
 }
-// no animation may move before the reader acts (2026-10-23): normal motion, scroll every animated card into view, wait
+// autoplay on view (2026-11-06, replacing the 2026-10-23 never-autoplay rule): with normal motion every animation plays once scrolled into view;
+// the reduced-motion pass above (all of it ran with prefers-reduced-motion: reduce) never saw one move by itself. check_stages.mjs tests this in depth.
 {const p=await b.newPage();await p.setViewport({width:920,height:900});await p.goto('file://'+page_path,{waitUntil:'load'});
-  for(const id of ['lc-port-card','lc-rule-card','st-card','lc-grpo-card']){await p.$eval('#'+id,e=>e.scrollIntoView());await new Promise(r=>setTimeout(r,1500))}
-  const playing=await p.$$eval('.an-play',bs=>bs.filter(x=>/Pause/.test(x.textContent)).length);
-  const moved=await p.$$eval('.an-ctl input[type=range]',rs=>rs.filter(r=>+r.value!==0).length);
-  ok(playing===0&&moved===0,`normal motion: nothing autoplays (${playing} playing, ${moved} moved)`);await p.close()}
+  await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});await p.goto('file://'+page_path,{waitUntil:'load'}); // the passes above leave the last tab remembered
+  let n=0;for(const [id,ctl] of [['lc-port-card','lc-port-ctl'],['st-card','st-ctl'],['lc-grpo-card','lc-grpo-ctl']]){await p.$eval('#'+id,e=>e.scrollIntoView({block:'center'}));await new Promise(r=>setTimeout(r,1500));
+    if(/Pause/.test(await p.$eval('#'+ctl+'-p',e=>e.textContent)))n++}
+  for(const id of ['stg-hero','stg-shard']){await p.$eval('#'+id,e=>e.scrollIntoView({block:'center'}));await new Promise(r=>setTimeout(r,2200));if(await p.$eval('#'+id,e=>+e.dataset.frames||0)>0)n++}
+  ok(n===5,`normal motion: every animation and stage plays once in view (${n} of 5)`);await p.close()}
 await b.close();
 console.log(fail?`FAILED ${fail}`:'ALL OK');process.exit(fail?1:0);

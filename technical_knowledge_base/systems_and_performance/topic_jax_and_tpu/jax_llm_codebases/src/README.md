@@ -4,7 +4,7 @@
 `python3 -B build_data.py` regenerates `parts/22_js_lc_data.js` from `out/*.json` (never edit the generated file).
 
 ## Tabs and parts (rebuilt 2026-10-23 to the teaching contract)
-- Reading (`t-read`): `parts/20_read_a.html` (styles, nav, the idea: core sentence, hero, you need, new terms, status table, provenance) .. `20_read_h.html` (closed depth blocks); JS `24_js_lc_read1.js` (values, config demo, porting animation), `25_js_lc_read2.js` (logical-axis rules animation, sharding table), `26_js_lc_read3.js` (loss-difference chart, remat, MFU, LoRA, GRPO placement, Levanter table), `27_js_lc_step.js` (the traced train step, moved from the old One train step tab), `28_js_lc_hero.js` (hero: five boxes x four codebases). Helpers: `21_js_rd_common.js` (the skill template, never autoplays), `23_js_lc_util.js` (`LCU.anim`, now also never autoplays; source-reference links).
+- Reading (`t-read`): `parts/20_read_a.html` (styles, nav, the idea: core sentence and Fig. 1 with its step list, you need, new terms, status table, provenance) .. `20_read_h.html` (closed depth blocks); JS `24_js_lc_read1.js` (values, config demo, porting animation), `25_js_lc_read2.js` (every-parameter sharding table), `26_js_lc_read3.js` (loss-difference chart, remat, MFU, LoRA, GRPO placement, Levanter table), `27_js_lc_step.js` (the traced train step in eight stretches), `41_js_sc_hero.js` (Fig. 1, 3D), `42_js_sc_shard.js` (Fig. 3, 3D, with the rule trace table). Helpers: `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js`, `99_js_tabs.js` (skill templates, unchanged; storage key `jx-lc-tab`), `23_js_lc_util.js` (number formats, source-reference links, predict-then-reveal).
 - Codebase map (`t-lcmap`): `31_tab_map.html`, `31_js_lc_map.js`, data `out/map.json`.
 - Config explorer (`t-lccfg`): `32_tab_cfg.html`, `32_js_lc_cfg.js`, data `out/cfgdata.json` (+ `runs/cfg_flags.json`, this page's explanations).
 - Further reading (`t-more`): `39_tab_more.html`.
@@ -24,7 +24,7 @@
 | `runs/lc_source.py` | every file:line the page quotes, located by pattern in the pinned clones | `out/source.json` |
 | `runs/lc_map.py`, `runs/lc_cfgdata.py` | codebase map sizes and roles; 81 base.yml flags | `out/map.json`, `out/cfgdata.json` |
 
-Checks: `python3 -B check_data.py` (embedded data = `out/*.json`; prose numbers = data), `node src/check_ui.mjs index.html [shots]` from the repo root (every control at 390 dark and 920 light, plus a normal-motion pass that fails if any animation moves before the reader acts), `sh html_utils/checkpage.sh <this folder>`, `python3 html_utils/ledger.py check <this folder>`.
+Checks: `python3 -B check_data.py` (embedded data = `out/*.json`; prose numbers = data), `node src/check_ui.mjs index.html [shots]` from the repo root (every control at 390 dark and 920 light under reduced motion, plus a normal-motion pass that fails unless every animation and stage plays once in view), `node src/check_stages.mjs [shots]` (autoplay, step counts, step lists, reduced motion, off-screen pause, split layout at 1400, 920 and 390 px), `sh html_utils/checkpage.sh <this folder>`, `python3 html_utils/ledger.py check <this folder>`.
 
 ## Scratch (not in the repo): how to recreate
 The runs need a scratch folder `$JX_SCRATCH` (the topic's shared one, `scratchpad/jx`), which is not kept: the machine's reboot on 2026-10-15 wiped it. The page and its checks need none of it (the `out/*.json` files are the record); only re-running `runs/` does. To recreate:
@@ -61,3 +61,44 @@ Why 27 minutes is right: the page covers three codebases plus the others, and it
 A child page with three subjects (three codebases) rather than one mechanism: the Reading tab follows MaxText's five boxes and then Tunix and Levanter. The labs are the three the brief asked for. No `live.md`: the page is new (no old Notion text).
 
 2026-10-26 (final follow-up sweep): the PEFT and LoRA paper card quotes their headers (22 and 21 min) instead of "about 30 min each".
+
+## The 2026-11 rollout: split layout, two 3D stages, explained and autoplaying animations (2026-11-12)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `jx-lc-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: both scenes draw from `LC` (`out/*.json` via `build_data.py`, unchanged).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` Fig. 1: four towers of the same five boxes, slab labels with measured lines per part (`out/map.json`, summed by the map's own groups) | yes, 5 |
+| Reading | You need, new terms, status table, provenance | full width | table | no |
+| Reading | 1 Config | split | config demo (ten recorded parses, a select) | no (widget) |
+| Reading | 2 Model | split | 2D porting animation, three tensors (`RD.anim`) | yes, 5, 4, 4 (one list per tensor) |
+| Reading | 3 Sharding | split | **3D** `stg-shard` Fig. 3: a Llama 2 7B weight as a glass plate, MaxText's rules, the spec, blocks flowing to 8 chips; weight and mesh choosers; rule trace table beside the list | yes, 5 |
+| Reading | 4 Train step | split | traced-step stepper, 17 stages in 8 stretches (`RD.anim`), step 1 mode | yes, 8 and 3 |
+| Reading | 4 Same computation? | split | loss-difference chart, five variants | no (reader picks a variant) |
+| Reading | 5 Scan, remat | split | remat bars and table | no |
+| Reading | 6 MFU | full width | table | no |
+| Reading | 7 Tunix trainer | full width | code, LoRA in details | no |
+| Reading | 7 RL placement | split | 2D GRPO step, colocated against disaggregated (`RD.anim`) | yes, 7 (the last item covers both placements) |
+| Reading | 8 Levanter, 9 Others, 10 Start from, Depth | full width | code and tables | no |
+| Codebase map, Config explorer | | full width | reference tools used across the page | no |
+| Further reading | | unchanged | | |
+
+What changed and why:
+- **Fig. 1 replaced the 2D five-box hero** (`28_js_lc_hero.js`, removed): the codebases are stacks of the same layers, so depth shows "same structure, different investment" at once; the camera moves in close on each tower and the towers close up for the side-by-side step. The cell texts are the old hero's; the slab labels add measured lines per part, which also shows that MaxText's sharding code is small (1,262 lines) because the rules are config data. A faint slab is a box with no part of its own in the map.
+- **Fig. 3 replaced the 2D rule-walk animation** (in `25_js_lc_read2.js`): the old animation had a variable number of steps per weight and mesh (one per applicable rule); the stage has five fixed steps and the per-rule walk is now a table written beside the list (`#lc-rt`), with the spec checked against MaxText's recorded one. A mesh of chips is spatial; the plate and blocks show which slice each chip holds and where replication happens.
+- **Every 2D animation is `RD.anim` with a step list** (porting, traced step, GRPO); `LCU.anim` (never autoplay) was removed. Per-step captions moved into the lists (`lc-port-cap`, `st-cap`, `lc-grpo-cap` deleted). The traced step had 17 stages, over the long-replay limit: it now steps through 8 explained stretches, each lighting all the functions of its stages (`window.LC_STEP_CHECK` still proves every one of the 90 functions belongs to a stage). The four porting bullets were folded into the porting step lists and one summary sentence.
+- **Kept 2D**: the loss-difference chart (log axis), remat bars, MFU, Levanter and status tables (tables stay text), the porting animation (flat 2-D layouts of a tensor with colour per head read clearly; a 3D version was considered and not built), the GRPO placement (no recorded numbers: Tunix's RL was not run here, so a 3D loop would be decoration).
+- **No real images**: the page is about code; the hardware it targets (TPU pods) has its photos on the hardware topic's pages.
+
+### Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, before this pass) | After |
+|---|---|---|
+| Reading, core (230 words a minute) | 27.3 min | 33.9 min |
+| Reading, closed details | 7.9 min | 7.9 min |
+| Other tabs | map 1.4, config 1.8, further reading 3.2 | unchanged |
+| Visuals in Reading (audit count: svg, canvas, img) | 7 | 7 (two 3D canvases replace two SVGs) |
+
+The rise is measurement, not new prose: the step explanations of four animations used to be one script-written caption at a time (the audit counted only the first step's), and are now static step lists that the audit counts in full, including the lists of modes not shown (porting has three tensors, the traced step two modes). New words beyond those: Fig. 1's list (it replaces the old hero caption) and the rule trace table. Nothing was cut that the ledger holds.
+
+### Knowledge ledger
+347 units: core 247, depth 69, fat 31; `ledger.py check` problems 0. Keys updated for reworded units 76, 77, 80, 81, 99, 100 (the old rule-card and porting captions).

@@ -214,9 +214,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
 - [x] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
 - [x] `systems_and_performance/topic_jax_and_tpu/jax_core` JAX core: arrays, tracing, jit, grad, vmap and pytrees
-- [~] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
+- [x] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
 - [~] `systems_and_performance/topic_jax_and_tpu/pallas_kernels` Pallas kernels
-- [ ] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
+- [~] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
 - [ ] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
 - [ ] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
 - [ ] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
@@ -508,6 +508,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_inference_and_serving/vllm`: Fig. 1 (steps 6, 7) and Fig. 3 full views leave empty canvas; request path and async cards sit above their lists on phones; Fig. 3 "request 1's three blocks are full and hashed" is deduced from the test's final asserted queue.
 - `systems_and_performance/topic_jax_and_tpu/jax_core`: core 45 min plus 25 closed (38 before); Fig. 2 hit and new-shape counts come from the root lab's drills (stated); Fig. 2 "lower" time includes a second trace (stated).
 - `systems_and_performance/topic_inference_and_serving`: tool tabs (Serving simulator, Engine bench, Capacity planner) full width except the animated sections; sim/check/check_core.mjs not rerun (needs a dump_ref.py reference dump; core untouched).
+- `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases`: Codebase map and Config explorer tabs full width (tools).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -568,3 +569,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - vLLM: Fig. 1 follows customer C of the prefix-caching-on run while Fig. 2 uses the caching-off run (its step fills the 64-token budget); the unit-test predict became Fig. 3; the stepper widget opens on A2's admission or the first preemption; the 12-step request-path list kept although it overlaps Fig. 1 (cutting it saves about 2 min). Keep these?
 - JAX core: Fig. 2's scan body (three equations, "W becomes a constant") is inferred from the recorded fori_loop jaxpr and the cell code, not a recorded scan jaxpr (agrees with the recorded equation count of 4): record the scan jaxpr to confirm? Also: one colour scheme across scenes, residual blocks sized by cube root of bytes, Fig. 4 vectors by shape only, Fig. 1 replaces the 2D dispatch stepper. Keep these?
 - Inference-and-serving root: prefill against decode cut to 4 steps per mode; the bench replay plays as five stretches at real speed with 3.6 s pauses; reading 29 to 35 min (hero list could be trimmed); the cache bar uses the page's rounded "about 54 GB". Keep these?
+- JAX LLM codebases: Fig. 1 slab heights equal with line counts in labels (faint slabs where the map has no part); Fig. 3 plate not to scale (short side held to a minimum); the traced step plays as 8 stretches, not 17 stages; GRPO has one step list for both placements; the porting animation stays 2D. Keep these?

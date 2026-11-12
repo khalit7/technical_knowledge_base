@@ -23,15 +23,31 @@ trainer.train(batches(0, 100, 500))     <span class="c"># dicts of the running e
 </div>
 </div></details>
 
-<p><b>RL: models by role, each on a mesh.</b> RL for an LLM needs up to five models: the <b>actor</b> being trained, a frozen <b>reference</b> for the KL penalty, a <b>rollout</b> engine that generates, a <b>reward</b> model and, for PPO, a <b>critic</b>. Tunix's <code>Role</code> enum names them (<code data-src="tunix_role"></code>), and <code>ClusterConfig.role_to_mesh</code> is "Key config for colocated vs disaggregated setup" (<code data-src="tunix_role_to_mesh"></code>). Same mesh for actor and rollout: they share one copy of the weights (<code data-src="tunix_share_backbone"></code>), and with LoRA the reference shares the actor's frozen backbone too (<code data-src="tunix_lora_ref_share"></code>). Different meshes: every step ends with <code>sync_weights</code> (<code data-src="tunix_sync_weights"></code>) pushing the actor's parameters to the rollout engine, which is <code>"vanilla"</code>, <code>"vllm"</code> or <code>"sglang_jax"</code> (<code data-src="tunix_rollout_engine"></code>).</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="lc-card" id="lc-grpo-card">
 <h4>One GRPO step: colocated roles take turns on one mesh; disaggregated roles overlap but move weights every step</h4>
 <div class="seg" id="lc-grpo-mode" role="group" aria-label="Placement"><span class="lbl">Placement</span><button data-m="co" class="on">colocated (one mesh)</button><button data-m="dis">disaggregated (two meshes)</button></div>
 <div class="lc-svg" id="lc-grpo-svg"></div>
-<div class="lc-cap" id="lc-grpo-cap"></div>
 <div class="an-ctl" id="lc-grpo-ctl"></div>
 <p class="small mute">Read from <code>grpo_learner.py</code> and <code>rl_cluster.py</code> at v0.1.7 (<code>_generate_and_compute_advantage</code>, <code data-src="tunix_grpo_gen_adv"></code>: generate <code data-src="tunix_grpo_generate"></code>, reference log-probabilities <code data-src="tunix_grpo_ref"></code>, advantages <code data-src="tunix_grpo_adv"></code>; defaults <code>num_generations = 2</code>, <code>beta = 0.04</code>, <code>epsilon = 0.2</code>, <code data-src="tunix_grpo_num_gen"></code>). <b>Not run here</b>: Tunix's samplers need a model with a key-value cache interface and a tokenizer, which the running example lacks; an illustrative sequence, not a timing.</p>
 </div>
+</div></div><div class="s3L">
+<section id="s-rl">
+<p><b>RL: models by role, each on a mesh.</b> RL for an LLM needs up to five models: the <b>actor</b> being trained, a frozen <b>reference</b> for the KL penalty, a <b>rollout</b> engine that generates, a <b>reward</b> model and, for PPO, a <b>critic</b>. Tunix's <code>Role</code> enum names them (<code data-src="tunix_role"></code>), and <code>ClusterConfig.role_to_mesh</code> is "Key config for colocated vs disaggregated setup" (<code data-src="tunix_role_to_mesh"></code>). Same mesh for actor and rollout: they share one copy of the weights (<code data-src="tunix_share_backbone"></code>), and with LoRA the reference shares the actor's frozen backbone too (<code data-src="tunix_lora_ref_share"></code>). Different meshes: every step ends with <code>sync_weights</code> (<code data-src="tunix_sync_weights"></code>) pushing the actor's parameters to the rollout engine, which is <code>"vanilla"</code>, <code>"vllm"</code> or <code>"sglang_jax"</code> (<code data-src="tunix_rollout_engine"></code>).</p>
+<p class="sxh">Fig. 5, step by step: one GRPO step through <code>RLCluster</code></p>
+<ol class="sx" id="sx-grpo">
+<li><b>Prompts.</b> A batch of prompts arrives from the data iterator; the learner asks the cluster for completions.</li>
+<li><b>Generate</b> (<code>rl_cluster.generate</code>): the <b>rollout</b> role samples <code>num_generations</code> completions per prompt (default 2) with the vanilla JAX sampler, vLLM or SGLang-JAX.</li>
+<li><b>Score.</b> Reward functions (Python, often a verifier) give each completion a scalar.</li>
+<li><b>Reference log-probabilities</b> (<code>get_ref_per_token_logps</code>) on the <b>reference</b> role's mesh, for the KL penalty (beta = 0.04 by default). With LoRA the reference is the actor's frozen backbone, so no second copy.</li>
+<li><b>Advantages.</b> Each completion's reward minus its group's mean, divided by the group's sample standard deviation plus 1e-6 (the "grpo" estimator, <code data-src="tunix_adv_std"></code>). No critic model.</li>
+<li><b>Update the actor</b> (<code>update_actor</code>): a PeftTrainer step on the <b>actor</b> role's mesh with the clipped objective (epsilon = 0.2) plus the KL term.</li>
+<li><b>Sync weights</b> (<code>sync_weights</code>). Colocated, the actor and rollout are the same NNX model on the same mesh (the backbone-sharing map), so the next generation already sees the update; no transfer. Disaggregated, the rollout engine holds its own copy, so the actor's parameters (only the LoRA ones if LoRA is on) are pushed to it after every step: the price of running generation and training on separate chips.</li>
+</ol>
 <p>Colocated is simpler and moves no weights, but training and generation take turns on the same chips; disaggregated lets a generation-optimised engine (vLLM's TPU backend) run on its own slice, at the cost of a weight transfer every step. PyTorch's verl makes the same choice ("hybrid engine" against separate placement).</p>
 <p><b>Version skew, measured.</b> MaxText's post-training does not use the Tunix release: <code>src/dependencies/extra_deps/post_train_github_deps.txt</code> pins <code>google-tunix @ https://github.com/google/tunix/archive/c2ee3bd8...zip</code> (<code data-src="post_train_tunix_pin"></code>). With PyPI v0.1.7 installed, MaxText main's SFT entry point fails at import, <code>ImportError: cannot import name 'diffusion' from 'tunix.sft'</code>; its DPO entry point imports fine. Install both from MaxText's own requirement files.</p>
 </section>
+</div></div>
+
