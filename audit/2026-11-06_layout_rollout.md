@@ -242,9 +242,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/agora` Agora: Git as Shared Memory for Collective AutoResearch
 - [x] `whats_new/papers/bert` BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
 - [x] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
-- [~] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
+- [x] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
 - [~] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
-- [ ] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
+- [~] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
 - [ ] `whats_new/papers/context_language_models` Context Language Models
 - [ ] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
 - [ ] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
@@ -536,6 +536,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_pytorch_ecosystem`: hero overview step busy at 1400 (autograd label near the tensor plates); step 4 labels overlap ("backward walks it back" over the plates, "187 nodes" over the last node, the saved-tensors label runs to the right edge). Compile lab tab now 20 + 9: check any child that quotes it as 19 + 9 by hand (check_times does not judge tab links).
 - `whats_new/papers/bert`: Fig. 3 (Figure 2 bars) small on phones; close-up steps of Figs 2 and 4 crop the bottom token labels, one near the "drag to turn" hint. Run-tab attention heatmap and Tables-tab charts stay full width (tool and table tabs).
 - `whats_new/papers/bitune`: Fig. 2 labels sit on the boxes ("causal K, V", "bidirectional K, V", answer step); faint bidirectional bars hard to read on phones; Run-tab alpha chart colours keys blue and values orange (predates the q/k/v colour rule).
+- `whats_new/papers/chinchilla`: Fig. 1 step 1 model labels small on phones; the Gopher vs Chinchilla loss gap (0.019) is subtle even in the close-up.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -623,3 +624,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - PyTorch root: the DDP/FSDP2 rank stepper retired in favour of links to Distributed PyTorch Figs. 1 to 3; the fused fusion sweep cut from 8 frames to 2; long replays (923 calls, step timeline, stack replay) are widgets opening on the finished frame (the 923-call one on the first call). Keep?
 - BERT: hero and NSP use the toy dog pair instead of the paper's "my dog is [MASK]" so every number is the toy's; the fine-tuning heads in the hero's last step are drawn, not run (labelled); the "both ways, nothing hidden" mode uses toy BERT weights on the unmasked sentence (labelled not a trained model); Figure 2 bars use one scale across the three parts. Keep?
 - Bitune: the paper's Figure 1 stays the hero and the 3D stage is the Idea figure; the stage opens on Bitune with LoRA one toggle away; causal pass orange and bidirectional blue to match the paper's Figure 1. Keep?
+- Chinchilla: the 3D loss surface uses Besiroglu et al.'s corrected constants rather than the paper's published Eq. 10 (stated in the caption; one-line switch `FITS.hoff`); surface height is loss above E on a linear scale; the same-budget animation has one step list shared by both allocations. Keep?

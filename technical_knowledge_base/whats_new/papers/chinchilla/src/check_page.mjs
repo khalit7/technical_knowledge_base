@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end (they now play by themselves once in view).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/chinchilla/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -19,14 +19,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
+  // autoplay on view (2026-11-06; replaces the 2026-10-25 never-autoplay check): each animation card scrolled into view plays by itself,
+  // and a mode switch replays it from step 1 (check_stages.mjs covers the stages, the step lists and reduced motion)
   for (const [tab, id] of [['t-read', 'spx']]) {
-    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
+    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
     await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+    if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     const ms = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
-    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-      if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
+    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 600));
+      if (!(await p.$eval('#' + id, e => e.hasAttribute('data-playing')))) problems.push(`${scheme} ${width}: ${id} did not replay on a mode switch`);
       await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()) }
   }
   await p.$eval('#tabs button[data-t=t-read]', b => b.click());

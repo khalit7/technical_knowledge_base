@@ -1,4 +1,4 @@
-// ---- The paper tab: tables, the schedule slider, Approach 2 on the extracted points, the same-budget animation, per-task results ----
+// ---- The paper tab (the 3D figures are 31_js_sc_hero.js and 32_js_sc_iso.js): tables, the schedule slider, Approach 2 on the extracted points, the same-budget animation, per-task results ----
 const lg10=Math.log10;
 const sciT=(v,d)=>{if(!isFinite(v))return '?';const e=Math.floor(lg10(Math.abs(v))+1e-9),m=v/10**e;return (Math.abs(m-1)<1e-9?'':(m.toFixed(d==null?1:d)+' × '))+'10'+sup(e)};
 const decTicks=(a,b,step)=>{const t=[];for(let e=Math.ceil(lg10(a)-1e-9);e<=Math.floor(lg10(b)+1e-9);e+=(step||1))t.push([10**e,'10'+sup(e)]);return t};
@@ -28,28 +28,6 @@ function approach2(drop){const iso=[];BUDGETS.forEach(C=>{const P=PAPER.pts.filt
   const l=polyfit(iso.map(q=>lg10(q.C)),iso.map(q=>lg10(q.N)),1),ld=polyfit(iso.map(q=>lg10(q.C)),iso.map(q=>lg10(q.D)),1);
   return {iso,a:l[1],k:l[0],b:ld[1],kd:ld[0],N:C=>Math.pow(10,l[0]+l[1]*lg10(C)),D:C=>Math.pow(10,ld[0]+ld[1]*lg10(C))}}
 window.A2=approach2(false);
-
-// ---- Hero: Table 1's models in (parameters, tokens) space against 20 tokens per parameter and Gopher's IsoFLOP line ----
-(function(){const host=$('heroSvg');if(!host)return;
-  const P=PAPER.tables.t1.rows.map(r=>({nm:r[0].replace(/ \(.*\)/,'').replace(' 530B',''),N:parseFloat(r[1])*(/Trillion/.test(r[1])?1e12:1e9),D:parseFloat(r[2])*(/Trillion/.test(r[2])?1e12:1e9)}));
-  const X=[4e10,1e12],Y=[1e11,4e12];
-  function draw(w){const sm=w<520,H=sm?300:340;
-    const F=logFrame({W:w,H,pl:46,pr:12,pt:10,pb:38,x:X,y:Y,xt:[[5e10,'50B'],[1e11,'100B'],[2e11,'200B'],[5e11,'500B'],[1e12,'1T']],yt:[[1e11,'100B'],[3e11,'300B'],[1e12,'1T'],[3e12,'3T']],xl:'parameters N',yl:'training tokens D'});
-    let s=F.s;
-    // 20 tokens per parameter (Table 3) and the IsoFLOP line 6ND = 5.76e23 (Gopher's budget)
-    const r20=[[X[0],20*X[0]],[Y[1]/20,Y[1]]];s+=pth('M'+F.lx(r20[0][0]).toFixed(1)+','+F.ly(r20[0][1]).toFixed(1)+'L'+F.lx(r20[1][0]).toFixed(1)+','+F.ly(r20[1][1]).toFixed(1),'var(--c3)',{sw:2.4});
-    s+=tx(F.lx(1.2e11)+10,F.ly(2.4e12)+14,'20 tokens per parameter',{fs:11,c:'var(--c3)',w:600});
-    const iso=geo(X[0],X[1],40).map(N=>[F.lx(N),F.ly(CG/6/N)]).filter(p=>p[1]>=F.ly(Y[1])-1&&p[1]<=F.ly(Y[0])+1);
-    s+=pth(pathOf(iso),'var(--mute)',{sw:1.6,da:'6 4'});
-    s+=tx(F.lx(7e11),F.ly(CG/6/7e11)+18,sm?'Gopher’s budget':'same compute as Gopher, 5.76 × 10²³ FLOPs',{fs:11,c:'var(--mute)',a:'end'});
-    const g=P.find(p=>/Gopher/.test(p.nm)),c=P.find(p=>/Chinchilla/.test(p.nm));
-    s+='<defs><marker id="hrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--c1)"/></marker></defs>';
-    s+='<line x1="'+F.lx(g.N).toFixed(1)+'" y1="'+(F.ly(g.D)-6).toFixed(1)+'" x2="'+(F.lx(c.N)+8).toFixed(1)+'" y2="'+(F.ly(c.D)+8).toFixed(1)+'" stroke="var(--c1)" stroke-width="1.8" marker-end="url(#hrA)"/>';
-    const lab={LaMDA:[0,16,'middle'],'GPT-3':[-6,-9,'end'],Jurassic:[6,-9,'start'],Gopher:[0,17,'middle'],'MT-NLG':[0,17,'middle'],Chinchilla:[8,4,'start']};
-    P.forEach(p=>{const x=F.lx(p.N),y=F.ly(p.D),ch=/Chinchilla/.test(p.nm);s+=dot(x,y,ch?6:4.5,ch?'var(--c1)':'var(--c2)',{t:p.nm+': '+hum(p.N)+' parameters, '+hum(p.D)+' tokens'});
-      const L=lab[p.nm.split(' ')[0]]||[6,-8,'start'];s+=tx(x+L[0],y+L[1],p.nm.split(' ')[0],{fs:11,a:L[2],c:ch?'var(--c1)':'var(--ink)',w:ch?600:400})});
-    host.innerHTML=svgW(w,H,s,'Five large models of 2021 and Chinchilla plotted by parameters and training tokens, with the 20 tokens per parameter line and Gopher’s equal-compute line')}
-  onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
 
 (function(){const T=PAPER.tables,F=PAPER.fit.fits;
   tbl('rdT1',['Model','Parameters','Training tokens','Tokens per parameter'],T.t1.rows.map(r=>{const n=parseFloat(r[1])*(/Trillion/.test(r[1])?1e12:1e9),d=parseFloat(r[2])*(/Trillion/.test(r[2])?1e12:1e9);return [r[0].replace(/ \(.*\)/,''),r[1].replace(' Billion','B'),r[2].replace(' Billion','B').replace(' Trillion','T'),(d/n).toFixed(1)]}),r=>/Chinchilla/.test(r[0])?'hl':'');
@@ -114,13 +92,8 @@ PRED_REVEAL['pr-tpp']=()=>{$('tppV').textContent=fmt(15e12/8e9)};
 // ---- Same budget, two allocations: the animation ----
 (function(){const C=CG,ALLOC={gop:{N:280e9,nm:'Gopher'},chin:{N:70e9,nm:'Chinchilla'}};
   const fitSel=()=>FITS[$('spxFit').value];
-  const S=(m)=>{const a=ALLOC[m],o=ALLOC[m==='gop'?'chin':'gop'];return [
-    {t:'One budget, a line of choices',c:'Every point on this curve spends 5.76 × 10²³ FLOPs: a model of <i>N</i> parameters trained on <i>D</i> = <i>C</i>/6<i>N</i> tokens. Bigger models see fewer tokens. The curve is the fitted loss along that line, an IsoFLOP profile like the ones above, extended to Gopher\'s scale.'},
-    {t:'Pick the model size',c:a.nm+' chose <b>'+hum(a.N)+'</b> parameters.'+(m==='gop'?' Kaplan\'s rule would have gone bigger still.':' The paper\'s three approaches put the optimum between 40B and 70B.')},
-    {t:'The budget fixes the tokens',c:'With <i>N</i> chosen, the budget leaves <i>D</i> = 5.76 × 10²³ / (6 × '+hum(a.N)+') tokens. Gopher was trained on 300B and Chinchilla on 1.4T (6<i>ND</i> gives 343B and 1.37T for this exact budget).'},
-    {t:'The model-size term',c:'<i>A</i>/<i>N</i><sup>α</sup>: what a perfectly trained model of this size still loses. It falls as the model grows.'},
-    {t:'The data term',c:'<i>B</i>/<i>D</i><sup>β</sup>: what a finite number of training tokens still loses. It falls as the data grows, so along the budget line it rises with <i>N</i>.'},
-    {t:'The total, against the other choice',c:'Loss = <i>E</i> + the two terms. The valley of the curve is the compute-optimal size for this fit; the faint bar is '+o.nm+'\'s allocation of the same budget.'}]};
+  // six steps per allocation; both allocations share the step list #sx-spx on the left
+  const S=()=>['One budget','Pick the model size','The budget fixes the tokens','The model-size term','The data term','The total'].map(t=>({t}));
   const modes={gop:S('gop'),chin:S('chin')};
   function parts(f,N){const D=C/6/N;return {N,D,m:f.A/Math.pow(N,f.alpha),d:f.B/Math.pow(D,f.beta),L:lossOf(f,N,D)}}
   function draw(m,k,e,w){const f=fitSel(),a=ALLOC[m],o=ALLOC[m==='gop'?'chin':'gop'],X=[5e9,2e12];
@@ -153,8 +126,8 @@ PRED_REVEAL['pr-tpp']=()=>{$('tppV').textContent=fmt(15e12/8e9)};
     if(k===0){const op=FIT.frontier(f,C);return '<div class="cnt2">'+stat('Budget','5.76 × 10²³','FLOPs, Gopher\'s')+stat('Fit','E '+f.E.toFixed(3),'α '+f.alpha.toFixed(3)+', β '+f.beta.toFixed(3))+stat('This fit\'s optimum',hum(op.N),'on '+hum(op.D)+' tokens, '+op.tpp.toFixed(0)+' per parameter')+'</div>'}
     return '<div class="cnt2">'+stat('Parameters N',hum(a.N),a.nm)+stat('Tokens D',k>=2?hum(p.D):'…',k>=2?(p.D/p.N).toFixed(1)+' per parameter':'')+stat('Model term',k>=3?p.m.toFixed(3):'…','A/N<sup>α</sup>')+stat('Data term',k>=4?p.d.toFixed(3):'…','B/D<sup>β</sup>')+
       stat('Loss',k>=5?p.L.toFixed(3):'…',k>=5?o.nm+': '+q.L.toFixed(3)+' ('+(p.L<q.L?'':'+')+(p.L-q.L).toFixed(3)+' for '+a.nm+')':'')+'</div>'}
-  window.SPX=makeAnim({id:'spx',modes,mode:'gop',draw,counters,dur:2600});
-  $('spxFit').addEventListener('change',()=>{if(window.SPX){SPX.st.lk=-1;SPX.draw()}});
+  window.SPX=makeAnim({id:'spx',modes,mode:'gop',lists:{gop:'sx-spx',chin:'sx-spx'},draw,counters,dur:4200});
+  $('spxFit').addEventListener('change',()=>{if(window.SPX)SPX.draw()});
 })();
 
 // ---- Figures 6 and 7 rebuilt: per-task difference from Gopher ----
