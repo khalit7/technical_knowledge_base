@@ -8,23 +8,9 @@ const T1=PAPER.tables.t1.rows,RC=PAPER.rc;
 (function(){
   const ACT=[['go to countertop 1','f'],['take egg 1','f'],['go to fridge 1','s'],['cool egg 1 with fridge 1','s'],['go to microwave 1','p'],['open microwave 1','p'],['put egg 1 in microwave 1','p']];
   const KC={f:'var(--c1)',s:'var(--c6)',p:'var(--c5)'};
-  const Q=t=>'<q>'+t+'</q>';
-  const common1={t:'A past task is solved',c:'The agent solves <i>put a cool egg in microwave</i>, the past task in the paper\'s Figure 3. Its trajectory, drawn as seven actions (illustrative), mixes three kinds of know-how: finding the object (blue), changing its state (teal), placing it (gold).'};
-  const modes={
-    read:[common1,
-      {t:'Store it raw',c:'JitMem stores the complete trajectory. Nothing is decided about what it is for, and nothing is discarded. The only gate: the executor, acting as judge, must think the task succeeded.'},
-      {t:'Task A arrives: put a hot potato in fridge',c:'The retriever returns the egg trajectory among its top 3, as in the paper\'s figure.'},
-      {t:'The curator writes payload A',c:'Reading task A and the raw trace together, the curator foregrounds the state change: '+Q('Heat the potato: Use a microwave or stove to make it hot.')+' '+Q('Move to the fridge: Go to the fridge, open it, and place the hot potato inside to cool it down.')+' (payload text from Figure 3).'},
-      {t:'Task B arrives: put a newspaper in sofa',c:'The same egg trajectory is retrieved again, for a task with no state change at all.'},
-      {t:'The curator writes payload B',c:'From the same trace it now foregrounds placement: '+Q('Move to the sofa: Navigate to the sofa and use the "move" action to place the newspaper on it.')+' '+Q('Verify placement: Confirm the newspaper is on the sofa. If not, repeat the process.')+' (Figure 3).'},
-      {t:'The reward arrives at once',c:'Each payload is used once, by the task it was written for, so that task\'s success grades it immediately: the gap between the curator\'s action and its reward is zero. That is what lets GRPO train the curator from task success alone.'}],
-    write:[common1,
-      {t:'Distil it now',c:'A write-time memory distils the trajectory at once, before any later task is known. Following the paper\'s ReasoningBank-style prompt (at most 3 items, generalisable, no object names or locations), say: '+Q('1. Locate the object on countertops and tables first. 2. Change its temperature with the matching appliance. 3. Go to the target, open it if closed, and put the object in.')+' (illustrative). The raw trajectory is dropped.'},
-      {t:'Task A arrives: put a hot potato in fridge',c:'The retriever returns the stored artifact: the same three items.'},
-      {t:'Task A gets the fixed artifact',c:'Item 2 happens to fit (heat the potato), but nothing is specific to this task: that the potato must be heated first and only then go into the fridge is left to the executor.'},
-      {t:'Task B arrives: put a newspaper in sofa',c:'The same artifact is retrieved again.'},
-      {t:'Task B gets the same artifact',c:'Placement is one generic line among three, and the temperature advice is noise for this task. Whatever the distillation dropped (where the egg was, which receptacles had to be opened) is gone for both tasks.'},
-      {t:'The reward comes later, and shared',c:'Was the distillation at step 2 a good one? Only tasks A and B can say, after the fact, and their success mixes the artifact\'s quality with everything else the executor did. A learned write-time curator has to learn from that signal; in the paper\'s real test stream a stored trajectory is first used about 20 tasks later, and a fifth to a quarter are never used (the replay tab).'}]};
+  // the steps' explanations are the static step lists #sx-tl-read and #sx-tl-write beside the card (one item per step)
+  const T7=n=>Array.from({length:n},(_,i)=>({t:'step '+(i+1)}));
+  const modes={read:T7(7),write:T7(7)};
   function chips(x0,y,cw,ch,hl,op){let s='';ACT.forEach((a,i)=>{const on=!hl||hl.includes(a[1]);s+=rc(x0+i*(cw+3),y,cw,ch,KC[a[1]],{op:(on?1:.22)*(op==null?1:op),r:3})});return s}
   function draw(m,k,e,W){const H=330,cw=Math.min(30,(W-30)/7-3),ch=14,rowW=7*(cw+3)-3,x0=(W-rowW)/2;let s='';
     const fs=11,mid=W/2,colW=(W-12)/2;
@@ -58,7 +44,7 @@ const T1=PAPER.tables.t1.rows,RC=PAPER.rc;
     return stat('Kept from the past trajectory',k<1?'not stored yet':m==='read'?'all 7 actions':'3 generic items','')+
       stat('Payloads tailored to their task',k<3?'none yet':(tail+' of '+(k>=5?2:1)),m==='read'?'curated with the task in view':'one artifact for every task')+
       stat('Delay before the curation is graded',m==='read'?'0 tasks':'until a later task uses it',m==='read'?'reward from the same task':'about 20 tasks in the real test stream')}
-  makeAnim({id:'tl',modes,mode:'read',draw,counters,dur:3200});
+  makeAnim({id:'tl',modes,mode:'read',lists:{read:'sx-tl-read',write:'sx-tl-write'},draw,counters,dur:4600});
 })();
 
 // 2. Results bars: one executor block, one metric

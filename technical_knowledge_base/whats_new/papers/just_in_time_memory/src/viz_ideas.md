@@ -26,5 +26,13 @@ Scores: teaches (0 to 3), data available (0 to 3), cost (3 = cheap). Built ones 
 
 | id | Idea | Score | Data | Placement | Status |
 |---|---|---|---|---|---|
-| P-just_in_time_memory.12 | Hero: write time against read time on one trajectory (static), with the replay's first-use delay and the Qwen3-8B gain split into untrained curator and RL training against RL SkillOS | 3/3/3 | Figure 1 and §3 (structure, redrawn); inputs/stream.json; recompute.py decomposition of Tables 1 and 9 | Reading, top | built (mk_hero.py) |
+| P-just_in_time_memory.12 | Hero: write time against read time on one trajectory (static), with the replay's first-use delay and the Qwen3-8B gain split into untrained curator and RL training against RL SkillOS | 3/3/3 | Figure 1 and §3 (structure, redrawn); inputs/stream.json; recompute.py decomposition of Tables 1 and 9 | Reading, top | built (mk_hero.py); retired 2026-11-13 for .14 (git keeps it) |
 | P-just_in_time_memory.13 | Embed the paper's Figure 1 | | arXiv non-exclusive licence | | rejected: licence does not allow reuse; redrawn instead |
+
+## Layout rollout, 2026-11-13
+
+| id | Idea | Score | Data | Placement | Status |
+|---|---|---|---|---|---|
+| P-just_in_time_memory.14 | Hero as a 3D stage: the 140-task stream as a 14 by 10 grid, stored trajectories rising, retrieval as flowing dots; one trajectory (task 32) distilled at write time and waiting 18 tasks, then a payload per consumer graded at once; the never-used share; the Qwen3-8B gain split as stacked bars on plinths with RL SkillOS as a glass sheet | 3/3/2 | the page's replay engine (seed 7, p 0.774); recompute.py decomposition of Tables 1 and 9 | Reading, top | built (`31_js_sc_stream.js`) |
+| P-just_in_time_memory.15 | The Idea animation in 3D (bank, curator plate, two task cards) | 2/2/1 | Figure 3 example, illustrative | | rejected for now: the payload is text and the chips read as well flat; the 3D stream above already carries the spatial idea |
+| P-just_in_time_memory.16 | The replay tab's 14-batch card as an autoplaying stepper | | | | rejected: the long-replay rule; it is a widget opening on batch 5, the grouped stretches are on the 3D stage |

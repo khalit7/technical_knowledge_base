@@ -265,9 +265,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
 - [x] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
 - [x] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
-- [~] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
+- [x] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
 - [~] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
-- [ ] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
+- [~] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
 - [ ] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
 - [ ] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
 - [ ] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
@@ -558,6 +558,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/harnessdev`: both stages leave empty space above the scene on phones.
 - `whats_new/papers/jit_agent`: Evo-GDPO stage step 4 the JIT-Agent column's three value labels stack and overlap; stages small on phones; Figure 6 nine-panel grid stays full width (table-tab exception).
 - `whats_new/papers/instructgpt`: Fig. 1 step 4 the "starts as a copy of SFT" and "one sampled answer" labels overlap at the policy box. Notion Takeaway property may still say "Defined..." while paper.json says "Took the 3-stage RLHF recipe..." (sync on next publish).
+- check_times misses combined quotes ("About 25 and 16 min" on topic_agentic_frameworks for Proactive Memory Agent and Just-in-Time Memory; fixed by hand and its ledger key re-pointed off the minutes).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -668,3 +669,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - HarnessDev: the hero stays the 2D chart and the protocol stage sits beside Idea and Method (EnvHarness precedent); the protocol stage follows Opus 4.8 throughout (best average); held-out orange and visible blue to match the replay tab. Keep?
 - JIT-Agent: the Evo-GDPO stage treats Table 3's six harnesses as one group with tokens for latency, lambda_evo 0.5 and weights 0.6/0.2/0.2 (the Score tab's defaults, labelled illustrative); the three-stage card keeps its Stage III mode, which overlaps the new stage. Keep?
 - InstructGPT: Fig. 3 shows one fixed episode ("count to three"; the "Another prompt" button is gone so the step list quotes exact numbers); the K-ranking and one-PPO-step pictures are linked to the Alignment page's stages instead of rebuilt; Fig. 1 answer blocks and pretraining stack are schematic (stated). Keep?
+- Just-in-Time Memory: static hero retired (its gain split is the stage's last step); the stage follows seed 7 and hand-picked task 32 (200-ordering figures given alongside); the replay widget opens on batch 5 and the inspector on task 32. Keep?

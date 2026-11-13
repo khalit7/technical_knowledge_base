@@ -42,7 +42,8 @@
     const md=dl.length?dl.reduce((a,b)=>a+b,0)/dl.length:0;
     return stat('Storage decisions graded',g,'first used by a later task')+stat('Still waiting',w,k===NB-1?'never graded':'not used yet')+stat('Mean wait for the first use',dl.length?md.toFixed(1)+' tasks':'none yet','read time: 0')}
   rebuild();
-  anim=makeAnim({id:'cap',modes,mode:'read',draw,counters,dur:1800});
+  // a widget (the long-replay rule, 2026-11-06): 14 batches are the outcome of a run the reader drives, so no autoplay and no step list; it opens on batch 5
+  anim=makeAnim({id:'cap',modes,mode:'read',widget:true,start:4,draw,counters,dur:1800});
   function inspect(){const i=+$('iR').value-1;$('iV').textContent=i+1;const b=Math.floor(i/B);
     const li=pos=>'<span style="color:'+TYC[typ(pos)]+'">●</span> #'+(pos+1)+' '+gl(pos)+' <span class="mute">('+TYN[typ(pos)]+')</span>';
     const cons=[];R.ret.forEach((r,pos)=>{if(r.includes(i))cons.push(pos)});

@@ -43,9 +43,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
-    for (const id of ['tl', 'cap']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // motion (2026-11-13, inverted from the 2026-10-26 never-autoplay rule): the Idea animation plays by itself once scrolled into view;
+    // the replay tab's batch card is a widget (14 batches, the long-replay rule) and never plays by itself
+    for (const [id, plays] of [['tl', true], ['cap', false]]) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+      if (plays && !fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
+      if (!plays && fr) problems.push(`${scheme} ${width}: widget ${id} moved before any click (${fr} frames)`) } }
     // closed details hold text too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)

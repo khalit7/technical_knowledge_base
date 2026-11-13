@@ -15,9 +15,7 @@ FAT = {1: 'the old header line ("About 17 min to read The paper tab"), replaced 
 KEYS = {}
 NEW = [
  ('core', 'Core sentence: store raw, curate per task once known, graded at once; untrained wins 15 of 17 like for like; most of the headline +16 is RL training.', 'most of the headline +16 points comes from rl-training the curator'),
- ('core', 'Hero (redrawn; arXiv non-exclusive licence): write time against read time on one trajectory, the replay delays (19.5 tasks, 24% never), and the Qwen3-8B gain split (ALFWorld 47.9, +12.6, +16.9, 57%; WebShop 9.8, +1.9, +21.1, 92%) against RL SkillOS.', 'notice the two delays'),
  ('core', 'You need (GRPO, agent memory designs) and the new terms: write-time and read-time curation, curator, payload, executor, quality gate, -base/-gpt/-gemini.', 'the briefing prepended to the executor'),
- ('owned:' + RL, 'GRPO and Dr. GRPO in general: group-relative advantage, mean-centred without the standard-deviation division.', 'dr. grpo gives'),
  ('core', 'Open summary of What it takes to use this.', 'the untrained version can be rebuilt from the paper alone'),
  ('volatile', 'Since the paper, checked 26 October 2026: arXiv still v1 only, non-exclusive licence, no code, weights or trajectories; no official repository found.', 'arxiv still lists only v1'),
  ('core', 'Takeaway scoped on 26 October 2026: the database Takeaway overclaimed timing as the source of the headline gain.', 'scoped on 26 october 2026'),
@@ -57,13 +55,26 @@ for x in u:
         x['label'] = 'volatile'
     else:
         x['label'] = 'depth' if k in det else 'core'
+# 2026-11-13 layout rollout: units added by hand earlier whose text or key changed (by id), and the new units of the pass
+BYID = {
+ 210: ('core', 'Hero (2026-11-13: a 3D stage of the paper\'s test stream, seed 7, run by the page\'s replay engine; the static SVG hero retired): one trajectory (task 32) distilled at write time and first used 18 tasks later, against a payload per consumer graded at once; the replay delays (19.5 tasks, 24% never over 200 orderings); and the Qwen3-8B gain split (ALFWorld 47.9, +12.6, +16.9, 57%; WebShop 9.8, +1.9, +21.1, 92%) against RL SkillOS.', 'where the headline gain comes from'),
+ 212: ('owned:' + RL, 'GRPO and Dr. GRPO in general: group-relative advantage, mean-centred without the standard-deviation division.', 'dr. grpo removes the division by the standard deviation'),
+}
+for x in u:
+    if x['id'] in BYID:
+        x['label'], x['text'], x['key'] = BYID[x['id']]
+NEW += [
+ ('core', 'Top stage step list (2026-11-13): the seed-7 stream in eight explained stretches; batch 1 stores 8, the bank holds 28 after batch 4; task 32 first retrieved by task 50 (the Figure 3 past task), 18 tasks later; 4 consumers of 3 types at 18, 59, 87 and 94 tasks; 92 stored, 19 (21%) never used, first use 20.2 tasks in this ordering.', 'that storage decision waits 18 tasks'),
+ ('core', 'Idea animation step lists (2026-11-13): the Figure 3 captions of both modes, formerly drawn by script, now static step lists beside the animation.', 'the curator writes payload a'),
+ ('core', 'Replay tab (2026-11-13): the batch card is a widget that opens on batch 5 and never plays by itself; the paragraph beside it explains rows, dots, lines and the two ring designs.', 'the run is yours to drive'),
+]
 have = {x['text'] for x in u if x.get('added')}
 n = max(x['id'] for x in u)
 for lab, text, key in NEW:
     if text in have:
         continue
     tab = 't-tables' if text.startswith('Tables tab') else 't-run' if text.startswith('Replay tab') else 't-read'
-    n += 1; u.append({'id': n, 'tab': tab, 'section': 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
+    n += 1; u.append({'id': n, 'tab': tab, 'section': 'light pass 2026-10-26' if '2026-11-13' not in text else 'layout rollout 2026-11-13', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
 F.write_text(json.dumps(u, indent=1, ensure_ascii=False) + '\n')
 c = {}
 for x in u: c[x['label'].split(':')[0]] = c.get(x['label'].split(':')[0], 0) + 1
