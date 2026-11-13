@@ -38,7 +38,7 @@
       EC.forEach((e,j)=>{const c=F.count[e],ww=(w-lw-pr)*c/mxn;s+=rc(x,y+3,ww,16,ECC[j],{r:0})+'';if(ww>22)s+=tx(x+ww/2,y+15,c,{fs:11,a:'middle',c:'var(--bg)'});x+=ww});
       s+=tx(x+4,y+15,'n='+F.n,{fs:11,c:'var(--mute)'})});
     $('f7Plot').innerHTML=svgW(w,y0+MS.length*rh+6,s,'Errors by class')}
-  onTab('t-tables',()=>{fit($('hiPlot'),slope);fit($('f7Plot'),f7)});
+  onTab('t-tables',()=>fit($('hiPlot'),slope));onTab('t-read',()=>fit($('f7Plot'),f7));
   // checks
   $('chk').innerHTML=RC.checks.map(c=>'<p class="chkl"><span class="'+(c.ok?'ok':'no')+'">'+(c.ok?'As stated':'Differs')+'</span> '+c.name.replace(/</g,'&lt;')+'</p>').join('')+'<p class="small mute">'+RC.checks.filter(c=>c.ok).length+' of '+RC.checks.length+' checks come out as this page states. A check worded as a contradiction ("do not equal") passes when the contradiction is confirmed.</p>';
 })();

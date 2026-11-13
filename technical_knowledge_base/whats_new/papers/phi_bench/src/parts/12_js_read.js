@@ -7,24 +7,7 @@ function rewardOld(s,ref){if(s<=1)return 0;return Math.min(1,.5*Math.log(s)/Math
 const SN={'Claude Opus 5':'Opus 5','Kimi K3':'Kimi K3','Qwen3.8 Max':'Qwen3.8','GPT 5.6 Sol':'GPT-5.6','GLM 5.2':'GLM-5.2','Claude Sonnet 5':'Sonnet 5','Qwen3.7 Max':'Qwen3.7','DeepSeek V4Pro':'DeepSeek'};
 const seBound=(m,n)=>Math.sqrt(Math.max(0,m)*(1-m)/n);
 
-// Three formats: nested scopes, what is fixed, what the package says
-(function(){
-  const F={KFC:{n:55,given:'the function, its interface and its input-output semantics',edit:'one file',sub:'one submission',obj:'specified',pk:'51 scored on speed, 4 pass or fail; one scored attempt each; agent time limit 1.5 h (33 tasks) or 6 h (22)'},
-           LHI:{n:20,given:'an issue-style feature request and a coarse editable scope (a submodule)',edit:'several files',sub:'up to 16 candidates',obj:'specified',pk:'18 scored on speed, 2 pass or fail (single attempt); agent time limit 1.5 h'},
-           E2EO:{n:10,given:'a workload, a system-level objective and constraints; no component named',edit:'the whole repository',sub:'up to 16 candidates',obj:'free',pk:'8 scored on speed or quality, 2 pass or fail (single attempt); agent time limit 1.5 to 6 h'}};
-  let mode='KFC';const host=$('fmtSvg');
-  function draw(w){const h=150,on=k=>k===mode;
-    const lvl=[['E2EO','Whole repository',0],['LHI','Submodule: several files',1],['KFC','One file, one function',2]];
-    const nar=w<520;if(nar){lvl[0][1]='Repository';lvl[1][1]='Submodule';lvl[2][1]='One function'}
-    let s='';lvl.forEach(([k,lab,i])=>{const pad=i*Math.min(48,w*.06),x=8+pad,y=8+i*36,ww=w-16-2*pad,hh=h-16-i*72;
-      s+=rc(x,y,ww,Math.max(30,hh),on(k)?'var(--acc2)':'none',{s:on(k)?'var(--acc)':'var(--line)',sw:on(k)?2:1,r:8});
-      s+=tx(x+10,y+18,lab+' ('+k+', '+F[k].n+(nar?')':' tasks)'),{fs:nar?11.5:12,c:on(k)?'var(--ink)':'var(--mute)',w:on(k)?600:400})});
-    host.innerHTML=svgW(w,h,s,'Nested editable scopes of the three formats')}
-  const st2=(k,v)=>'<div class="stat"><div class="k">'+k+'</div><div style="font-size:14px;line-height:1.4">'+v+'</div></div>';
-  function txt(){const f=F[mode];$('fmtTxt').innerHTML='<div class="out">'+st2('Given',f.given)+st2('Editable',f.edit)+st2('Submissions',f.sub+'; objective '+f.obj)+st2('In the released package',f.pk)+'</div>'}
-  segBind('fmtM',m=>{mode=m;document.querySelectorAll('#fmtM button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));refit(host);txt()});
-  fit(host,draw);txt();
-})();
+// Three formats: the 3D stage in 31_js_sc_fmt.js (replaced the nested-scope widget on 2026-11-13)
 
 // Funnel: sources to tasks, log scale
 (function(){const host=$('funSvg');
@@ -70,7 +53,7 @@ const seBound=(m,n)=>Math.sqrt(Math.max(0,m)*(1-m)/n);
       s+=rc(x,y+4,sc(v),14,j===2?'var(--c2)':'var(--acc)',{r:2,op:.85})+ln2(x+sc(Math.max(0,v-e)),y+11,x+sc(Math.min(100,v+e)),y+11,'var(--ink)',{sw:1})+tx(x+sc(v)+3,y+27,v.toFixed(1),{fs:11,c:'var(--mute)'})})});
   $('fmtPlot').innerHTML=svgW(w,H,s,'Table 3 by format')})})();
 
-// Predict 3 and the tables tab: task counts by category and format
+// The tables tab: task counts by category and format (Figure 4; the predict question that revealed it became the categories stage on 2026-11-13)
 function drawHeat(host){fit(host,w=>{const C=T.cats,F=['KFC','LHI','E2EO'],n=RC.cat_n,cw=(w-70)/9,W=w,H=190;let s='';
   const best=C.map((c,i)=>{let bm=MS[0];MS.forEach(m=>{if(T.T2[m][i]>T.T2[bm][i])bm=m});return [bm,T.T2[bm][i]]});
   const short=cw>60?['Training','Inference','Compress','Kernel','I/O','HW, Edge','Data','Sys opt','Assurance']:['Trn','Inf','Cmp','Krn','I/O','HW','Data','Opt','Asr'];
@@ -81,7 +64,7 @@ function drawHeat(host){fit(host,w=>{const C=T.cats,F=['KFC','LHI','E2EO'],n=RC.
   y+=24;s+=tx(64,y+14,'best %',{fs:11.5,a:'end'});best.forEach(([m,v],i)=>{s+=tx(70+i*cw+cw/2,y+14,v.toFixed(1),{fs:11.5,a:'middle'})});
   y+=18;s+=tx(64,y+14,'± bound',{fs:11.5,a:'end',c:'var(--mute)'});best.forEach(([m,v],i)=>{s+=tx(70+i*cw+cw/2,y+14,(100*seBound(v/100,n[i])).toFixed(1),{fs:11,a:'middle',c:'var(--mute)'})});
   host.innerHTML=svgW(W,H+12,s,'Tasks by category and format')+(cw>60?'':'<p class="small mute" style="margin:2px 0">Trn Training, Inf Inference and Serving, Cmp Compression, Krn Kernel, HW Hardware and Edge, Opt System Optimization, Asr System Assurance.</p>')})}
-PRED_REVEAL.pr3=()=>drawHeat($('hmPlot'));
+onTab('t-tables',()=>drawHeat($('hmPlot')));
 
 // Figure 5 rebuilt
 (function(){const host=$('effPlot');const L=['Claude Opus 5','Kimi K3','GPT 5.6 Sol'];

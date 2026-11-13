@@ -6,10 +6,10 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card; the core sentence, hero figure (`15_js_hero.js`), You need and New terms; Problem; Three formats (nested-scope widget); Construction (funnel); Scoring (predict: a tie with the reference scores 0, live reward curve per task); Results (predict: E2EO scores highest; predict: Hardware and Edge is 3 tasks, heatmap); Iterations and effort (Figure 5 rebuilt); Errors and cheating; Case study; How much to believe; What it takes to use this; Why it matters; Connections. |
-| Replay the MoE training run | `t-run` | The live ingredient: the iteration task's 24 rounds for three models (Figure 8), all eight best-so-far curves (Figure 6) with a BPB / task-reward lens, final table. |
+| The paper | `t-read` | (split layout and two 3D stages since 2026-11-13) Card; the core sentence, hero figure (`15_js_hero.js`), You need and New terms; Problem; Three formats (3D stage); Construction (funnel); Scoring (predict: a tie with the reference scores 0, live reward curve per task); Results (predict: E2EO scores highest); Categories (3D stage); Iterations and effort (Figure 5 rebuilt); Errors and cheating (Figure 7); Case study; How much to believe; What it takes to use this; Why it matters; Connections. |
+| Replay the MoE training run | `t-run` | The live ingredient (split since 2026-11-13; the 24 rounds play in 6 or 7 explained stretches): the iteration task's 24 rounds for three models (Figure 8), all eight best-so-far curves (Figure 6) with a BPB / task-reward lens, final table. |
 | Score a submission | `t-score` | Simulated AB-BA scoring on any of the 77 real anchors, paired against unpaired; the anchors strip plot. |
-| The paper's tables and figures, rebuilt | `t-tables` | Table 2 (sortable, bound, ranks), Table 3 with recomputed Full, max against high effort (leaderboard), Figure 5 against Table 3, Figure 7 counts, every check. |
+| The paper's tables and figures, rebuilt | `t-tables` | Table 2 (sortable, bound, ranks), Figure 4 heatmap (since 2026-11-13), Table 3 with recomputed Full, max against high effort (leaderboard), Figure 5 against Table 3, a pointer to Figure 7 (now on The paper tab), every check. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
 ## Departures from papers.md (and why)
@@ -28,7 +28,9 @@
 - `mk_tables.py`: `tables.json`. `recompute.py`: 44 checks and every derived number, to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
 - `mk_coverage.py` writes `coverage.json` (34 items, this paper's own, verified against the built page).
-- `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the replay stepped for every model.
+- `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the replay stepped for every model; since 2026-11-13 it asserts that the replay plays once scrolled into view (it used to forbid it).
+- `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, and the numbers of the static step lists (`sx-fmt`, `sx-cat`, `sx-rp-*`) against the page's data (`window.PHIFMT`, `window.PHICAT`, `window.PHIRUN`).
+- `parts/31_js_sc_fmt.js`, `parts/32_js_sc_cat.js` (2026-11-13): the two 3D scenes on the template renderer `parts/25_js_s3.js`; `parts/02_split.html` the split layout (template, unchanged).
 - `viz_ideas.md`: ranked ideas, rows `P-phi_bench.<k>`.
 
 ## Light pass to the teaching contract (2026-10-25)
@@ -45,3 +47,27 @@
 ## Checks (3 October 2026)
 
 `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 44 of 44; `mk_coverage.py` 34 of 34.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after `01_css.html`). The paper: the top (core sentence, You need, New terms) beside the hero; Three formats beside its stage; Construction beside the funnel; the new Categories section beside its stage; Iterations and effort beside Figure 5; Errors, persistence and cheating beside Figure 7 (moved here from the tables tab, so the counts the prose quotes sit beside it). Problem, Scoring and Results (their visuals are the hero and the predict reveals), Case study, How much to believe, Use it, Why it matters and Connections stay full width. Replay tab: notes and the step lists left, the replay right; the best-so-far notes left, the lens toggle and chart right; the final table full width. Score tab: notes left, the simulator right; the anchors note left, the strip right. Tables tab: Figure 4 and the max against high slopegraph split; the tables full width. Further reading unchanged.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged):
+  - `31_js_sc_fmt.js`, the three formats (five steps, `sx-fmt`): the task package (a drawn repository of file blocks on a glass base, the spec, the workloads and tests, the hidden harness), KFC's one file (camera in close), LHI's submodule, E2EO's whole repository with a workload stream and a bottleneck to find, then one cube per task by format and scoring type (51 and 4, 18 and 2, 8 and 2, counted at run time from `tasks_index.json` as the page holds it). The repository layout and the bottleneck are illustrative and labelled so. Replaces the nested-scope widget (three-mode toggle); its four bullets became steps 2 to 4 and its per-format package facts step 5.
+  - `32_js_sc_cat.js`, the categories (six steps, `sx-cat`): Figure 4's 85 tasks as cubes per category (columns by task count), Opus's row of Table 2, all 72 bars, the best per category, Hardware and Edge in close beside its 3 tasks with the ±13.0 bound on the best score, and the front row streaming into the Full column in proportion to the task counts. Replaces the third predict question (how many tasks Hardware and Edge rests on), which the stage would have answered before it was asked; its heatmap moved to the tables tab as Figure 4.
+- **Kept 2D**: the hero (a reward scale and eight means on one axis), the predict reveals (reward curve, Table 3 bars), the funnel (log bars), the effort chart, Figure 7, the replay and best-so-far curves (lines over rounds), the Score tab's histograms and anchors strip (log axes), every table.
+- **Replay**: `makeAnim` (`11_js_ui.js`) replaced by the HarnessDev version (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, one `ol.sx` per model). The long-replay rule: the 24 rounds play in 7 (Opus) or 6 (Qwen3.7 Max, DeepSeek-V4-Pro) stretches, each adding its rounds one by one; the per-round caption box went, its texts are the static step lists (`sx-rp-opus`, `sx-rp-q37`, `sx-rp-ds`).
+- `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `phi-tab`; the old copy's extra that opened a closed block after a `data-to` target was dropped: no target here is followed by one).
+- `label_ledger.py`: keys never contain a reading-time figure (the Further reading entries had keys starting "(30 min)"), six keys re-pointed by hand (units 8, 87, 88, 202, 210, 240) and eight units added for the step lists.
+
+## Length judgement (2026-11-13)
+| | Before (audit, pre-pass) | After |
+|---|---|---|
+| The paper, core | 23.6 min (5,421 words) | 25.4 min (5,844) |
+| The paper, closed | 1.8 min (423) | 1.8 min (423) |
+| Replay tab | 2.3 min (538) | 4.5 min (1,040) |
+| Score; Tables; Further reading | 2.2; 5.0; 2.5 min | 2.2; 5.4; 2.5 min |
+
+The growth is the two stage step lists (about 450 words) that explain the stages and absorb the widget's bullets, and the replay's stretch lists, which replace a caption that changed every round and was readable only while it played. Two paragraphs that the stages now carry were shortened (the Hardware and Edge corrections, the package note under Three formats). Header: "Reading: 25 min, plus 2 in closed details." from `reading.json`.
+
+Ledger: 285 units (core 266, depth 11, owned 5, volatile 1, fat 2); `ledger.py check` problems 0. `mk_coverage.py` 34 of 34; `recompute.py` 44 of 44.
