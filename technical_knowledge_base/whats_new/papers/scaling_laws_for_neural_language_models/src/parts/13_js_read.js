@@ -12,24 +12,6 @@ const pth=(d,c,o)=>{o=o||{};return '<path d="'+d+'" fill="none" stroke="'+c+'" s
 const dot=(x,y,r,c,o)=>{o=o||{};return '<circle cx="'+(+x).toFixed(1)+'" cy="'+(+y).toFixed(1)+'" r="'+r+'" fill="'+(o.f||c)+'" stroke="'+c+'" stroke-width="'+(o.sw||1.5)+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
 const geo=(a,b,n)=>{const r=[];for(let i=0;i<=n;i++)r.push(a*Math.pow(b/a,i/n));return r};
 
-// ---- Hero: learning curves of five sizes against compute and their lower envelope (Eq. 1.6 with the batch at B_crit, as Appendix B) ----
-(function(){const Bc=L=>K.Bs/Math.pow(L,1/K.aB),Lc=N=>Math.pow(K.Nc/N,K.aN),LS=(N,S)=>Lc(N)+Math.pow(K.Sc/S,K.aS),CofNS=(N,S)=>6*N*Bc(LS(N,S))*S/K.PFD;
-  const X=[1e-5,1e3],Y=[2,6],sizes=[[1e6,'10'+sup(6)],[1e7,'10'+sup(7)],[1e8,'10'+sup(8)],[1e9,'10'+sup(9)],[1e10,'10'+sup(10)]],cols=['var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c2)'];
-  // lower envelope: the lowest loss any size reaches at each compute, over a dense grid of sizes and steps
-  const nb=120,env=new Array(nb+1).fill(Infinity),bin=C=>Math.round(nb*(lg10(C)-lg10(X[0]))/(lg10(X[1])-lg10(X[0])));
-  geo(3e5,3e11,160).forEach(N=>geo(50,3e7,240).forEach(S=>{const b=bin(CofNS(N,S));if(b>=0&&b<=nb)env[b]=Math.min(env[b],LS(N,S))}));
-  function draw(w){const H=Math.min(330,Math.max(260,w*.55));
-    const F=logFrame({W:w,H,pl:44,pr:w<520?40:56,pt:12,pb:40,x:X,y:Y,xt:decTicks(X[0],X[1],w<520?2:1),yt:linTicks([2,2.5,3,4,5,6]),xl:'training compute (PF-days, batch at B'+SB('crit')+')',yl:'test loss (nats/token)'});
-    let s=F.s;
-    sizes.forEach(([N,lab],i)=>{const pts=geo(50,3e7,200).map(S=>[CofNS(N,S),LS(N,S)]).filter(p=>p[0]>=X[0]&&p[0]<=X[1]&&p[1]<=Y[1]&&p[1]>=Y[0]);
-      s+=pth(pathOf(pts.map(p=>[F.lx(p[0]),F.ly(p[1])])),cols[i],{sw:1.8});
-      const e=pts[pts.length-1];if(e)s+=tx(Math.min(F.lx(e[0])+4,w-4),F.ly(e[1])+4,lab,{fs:11,c:cols[i],a:F.lx(e[0])+30>w?'end':'start'})});
-    const ep=[];env.forEach((L,b)=>{if(isFinite(L)&&L<=Y[1])ep.push([F.lx(10**(lg10(X[0])+b*(lg10(X[1])-lg10(X[0]))/nb)),F.ly(L)])});
-    s+=pth(pathOf(ep),'var(--c1)',{sw:3.2,da:'7 4'});
-    s+=tx(F.lx(X[0])+6,F.ly(2.3),'dashed: the best size',{fs:11,c:'var(--c1)',w:600})+tx(F.lx(X[0])+6,F.ly(2.3)+15,'for each budget',{fs:11,c:'var(--c1)',w:600});
-    $('heroSvg').innerHTML=svgW(w,H,s,'Learning curves of five model sizes against compute, with their lower envelope')}
-  onTab('t-read',()=>fit($('heroSvg'),draw));fit($('heroSvg'),draw)})();
-
 // ---- Predict: doubling N ----
 PRED_REVEAL['pr-dbl']=()=>{$('dblV').textContent=Math.pow(2,-K.aN).toFixed(4)};
 PRED_REVEAL['pr-tenx']=()=>{$('tenxK').textContent=Math.pow(10,K.pN).toFixed(1);$('tenxD').textContent=Math.pow(10,1-K.pN).toFixed(1)};
@@ -96,14 +78,8 @@ PRED_REVEAL['pr-tenx']=()=>{$('tenxK').textContent=Math.pow(10,K.pN).toFixed(1);
     const curve=geo(30,S*1.6,160).map(s=>{const L=Lc+Math.pow(K.Sc/s,K.aS);return {s,L,C:6*N*Bc(L)*s/K.PFD}});return {f,Lc,N,S,C,curve,tok:Bc(Lt)*S}};
   const R={eff:mk(K.aN/K.aS),conv:mk(0.02)};
   const X=[3e-2,1e2],Y=[2.1,4.2];
-  const modes={eff:[{t:'Pick a big model',c:'For this target the compute-efficient size is the model whose converged loss is 2.50/1.10: 1.8B non-embedding parameters (α<sub>N</sub>/α<sub>S</sub> = 10% above convergence, Eq. B.5).'},
-      {t:'Train it at the critical batch',c:'Loss falls along <i>L</i> = (<i>N</i><sub>c</sub>/<i>N</i>)<sup>α<sub>N</sub></sup> + (<i>S</i><sub>c</sub>/<i>S</i>)<sup>α<sub>S</sub></sup>; each step costs 6<i>N</i><i>B</i><sub>crit</sub>(<i>L</i>) FLOPs, and <i>B</i><sub>crit</sub> grows as the loss falls.'},
-      {t:'Stop at the target, far from converged',c:'It reaches 2.50 nats while still 10% above where it would end: the curve is still falling steeply, which is exactly when each FLOP buys the most.'},
-      {t:'Compare the bills',c:'The small model that converges to the same loss (faint) needs 7.5× the steps and 2.8× the compute: the paper\'s "compute-efficient training uses 7.7x fewer parameter updates, 2.7x more parameters, and 65% less compute" (Eq. B.12 to B.14).'}],
-    conv:[{t:'Pick a small model',c:'The usual practice: a model trained until it is within 2% of its converged loss (the paper\'s f′ = 2%). For a 2.50 target that is 0.66B parameters, converged loss 2.45.'},
-      {t:'Train it at the critical batch',c:'The same equation, the same batch rule; a smaller model costs less per step but must take many more of them.'},
-      {t:'Stop at the target, nearly converged',c:'It reaches 2.50 nats only on the flat tail of its curve, where each step improves the loss very little.'},
-      {t:'Compare the bills',c:'The 2.7× larger model (faint) reaches the same loss with 13% of the steps and 36% of the compute. Convergence is inefficient (§1.1).'}]};
+  const modes={eff:[{t:'Pick a big model'},{t:'Train it at the critical batch'},{t:'Stop at the target, far from converged'},{t:'Compare the bills'}],
+    conv:[{t:'Pick a small model'},{t:'Train it at the critical batch'},{t:'Stop at the target, nearly converged'},{t:'Compare the bills'}]};  // explained by the step lists sx-cvx and sx-cvx2
   const lastC={};
   function draw(m,k,e,w){const H=Math.min(320,Math.max(250,w*.55)),A=R[m],Bm=R[m==='eff'?'conv':'eff'];
     const F=logFrame({W:w,H,pl:44,pr:14,pt:14,pb:40,x:X,y:Y,xt:decTicks(X[0],X[1],1),yt:linTicks([2.2,2.5,3,3.5,4]),xl:'training compute (PF-days, at the critical batch)',yl:'test loss (nats/token)'});
@@ -123,7 +99,7 @@ PRED_REVEAL['pr-tenx']=()=>{$('tenxK').textContent=Math.pow(10,K.pN).toFixed(1);
     let h=stat('Parameters N',sciT(A.N,2),'non-embedding')+stat('Steps',v.s?fmt(v.s,0):'0',k>=2?'S = '+fmt(A.S,0):'')+stat('Compute',v.C?v.C.toFixed(2)+' PF-days':'0',k>=2?sciT(A.C*K.PFD,2)+' FLOPs':'')+stat('Loss',isFinite(v.L)?v.L.toFixed(3):'not started',k>=2?((Lt/A.Lc-1)*100).toFixed(0)+'% above converged':'');
     if(k>=3)h+=stat('Against the other run',(m==='eff'?(A.C/Bm.C).toFixed(2):(A.C/Bm.C).toFixed(2))+'× compute',(A.S/Bm.S).toFixed(2)+'× steps, '+(A.N/Bm.N).toFixed(2)+'× parameters');
     return '<div class="cnt2">'+h+'</div>'}
-  window.CVX=makeAnim({id:'cvx',modes,mode:'eff',draw,counters,dur:2600});
+  window.CVX=makeAnim({id:'cvx',modes,mode:'eff',lists:{eff:'sx-cvx',conv:'sx-cvx2'},draw,counters,dur:3600});
 })();
 
 // ---- Figure 15 rebuilt: L(C_min) against L(D(C_min)) ----
