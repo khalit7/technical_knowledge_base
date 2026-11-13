@@ -59,3 +59,44 @@ Why about 21 minutes is right: the Reading tab now holds what used to take 21.3 
 
 ## Checks (24 October 2026)
 `checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0, 177 KB. `check_page.mjs`: 380 actions, 0 problems (including no movement before a click). `__zeroCheck()`: 2Ψ, 2Ψ, 2Ψ, 3Ψ and the at-rest memory matches §5's formulas. `mk_coverage.py`: 53 of 53 (four keys updated for British spelling and moved sentences). `ledger.py check`: problems 0.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership: this page owns the paper (its accounting, its three stages as the paper states them, its numbers and evidence). Sharded data parallelism as a form is Distributed training's, whose section 4 already has Figure 1's numbers as flat bars (Fig. 5) and the same step played under each stage on a stack of layers in 3D (Fig. 6); its PyTorch API is Distributed PyTorch's (FSDP2). So the one stage here draws what the paper's own Figure 1 says, at its own example size, with §7's volumes beside it, and both the stage and the step-through link to Distributed training's Figs. 5 and 6 instead of redrawing them.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| The paper | core sentence, You need, New terms | split | hero, 2D static (DP against ZeRO-3 on 4 GPUs) | no |
+| The paper | Problem | full width | none | no |
+| The paper | Where did all the memory go | split | predict, then the 16-bytes bar (2D widget) | no |
+| The paper | The idea: ZeRO-DP | split | **3D** `stg-f1` (Figure 1), model and N_d under the step list | yes, 5 |
+| The paper | Communication (argument) | split | predict, then the volume bars (2D) | no |
+| The paper | Communication (one training step) | split | 2D `makeAnim` `stx`, four comparisons; the paper-scale counters stay closed below the lists | yes, 11 per comparison |
+| The paper | ZeRO-R, With MP | full width | none | no |
+| The paper | Results | split | predict, then the 60B memory bars (2D) | no |
+| The paper | Believe?, Why it matters, Connections | full width | none | no |
+| The paper's tables, rebuilt | calculator; Table 3 and Figure 6 | split | 2D chart cards on the right | no |
+| The paper's tables, rebuilt | Tables 1 and 2, recount, checks | full width | tables | no |
+| Then and now | all | full width | tables | no |
+| Further reading | | unchanged | | |
+
+**Figure 1 in 3D** (`31_js_sc_f1.js`): four rows in depth, one per stage (baseline DP at the back, ZeRO-3 at the front); along each row four GPU towers (GPU 0, 1, 2 and N_d - 1), each a stack of three slabs to scale: fp16 parameters 2Ψ, fp16 gradients 2Ψ, fp32 optimiser states 12Ψ (bytes, from `zParts()` in `12_js_zero.js`). A purple glass plane is a 32 GB V100, the paper's GPU, with a dashed ring at that height round each tower of the active row. At the end of each row, unit cubes on a white plinth count what one GPU sends per step in Ψ elements (`zComm()`, §7): blue an all-gather of parameters, orange a reduce-scatter of gradients (2, 2, 2, 3). Steps 1 to 4 bring in one stage each: the row appears at the previous stage's heights, the slab it partitions shrinks to its 1/N_d share inside a faint outline of what it held before, flows stream round the ring of drawn GPUs for each collective, and the camera moves onto that row (closer as the towers shrink); step 5 pulls back to all four rows. Defaults are Figure 1's 7.5B on 64 GPUs (120, 31.4, 16.6, 1.88 GB); the model and N_d selectors (the old 2D Figure 1's controls) redraw it and the numbers in the step list follow (`data-f1` spans).
+
+**Kept 2D, and why**: the hero (a two-panel before/after that reads at a glance; the 3D stage just below carries the spatial version), the step-through `stx` (Distributed training's Fig. 6 already plays the same step under each stage in 3D; this one is the paper's own schedule bucket by bucket with exact counters, which reads best as a flat grid of cells, two methods one above the other), the 16-bytes bar, the communication bars and the 60B memory bars (numbers on an axis), the tables tab's calculator and Figure 6 (bars), every table, and Then and now (tables). The trillion-parameter layout (16-way MP in each DGX-2 times 64-way ZeRO-DP) was considered for a second stage and not built: its message is one division (16 TB / 1024 GPUs), and Megatron-LM's Fig. 3 already draws a DGX-2H cluster of model- and data-parallel groups. No photo or figure is embedded: the paper is under arXiv's non-exclusive licence, not CC BY (as before).
+
+**Motion and lists**: `11_js_ui.js` carries Megatron-LM's `makeAnim` with the 2026-11-06 motion rules (plays once half in view, pauses off screen, stops for good on any control or at its last step, never moves under reduced motion, marks its step list, a mode switch resets and replays with that mode's list). The step-through's per-step caption (`#stxStep`, `#stxCap`) is gone; its words are now the four step lists `#sx-stx-dp_3`, `#sx-stx-dp_1`, `#sx-stx-z12`, `#sx-stx-z23` (one shown at a time), and `14_js_step.js` keeps only the step titles (`window.ZSTEP` exposes `commTo`, `memAt`, the modes and titles for the checks). `99_js_tabs.js` is the current template (storage key `zero-tab`) plus a `data-to` link opening a closed block after its target and the old `#t-step` redirect to `#stx-h`. `02_split.html`, `25_js_s3.js` (renderer v2) and `05z_errbox.js.html` are the current templates, unchanged. `build.sh` now finds the repo root by walking up to `html_utils` instead of asking git.
+
+**Checks**: `check_page.mjs` no longer asserts that nothing moves before a click (motion is `check_stages.mjs`'s). `check_stages.mjs` (new, from Megatron-LM's): at 1400 and 920 light and 390 dark, the stage and the step-through play once in view, step to the end, have one list item per step in every comparison, stop drawing off screen, every split is two columns at 1400, no errors, NaN or sideways scroll; under reduced motion nothing moves; and the numbers the step lists state are checked against what is drawn (`window.ZF1`, `window.ZSTEP`) and against §5 and §7 recomputed in the check (Figure 1's four sizes, 2, 2, 2, 3Ψ, the step-through's totals and its resting memory at N_d = 2, 4, 8, every list title, and the controls moving the stated numbers: 7.5B on 4 GPUs gives the hero's 30 GB).
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 20.9 min (4,807 words) | 27.7 min (6,362) |
+| The paper, closed | 2.0 min (453) | unchanged |
+| The paper's tables, rebuilt | 4.8 min, plus 6.8 closed | unchanged |
+| Then and now | 3.3 min | unchanged |
+| Further reading | 1.8 min | unchanged |
+
+The growth is the step lists. The step-through's 44 captions (11 steps in each of 4 comparisons) were drawn by script and invisible to the audit; they are now static lists, about 300 words each, and only one is shown at a time, so about 900 of the counted words (some 4 minutes) are the three comparisons a reader sees only by switching. Figure 1's five steps add about 330 words that state its numbers. Nothing was cut and the argument keeps its order. A reader who follows one comparison reads about 24 minutes; the header quotes the audit's measure, "Reading: 28 min, plus 2 in closed details." (`reading.json`).
+
+**Ledger**: 228 units (core 193, depth 19, fat 11, owned 4, volatile 1); keys re-pointed on units 46 and 47 (the Figure 1 paragraph now introduces the 3D stage: "figure 1 of the paper, redrawn and live, now in 3d", "each tower one gpu's model states stacked to scale"), 153 (the "Try" line became "Watch: in DDP against ZeRO-3, the parameters") and 155 (the counters sentence moved into the step-through's introduction). `ledger.py check`: problems 0. `mk_coverage.py`: 52 of 53; the one missing item (the Notion Takeaway property's text, "gradients, and parameters" with a comma, against the card's) is from `paper.json`, untouched in this pass.

@@ -24,12 +24,8 @@ const commTo=(st,k)=>{let s=0;for(let j=0;j<=k;j++)comms(st,j).forEach(c=>s+=c.v
 function memAt(st,nd,k){const c=cells(st,nd,k,0);let m=0;for(let l=0;l<L;l++){m+=(c.P[l]?2:0)/L+(c.G[l]?2:0)/L+(c.O[l]?12:0)/L}return m}
 const peakTo=(st,nd,k)=>{let p=0;for(let j=0;j<=k;j++)p=Math.max(p,memAt(st,nd,j));return p};
 const TITLES=['Start of the step','Forward, layers 1 and 2','Forward, layers 3 and 4','Forward, layers 5 and 6','Forward, layers 7 and 8','Backward, layers 8 and 7','Backward, layers 6 and 5','Backward, layers 4 and 3','Backward, layers 2 and 1','Optimiser step','End of the step'];
-function say(st,k){const ph=phase(k),n=SSHORT[st];
-  if(st==='dp')return ph==='rest'?'every GPU holds everything: all parameters, gradients and optimiser states, 16 bytes per parameter.':ph==='fwd'?'computes these layers with its own full copy; no communication.':ph==='bwd'?'computes these layers\' gradients, then all-reduces them across GPUs (bucketed): 2 × 1/4 of Ψ per GPU.':ph==='opt'?'every GPU runs the same full Adam update on its own copy, redundantly.':'nothing left to do; total moved: 2Ψ.';
-  if(st==='os')return ph==='rest'?'like DDP, but each GPU keeps only its own 1/N<sub>d</sub> of the optimiser states.':ph==='fwd'?'same as DDP: full parameters, no communication.':ph==='bwd'?'reduces these gradients onto the GPU that owns them (a reduce-scatter, 1/4 of Ψ); the full gradient buffer stays allocated.':ph==='opt'?'each GPU updates only the fp32 master parameters it owns, 1/N<sub>d</sub> of the work.':'all-gathers the updated fp16 parameters (Ψ) so every GPU is in sync: total 2Ψ, DDP\'s volume.';
-  if(st==='os_g')return ph==='rest'?'also keeps only its own gradients: 2 + 14/N<sub>d</sub> bytes per parameter.':ph==='fwd'?'full parameters, no communication.':ph==='bwd'?'computes these gradients, reduce-scatters them to their owner (1/4 of Ψ) and frees every gradient it does not own at once.':ph==='opt'?'each GPU updates its own slice.':'all-gathers the updated parameters (Ψ): total 2Ψ, still DDP\'s volume.';
-  return ph==='rest'?'keeps only its own 1/N<sub>d</sub> of everything, parameters included: 16/N<sub>d</sub> bytes per parameter.':ph==='fwd'?'the owner broadcasts these layers\' weights (an all-gather, 1/4 of Ψ); every GPU computes them and discards the weights it does not own.':ph==='bwd'?'gathers these weights again (1/4 of Ψ), computes their gradients, reduce-scatters them to the owner (1/4 of Ψ), and frees both.':ph==='opt'?'each GPU updates its own slice, which is all it stores.':'nothing to gather: the next forward fetches weights on demand. Total 3Ψ, 1.5× DDP.'}
-const modes={};Object.keys(PAIRS).forEach(m=>{const [a,b]=PAIRS[m];modes[m]=TITLES.map((t,k)=>({t,c:'<b>'+SSHORT[a]+':</b> '+say(a,k)+'<br><b>'+SSHORT[b]+':</b> '+say(b,k)}))});
+// the words for each step live in the step lists on the left (#sx-stx-<mode>, one per comparison); the script keeps only the titles
+const modes={};Object.keys(PAIRS).forEach(m=>{modes[m]=TITLES.map(t=>({t}))});
 const ndOf=()=>+(($('stxN')||{}).value||4);
 function panel(st,nd,k,e,w,y0){const lw=50,gp=6,sw=w-lw-2*gp-4,u=sw/16,rh=15,rs=nd>4?19:22,cw={p:2*u/L,g:2*u/L,o:12*u/L};
   const X={p:lw,g:lw+2*u+gp,o:lw+4*u+2*gp};let s=tx(0,y0+12,SVGN[st],{fs:12,w:600});
@@ -65,9 +61,10 @@ function draw(m,k,e,w){const [a,b]=PAIRS[m],nd=ndOf();const lw=50,gp=6,sw=w-lw-2
 function counters(m,k){const [a,b]=PAIRS[m],nd=ndOf();
   const one=st=>'<div class="stat"><div class="k">'+SNAME[st]+'</div><div class="v">'+fmt(memAt(st,nd,k),2)+' <span class="u">bytes/param on GPU 0</span></div><div class="d">peak so far '+fmt(peakTo(st,nd,k),2)+'; moved so far '+fmtPsi(commTo(st,k))+' of '+zComm(st)+'Ψ per GPU</div></div>';
   return '<div class="cnt2">'+one(a)+one(b)+'</div>'}
-const anim=makeAnim({id:'stx',modes,mode:'dp_3',draw,counters,dur:2600});
+const anim=makeAnim({id:'stx',modes,mode:'dp_3',lists:{dp_3:'sx-stx-dp_3',dp_1:'sx-stx-dp_1',z12:'sx-stx-z12',z23:'sx-stx-z23'},draw,counters,dur:3600});
 $('stxN').addEventListener('change',()=>anim&&anim.draw());
 // sanity: the schedule reproduces the paper's totals and Figure 1's per-GPU formulas
+window.ZSTEP={commTo,memAt,modes,TITLES};
 window.__zeroCheck=()=>{const r={};['dp','os','os_g','os_g_p'].forEach(st=>{r[st]={comm:commTo(st,10),rest_matches_formula:[2,4,8].every(nd=>Math.abs(memAt(st,nd,0)-zStates(1,nd,st))<1e-9)}});return r};
 // the same counters at the paper's scale
 function scale(){const psi=+$('stsM').value*1e9,nd=ND_STEPS[+$('stsN').value];$('stsNv').textContent=nd;

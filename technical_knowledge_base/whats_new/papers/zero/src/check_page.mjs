@@ -42,12 +42,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-24): scroll each animation into view and wait
-    for (const id of ['stx']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
-    }
+    // motion (plays once in view, never under reduced motion) is check_stages.mjs's since the 2026-11-13 layout rollout
     // closed details hold controls too (the counters at the paper's scale): open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
