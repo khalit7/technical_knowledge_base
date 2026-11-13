@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen, no NaN/undefined/Infinity in visible text, no errors, no sideways scroll,
-// overlapping SVG labels, nothing animating before a click, every closed block opened, prose numbers against
+// overlapping SVG labels, the 3D stages playing once in view (2026-11-06: autoplay; the simulator widget still waits for Play), every closed block opened, prose numbers against
 // inputs/recompute.json and inputs/sim.json, the in-page engine against the node run. Element screenshots go to <page>/.shots/.
 // usage (from the repo root, with CHROME_PATH set): node technical_knowledge_base/whats_new/papers/fair_cast/src/check_page.mjs
 import { createRequire } from 'node:module';
@@ -49,15 +49,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const clk = async sel => { await p.$eval(sel, e => e.click()); actions++; await wait(60) };
   const shot = async (id, name) => { const el = await p.$('#' + id); if (el) await el.screenshot({ path: path.join(shots, `${name}-${scheme}-${width}.png`) }) };
-  // nothing animates before a click: visit every tab, wait, and count animation frames
+  // the two 3D stages play by themselves once in view (2026-11-06 rule; this replaced the old never-autoplay check); nothing else animates before a click
   for (const t of ['t-sim', 't-tables', 't-more', 't-read']) { await clk(`#tabs button[data-t="${t}"]`); await wait(400) }
-  const fr0 = await p.$$eval('[data-frames]', es => es.map(e => e.id + ':' + e.dataset.frames));
+  for (const id of ['stg-loop', 'stg-dz']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+    if (!(+(await p.$eval('#' + id, e => e.dataset.frames || 0)))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
+  const fr0 = await p.$$eval('[data-frames]', es => es.filter(e => !e.classList.contains('stg')).map(e => e.id + ':' + e.dataset.frames));
   if (fr0.length) problems.push(`${scheme} ${width}: animation frames before any click: ${fr0.join(' ')}`);
   // open every closed block
   await p.$$eval('details', ds => ds.forEach(d => d.open = true)); actions++;
   await audit('read open, details open');
   await shot('hero', 'card');
-  for (const m of ['fc', 'rtn']) { await clk(`#fcHeroM button[data-m="${m}"]`); await audit('hero ' + m); await shot('fcHero', 'hero-' + m) }
+  for (const m of ['fc', 'rtn']) { await clk(`#fcLoopM button[data-m="${m}"]`); await wait(300); await audit('loop ' + m); await shot('stg-loop', 'loop-' + m) }
   for (const v of ['0', '50', '85', '30']) { await p.$eval('#fcSRx', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); actions++; await wait(80); await audit('sr slider ' + v); if (v === '85') await shot('fcSR', 'sr') }
   for (const id of ['fcPr1', 'fcPr2', 'fcPr3']) { const bs = await p.$$(`#${id} .opts button`); await bs[bs.length - 1].evaluate(x => x.click()); await bs[0].evaluate(x => x.click()); actions += 2; await wait(80) }
   await audit('predicts revealed');

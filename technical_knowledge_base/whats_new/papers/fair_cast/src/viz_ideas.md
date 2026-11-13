@@ -2,7 +2,7 @@
 
 | id | Idea | Status | Why |
 |---|---|---|---|
-| P-fair_cast.1 | Hero: Figure 2's training loop redrawn, with a Round-to-nearest / Fair Cast toggle that changes the export and trainer boxes and the two ratio labels | built | the paper's whole argument is where the two ratios live; static diagram plus a click, nothing moves |
+| P-fair_cast.1 | Hero: Figure 2's training loop redrawn, with a Round-to-nearest / Fair Cast toggle that changes the export and trainer boxes and the two ratio labels | built, then rebuilt as a 3D stage (2026-11-13) | the paper's whole argument is where the two ratios live; now Fig. 1, five explained steps per mode, flows on every path, the two |log ratio| values as bars |
 | P-fair_cast.2 | One weight between two bf16 neighbours with a slider: round-to-nearest's fixed choice against stochastic rounding's probability bar and E[q] | built | the unbiasedness claim in one picture |
 | P-fair_cast.3 | Simulator: one fp32 master, three export rules on real float32 bits, 300 steps, Play after a click, average of 256 stochastic runs | built (tab) | a tool used across the page: dead zone, first change, same-sign stretches, learning rate making Fair Cast inert |
 | P-fair_cast.4 | Dot plot of the 25 released matched pairs with a one-standard-error band per pair, sort and zebra-repeat toggle | built | shows the direction is consistent and most differences sit inside the noise; the mean is carried by zebra |
@@ -10,3 +10,4 @@
 | P-fair_cast.6 | Population view: many weights with a distribution of sizes and Adam updates, fraction changed per step | rejected | the paper does not publish either distribution, so any curve would be tuned to land on 0.4 to 0.5% |
 | P-fair_cast.7 | Rebuilt learning curves (Figures 1, 5, 7) from logs | rejected | the per-step logs and evals.json the figure scripts read are not in the repository; reading curves by eye is not allowed |
 | P-fair_cast.8 | "Average lag in steps" column in the simulator | rejected after building | for a steady drift round-to-nearest's error is a sawtooth that averages near zero (the copy leads after each jump), so the column misled; replaced by the longest same-sign stretch, which is what "sign-coherent across steps" means |
+| P-fair_cast.9 | Fig. 2: one weight under the three export rules as three rails in depth (bf16 grid, round-to-nearest's dead-zone gates, master ball, copy block, signed error bar), the engine's default 300-step run in 5 explained stretches | built (2026-11-13) | shows "stale, not noisy": one rule holds its error's sign for 117 steps, the other two flip every few steps, all from the same engine as the tab |

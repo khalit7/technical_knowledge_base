@@ -1,37 +1,7 @@
-// ---- The paper tab: hero diagram, predict 1, the 25 pairs, Table 3 ----
+// ---- The paper tab: predict 1, the 25 pairs, Table 3 ----
 (function(){
 const T=PAPER.tables;
-// ---------- hero: the training loop and its two ratios ----------
-const HERO={
- rtn:{exp:['export: round to nearest','drops updates under u/2'],tr:['trainer forward','bf16 of θ, the same as q'],
-  red:'hidden ratio, master against served policy: never computed; |log ρ| grows to 0.10 to 0.45',green:'visible ratio, trainer against sampler ≈ 1 (|log ρ| ≈ 0.01): what PPO clip, TIS and IcePop check',
-  cap:'<span class="fch">Red</span>: the master and the served copy drift apart for 50 to 150 steps, and nothing measures it. <span class="fcv">Green</span>: the trainer and the sampler both read the same rounded weights, so the ratio every framework checks stays at one.'},
- fc:{exp:['export: stochastic rounding','E[q] = θ, nothing withheld'],tr:['trainer forward on q','gradient to θ straight through'],
-  red:'master against served: |log ρ| stays ≈ 0.01, the noise floor',green:'visible ratio still ≈ 1, and now the sampled policy is the trained one',
-  cap:'Fair Cast changes the two shaded boxes. The export is unbiased, so updates reach the sampler on average at once; the loss is computed on the exact copy that generated the rollouts, so the policy being differentiated is the policy that sampled.'}};
-let heroM='rtn';
-function heroDraw(w){const M=HERO[heroM],host=$('fcHeroSvg');const shade=heroM==='fc'?'var(--acc2)':'var(--soft)',sc=heroM==='fc'?'var(--acc)':'var(--c2)';
-  const lab=[['fp32 master θ','optimizer state'],M.exp,['served copy q (bf16)','vLLM samples here'],['rollouts sampled from q','rewards, advantages'],M.tr,['policy-gradient update','lands on θ']];
-  const box=(x,y,bw,bh,i)=>{const sh=i===1||i===4;return rc(x,y,bw,bh,sh?shade:'var(--bg)',{s:sh?sc:'var(--mute)',sw:sh?1.6:1,r:8})+tx(x+bw/2,y+bh/2-3,lab[i][0],{fs:12.5,a:'middle',w:'600'})+tx(x+bw/2,y+bh/2+13,lab[i][1],{fs:11.5,a:'middle',c:'var(--mute)'})};
-  const arr=(x1,y1,x2,y2,c,da)=>{const a=Math.atan2(y2-y1,x2-x1),h=7;return ln2(x1,y1,x2,y2,c||'var(--mute)',{sw:1.5,da})+'<path d="M'+x2.toFixed(1)+' '+y2.toFixed(1)+'L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+'L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'z" fill="'+(c||'var(--mute)')+'"/>'};
-  let s='',H;
-  if(w>=640){const gx=46,bw=(w-2*gx-8)/3,bh=50,y1=40,y2=y1+bh+64;H=y2+bh+34;const X=i=>4+i*(bw+gx);
-    s+=box(X(0),y1,bw,bh,0)+box(X(1),y1,bw,bh,1)+box(X(2),y1,bw,bh,2)+box(X(2),y2,bw,bh,3)+box(X(1),y2,bw,bh,4)+box(X(0),y2,bw,bh,5);
-    s+=arr(X(0)+bw,y1+bh/2,X(1)-2,y1+bh/2)+arr(X(1)+bw,y1+bh/2,X(2)-2,y1+bh/2)+arr(X(2)+bw/2,y1+bh,X(2)+bw/2,y2-2)+arr(X(2),y2+bh/2,X(1)+bw+2,y2+bh/2)+arr(X(1),y2+bh/2,X(0)+bw+2,y2+bh/2)+arr(X(0)+bw/2,y2,X(0)+bw/2,y1+bh+2);
-    const red=heroM==='fc'?'var(--good)':'var(--bad)';
-    s+='<path d="M'+(X(0)+bw/2)+' '+(y1-2)+'C'+(X(0)+bw/2)+' '+(y1-22)+' '+(X(2)+bw/2)+' '+(y1-22)+' '+(X(2)+bw/2)+' '+(y1-2)+'" fill="none" stroke="'+red+'" stroke-width="1.8" stroke-dasharray="6 4"/>'+tx(w/2,14,M.red,{fs:12,a:'middle',c:red,w:'600'});
-    s+=ln2(X(1)+bw*0.75,y2,X(2)+bw*0.25,y1+bh,'var(--good)',{sw:1.8,da:'6 4'})+tx(w/2,H-8,M.green,{fs:12,a:'middle',c:'var(--good)',w:'600'});
-  }else{const bw=w-58,bh=44,g=20,x=30;H=6*bh+5*g+10;const Y=i=>4+i*(bh+g);
-    for(let i=0;i<6;i++){s+=box(x,Y(i),bw,bh,i);if(i<5)s+=arr(x+bw/2,Y(i)+bh,x+bw/2,Y(i+1)-2)}
-    s+='<path d="M'+(x+bw)+' '+(Y(5)+bh/2)+'H'+(w-8)+'V'+(Y(0)+bh/2)+'H'+(x+bw+9)+'" fill="none" stroke="var(--mute)" stroke-width="1.5"/>'+arr(x+bw+12,Y(0)+bh/2,x+bw+2,Y(0)+bh/2);
-    const red=heroM==='fc'?'var(--good)':'var(--bad)';
-    s+='<path d="M'+(x-2)+' '+(Y(0)+bh/2)+'H8V'+(Y(2)+bh/2)+'H'+(x-2)+'" fill="none" stroke="'+red+'" stroke-width="1.8" stroke-dasharray="5 3"/>';
-    s+='<path d="M'+(x-2)+' '+(Y(2)+bh*0.75)+'H19V'+(Y(4)+bh/2)+'H'+(x-2)+'" fill="none" stroke="var(--good)" stroke-width="1.8" stroke-dasharray="5 3"/>';
-  }
-  host.innerHTML=svgW(w,H,s,'The RL loop: fp32 master, export, served copy, rollouts, trainer, update; and the hidden and visible ratios');
-  $('fcHeroCap').innerHTML=(w<640?'<span style="color:'+(heroM==='fc'?'var(--good)':'var(--bad)')+';font-weight:600">Outer bracket: '+M.red+'.</span> <span class="fcv">Inner bracket: '+M.green+'.</span> ':'')+M.cap}
-const hm=$('fcHeroM');hm.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{hm.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});heroM=b.dataset.m;refit($('fcHeroSvg'))}));
-fit($('fcHeroSvg'),heroDraw);onTab('t-read',()=>refit($('fcHeroSvg')));
+// (the hero, Figure 2's loop, is the 3D stage in 31_js_sc_loop.js)
 
 // ---------- predict 1: when does the copy first move ----------
 PRED_REVEAL.fcPr1=function(){const r=FCSIM.run({w0:0.02,eta:1e-6,drift:0.5,noise:0,T:400,seed:1,reps:8});

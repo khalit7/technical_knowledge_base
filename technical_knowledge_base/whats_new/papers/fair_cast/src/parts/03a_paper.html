@@ -6,15 +6,29 @@
 table.fc-t td,table.fc-t th{padding:3px 8px}.fc-cap{min-height:3.2em}
 .fc-sum{font-size:14px;margin:6px 0 0}.fc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}.fc-row label{font-size:14px}</style>
 @@CARD@@
-<nav class="nav" id="nav"><a href="#s-core">Core idea</a><a href="#s-prob">Dead zone</a><a href="#s-lag">Hidden lag</a><a href="#s-method">Fair Cast</a><a href="#s-cause">Both halves</a><a href="#s-long">Long rollouts</a><a href="#s-breadth">25 pairs</a><a href="#s-ckpt">Checkpoint</a><a href="#s-reg">Lag as regularizer</a><a href="#s-abl">Cost</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+<nav class="nav" id="nav"><a href="#s-core">Core idea</a><a href="#s-prob">Dead zone</a><a href="#s-lag">Hidden lag</a><a href="#s-method">Fair Cast</a><a href="#s-stale">Stale, not noisy</a><a href="#s-cause">Both halves</a><a href="#s-long">Long rollouts</a><a href="#s-breadth">25 pairs</a><a href="#s-ckpt">Checkpoint</a><a href="#s-reg">Lag as regularizer</a><a href="#s-abl">Cost</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-loop"></div></div><div class="s3L">
 <section id="s-core"><h2>The idea in one sentence</h2>
 [[S1|§1]]
 <p class="lead">RL trainers keep fp32 master weights but sample from a bf16 copy made by <span class="kn">round-to-nearest</span>, which throws away every update smaller than half a bf16 gap, so the sampler serves a policy tens to hundreds of steps old; exporting with <span class="ks">stochastic rounding</span> (unbiased: the copy equals the master on average) and computing the loss on that exact served copy removes the lag ({{abstract and §1|ax:S1}}).</p>
-<div class="card" id="fcHero"><div class="t">Where the two ratios live: what frameworks check, and what they never form</div>
-<div class="seg" id="fcHeroM"><button data-m="rtn" class="on" aria-pressed="true">Round-to-nearest (today)</button><button data-m="fc" aria-pressed="false">Fair Cast</button></div>
-<div id="fcHeroSvg"></div><p class="small fc-cap" id="fcHeroCap"></p>
-<p class="small mute" style="margin:0">Redrawn from {{Figure 2|ax:S1.F2}}. The loop runs clockwise: the optimizer updates the fp32 master, the export rounds it to bf16, the inference engine samples rollouts from the copy, the trainer computes the loss and the update lands on the master. Shaded: the two boxes Fair Cast changes.</p></div>
+<p class="sxh">Fig. 1 · Where the two ratios live: what frameworks check, and what they never form</p>
+<div class="seg" id="fcLoopM"><button data-m="rtn" class="on" aria-pressed="true">Round-to-nearest (today)</button><button data-m="fc" aria-pressed="false">Fair Cast</button></div>
+<ol class="sx" id="sx-loop-rtn">
+<li><b>The fp32 master.</b> The optimizer (AdamW at η ≈ 10<sup>−6</sup>) has just updated the master weights θ, the grey glass plate: they hold the optimizer's view of the policy.</li>
+<li><b>Export by round-to-nearest.</b> After every step the master is cast to bf16 for the sampler. Almost every per-step update is smaller than half a bf16 gap, so the cast drops it: only <b>0.4 to 0.5%</b> of served weights change per step on Qwen3-1.7B, a thin stream into the orange copy <i>q</i>.</li>
+<li><b>vLLM samples from the copy.</b> Rollouts (24 prompts, groups of 8, up to 2,048 tokens) come from <i>q</i>, so the policy that acts is the stale one.</li>
+<li><b>The trainer reads the same rounded weights.</b> Its forward pass runs in bf16, so trainer and sampler agree: the <span class="fcv">visible ratio</span> π<sub>trainer</sub>/π<sub>sampler</sub> stays at one (mean |log ρ| about 0.01, the short green bar). That is the ratio PPO clipping, TIS and IcePop check.</li>
+<li><b>The update lands on θ, and the gap nobody measures grows.</b> The master moves on; the copy does not follow. The <span class="fch">hidden ratio</span> π<sub>θ</sub>/π<sub>q</sub> (red) climbs to 0.10 to 0.16 on MATH and about 0.45 on knights-and-knaves, and no framework computes it.</li>
+</ol>
+<ol class="sx" id="sx-loop-fc" hidden>
+<li><b>The fp32 master.</b> The same optimizer step on the same master θ; Fair Cast changes nothing here.</li>
+<li><b>Export by stochastic rounding.</b> Each weight rounds up with probability equal to its position between the two bf16 neighbours, so E[<i>q</i>] = θ: every update reaches the blue copy on average, at once. Now 2 to 15% of served weights change per step.</li>
+<li><b>vLLM samples from the copy.</b> The same sampler and kernels; only the weights it reads are fresher.</li>
+<li><b>The trainer's forward pass uses the copy itself.</b> The loss is computed on the exact <i>q</i> that generated the rollouts; the gradient goes to θ unchanged (straight-through). The policy being differentiated is the policy that sampled.</li>
+<li><b>The update lands on θ, and the copy follows.</b> Master and served policy stay within rounding noise: |log ρ| of the hidden ratio stays near 0.01, like the visible one.</li>
+</ol>
+<p class="small mute">Redrawn from {{Figure 2|ax:S1.F2}}: the loop runs clockwise from the master (back left) through the export and the served copy to the sampler and the trainer, and the update returns to the master. The two boxes Fair Cast changes are the export and the trainer's forward pass. The |log ρ| values are the paper's measurements on Qwen3-1.7B at η = 10<sup>−6</sup> ({{§4|ax:S4}}, Figure 4c); the stream densities are schematic.</p>
 <p><b>You need</b>: the GRPO loop and the importance ratio π<sub>new</sub>/π<sub>old</sub> that PPO clips and TIS reweights ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}); how bf16 stores a number, the gap between neighbouring values, round-to-nearest and stochastic rounding, and why mixed-precision training keeps fp32 master weights ({{Numerical computing, sections 2, 3 and 9|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}); the straight-through estimator of quantisation-aware training ({{Quantization and Precision, section 5|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</p>
 <details class="mist" open><summary>New terms on this page</summary><div class="b"><dl class="fc-terms">
 <dt><span class="km">Master</span> θ</dt><dd>the fp32 weights the optimizer updates; they hold the optimizer's view of the policy.</dd>
@@ -30,7 +44,9 @@ table.fc-t td,table.fc-t th{padding:3px 8px}.fc-cap{min-height:3.2em}
 <dt>EMA export</dt><dd>export an exponential moving average of the master instead of the master: a chosen lag of about 1/α steps.</dd>
 </dl></div></details>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-prob"><h2>Problem: round-to-nearest discards almost every update</h2>
 [[S3|§3]]
 <p>Modern RL stacks separate the optimizer from the sampler. Every open-source framework the authors examined (verl, TRL, OpenRLHF, slime, prime-rl, AReaL) makes the sampler's bf16 copy from the fp32 master by round-to-nearest ({{§1|ax:S1}}). bf16 keeps 7 significand bits, so near a weight <i>w</i> its values are <i>u</i> ≈ |w|/128 apart, and round-to-nearest maps an update Δ to zero whenever |Δ| &lt; <i>u</i>/2 ≈ |w|/256 ({{§3|ax:S3}}). The master starts exactly on the bf16 grid, so this bites from the first step. (How the formats store numbers is owned by {{Numerical computing|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}, which runs the same nearest-against-stochastic comparison on one weight.)</p>
@@ -40,9 +56,6 @@ table.fc-t td,table.fc-t th{padding:3px 8px}.fc-cap{min-height:3.2em}
 <div class="fb"></div>
 <div class="reveal" hidden><p>Computed by this page's rounding engine, which matches torch's bf16 cast bit for bit: <span id="fcPr1Out"></span> Try other weights and learning rates in {{the simulator|tab:t-sim}}.</p></div></div>
 <p>Muon makes it worse: its per-element updates are nearly uniform in size, so at η = 10<sup>−6</sup> almost none cross a boundary. A controlled test isolates the mechanism ({{Figure 4a|ax:S3.F4}}): on 64 knights-and-knaves problems, one optimizer step moved an <b>fp32 sampler from 0.17 to 0.84</b>, while the round-to-nearest bf16 sampler stayed at about 0.19 across three steps. In a full run, round-to-nearest left the sampler nearly frozen for about 20 steps (0.12, 0.15, 0.22 at steps 0, 9, 19) while Fair Cast moved at once (0.12, 0.51, 0.79).</p>
-<figure class="card" id="fcFig4" style="margin:12px 0"><div class="t">The paper's Figure 4: one step moves the fp32 policy, the bf16 export does not, and the checked ratio does not notice</div>
-<div class="fc-img"><img src="img/fig4_problem.webp" width="1955" height="561" alt="Three panels: bar chart of held-out accuracy before and after one to three optimizer steps, fp32 sampler against bf16 nearest export; percentage of served weights changed per step, round-to-nearest low and flat against Fair Cast rising, on a log scale; mean per-token absolute log ratio, the hidden ratio under round-to-nearest rising while the visible ratio and Fair Cast stay flat near zero" loading="lazy"></div>
-<figcaption class="small mute">Notice (b): the red line (round-to-nearest, 0.4 to 0.5% of weights per step in the text) stays flat for the whole run, an order of magnitude below Fair Cast's blue line (2 to 15%, {{§9|ax:S9}}); and (c): the red hidden ratio climbs while the dashed visible ratio, the one frameworks check, stays flat near 0.01. Figure 4 of Gao and Gao (2026), {{arXiv 2610.41073|ax:S3.F4}}, CC BY 4.0, unchanged except converted to WebP. In panel (a) the bf16 bar after step 1 is visibly lower than the other three, while the text says the sampler stayed at 0.19.</figcaption></figure>
 </section>
 
 <section id="s-lag"><h2>The hidden lag: the ratio frameworks check stays at one</h2>
@@ -51,3 +64,7 @@ table.fc-t td,table.fc-t th{padding:3px 8px}.fc-cap{min-height:3.2em}
 <p>The authors log both ({{§4|ax:S4}}, Figure 4c). On Qwen3-1.7B at η = 10<sup>−6</sup> the mean per-token |log ρ<sub>visible</sub>| stays near <b>0.01</b> for the whole run, while the hidden one grows from 0 to <b>0.10 to 0.16 on MATH and about 0.45 on knights-and-knaves</b>; under Fair Cast it stays near 0.01. The per-token effective sample size between master and served policy ({{Eq. 5|ax:S4.E5}}) falls to 0.2 to 0.35 on tasks with 2,000-token responses and is about 0.9 with 500-token responses. The authors use it as a gauge of how far the served policy has fallen behind, not as a correction: a gradient at <i>q</i> with samples from <i>q</i> needs none.</p>
 <p>This reconciles an earlier finding: lower learning rates were reported to reduce the training-inference mismatch ({{Zhang et al.|https://arxiv.org/abs/2602.01826}}). They reduce the visible ratio and increase the hidden one, because fewer updates clear the dead zone ({{§4|ax:S4}}). Prior work on the same threshold (the {{TRL team's analysis|https://aminedirohf-trainer-generator-bf16-mismatch.hf.space}}, PULSE) treated it as a communication artefact and made the trainer agree with the stale sampler; TRL now ships only the roughly 1% of bf16 elements that change each step as a sparse delta ({{§1|ax:S1}}).</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="card" id="fcFig4"><div class="t">The paper's Figure 4: one step moves the fp32 policy, the bf16 export does not, and the checked ratio does not notice</div>
+<div class="fc-img"><img src="img/fig4_problem.webp" width="1955" height="561" alt="Three panels: bar chart of held-out accuracy before and after one to three optimizer steps, fp32 sampler against bf16 nearest export; percentage of served weights changed per step, round-to-nearest low and flat against Fair Cast rising, on a log scale; mean per-token absolute log ratio, the hidden ratio under round-to-nearest rising while the visible ratio and Fair Cast stay flat near zero" loading="lazy"></div>
+<figcaption class="small mute">Notice (b): the red line (round-to-nearest, 0.4 to 0.5% of weights per step in the text) stays flat for the whole run, an order of magnitude below Fair Cast's blue line (2 to 15%, {{§9|ax:S9}}); and (c): the red hidden ratio climbs while the dashed visible ratio, the one frameworks check, stays flat near 0.01. Figure 4 of Gao and Gao (2026), {{arXiv 2610.41073|ax:S3.F4}}, CC BY 4.0, unchanged except converted to WebP. In panel (a) the bf16 bar after step 1 is visibly lower than the other three, while the text says the sampler stayed at 0.19.</figcaption></figure></div></div></div>
