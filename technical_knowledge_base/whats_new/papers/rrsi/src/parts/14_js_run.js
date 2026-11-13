@@ -13,18 +13,34 @@ function greedyPick(R){const ms=R.cs.filter(c=>c.n!=null);if(!ms.length)return n
     return '<div class="e1"><div><b>'+esc(c.id)+'</b> <span class="verdict" style="background:none;border:1px solid '+s[1]+';color:'+s[1]+'">'+s[0]+'</span>'+(c.comp.length?' <span class="tag2">'+c.comp.join(', ')+'</span>':'')+(c.ne?' <span class="tag2">'+c.ne+' edit'+(c.ne>1?'s':'')+'</span>':'')+'</div>'+
       (dn!=null?'<div class="small">'+fmt(c.n)+' '+r.unit+' ('+sgn(dn)+' against the incumbent'+(c.dC!=null?', tokens '+(c.dC>=0?'+':'−')+Math.abs(c.dC*100).toFixed(1)+'%':'')+')</div>':'')+
       (c.sum?'<div class="small">'+esc(c.sum)+'</div>':'')+(c.fr?'<div class="small mute">Critic, first draft: '+esc(c.fr)+'</div>':'')+'<div class="small mute">Record: '+esc(c.why)+'</div></div>'}
-  function build(){RD=rounds(r);for(const m of ['rec','g']){const A=modes[m];A.length=0;
-      A.push({t:'Start: '+r.base,c:'Base harness '+fmt(r.traj[0][1])+' of '+fmt(r.denom)+' '+r.unit+' ('+(r.traj[0][1]/r.denom*100).toFixed(2)+'%). Noise band δ = '+r.delta.toFixed(4)+' ('+(r.delta*r.denom).toFixed(1)+' '+r.unit+'); '+r.budget+'. '+esc(r.note)});
-      RD.forEach(R=>{const won=R.cs.find(c=>c.st==='accepted');let head='Round '+R.t+': '+(won?won.id+' kept, incumbent '+sgn(R.after[1]-R.before[1])+' '+r.unit:'incumbent unchanged');
-        let pre='';if(m==='g'){const gp=greedyPick(R);const same=(gp&&won&&gp.id===won.id)||(!gp&&!won);pre='<div class="small"><b>Keep the best score</b> would '+(gp?'keep '+gp.id+' ('+sgn(gp.n-R.before[1])+')':'keep the incumbent')+(same?', the same as the record.':'; the record '+(won?'kept '+won.id:'kept the incumbent')+'.')+'</div>';if(!same)head+=' (rules disagree)'}
-        A.push({t:head,c:pre+'<div class="tr">'+R.cs.map(c=>cand(c,R.before,r)).join('')+'</div>'})})}}
+  // Long-replay rule (2026-11-06): a run's 20 to 40 rounds are shown as a start step and at most seven stretches of rounds, each stretch
+  // playing its rounds one at a time; the generated step list explains each stretch, and the live caption under the chart lists the
+  // candidates of the round on screen (with their summaries and the critic's notes).
+  let SX=[];
+  function stretches(){const N=RD.length,g=Math.ceil(N/7);SX=[[0,0]];for(let i=1;i<=N;i+=g)SX.push([i,Math.min(N,i+g-1)])}
+  const roundAt=(k,e)=>{const [r0,r1]=SX[k];if(!k)return 0;const len=r1-r0+1;return r0-1+Math.min(len,Math.floor(e*len+1e-9)+(e>=1?0:1))};
+  const disagree=R=>{const gp=greedyPick(R),won=R.cs.find(c=>c.st==='accepted');return !((gp&&won&&gp.id===won.id)||(!gp&&!won))};
+  function item(m,k){if(!k)return '<li><b>Start: '+esc(r.base)+'.</b> Base harness '+fmt(r.traj[0][1])+' of '+fmt(r.denom)+' '+r.unit+' ('+(r.traj[0][1]/r.denom*100).toFixed(2)+'%). Noise band δ = '+r.delta.toFixed(4)+' ('+(r.delta*r.denom).toFixed(1)+' '+r.unit+'); '+esc(r.budget)+'. '+esc(r.note)+'</li>';
+    const [r0,r1]=SX[k],Rs=RD.slice(r0-1,r1),kept=[],cnt={},dis=[];
+    Rs.forEach(R=>{R.cs.forEach(c=>{if(c.st==='accepted')kept.push(c);else{const s=(ST[c.st]||[c.st])[0];cnt[s]=(cnt[s]||0)+1}});if(disagree(R))dis.push(R)});
+    const b0=r.traj[r0-1][1],b1=r.traj[r1][1],t0=Rs[0].t,t1=Rs[Rs.length-1].t;
+    let s='<li><b>Rounds '+t0+(t1!==t0?' to '+t1:'')+': '+(kept.length?kept.map(c=>c.id).join(', ')+' kept':'nothing kept')+'.</b> Incumbent '+(b1!==b0?fmt(b0)+' → '+fmt(b1):'unchanged at '+fmt(b0))+' '+r.unit+'. ';
+    if(kept.length)s+=kept.map(c=>c.id+': '+(c.dS!=null?sgn(c.dS*r.denom)+' '+(Math.abs(Math.round(c.dS*r.denom))===1&&r.unit==='passes'?'pass':r.unit):'')+(c.dC!=null?', tokens '+(c.dC>=0?'+':'−')+Math.abs(c.dC*100).toFixed(0)+'%':'')+(c.comp.length?' ('+c.comp.join(', ')+')':'')).join('; ')+'. ';
+    const rest=Object.keys(cnt).map(x=>cnt[x]+' '+x).join(', ');if(rest)s+='Not kept: '+rest+'. ';
+    if(m==='g')s+=dis.length?'<b>Keep the best score would choose differently in round'+(dis.length>1?'s ':' ')+dis.map(R=>R.t).join(', ')+'</b> ('+dis.map(R=>{const gp=greedyPick(R);return gp?'it would keep '+gp.id+', '+sgn(gp.n-R.before[1])+' '+r.unit:'it would keep the incumbent'}).join('; ')+').':'Keep the best score would make the same choices here.';
+    return s+'</li>'}
+  function build(){RD=rounds(r);stretches();for(const m of ['rec','g']){modes[m].length=0;SX.forEach((x,k)=>modes[m].push({t:'Stretch '+(k+1)}));$('sx-rp-'+m).innerHTML=SX.map((x,k)=>item(m,k)).join('')}}
+  function live(m,k){if(!k){$('rpCap').innerHTML='<b>Start.</b> '+esc(r.base)+', '+fmt(r.traj[0][1])+' '+r.unit+'.';return}const R=RD[k-1],won=R.cs.find(c=>c.st==='accepted');
+    let pre='';if(m==='g'){const gp=greedyPick(R);pre='<div class="small"><b>Keep the best score</b> would '+(gp?'keep '+gp.id+' ('+sgn(gp.n-R.before[1])+')':'keep the incumbent')+(disagree(R)?'; the record '+(won?'kept '+won.id:'kept the incumbent')+'.':', the same as the record.')+'</div>'}
+    $('rpCap').innerHTML='<b>Round '+R.t+': '+(won?won.id+' kept, incumbent '+sgn(R.after[1]-R.before[1])+' '+r.unit:'incumbent unchanged')+'.</b>'+pre+'<div class="tr">'+R.cs.map(c=>cand(c,R.before,r)).join('')+'</div>'}
   function info(){$('rpInfo').innerHTML=esc(r.policy)+' policy, proposer '+esc(r.proposer)+'; evolve set '+esc(r.evolveSet)+'; '+r.T+' rounds, '+r.m+' candidate'+(r.m>1?'s':'')+' a round.';
     $('rpLeg').innerHTML=[['kept',CB,1],['below the floor','var(--c4)'],['rejected by cost, token or score rule',CO],['lost to the other candidate',CG],['not evaluated (critic, smoke test, screen, no proposal)','var(--mute)']].map(x=>'<span><i style="background:'+x[1]+'"></i>'+x[0]+'</span>').join('')}
   build();info();
-  const anim=makeAnim({id:'rp',modes,mode:'rec',dur:1500,
-    draw:(m,k,e,w)=>{const H=Math.min(330,Math.max(250,w*.5)),pl=50,pr=12,pt=14,pb=50;const N=RD.length,dc=r.delta*r.denom;
+  const anim=makeAnim({id:'rp',modes,mode:'rec',lists:{rec:'sx-rp-rec',g:'sx-rp-g'},dur:4800,move:.8,
+    draw:(m,kk,ee,w)=>{const k=roundAt(kk,ee),e=1;const H=Math.min(330,Math.max(250,w*.5)),pl=50,pr=12,pt=14,pb=50;const N=RD.length,dc=r.delta*r.denom;
       const incs=r.traj.map(p=>p[1]);let lo=Math.min(...incs)-2.2*dc,hi=Math.max(...incs)+1.2*dc;
       const X=i=>pl+(w-pl-pr)*i/N,Y=v=>pt+(H-pt-pb)*(1-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo));let s='';
+      if(kk>0){const [r0,r1]=SX[kk];s+=rc(X(r0-.5),pt,X(r1+.5)-X(r0-.5),H-pt-pb,'var(--soft)',{r:0,op:.6})}
       const step=(hi-lo)/5,mag=10**Math.floor(Math.log10(step)),st=[1,2,5,10].map(x=>x*mag).find(x=>x>=step);
       for(let v=Math.ceil(lo/st)*st;v<=hi;v+=st)s+=ln2(pl,Y(v),w-pr,Y(v),'var(--line)')+tx(pl-6,Y(v)+4,fmt(v),{a:'end',fs:11,c:CG});
       const tk=N>30?10:5;for(let i=0;i<=N;i+=tk)s+=tx(X(i),H-pb+15,i,{a:'middle',fs:11,c:CG});
@@ -32,23 +48,24 @@ function greedyPick(R){const ms=R.cs.filter(c=>c.n!=null);if(!ms.length)return n
       // floor and incumbent
       let best=r.traj[0][1],fl='',inc='';for(let i=0;i<=Math.min(k,N);i++){const v=r.traj[i][1];best=Math.max(best,v);
         if(i<N&&i<k)fl+=ln2(X(i),Y(best-dc),X(i+1),Y(best-dc),'var(--c4)',{da:'4 3',op:.9});
-        const x0=X(i),x1=i<k?X(i+1):X(i)+(X(i+1)-X(i))*e*0;inc+=(i?'L':'M')+x0.toFixed(1)+','+Y(v).toFixed(1);if(i<k)inc+='L'+X(i+1).toFixed(1)+','+Y(v).toFixed(1)}
+        inc+=(i?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);if(i<k)inc+='L'+X(i+1).toFixed(1)+','+Y(v).toFixed(1)}
       s+=fl+'<path d="'+inc+'" fill="none" stroke="var(--ink)" stroke-width="2"/>'+'<circle cx="'+X(0)+'" cy="'+Y(r.traj[0][1])+'" r="4" fill="var(--ink)"/>'+(k===0?tx(X(0)+8,Y(r.traj[0][1])-8,'base harness: '+fmt(r.traj[0][1])+' '+r.unit,{fs:11}):'');
       // candidates of rounds up to k
-      for(let i=1;i<=Math.min(k,N);i++){const R=RD[i-1],cur=i===k,op=cur?Math.max(.15,e):.45;const gp=m==='g'?greedyPick(R):null;const won=R.cs.find(c=>c.st==='accepted');
+      for(let i=1;i<=Math.min(k,N);i++){const R=RD[i-1],cur=i===k,op=cur?1:.45;const gp=m==='g'?greedyPick(R):null;const won=R.cs.find(c=>c.st==='accepted');
         R.cs.forEach((c,j)=>{const col=(ST[c.st]||[0,CG])[1],x=X(i)-(R.cs.length>1?(j?-4:4):0)*(w<500?.8:1);
           if(c.n==null){s+=G(op,'<line x1="'+x+'" x2="'+x+'" y1="'+(H-pb-2)+'" y2="'+(H-pb-9)+'" stroke="var(--mute)" stroke-width="2"/>');return}
           const out=c.n<lo||c.n>hi,y=Y(c.n);s+=G(op,out?'<polygon points="'+(x-5)+','+(y-6)+' '+(x+5)+','+(y-6)+' '+x+','+(y+1)+'" fill="'+col+'"/>':'<circle cx="'+x+'" cy="'+y+'" r="'+(cur?5:4)+'" fill="'+(c.st==='accepted'?col:'var(--bg)')+'" stroke="'+col+'" stroke-width="1.8"/>')});
-        if(m==='g'){const same=(gp&&won&&gp.id===won.id)||(!gp&&!won);if(!same)s+=G(op,'<rect x="'+(X(i)-8)+'" y="'+(pt-2)+'" width="16" height="'+(H-pt-pb+4)+'" fill="'+CO+'" opacity=".12"/>'+tx(X(i),pt+9,'≠',{a:'middle',fs:12,c:CO,w:700}))}}
+        if(m==='g'&&disagree(R))s+=G(op,'<rect x="'+(X(i)-8)+'" y="'+(pt-2)+'" width="16" height="'+(H-pt-pb+4)+'" fill="'+CO+'" opacity=".12"/>'+tx(X(i),pt+9,'≠',{a:'middle',fs:12,c:CO,w:700}))}
       if(lo>Math.min(...r.c.filter(c=>c.n!=null).map(c=>c.n)))s+=tx(w-pr,H-pb-12,'▼ off the chart below',{a:'end',fs:11,c:CG});
+      live(m,k);
       return svgW(w,H,s,'Replay of a released run')},
-    counters:(m,k)=>{const N=RD.length,cur=r.traj[Math.min(k,N)],R=RD.slice(0,k);const cnt={};R.forEach(x=>x.cs.forEach(c=>cnt[c.st]=(cnt[c.st]||0)+1));
+    counters:(m,kk,ee)=>{const k=roundAt(kk,ee),N=RD.length,cur=r.traj[Math.min(k,N)],R=RD.slice(0,k);const cnt={};R.forEach(x=>x.cs.forEach(c=>cnt[c.st]=(cnt[c.st]||0)+1));
       const gate=['critic_reject','smoke_fail','screen_kill','no_proposal','void'].reduce((a,s)=>a+(cnt[s]||0),0);
-      let dis=0;R.forEach(x=>{const gp=greedyPick(x),won=x.cs.find(c=>c.st==='accepted');if(!((gp&&won&&gp.id===won.id)||(!gp&&!won)))dis++});
+      let dis=0;R.forEach(x=>{if(disagree(x))dis++});
       return stat('Round',k?RD[k-1].t:'start',k?'round '+k+' of '+N+' in this run':'')+stat('Incumbent',fmt(cur[1])+' '+r.unit,sgn(cur[1]-r.traj[0][1])+' since the start ('+sgn((cur[1]-r.traj[0][1])/r.denom*100,2)+' pts)')+
         stat('Tokens per trial',cur[2]?fmt(cur[2]/1e3)+'k':'not logged',cur[2]&&r.traj[0][2]?'× '+(cur[2]/r.traj[0][2]).toFixed(2)+' the base':'')+
         stat('Decisions so far',(cnt.accepted||0)+' kept','floor '+(cnt.rejected_floor||0)+', cost or score '+((cnt.rejected_cost||0)+(cnt.rejected_score||0)+(cnt.lost_to_peer||0))+', not evaluated '+gate)+(m==='g'?stat('Rounds where the rules disagree',dis,'keep-the-best against the record'):'')}});
-  sel.addEventListener('change',()=>{r=RUNS_[+sel.value];build();info();if(anim){anim.st.k=0;anim.st.t=1;anim.st.play=false;anim.st.lk=-1;anim.draw()}});
+  sel.addEventListener('change',()=>{r=RUNS_[+sel.value];build();info();if(anim)anim.reset()});
 })();
 // Re-judge: Algorithm 2 (rrsi/selection.py) applied to each recorded round against the recorded incumbent
 const RJ_CFG={coding_opus:{b0:.10,b1:44.5,ws:0,wc:15,wn:.5,paper:.017},lab:{b0:.10,b1:35.4,ws:1414,wc:15,wn:.5,paper:.004}};

@@ -292,10 +292,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
 - [x] `whats_new/papers/rocketeval` RocketEval: Efficient Automated LLM Evaluation via Grading Checklist
 - [x] `whats_new/papers/roformer` RoFormer: Enhanced Transformer with Rotary Position Embedding
-- [~] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
+- [x] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
 - [x] `whats_new/papers/scaffold_computational_separations` Understanding the Benefits of Scaffolds through Computational Separations
-- [ ] `whats_new/papers/scaling_laws_for_neural_language_models` Scaling Laws for Neural Language Models
-- [ ] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
+- [~] `whats_new/papers/scaling_laws_for_neural_language_models` Scaling Laws for Neural Language Models
+- [~] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
 - [ ] `whats_new/papers/seq_vs_seq` Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
 - [ ] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
 - [ ] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
@@ -587,6 +587,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/rocketeval`: hero first steps leave empty space on the right on phones; last RocketEval step bars and score towers small at 390 px; CoT flip-rate labels pale. Two ledger keys elsewhere (benchmarks root, data curation root) carried the lowercased name from page text; re-keyed so no file contains the login string.
 - `whats_new/papers/roformer`: decay stage sits low with empty space above at 1400 and is wide and shallow on phones; hero sum label sits close to the share labels mid-transition.
 - `whats_new/papers/scaffold_computational_separations`: hero last step the orange ceiling tints most of the scene (busy); hero step 4 the "reader, 2 layers" label touches the left edge.
+- `whats_new/papers/rrsi`: Fig. 1 step 4 the pass-axis labels and "tokens: cheaper in front" sit at the left edge and the incumbent line runs off it; ball labels hide on phones.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -725,3 +726,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - RocketEval: the hero is now a 3D amortisation grid plus cost towers (outcomes became a short list under the steps); the before/after is one stage with a mode toggle; bar labels are one word each (full items in the replay card); the CoT mode's three sampled digits (8, 6, 7) are illustrative (labelled). Keep?
 - RoFormer: the shift stage shows both trained toys at once (the old two-mode toggle is gone); the decay walk is drawn at d = 128 (reproduces Figure 2) and adds a new point (real scores do not decay: mean |score| 9.63 at distance 0, 8.89 at 256); RoPE's floating-point drift stated as "under 1e-15". Keep?
 - Scaffold separations: the (4,3) tree is left out of the tree stage (no student, and it is the predict answer); the hero's bigger graph is the first 16-vertex seed with t beyond 8 hops (seed 3); the Tables tab was split (intro left, selector right). Keep?
+- RRSI: the hero is now the 3D stage of the released coding run (the Harvey LAB loop-plus-Table-2 SVG retired; Table 2's trade is the last step); both long replays grouped into stretches (toy: five rounds each); moving a toy slider keeps the current step. Keep?

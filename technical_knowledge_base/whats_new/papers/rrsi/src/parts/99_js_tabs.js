@@ -1,4 +1,4 @@
-// ---- Tabs ---- (skill template 99_js_tabs.js, 2026-10-26; storage key rrsi-tab)
+// ---- Tabs ---- (the explainer-page template 99_js_tabs.js; storage key rrsi-tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

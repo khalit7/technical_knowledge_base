@@ -45,9 +45,9 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
-    // nothing may move before the reader acts (2026-10-26): with the reveals open, scroll each animation into view and wait
-    for (const id of ['sm', 'rp']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // since 2026-11-13 (layout rollout) each animation plays by itself once at least half in view: with the reveals open, scroll it into view and wait
+    for (const id of ['sm', 'rp', 'stg-loop']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) } }
     // closed details hold text too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // ranges: min, middle, max

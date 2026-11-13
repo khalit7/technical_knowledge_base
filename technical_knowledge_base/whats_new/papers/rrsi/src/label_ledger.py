@@ -15,10 +15,10 @@ HFT = HAR + '/harnesses_for_training'
 FAT = {45: 'a sentence-splitter fragment of a citation (Eq. 5, 7), not a unit', 227: 'described the old autoplay; the caption now says nothing moves until you press play or step'}
 # unit 13 held the general definition of a harness, now owned by the harnesses root (one sentence and a link stay here)
 OWNED = {13: (HAR, 'the harness is everything except the model')}
-KEYS = {}
+KEYS = {70: 'leakage screening. before any evaluation, a critic'}  # 2026-11-13: the h3 'Selection side' gained a note under it
 NEW = [
  ('core', 'Core sentence: score-only harness search chases noise, fits the evolve tasks and bloats the harness; RRSI regularises the search, not the edit space, and gives up evolve score for transfer.', 'deliberately giving up evolve-set score to buy transfer'),
- ('core', 'Hero (redrawn; arXiv non-exclusive licence): the loop with RRSI additions, and Table 2 evolve 89.4 / 92.8 / 90.5, OOD 39.7 / 40.3 / 43.6, tokens 1.56 / 3.80 / 2.42M.', 'regularising the search gives up evolve score and buys transfer on fewer tokens'),
+ ('core', 'Hero (the static SVG until 2026-11-13, now the 3D stage Fig. 1 and its note): Table 2 evolve 89.4 / 92.8 / 90.5, OOD 39.7 / 40.3 / 43.6, tokens 1.56 / 3.80 / 2.42M.', 'regularising the search gives up evolve score and buys transfer on fewer tokens'),
  ('core', 'You need (harnesses root, self-improving harnesses, eval statistics) and new terms: evolve set, OOD, incumbent, noise band, edit budget, edit ledger, leakage critic, policy tokens.', 'the score difference two evaluations of the same harness can show by chance'),
  ('core', 'Open summary of the critic records: catch rate never measured; one outright rejection in four runs, not for leakage.', 'it rejected only one candidate outright, and not for leakage'),
  ('core', 'Open summary of the setup: evolve and transfer suites per domain, judges against simulators.', 'transfers to frontier-eng, both graded by simulators'),
@@ -27,6 +27,12 @@ NEW = [
  ('core', 'Reading: the keep-the-best toy (sm), the loop diagram, the Eq. 4 budget chart, Figures 3, 1(a), 4(a) and the Table 2 chart, drawn by script, keyed to static captions.', 'rebuilt from the vector pdf (baseline token costs appear only in the figure)'),
  ('core', 'Replay tab: the four released runs stepped round by round, the re-judging plane, the runs side by side, Harvey LAB held-out against the record, drawn by script.', 'nothing here is simulated: every dot is a recorded evaluation'),
  ('core', "Tables tab: Tables 1 to 6, budgets, noise bars and all 53 checks, drawn by script.", "the paper's tables and figures, rebuilt"),
+ ('core', 'Hero stage step 1 (released coding run): round 0, r0A 139 passes above the band kept at +68% tokens within the 185% allowance; r0B 135 inside the band, +26% tokens, rejected.', 'r0b passes 135, three more: inside the band'),
+ ('core', 'Hero stage step 2: delta 6.1 passes; the floor steps up with the running best to 133.9; 24 of 37 scored candidates below it; three never scored.', '24 of the 37 scored candidates land under it'),
+ ('core', 'Hero stage step 3: inside the band only a token saving or new structure admits; r7A and r11B kept, incumbent 140 to 136 passes, tokens 570k to 470k; 8 in-band candidates rejected.', 'so the incumbent drifts from 140 to 136 passes'),
+ ('core', 'Hero stage step 4: r19B 144 passes, +8 above the band, 6% fewer tokens, kept; run ends 144 of 178 on 442k tokens.', 'the run ends at 144 of 178 on 442k tokens per trial'),
+ ('core', 'Hero stage step 5: keep the best score would choose differently in 5 of 20 rounds, all inside the noise band.', 'keep the best score would choose differently in 5 of 20 rounds'),
+ ('core', 'Hero stage step 6: Table 2 trade, unregularised +3.4 evolve, +0.6 OOD, +144% tokens; RRSI +1.1, +3.9, +55%.', 'rrsi gains 1.1 and 3.9 on 55% more'),
 ]
 F = HERE / 'ledger.json'
 u = json.loads(F.read_text())
@@ -39,7 +45,7 @@ def find_key(text):
     for n in (8, 6, 4):
         for i in range(0, max(1, len(w) - n + 1)):
             k = ' '.join(w[i:i + n])
-            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k):
+            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k) and not re.search(r'\d+ ?min\b', k):
                 return k
     return ''
 bad = 0
@@ -50,7 +56,7 @@ for x in u:
         x['label'], x['key'], x['note'] = 'fat', '', FAT[x['id']]; continue
     if x['id'] in OWNED:
         x['label'], x['key'] = 'owned:' + OWNED[x['id']][0], OWNED[x['id']][1]; continue
-    k = KEYS.get(x['id']) or find_key(x['text'])
+    k = KEYS.get(x['id']) or (x.get('key') if x.get('key') and ledger.norm(x['key']) in vis else '') or find_key(x['text'])  # keep a key the page still carries (2026-11-13)
     if not k:
         print('UNPLACED', x['id'], x['tab'], x['text'][:200]); bad += 1; x['label'], x['key'] = '', ''; continue
     x['key'] = k
@@ -60,7 +66,7 @@ n = max(x['id'] for x in u)
 for lab, text, key in NEW:
     if text in have:
         continue
-    n += 1; u.append({'id': n, 'tab': 't-tables' if text.startswith('Tables tab') else 't-run' if text.startswith('Replay tab') else 't-read', 'section': 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
+    n += 1; u.append({'id': n, 'tab': 't-tables' if text.startswith('Tables tab') else 't-run' if text.startswith('Replay tab') else 't-read', 'section': 'layout rollout 2026-11-13' if text.startswith('Hero stage') else 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
 F.write_text(json.dumps(u, indent=1, ensure_ascii=False) + '\n')
 c = {}
 for x in u: c[x['label'].split(':')[0]] = c.get(x['label'].split(':')[0], 0) + 1

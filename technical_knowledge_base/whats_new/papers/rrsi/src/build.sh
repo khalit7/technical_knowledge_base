@@ -14,15 +14,14 @@ cd "$(dirname "$0")"
 python3 mk_tables.py > /dev/null
 python3 recompute.py > /dev/null
 python3 mk_paper.py
-python3 mk_hero.py > /dev/null
 python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '03a_method.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '_gen_runs.js', '11_js_ui.js', '12_js_read.js', '13_js_sim.js', '14_js_run.js', '24_js_tables.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03_paper.html', '03a_method.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '_gen_runs.js', '11_js_ui.js', '12_js_read.js', '13_js_sim.js', '14_js_run.js', '24_js_tables.js', '25_js_s3.js', '31_js_sc_loop.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
-body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html')).replace('@@HERO@@', rd('03a_hero.svg.html'))
+body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)
 def link(m):
     t, u = m.group(1), m.group(2)
