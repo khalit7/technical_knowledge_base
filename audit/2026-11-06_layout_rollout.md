@@ -257,8 +257,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
 - [x] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
 - [x] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
-- [ ] `whats_new/papers/envharness` EnvHarness: Awakening Static Worlds for Agent Learning
-- [ ] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
+- [~] `whats_new/papers/envharness` EnvHarness: Awakening Static Worlds for Agent Learning
+- [~] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
 - [ ] `whats_new/papers/flashattention` FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
 - [ ] `whats_new/papers/gpt_3` Language Models are Few-Shot Learners (GPT-3)
 - [ ] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
