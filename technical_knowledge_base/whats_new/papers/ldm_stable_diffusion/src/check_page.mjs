@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the animations playing by themselves once in view and stepping end to end.
+// The 3D stages and reduced motion are checked by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/ldm_stable_diffusion/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,10 +43,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); if (t === 't-run') await p.waitForFunction(() => !document.getElementById('genGo').disabled && document.getElementById('genOut').innerHTML.length > 0, { timeout: 180000 }); await audit(t + ' open');
-    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
+    // autoplay (2026-11-06 motion rules, replacing the 2026-10-24 never-autoplay check): each animation plays by itself once scrolled into view
     for (const id of ['ldx', 'thx']) { if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
-      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0), pl = await p.$eval('#' + id, e => e.hasAttribute('data-playing'));
+      if (!(fr > 0) || !pl) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view (frames ${fr}, playing ${pl})`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

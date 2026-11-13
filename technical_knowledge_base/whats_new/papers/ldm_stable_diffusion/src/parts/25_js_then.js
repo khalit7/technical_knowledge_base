@@ -1,4 +1,4 @@
-// ---- Then and now: the LDM recipe card, changed one system at a time ----
+// ---- Then and now: the LDM recipe card, changed one system at a time, played in eight stretches (the two video systems share one); each stretch is explained by its item of the step list sx-thx ----
 (function(){const F=[['ae','Autoencoder'],['lat','Latent'],['net','Denoiser'],['obj','Objective'],['text','Text encoder τθ'],['size','Size'],['data','Resolution, data']];
   const ax=id=>'https://arxiv.org/abs/'+id;
   const S=[
@@ -12,11 +12,15 @@
    {y:'March 2024',n:'Stable Diffusion 3',u:ax('2403.03206'),set:{ae:'KL autoencoder, f = 8, retrained',lat:'16 channels ("increasing the number of latent channels d significantly boosts reconstruction")',net:'MM-DiT: a Transformer with separate weights for text and image tokens',obj:'rectified flow with noise sampling biased to perceptually relevant scales',text:'two CLIP encoders and T5',size:'up to 8B'},c:'Latent space, a Transformer and a flow objective together; f = 8 is kept for every model in the paper.'},
    {y:'August 2024',n:'FLUX.1',u:'https://huggingface.co/black-forest-labs/FLUX.1-schnell',set:{lat:'16 channels, scale factor 0.3611',net:'rectified flow Transformer',obj:'rectified flow',size:'12B parameters'},c:'"A 12 billion parameter rectified flow transformer" (model card); the autoencoder in the code is ch_mult [1, 2, 4, 4], z_channels 16, the same f = 8 layout as this paper\'s.'}];
   const cards=[];let cur={};S.forEach(s=>{cur=Object.assign({},cur,s.set);cards.push(cur)});
-  const link=s=>s.replace('#VIT#','<a href="https://app.notion.com/p/3c65c17b0d0d811fa231cfcde6c1954d" target="_blank" rel="noopener noreferrer">ViT</a>');
-  const steps=S.map(s=>({t:s.y+': '+s.n,c:link(s.c)+' '+A(s.u,'source')}));
-  function draw(m,k,e){const C=cards[k],P=k?cards[k-1]:{},ch=S[k].set;let h='<dl class="recipe">';
-    F.forEach(([f,l])=>{const changed=k>0&&(f in ch);h+='<dt>'+l+'</dt><dd'+(changed?' class="chg"':'')+'>'+(changed&&e<.5&&P[f]?'<span class="mute" style="text-decoration:line-through">'+P[f]+'</span>':C[f])+'</dd>'});
+  const GR=[[0],[1],[2],[3],[4],[5,6],[7],[8]];  // the stretches: systems shown one after another within a step
+  const steps=GR.map(I=>({t:I.map(i=>S[i].n).join('; ')}));
+  const strike=v=>'<span class="mute" style="text-decoration:line-through">'+v+'</span>';
+  function draw(m,k,e){const I=GR[k],np=I.length,f=Math.min(np-1e-9,e*np),j=Math.floor(f),u=f-j,last=e>=1,idx=I[j],C=cards[last?I[np-1]:idx],Pv=idx?cards[idx-1]:{};
+    const chg=new Set();(last?I:[idx]).forEach(i=>{if(i>0)Object.keys(S[i].set).forEach(x=>chg.add(x))});
+    let h='<p class="small mute" style="margin:0 0 6px">'+(last?I:[idx]).map(i=>S[i].y+': '+A(S[i].u,S[i].n)).join(' · ')+'</p><dl class="recipe">';
+    F.forEach(([f,l])=>{const c=chg.has(f);h+='<dt>'+l+'</dt><dd'+(c?' class="chg"':'')+'>'+(!last&&c&&u<.45&&Pv[f]?strike(Pv[f]):C[f])+'</dd>'});
     return h+'</dl>'}
-  function counters(m,k){const ch=Object.keys(S[k].set).length;return stat('year',S[k].y.replace(/^.* /,''),S[k].n)+stat('lines changed',k?ch+' of '+F.length:'the original',k?'highlighted':'')+stat('still as in LDM',F.filter(([f])=>cards[k][f]===cards[0][f]).length+' of '+F.length,'lines unchanged since 2021')}
-  makeAnim({id:'thx',mode:'a',dur:4200,modes:{a:steps},draw,counters});
+  function counters(m,k){const I=GR[k],last=I[I.length-1],ch=new Set();I.forEach(i=>{if(i>0)Object.keys(S[i].set).forEach(x=>ch.add(x))});
+    return stat('year',S[I[0]].y.replace(/^.* /,'')+(I.length>1&&S[last].y.replace(/^.* /,'')!==S[I[0]].y.replace(/^.* /,'')?' to '+S[last].y.replace(/^.* /,''):''),I.length+(I.length>1?' systems':' system'))+stat('lines changed',k?ch.size+' of '+F.length:'the original',k?'highlighted':'')+stat('still as in LDM',F.filter(([f])=>cards[last][f]===cards[0][f]).length+' of '+F.length,'lines unchanged since 2021')}
+  makeAnim({id:'thx',mode:'a',dur:5000,modes:{a:steps},lists:{a:'sx-thx'},draw,counters});
 })();

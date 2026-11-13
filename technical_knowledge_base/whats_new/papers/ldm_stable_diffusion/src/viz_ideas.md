@@ -38,3 +38,8 @@ Polo Club's Diffusion Explainer (the full-size Stable Diffusion loop); Jay Alamm
 
 ## What the methodology lacked here
 A rule for papers whose mechanism is a *pipeline of two trained models*: the live ingredient needs both stages, and the CPU budget is mostly spent on the first (the autoencoder), not the one the paper is named after. Also a rule for grading generated images without FID: a synthetic domain with a deterministic checker worked, and should be reused for other image-generation papers.
+
+## Built in the 2026-11-13 layout rollout
+- P-ldm_stable_diffusion.21: the paper's Figure 3 as a 3D stage run by the toy (Fig. 1, `31_js_sc_hero.js`): image and latent as tile grids to scale, ℰ and 𝒟 as glass plates, the latent UNet's three cross-attention levels fed by tau_theta's real token vectors, stream density from the toy's own attention.
+- P-ldm_stable_diffusion.22: the f sweep as tensors to scale (Fig. 4, `32_js_sc_fsw.js`): one length per number on every axis, Table 13 shapes and batch sizes, Table 8 reconstruction FIDs in the steps.
+- Not built (idea): a per-position cross-attention bar field (8 x 8 bars per token, from `keepAtt`) as a third stage in Conditioning; the Generate tab's 2D overlay and the owner page's `stg-xa` cover it for now.
