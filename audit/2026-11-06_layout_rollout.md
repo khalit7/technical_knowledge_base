@@ -285,8 +285,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
 - [x] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
 - [~] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
-- [ ] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
-- [ ] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+- [x] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
+- [~] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
 - [ ] `whats_new/papers/re_grading_six_physics_benchmarks` Re-grading six physics benchmarks: most model failures were the test's fault
 - [ ] `whats_new/papers/react` ReAct: Synergizing Reasoning and Acting in Language Models
 - [ ] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
@@ -578,6 +578,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/prime_agent`: stage has empty space above L3 at 1400 and is small on phones; 13_js_res.js still carries unused old Factorio caption strings; Factorio step 3 and the paragraph after the list both state the reset.
 - `whats_new/papers/proactive_memory_agent`: stage full view leaves empty space above the bars at 1400; step 3 the turn-3 error label sits near the bar tops; step 7 "20 procedural, then deleted" touches the bars; the Idea animation card is taller than the window so not sticky. Its traces quote sandbox paths like /home/git (from the released traces, pre-existing).
 - Ledger: units that only quote this knowledge base's own reading times ("About 27 and 26 min", "25 + 15 min") were relabelled fat (check_times keeps them current); 1,519 keys that began with a reading time were re-keyed to the unit's own words across two sweeps.
+- `whats_new/papers/qwen3_technical_report`: Fig. 2 the "QwQ-32B . 65 GB" label touches the right edge; full-route views of Fig. 1 and Fig. 2's full view are small on phones with empty space.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -707,3 +708,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Phi-Bench: removed the third predict question ("How many tasks is Hardware and Edge based on?"; the autoplaying categories stage would show the answer; its heatmap is now Figure 4 on the Tables tab); Figure 7 moved from Tables to beside Errors; the formats stage's repository (18 files, a bottleneck file) is illustrative (labelled). Keep?
 - Prime Agent: the clickable 2D hierarchy is gone (its content is in stage step 1 plus the Figure 2 image); the stage opens in rlm() mode and is illustrative (from sections 2.2 to 2.4 and Appendix B, labelled); the 25-game scorecard replay is a widget opening on lf52 (the one game lost). Keep?
 - Proactive Memory Agent: the 3D stage replaces the static hero and follows sqlite-with-gcov (most selective) then git-multibranch as the counter-example; its last step is the memory agent's own cost (headline task counts stay in the core sentence and charts); one step list serves all six Idea modes. Keep?
+- Qwen3: Fig. 2 draws 12 thinking tokens and 6 under the budget (old animation 26 and 14) so rows stay readable (stated); the post-training step lists partly repeat the Stage 1 and 2 prose below them (could be trimmed if 28 min feels long). Keep?

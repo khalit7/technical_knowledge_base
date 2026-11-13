@@ -1,6 +1,16 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L"><section id="s-top">
 <p class="core1"><b>The idea in one sentence:</b> train one checkpoint that both thinks and answers directly, switched by a <code>/think</code> or <code>/no_think</code> flag, whose thinking can be cut off at a token budget (Qwen3-235B-A22B: AIME'24 from 42 at 1K tokens to 87 at 32K, 40.1 without thinking); give the two flagships four post-training stages and build the six smaller models by distilling from them instead of running RL on each.</p>
+<p class="small"><b>You need:</b> GRPO from {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; on-policy distillation and forward against reverse KL from {{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}; budget forcing and other thinking dials from {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}.</p>
+<ul class="terms">
+<li><b>Thinking mode fusion</b>: stage 3, fine-tuning one model on both thinking and non-thinking data so one set of weights does both.</li>
+<li><b>Thinking budget</b>: a cap on thinking tokens; at the cap a fixed sentence and <code>&lt;/think&gt;</code> are inserted and the model answers.</li>
+<li><b>Strong-to-weak distillation</b>: small models trained from the flagships, first on their answers (off-policy), then on their logits over the student's own samples (on-policy).</li>
+<li><b>QK-Norm</b>: an RMSNorm on each head's queries and keys before the dot product.</li>
+</ul>
+</section></div>
+<div class="s3R"><div class="s3side">
 <div id="hx" role="figure" aria-label="Qwen3's post-training in one picture">
 <p class="hxt">Two routes to one kind of checkpoint, and what that checkpoint does with a flag and a budget</p>
 <div class="row"><p class="rl">Flagships: Qwen3-235B-A22B and Qwen3-32B (§4.1 to §4.4)</p>
@@ -13,14 +23,8 @@
 <div class="bx acc"><b>/think, budget B</b><span class="tok">&lt;think&gt;<span class="th">reasoning ... (B tokens)</span> "Considering the limited time ..." &lt;/think&gt; answer</span><br>cut off at B, the model answers from what it has</div>
 </div>
 </div>
-<p class="small mute" style="margin:2px 0 10px">Redrawn from the report's {{Figure 1|ax:S4.F1}} and {{§4.3|ax:S4.SS3}} (the report is under arXiv's non-exclusive licence, so its figure is not reproduced). The stages are animated in {{Post-training|tab:t-read:s-post}}, the budget curves in {{The thinking budget|tab:t-read:s-budget}}.</p>
-<p class="small"><b>You need:</b> GRPO from {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; on-policy distillation and forward against reverse KL from {{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}; budget forcing and other thinking dials from {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}.</p>
-<ul class="terms">
-<li><b>Thinking mode fusion</b>: stage 3, fine-tuning one model on both thinking and non-thinking data so one set of weights does both.</li>
-<li><b>Thinking budget</b>: a cap on thinking tokens; at the cap a fixed sentence and <code>&lt;/think&gt;</code> are inserted and the model answers.</li>
-<li><b>Strong-to-weak distillation</b>: small models trained from the flagships, first on their answers (off-policy), then on their logits over the student's own samples (on-policy).</li>
-<li><b>QK-Norm</b>: an RMSNorm on each head's queries and keys before the dot product.</li>
-</ul>
+<p class="small mute" style="margin:2px 0 10px">Redrawn from the report's {{Figure 1|ax:S4.F1}} and {{§4.3|ax:S4.SS3}} (the report is under arXiv's non-exclusive licence, so its figure is not reproduced). The stages are drawn in 3D in {{Post-training|tab:t-read:s-post}}, the flag and the budget in {{Mode fusion|tab:t-read:s-fuse}}, the budget curves in {{The thinking budget|tab:t-read:s-budget}}.</p>
+</div></div></div>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-fam">Family</a><a href="#s-pre">Pre-training</a><a href="#s-base">Base results</a><a href="#s-post">Post-training</a><a href="#s-fuse">Mode fusion</a><a href="#s-budget">Budget</a><a href="#s-distill">Distillation</a><a href="#s-stages">Stage effects</a><a href="#s-res">Results</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
 <div class="co"><div class="t">What this page builds, and what it links</div>
@@ -67,12 +71,14 @@
 <p>As for Qwen2.5, in-house scaling laws set the learning-rate schedule and batch size for each model and stage; none of the laws or values are published.</p>
 </section>
 
-<section id="s-base"><h2>Base-model results</h2>
+<div class="s3sp"><div class="s3L"><section id="s-base"><h2>Base-model results</h2>
 [[S3.SS3|§3.3, Tables 3 to 8]]
 <p>The base models were scored on 15 benchmarks in four groups (general knowledge, math and STEM, coding, multilingual), all "using the same evaluation pipeline" for Qwen3 and the baselines ({{§3.3|ax:S3.SS3}}). The headline: <b>Qwen3-235B-A22B-Base beats DeepSeek-V3-Base on 14 of 15 benchmarks</b> with about a third of its total and two thirds of its active parameters, losing only INCLUDE ({{Table 3|ax:S3.T3}}). It beats Llama-4-Maverick-Base (402B, 1.7 times its size; the text says "about twice") on 14 of 15 as well, and Qwen2.5-72B-Base on all 15.</p>
 <p>The second claim is a <b>tier shift</b>: each Qwen3 dense base model is "comparable" to the next Qwen2.5 size up (1.7B to 3B, 4B to 7B, 8B to 14B, 14B to 32B, 32B to 72B), and the MoE bases match the dense ones with a fifth of the active parameters. Count the benchmarks each Qwen3 model wins against its larger Qwen2.5 counterpart:</p>
+<p>One claim in the text does not match its table: Qwen3-32B-Base "significantly outperforms" Llama-4-Scout-Base "on all 15 benchmarks", but {{Table 4|ax:S3.T4}} has Scout ahead on INCLUDE (68.09 against 67.87). The {{tables tab|tab:t-tables:chk}} checks every such count.</p>
+</section></div>
+<div class="s3R"><div class="s3side">
 <div class="card"><div id="tierC"></div></div>
 <p class="small mute">Wins out of the 15 benchmarks, ties counted as not won, from {{Tables 4 to 8|ax:S3.T4}}. Qwen2.5-3B-Base appears only in Table 7, so the 1.7B pair compares Table 8's column with Table 7's. The report's "comparable" holds: every pair wins at least 8 of 15; the 4B against the 7B wins 14.</p>
-<p>One claim in the text does not match its table: Qwen3-32B-Base "significantly outperforms" Llama-4-Scout-Base "on all 15 benchmarks", but {{Table 4|ax:S3.T4}} has Scout ahead on INCLUDE (68.09 against 67.87). The {{tables tab|tab:t-tables:chk}} checks every such count.</p>
-</section>
+</div></div></div>
 

@@ -1,17 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-post"></div></div><div class="s3L">
 <section id="s-post"><h2>Post-training: four stages for the flagships, distillation for the rest</h2>
 [[S4|§4, Figure 1]]
-<p>Post-training has two goals ({{§4|ax:S4}}): <b>thinking control</b> (one model with a thinking and a non-thinking mode, and a token budget for the thinking) and <b>strong-to-weak distillation</b> (small models built from the large ones instead of trained the long way). The two flagships, Qwen3-235B-A22B and Qwen3-32B, go through four stages; the six smaller models are distilled from them. The animation runs both routes, as {{Figure 1|ax:S4.F1}} draws them.</p>
-<div class="card" id="pp">
-<div class="an-top"><div class="seg" id="ppM" role="group" aria-label="Route"><button class="on" data-m="flag" aria-pressed="true">Flagship: four stages</button><button data-m="small" aria-pressed="false">Small model: strong-to-weak</button></div>
-<span class="small mute">What each stage trains on, and where its signal comes from.</span></div>
-<div id="ppSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="ppBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ppPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ppFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="ppScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="ppSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="ppStep"></div><p id="ppCap"></p></div>
-<div class="an-cnt" id="ppCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Stages and their data follow {{§4.1 to §4.5|ax:S4.SS1}}. "Signal per response" counts what one training response tells the model: a target token per position (fine-tuning), one reward per response (RL), or the teacher's whole next-token distribution per position (on-policy distillation; the vocabulary has 151,669 entries). The only measured cost in the report is Table 21's GPU hours for one 8B comparison; the 1/10 of "the four-stage training method" in {{§4|ax:S4}} is not itemised. The animation stops when off screen and starts paused if your system asks for reduced motion.</p>
-</div>
+<p>Post-training has two goals ({{§4|ax:S4}}): <b>thinking control</b> (one model with a thinking and a non-thinking mode, and a token budget for the thinking) and <b>strong-to-weak distillation</b> (small models built from the large ones instead of trained the long way). The two flagships, Qwen3-235B-A22B and Qwen3-32B, go through four stages; the six smaller models are distilled from them. The stage beside this section runs both routes, as {{Figure 1|ax:S4.F1}} draws them; switch the route above its step list.</p>
+<div class="seg" id="postM" role="group" aria-label="Route"><button class="on" data-m="flag" aria-pressed="true">Flagship: four stages</button><button data-m="small" aria-pressed="false">Small model: strong-to-weak</button></div>
+<ol class="sx" id="sx-post-flag">
+<li><b>The base model.</b> Pre-trained on 36T tokens in three stages ({{§3|ax:S3.SS2}}): over 30T general, about 5T of reasoning-heavy data, then hundreds of billions at 32,768 tokens (the thin top layer, not to scale). Everything after this is post-training.</li>
+<li><b>Stage 1: long chain-of-thought cold start.</b> Fine-tune on a small, heavily filtered set of QwQ-32B reasoning traces for verifiable math, code, logic and STEM problems (the stack is drawn small: no size is given). Enough to learn the format of thinking, not so much that it caps what RL can add. The signal is fine-tuning's: one target token at every position of a response (a dot drops onto each token).</li>
+<li><b>Stage 2: reasoning RL.</b> GRPO on 3,995 hard but learnable query-verifier pairs. Each sampled response earns one reward from the verifier: one ball for the whole response, flowing back into the model. Qwen3-235B-A22B: AIME'24 from 70.1 to 85.1 in 170 steps (the bar).</li>
+<li><b>Stage 3: thinking mode fusion.</b> Two streams of fine-tuning data meet in one checkpoint: the stage-2 model's own rejection-sampled thinking responses (long rows, marked <code>/think</code>) and curated non-thinking ones (short rows, <code>/no_think</code>, with an empty think block). One set of weights learns both modes. The cost, in Table 22 for Qwen3-32B: thinking-mode AIME'24 83.8 to 81.9.</li>
+<li><b>Stage 4: general RL.</b> RL over 20+ tasks (instruction and format following, mode switching, preferences, tools in real environments, RAG) with three kinds of reward: rule-based, a judge with reference answers, and a reward model trained on preferences. Table 22, Qwen3-32B: ThinkFollow 88.7 to 98.9, ToolUse +15.1 in thinking mode.</li>
+<li><b>Released: Qwen3-235B-A22B and Qwen3-32B.</b> Thinking and non-thinking modes in one set of weights, a budget dial, and the teachers for every smaller model (boxes sized by the cube root of total parameters: 235B and 32.8B).</li>
+</ol>
+<ol class="sx" id="sx-post-small" hidden>
+<li><b>Six students start from their base models.</b> The same three pre-training stages, at the student's size: 0.6B, 1.7B, 4B, 8.2B and 14.8B dense, and 30.5B total (3.3B active) for Qwen3-30B-A3B, each box sized by the cube root of total parameters. The two teachers stand behind them.</li>
+<li><b>Phase 1: off-policy distillation.</b> Fine-tune on responses the teachers wrote, in both <code>/think</code> and <code>/no_think</code> modes. The student learns to reason and to switch modes by imitation; the signal is still one target token per position, on text the student did not write.</li>
+<li><b>Phase 2: on-policy distillation.</b> The camera moves in on Qwen3-8B. The student writes its own response (dots flow to the teacher); the teacher (Qwen3-32B or Qwen3-235B-A22B) returns its full next-token distribution at every position (the bar group over each token: five bars stand for a vocabulary of 151,669, shape illustrative), and the student minimises the KL divergence to it. It is corrected exactly where its own samples go wrong.</li>
+<li><b>Table 21: the one measured comparison.</b> From the same off-policy Qwen3-8B, on math and code only: RL reaches AIME'24 67.6 for 17,920 GPU hours, on-policy distillation 74.4 for 1,800 (the two columns are GPU hours to scale: 10.0%). One run each; pass@64 differs by one question.</li>
+</ol>
+<p class="small mute" style="margin:6px 0 0">Stages and their data follow {{§4.1 to §4.5|ax:S4.SS1}}. "Signal per response" is what one training response tells the model: a target token per position (fine-tuning), one reward per response (RL), or the teacher's whole next-token distribution per position (on-policy distillation). The only measured cost in the report is Table 21's GPU hours for one 8B comparison; the 1/10 of "the four-stage training method" in {{§4|ax:S4}} is not itemised. The responses drawn are illustrative token rows, not real samples.</p>
 <h3>Stage 1: a deliberately small long chain-of-thought cold start</h3>
 [[S4.SS1|§4.1]]
 <p>A dataset of math, code, logical reasoning and general STEM problems, each with a verified reference answer or test cases, filtered twice ({{§4.1|ax:S4.SS1}}): a query filter drops what is not verifiable or is answerable without chain-of-thought, and a response filter keeps only QwQ-32B answers that are right, reasoned and consistent.</p>
@@ -25,7 +31,9 @@
 [[S4.SS2|§4.2]]
 <p>The query-verifier pairs must be unused in stage 1, learnable for the cold-start model, as hard as possible and spread over sub-domains: 3,995 in all. The algorithm is GRPO (taught on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} runs it live), with large batches, many rollouts per query and off-policy reuse of samples, and the entropy kept "to increase steadily or remain stable". Training improved steadily "without any manual intervention on hyperparameters": Qwen3-235B-A22B went from 70.1 to 85.1 on AIME'24 in 170 RL steps ({{§4.2|ax:S4.SS2}}).</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-fz"></div></div><div class="s3L">
 <section id="s-fuse"><h2>Stage 3: thinking mode fusion, one checkpoint for both modes</h2>
 [[S4.SS3|§4.3, Table 9]]
 <p>Stage 3 continues supervised fine-tuning of the stage-2 reasoning model on a mix of thinking and non-thinking data, so that one set of weights does both ({{§4.3|ax:S4.SS3}}):</p>
@@ -35,21 +43,27 @@
 <li><b>The chat template</b> carries the switch: <code>/think</code> or <code>/no_think</code> in the user or system message. A non-thinking response keeps an <b>empty</b> think block, so both modes share one format, and a deployer can force non-thinking by pre-filling the empty block (Hugging Face's template does this with <code>enable_thinking=False</code>).</li>
 <li><b>Thinking is the default</b>: some thinking samples carry no flag. In multi-turn data flags are inserted at random and the response follows <b>the last flag</b> seen.</li>
 </ul>
-<div class="card" id="fz">
-<div class="an-top"><div class="seg" id="fzM" role="group" aria-label="Deployment"><button class="on" data-m="two" aria-pressed="true">Before: two models</button><button data-m="one" aria-pressed="false">Qwen3: one checkpoint</button></div>
-<span class="small mute">Two requests, one quick and one hard, at 32B scale.</span></div>
-<div id="fzSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="fzBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="fzPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="fzFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="fzScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="fzSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="fzStep"></div><p id="fzCap"></p></div>
-<div class="an-cnt" id="fzCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Token layout is {{Table 9|ax:S4.T9}}'s template. Weight memory is parameters × 2 bytes in BF16, to scale: Qwen2.5-32B-Instruct and QwQ-32B are both 32.5B-parameter models ({{Qwen2.5-32B-Instruct card|https://huggingface.co/Qwen/Qwen2.5-32B-Instruct}}, {{QwQ-32B card|https://huggingface.co/Qwen/QwQ-32B}}), Qwen3-32B is 32.8B (recounted above). The token counts of the two answers are illustrative.</p>
-</div>
+<p>The stage beside this section serves the same two requests, one quick and one hard, at 32B scale: first as Qwen did before, with two models, then with one Qwen3 checkpoint.</p>
+<div class="seg" id="fzM" role="group" aria-label="Deployment"><button class="on" data-m="two" aria-pressed="true">Before: two models</button><button data-m="one" aria-pressed="false">Qwen3: one checkpoint</button></div>
+<ol class="sx" id="sx-fz-two">
+<li><b>Two requests arrive.</b> A quick one ("capital of France?", front row) and a hard one (a competition problem, back row). Before Qwen3, Qwen served them with two different models, whose weights stand behind as glass plates sized by memory.</li>
+<li><b>A router picks a model.</b> The quick request goes to the chat model (Qwen2.5-32B-Instruct), the hard one to the reasoning model (QwQ-32B). Both sets of weights stay in memory, 130 GB in BF16, and the caller must decide which request is hard.</li>
+<li><b>The chat model answers directly.</b> No thinking tokens. It cannot think more when a request turns out to be hard.</li>
+<li><b>The reasoning model thinks, then answers.</b> It always thinks, for as long as it likes: the caller has no switch to turn thinking off and no cap on how many tokens it spends.</li>
+</ol>
+<ol class="sx" id="sx-fz-one" hidden>
+<li><b>The same two requests.</b> Now one Qwen3-32B checkpoint serves both: one plate, 65.5 GB in BF16, half the memory of the two models.</li>
+<li><b>The template carries the switch.</b> The caller adds <code>/no_think</code> to the quick request; the hard one carries <code>/think</code>, or nothing, since thinking is the default (Table 9).</li>
+<li><b><code>/no_think</code>: an empty think block, then the answer.</b> The model writes <code>&lt;think&gt;&lt;/think&gt;</code> with nothing inside, then answers. Same format in both modes, so a server can force this mode by pre-filling the empty block.</li>
+<li><b><code>/think</code>: thinking, then the answer.</b> Thinking until the model closes the block itself, then the answer.</li>
+<li><b>With a budget: cut, insert, answer.</b> Thinking reaches the budget (the glass wall); the server stops it and inserts "Considering the limited time by the user, I have to give the solution based on the thinking directly now." and <code>&lt;/think&gt;</code>. The model answers from the reasoning so far; the dashed slots are the thinking it never wrote.</li>
+</ol>
+<p class="small mute" style="margin:6px 0 0">Token layout is {{Table 9|ax:S4.T9}}'s template. Weight memory is parameters × 2 bytes in BF16, plates to scale: Qwen2.5-32B-Instruct and QwQ-32B are both 32.5B-parameter models ({{Qwen2.5-32B-Instruct card|https://huggingface.co/Qwen/Qwen2.5-32B-Instruct}}, {{QwQ-32B card|https://huggingface.co/Qwen/QwQ-32B}}), Qwen3-32B is 32.8B (recounted above). The token counts (12 thinking tokens, 6 under the budget) are illustrative.</p>
 <p>The fusion has a measured cost, in the report's own Table 22: peak math and code scores in thinking mode drop slightly after stage 3 (AIME'24 83.8 to 81.9, LiveCodeBench 68.4 to 67.2 for Qwen3-32B), while instruction following, format following and agent scores rise. The {{stage effects chart|tab:t-read:s-stages}} below has every row.</p>
 </section>
+</div></div>
 
-<section id="s-budget"><h2>The thinking budget</h2>
+<div class="s3sp"><div class="s3L"><section id="s-budget"><h2>The thinking budget</h2>
 [[S4.SS3.SSS0.Px3|§4.3, Thinking Budget]]
 <p>Once a model can answer both after full thinking and after empty thinking, the report says, it "naturally develops the ability to handle intermediate cases", answering from incomplete thinking. The budget uses that: when the thinking reaches a user-set number of tokens, generation is halted and this text is inserted ({{§4.3|ax:S4.SS3.SSS0.Px3}}):</p>
 <p style="margin-left:12px;font-family:ui-monospace,Menlo,monospace;font-size:13px;overflow-wrap:anywhere">"Considering the limited time by the user, I have to give the solution based on the thinking directly now.\n&lt;/think&gt;.\n\n"</p>
@@ -68,6 +82,14 @@
 <div class="reveal" hidden>
 <p>0.6 points (42.1 to 42.7), and GPQA moves 0.1 (64.2 to 64.3). The curves are not straight in log budget: they are flat at first, steep between 2K and 16K, and flattening by 32K. A competition problem whose thinking runs to several thousand tokens gains little from 1K more; the gain arrives when the budget reaches the length the problem needs.</p>
 </div></div>
+<p>Two things the figure shows that the text does not say:</p>
+<ul>
+<li><b>Even 1K tokens of thinking beats not thinking</b>, on all four benchmarks (AIME'24 42.1 against 40.1; LiveCodeBench 45.1 against 35.3). The real model, cut off early, does at least as well as answering directly. That is the property the toy lacks, and it is what makes the dial safe to turn down.</li>
+<li><b>The 32K points are not Table 11's numbers</b> for the same model and mode: AIME'24 86.7 against 85.7, AIME'25 81.7 against 81.5, GPQA 72.0 against 71.1 and LiveCodeBench 67.8 against 70.7. The figure is a separate run, with settings the report does not give (Table 11's runs may allow longer outputs: the model card recommends 38,912 output tokens for competition math).</li>
+</ul>
+<p>The report expects scores to keep rising "if we further extend the output length beyond 32K" and leaves that as future work ({{§4.7|ax:S4.SS7.SSS0.Px1}}). The general mechanism (budget forcing) and how other labs expose the same dial are on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, and the {{lab page|n:3c65c17b0d0d81fd8c36ce06672bb235}} has a strip showing where a budget cuts a chain.</p>
+</section></div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="bud">
 <div class="seg" id="budM" role="group" aria-label="Benchmark"><button class="on" data-m="AIME24" aria-pressed="true">AIME'24</button><button data-m="AIME25" aria-pressed="false">AIME'25</button><button data-m="LCB" aria-pressed="false">LiveCodeBench v5</button><button data-m="GPQA" aria-pressed="false">GPQA-Diamond</button></div>
 <div class="ctl"><label>Budget <b id="budBv"></b><input type="range" id="budB" min="0" max="5" step="1" value="2" aria-label="Thinking budget"></label></div>
@@ -75,13 +97,7 @@
 <div class="out" id="budOut"></div>
 </div>
 <p class="small mute">Points: {{Figure 2|ax:S4.F2}}, read from <code>thinking_budget.svg</code> by <code>extract_fig2.py</code> (grid residual 0.0). Diamonds at 32K: the same model's thinking-mode score in {{Table 11|ax:S4.T11}}. Pass@1 here is the report's metric (AIME: 64 samples per question, averaged; GPQA: 10 samples).</p>
-<p>Two things the figure shows that the text does not say:</p>
-<ul>
-<li><b>Even 1K tokens of thinking beats not thinking</b>, on all four benchmarks (AIME'24 42.1 against 40.1; LiveCodeBench 45.1 against 35.3). The real model, cut off early, does at least as well as answering directly. That is the property the toy lacks, and it is what makes the dial safe to turn down.</li>
-<li><b>The 32K points are not Table 11's numbers</b> for the same model and mode: AIME'24 86.7 against 85.7, AIME'25 81.7 against 81.5, GPQA 72.0 against 71.1 and LiveCodeBench 67.8 against 70.7. The figure is a separate run, with settings the report does not give (Table 11's runs may allow longer outputs: the model card recommends 38,912 output tokens for competition math).</li>
-</ul>
-<p>The report expects scores to keep rising "if we further extend the output length beyond 32K" and leaves that as future work ({{§4.7|ax:S4.SS7.SSS0.Px1}}). The general mechanism (budget forcing) and how other labs expose the same dial are on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, and the {{lab page|n:3c65c17b0d0d81fd8c36ce06672bb235}} has a strip showing where a budget cuts a chain.</p>
-</section>
+</div></div></div>
 
 <section id="s-g4"><h2>Stage 4: general RL</h2>
 [[S4.SS4|§4.4]]
@@ -97,7 +113,7 @@
 <p>Three kinds of reward: <b>rule-based</b> (as in reasoning RL, also for instruction and format following; hard to hack), <b>model-based with a reference answer</b> (Qwen2.5-72B-Instruct scores the response against it, avoiding the false negatives of strict rules) and <b>model-based without one</b> (a reward model trained on human preference data, for the widest range of queries).</p>
 </section>
 
-<section id="s-distill"><h2>Strong-to-weak distillation</h2>
+<div class="s3sp"><div class="s3L"><section id="s-distill"><h2>Strong-to-weak distillation</h2>
 [[S4.SS5|§4.5 and §4.7]]
 <p>The five small dense models (0.6B, 1.7B, 4B, 8B, 14B) and Qwen3-30B-A3B skip the four stages ({{§4.5|ax:S4.SS5}}):</p>
 <ol>
@@ -113,11 +129,14 @@
 <div class="reveal" hidden>
 <p>One. 93.3 − 90.0 = 3.3 points, and one question is 100 ÷ 30 = 3.33 points; AIME'25's 83.3 to 86.7 is also one question. The pass@1 gap is larger: 74.4 − 67.6 = 6.8 points, about two questions' worth of average accuracy. So "expands the exploration space" rests on one problem per year, in one run. The toy below repeats the comparison three times with a known answer.</p>
 </div></div>
+
+</section></div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="dsC"></div>
+<p class="small mute">The toy Table 21, the same comparison run three times on a 28,496-parameter Qwen3 (details on the {{Run tab|tab:t-run:dsh}}).</p>
+</div></div></div>
 
-</section>
-
-<section id="s-stages"><h2>What stages 3 and 4 each buy</h2>
+<div class="s3sp"><div class="s3L"><section id="s-stages"><h2>What stages 3 and 4 each buy</h2>
 [[S4.SS7.SSS0.Px3|§4.7, Table 22]]
 <p>{{Table 22|ax:S4.T22}} scores Qwen3-32B after stage 2, 3 and 4, in both modes, on public benchmarks and four in-house ones ({{§4.7|ax:S4.SS7.SSS0.Px3}}): CounterFactQA, LengthCtrl, ThinkFollow and ToolUse.</p>
 <details class="mist"><summary>What the four in-house benchmarks measure</summary><div class="b">
@@ -127,9 +146,11 @@
 <li><b>ThinkFollow</b>: multi-turn dialogues with randomly inserted flags; did the model switch correctly?</li>
 <li><b>ToolUse</b>: single-turn, multi-turn and multi-step tool calling, scored on intent, format and parameters.</li>
 </ul></div></details>
+<p>Stage 3 lifts the in-house and alignment scores (CounterFactQA +10.9, LengthCtrl +8.0 in thinking mode), and stage 4 lifts them again (ToolUse +15.1, ThinkFollow 88.7 to 98.9). Peak reasoning goes the other way: from stage 2 to stage 4, thinking-mode AIME'24 falls 2.4 points and LiveCodeBench 2.7, GPQA and MMLU-Redux under a point. The report says so: the degradation is probably "due to the model being trained on a broader range of general tasks", and "we choose to accept this performance trade-off to enhance the model's overall versatility". That trade is what Qwen undid three months later by splitting the modes again (see {{Why it matters|tab:t-read:s-why}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="stC">
 <div class="seg" id="stM" role="group" aria-label="Mode"><button class="on" data-m="t" aria-pressed="true">Thinking mode</button><button data-m="n" aria-pressed="false">Non-thinking mode</button></div>
 <div id="stSvg"></div></div>
 <p class="small mute">Each bar is the change in points from one stage to the next, on one shared axis, from {{Table 22|ax:S4.T22}}; the changes printed in the table recompute from its scores to within 0.1 (rounding). Non-thinking mode starts at stage 3, which creates it. ThinkFollow is one score per stage (88.7, then 98.9). Stage 4's thinking scores equal the released Qwen3-32B's in {{Table 13|ax:S4.T13}}, so the table describes the shipped model.</p>
-<p>Stage 3 lifts the in-house and alignment scores (CounterFactQA +10.9, LengthCtrl +8.0 in thinking mode), and stage 4 lifts them again (ToolUse +15.1, ThinkFollow 88.7 to 98.9). Peak reasoning goes the other way: from stage 2 to stage 4, thinking-mode AIME'24 falls 2.4 points and LiveCodeBench 2.7, GPQA and MMLU-Redux under a point. The report says so: the degradation is probably "due to the model being trained on a broader range of general tasks", and "we choose to accept this performance trade-off to enhance the model's overall versatility". That trade is what Qwen undid three months later by splitting the modes again (see {{Why it matters|tab:t-read:s-why}}).</p>
-</section>
+</div></div></div>
