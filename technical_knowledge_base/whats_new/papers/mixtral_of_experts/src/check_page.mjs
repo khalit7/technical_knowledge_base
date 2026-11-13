@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end (2026-11-13: also 1400 px; the decode animation
+// must autoplay on view, replay on a mode switch and stop on a reader control; the 3D stage is checked by check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/mixtral_of_experts/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: true });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -19,12 +20,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): the decode animation on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
-  { const id = 'dec'; await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+  // autoplay (2026-11-06 motion rules, inverting the 2026-10-25 never-autoplay check): the decode animation plays by itself once half in view,
+  // a mode switch replays it from step 1 with that mode's step list, and a reader control stops it for good
+  { const id = 'dec'; await p.$eval('#tabs button[data-t=t-read]', b => b.click()); await new Promise(r => setTimeout(r, 300)); // the last tab is remembered across pages
+    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+    if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0)) || !(await p.$eval(`#${id}Play`, e => /Pause/.test(e.textContent)))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
+    const f0 = await p.$eval('#' + id, e => +e.dataset.frames || 0);
     await p.$eval(`#${id}M button[data-m=l70]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
-    await p.$eval(`#${id}M button[data-m=mx]`, b => b.click()); await p.evaluate(() => scrollTo(0, 0)) }
+    if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > f0)) problems.push(`${scheme} ${width}: ${id} did not replay on a mode switch`);
+    await p.$eval(`#${id}Fwd`, b => b.click()); const f1 = await p.$eval('#' + id, e => +e.dataset.frames || 0); await new Promise(r => setTimeout(r, 800));
+    if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) !== f1) problems.push(`${scheme} ${width}: ${id} kept playing after a reader control`);
+    await p.$eval(`#${id}M button[data-m=mx]`, b => b.click()); await p.$eval(`#${id}Fwd`, b => b.click()); await p.evaluate(() => scrollTo(0, 0)) }
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const small = [];

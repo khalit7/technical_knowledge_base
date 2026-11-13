@@ -20,23 +20,8 @@ const bil=v=>v<1e9?(v/1e6).toFixed(0)+'M':(v/1e9).toFixed(v>=1e10?1:2)+'B';
 // ---- One decoding step: which weights a batch has to read ----
 (function(){
   const P=RC.params,BS=[1,2,4,8,16,64,1024,2048],MK={mx:'mixtral_8x7b',l70:'llama2_70b',l13:'llama2_13b'};
-  const cap=(m,B)=>{const d=decAt(MK[m],B),ex=d.experts;
-    if(m==='mx'){
-      if(B===1)return 'One sequence, one new token. At each of 32 layers its router picks 2 of the 8 experts, so the step reads the shared weights plus 2 experts: '+bil(P.mixtral_8x7b.active)+' parameters, '+gb(d.bytes)+'. This is the case where Mixtral runs at "the speed of a 12.9B model".';
-      if(B===2)return 'Two sequences. Their tokens rarely pick the same pair, so on average 3.5 experts per layer must be read: already 75% more expert weight than at batch 1, for twice the tokens.';
-      if(B===4)return 'Four sequences: 5.5 experts per layer on average. The weights read per step grow much faster than for a dense model, which reads the same bytes at any batch size.';
-      if(B===8)return 'Eight sequences: 7.2 of 8 experts per layer, (1 − 0.75<sup>8</sup>) of them. Almost the whole 46.7B is read every step; per token, each expert weight now serves only about 2 tokens.';
-      if(B===16)return 'Sixteen sequences: 7.9 experts. From here to a few hundred sequences Mixtral reads essentially all '+gb(d.bytes)+' per step, like a dense 47B model, while doing the arithmetic of a 13B one.';
-      if(B===64)return 'Sixty-four sequences: still bound by reading weights. Mixtral is now '+xf(RC.ratio_vs_13b[64])+' slower per step than Llama 2 13B and only '+xf(RC.speedup_vs_70b[64])+' faster than Llama 2 70B.';
-      if(B===1024)return fmt(B)+' sequences: still, just, memory-bound. On this roofline Mixtral turns compute-bound only at '+fmt(RC.crossover.mixtral_8x7b)+' sequences, against '+RC.crossover.llama2_70b+' for a dense model, because each expert weight read serves only a quarter of the batch (2 of 8 experts per token). Llama 2 70B is already compute-bound here, so the gap has reopened to '+xf(RC.speedup_vs_70b[1024])+'.';
-      return 'Past that point only active parameters count, and Mixtral is '+xf(RC.speedup_vs_70b[2048])+' cheaper per token than Llama 2 70B: the paper\'s "higher throughput at large batch-sizes".'}
-    const nm=m==='l70'?'Llama 2 70B':'Llama 2 13B',L=P[MK[m]].layers;
-    if(B===1)return nm+': one token, and every one of its '+bil(P[MK[m]].total)+' parameters ('+L+' layers) is read: '+gb(d.bytes)+' per step. A dense model has nothing to skip.';
-    if(B<=16)return B+' sequences: the same '+gb(d.bytes)+' are read once and shared by all '+B+' tokens, so time per step barely moves and tokens per second grow with the batch.';
-    if(B===64)return '64 sequences: still memory-bound, '+ms(d.t)+' per step on this roofline.';
-    if(B===1024)return 'A dense model turns compute-bound at about '+RC.crossover[MK[m]]+' sequences, where its arithmetic catches up with its memory traffic.';
-    return 'Compute-bound: '+ms(d.t)+' per step for '+fmt(B)+' tokens; cost per token is now set by its '+bil(P[MK[m]].active)+' active parameters.'};
-  const modes={};Object.keys(MK).forEach(m=>{modes[m]=BS.map(B=>({t:'batch '+fmt(B),c:cap(m,B)}))});
+  // the explanation of each step is the step list beside the card (#sx-dec-mx, #sx-dec-l70, #sx-dec-l13), one item per batch size
+  const modes={};Object.keys(MK).forEach(m=>{modes[m]=BS.map(B=>({t:'batch '+fmt(B)}))});
   // seeded routing draws for the drawn layer: B tokens, 2 distinct experts each
   const draws={};BS.forEach(B=>{const r=mulberry32(1000+B),out=[];for(let i=0;i<Math.min(B,64);i++){const a=Math.floor(r()*8);let b=Math.floor(r()*7);if(b>=a)b++;out.push([a,b])}draws[B]=out});
   function draw(m,k,e,W){const B=BS[k],mk=MK[m],p=P[mk],H=W<520?236:226;
@@ -69,7 +54,7 @@ const bil=v=>v<1e9?(v/1e6).toFixed(0)+'M':(v/1e9).toFixed(v>=1e10?1:2)+'B';
       stat('Weights read per step',gb(d.bytes),'bfloat16')+stat('Time per step',ms(d.t),d.bound+'-bound')+
       stat('Tokens per second',fmt(Math.round(d.tok_s)),'idealised, 2 H100')+
       stat('Against Llama 2 70B',m==='l70'?'1x':xf(d70.t/d.t)+(d70.t/d.t>=1?' faster':' slower'),'per step, same batch')}
-  makeAnim({id:'dec',modes,mode:'mx',draw,counters,dur:3600});
+  makeAnim({id:'dec',modes,mode:'mx',lists:{mx:'sx-dec-mx',l70:'sx-dec-l70',l13:'sx-dec-l13'},draw,counters,dur:5200});
 })();
 
 // ---- Tokens per second against batch size, three models ----

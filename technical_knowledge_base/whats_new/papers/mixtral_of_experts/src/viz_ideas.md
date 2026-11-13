@@ -35,3 +35,4 @@ Already built elsewhere in the knowledge base, so linked, not rebuilt: Mixtral's
 - Checking whether "figures without values" are vector graphics before calling them unreadable (lesson already in papers.md from ReAct and InstructGPT; it applied here and changed two conclusions).
 
 | P-mixtral_of_experts.h | Hero: the paper's Figure 1 (MoE layer), CC BY 4.0, as WebP | built 2026-10-25 (light pass) |
+| P-mixtral_of_experts.s1 | 3D stage `stg-route`: 20 held-out code tokens through the toy's 4 layers as a token-by-layer bar field (colour first expert, height gate weight), same-token arcs, consecutive-repeat streams, then the toy's Table 5 with its shuffled control and Mixtral's Table 5 with usage-adjusted baselines | built 2026-11-13 (layout rollout) |
