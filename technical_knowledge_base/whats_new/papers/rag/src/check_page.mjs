@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, every animation and stage playing once in view, and the 2D animation stepping end to end.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/rag/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,10 +42,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
-    for (const id of ['mx', 'th']) { if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
-      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
+    // autoplay on view (2026-11-06, replacing the 2026-10-24 never-autoplay rule): each animation and stage plays once it is in view;
+    // check_stages.mjs checks the rest of the motion rules (stops on a control, at the end, never under reduced motion)
+    for (const id of ['th', 'stg-hero', 'stg-mx']) { if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -75,8 +76,8 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const segs = await p.$$(`#${t} .seg button`);
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
-    // step the animations through every step and screenshot the middle
-    for (const id of ['mx', 'th']) {
+    // step the 2D animation through every step and screenshot the middle (the 3D stages: check_stages.mjs)
+    for (const id of ['th']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
@@ -86,7 +87,6 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
         const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
         for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
         await audit(`${t} ${id} ${m} stepped`);
-        if (id === 'mx') for (const q of ['1', '2', '3', '0']) { await p.select('#mxQ', q); await clk(`#${id}Fwd`); await clk(`#${id}Fwd`); actions += 2; await audit(`${t} ${id} ${m} question ${q}`) }
         for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
       }
       // let it play for a second

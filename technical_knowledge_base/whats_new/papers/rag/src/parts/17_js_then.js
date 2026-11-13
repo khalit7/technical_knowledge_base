@@ -20,7 +20,9 @@
    {n:'GraphRAG',y:'April 2024',u:'https://arxiv.org/abs/2404.16130',q:0,d:1,g:0,ql:'query over a graph',dl:'LLM-built entity graph',cl:'summaries of graph communities',gl:'frozen LLM',
     c:'For "global questions directed at an entire text corpus", which chunk retrieval cannot answer, an LLM builds the index itself, an entity knowledge graph with community summaries (Microsoft). The index is the part that is built (by an LLM, not by gradient descent), the generator is frozen.'}];
   const react='<a href="https://app.notion.com/p/3c65c17b0d0d816b9a24c28de8f08ea8" target="_blank" rel="noopener noreferrer">ReAct</a>';
-  const modes={m:S.map(s=>({t:s.n+' ('+s.y+')',c:s.c.replace('%ReAct%',react)+' '+L(s.u,'Source')+'.'}))};
+  const modes={m:S.map(s=>({t:s.n+' ('+s.y+')'}))};
+  // the step list beside the stepper (2026-11-13): one item per system, the old caption as its text
+  $('sx-th').innerHTML=S.map(s=>'<li><b>'+s.n+' ('+s.y+').</b> '+s.c.replace('%ReAct%',react)+' '+L(s.u,'Source')+'.</li>').join('');
   function draw(m,k,e,w){const s0=S[Math.max(0,k-1)],s1=S[k];const narrow=w<620;let s='';
     const parts=[['q','Query encoder',s1.ql],['d','Index',s1.dl],['c','Combine',s1.cl],['g','Generator',s1.gl]];
     const n=4,gap=narrow?10:14,bw=narrow?w-20:(w-gap*(n-1))/n,bh=narrow?52:92;
@@ -35,6 +37,6 @@
       if(!narrow&&i<n-1)s+=ln2(x+bw,y+bh/2,x+bw+gap,y+bh/2,'var(--mute)',{sw:1.4})});
     const H=narrow?4*(bh+gap):bh+20;return svgW(w,H,s,'Pipeline of '+s1.n)}
   function counters(m,k){const s=S[k],t=['q','d','g'].filter(x=>s[x]).length;return stat('system',s.n,s.y)+stat('parts trained',t+' of 3','query encoder, index, generator')+stat('retriever learns from the generator',(s.q&&s.g)||s.n==='REPLUG'?'yes':'no','')}
-  makeAnim({id:'th',modes,mode:'m',draw,counters,dur:3200});
+  makeAnim({id:'th',modes,mode:'m',lists:{m:'sx-th'},draw,counters,dur:4600});
   $('thTab').innerHTML='<table><thead><tr><th>System</th><th>Year</th><th>Query encoder</th><th>Index</th><th>Generator</th><th>How documents are combined</th></tr></thead><tbody>'+S.map(s=>'<tr><td>'+L(s.u,s.n)+'</td><td>'+s.y+'</td><td>'+(s.q?'trained':'frozen')+'</td><td>'+(s.d?s.dl:'frozen')+'</td><td>'+(s.g?'trained':'frozen')+'</td><td>'+s.cl+'</td></tr>').join('')+'</tbody></table>';
 })();
