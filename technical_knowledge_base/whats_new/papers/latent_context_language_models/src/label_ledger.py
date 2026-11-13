@@ -17,9 +17,11 @@ OWNED = {}
 KEYS = {51: 'eq. 7 to 8'}
 NEW = [
  ('core', 'Core sentence: an encoder shrinks the prompt before the decoder (T/N positions prefilled), KV compression evicts only after the full prefill; the only method faster than not compressing, about 2.6 RULER points down at 4x.', 'the only method in the paper faster than not compressing'),
- ('core', 'Hero: a 64K prompt at 4x through no compression (4.47 s, 35.4 GB), FastKVzip (5.19 s, 36.1 GB) and LCLM 4x (1.00 s, 17.4 GB), decoder prefill work to scale (Figure 4).', 'no compression 4.47 s and 35.4 GB, FastKVzip 5.19 s and 36.1 GB, LCLM 4x 1.00 s and 17.4 GB'),
+ ('core', 'Hero: a 64K prompt at 4x through no compression (4.47 s, 35.4 GB), FastKVzip (5.19 s, 36.1 GB) and LCLM 4x (1.00 s, 17.4 GB), decoder prefill work to scale (Figure 4).', '4.47 s and 35.4 GB, 5.19 s and 36.1 GB, 1.00 s and 17.4 GB'),
  ('core', 'New terms: latent token, compression ratio N, encoder window W, adapter, TTFT, EXPAND, systems-realisable.', 'a cache saving an engine can actually free'),
  ('core', 'Figure 6 (CC BY 4.0) inline in the agent section: file names as text, contents as numbered latent blocks, one EXPAND brings back one block; its accuracy axis starts at 60.', 'axis starts at 60'),
+ ('core', 'Hero stage (2026-11-13, replacing the static hero): the 64K prompt at 4x in three rows to scale, no compression, FastKVzip and the LCLM, step by step; KV caches as towers of 4,096-position slabs (9.66 GB against 2.42 GB), the masked-but-allocated eviction, the measured time and memory as bars.', 'every row is to scale in positions'),
+ ('core', 'Simulate tab step lists (2026-11-13): the captions of the three pipelines moved from the script into ol.sx lists beside the animation.', 'pale cells are masked but still allocated'),
  ('owned:' + LC, 'KV cache sizing in general and eviction policies (StreamingLLM, H2O, SnapKV) compared.', 'dropping cached entries by a score'),
  ('owned:' + BK, 'What a paged engine can reclaim from compressed caches: savings a paged engine cannot always realise.', 'savings a paged engine cannot always realise'),
  ('owned:' + LB, 'RULER as a benchmark: 13 tasks, effective length.', 'ruler 2024 13 tasks'),
@@ -53,10 +55,12 @@ for x in u:
 for x in u:
     if x['id'] in OWNED:
         x['label'], x['key'] = 'owned:' + OWNED[x['id']][0], OWNED[x['id']][1]
-have = {x['text'] for x in u if x.get('added')}
+# added units take their label and key from NEW on every run (so a reworded sentence re-points its key here)
+have = {x['text']: x for x in u if x.get('added')}
 n = max(x['id'] for x in u)
 for lab, text, key in NEW:
     if text in have:
+        have[text]['label'], have[text]['key'] = lab, key
         continue
     n += 1; u.append({'id': n, 'tab': 't-read', 'section': 'light pass 2026-10-25', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
 F.write_text(json.dumps(u, indent=1, ensure_ascii=False) + '\n')

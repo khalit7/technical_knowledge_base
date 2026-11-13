@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the animations stepping end to end, playing by themselves once in view,
+// and (last) nothing moving by itself under prefers-reduced-motion.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/latent_context_language_models/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -43,11 +44,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
+    // each animation plays by itself once scrolled into view (2026-11-13, the layout rollout; it used never to autoplay)
     for (const id of ['cap']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // open every closed block and audit what it shows
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
@@ -101,6 +102,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
   await p.close();
 }
+{ // reduced motion: the animation and the stage never move by themselves
+  const p = await b.newPage(); await p.setViewport({ width: 1400, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file);
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  await p.$eval('#tabs button[data-t=t-read]', e => e.click()); await p.$eval('#stg-hero', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+  const fh = await p.$eval('#stg-hero', e => +e.dataset.frames || 0); if (fh) problems.push(`reduced motion: stg-hero moved (${fh} frames)`);
+  await p.$eval('#tabs button[data-t=t-run]', e => e.click()); await p.$eval('#cap', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+  const fc = await p.$eval('#cap', e => +e.dataset.frames || 0); if (fc) problems.push(`reduced motion: cap moved (${fc} frames)`);
+  await p.close() }
 await b.close();
 console.log('actions', actions, 'problems', problems.length); problems.forEach(x => console.log(' -', x));
 process.exit(problems.length ? 1 : 0);

@@ -1,14 +1,21 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> shrink a long prompt <i>before</i> the decoder reads it: a small encoder turns every <i>N</i> tokens into one <b>latent token</b>, so the 4B decoder prefills and caches <i>T</i>/<i>N</i> positions instead of <i>T</i>, while KV cache compression evicts entries only <i>after</i> paying for the full prefill; trained end to end on 350B tokens, it is the only method in the paper faster than not compressing, at a cost of about 2.6 RULER points at 4x.</p>
-<figure class="pfig" id="heroFig">
-<div class="t">KV compression pays for the whole prefill first; the LCLM never does</div>
-<div id="heroSvg" class="plot"></div>
-<figcaption>One 65,536-token (64K) prompt at a 4x ratio. The bar is the decoder's prefill work, to scale. Times and peak memory are the paper's measurements, read from the vector paths of {{Figure 4|ax:S5.F4}} (one H200, one sample, mean of 30 runs): no compression 4.47 s and 35.4 GB, FastKVzip 5.19 s and 36.1 GB, LCLM 4x 1.00 s and 17.4 GB. Notice that FastKVzip, the baseline behind the paper's "8.8x faster" headline, is slower than not compressing. The price is accuracy: at 4x on RULER 4K the LCLM scores 91.76 against 94.17 for FastKVzip and 94.41 uncompressed ({{Table 6|ax:A7.T6}}). Step through it at any length on the {{Simulate a long prompt tab|tab:t-run}}.</figcaption>
-</figure>
+<p class="sxh">KV compression pays for the whole prefill first; the LCLM never does</p>
+<ol class="sx" id="sx-hero">
+<li><b>One prompt, three pipelines.</b> A 65,536-token (64K) prompt as 16 blocks of 4,096 tokens (four encoder windows each). Back row: no compression; middle row: KV cache compression with FastKVzip at 4x, the baseline behind the paper's "8.8x faster" headline; front row: the LCLM at 4x. Every row is to scale in positions.</li>
+<li><b>No compression.</b> The 4B decoder (36 layers) prefills all 65,536 positions and keeps a KV cache of 65,536 positions: 9.66 GB in bf16 at 147,456 bytes per position. First token after 4.47 s; peak memory 35.4 GB.</li>
+<li><b>KV cache compression: prefill first, then evict.</b> The same full prefill and the same 9.66 GB cache; then every entry is scored and three in four are evicted. Different heads and layers keep different positions (orange; which ones is illustrative), so no stretch of the sequence can be freed: evicted entries are masked but still allocated. Scoring adds time: first token after 5.19 s, slower than not compressing; peak memory 36.1 GB.</li>
+<li><b>LCLM: encode in windows, pool every 4.</b> The 0.6B encoder reads the prompt in windows of 1,024 tokens (64 windows here, all in one batched pass) and mean-pools every 4 hidden states into one latent token: 16,384 latents, each block a quarter of its length.</li>
+<li><b>LCLM: the decoder reads the latents.</b> The adapter maps each latent from 1,024 to 2,560 dimensions; the decoder prefills 16,384 positions, a quarter of the work, and keeps a cache of 2.42 GB in the standard layout a paged engine can use. First token after 1.00 s; peak memory 17.4 GB.</li>
+<li><b>Side by side.</b> Time to first token (dark bars) and peak memory (pale bars), back row to front: 4.47 s and 35.4 GB, 5.19 s and 36.1 GB, 1.00 s and 17.4 GB. The price is accuracy: at 4x on RULER 4K the LCLM scores 91.76 against 94.17 for FastKVzip and 94.41 uncompressed ({{Table 6|ax:A7.T6}}).</li>
+</ol>
+<p class="small mute">Times and peak memory: the paper's {{Figure 4|ax:S5.F4}}, read from its vector paths (one H200, one sample, mean of 30 runs); peak memory includes both models' weights, 9.24 GB. Cache sizes are computed from the released config. Any length and ratio: the {{Simulate a long prompt tab|tab:t-run}}.</p>
 <p class="small"><b>You need:</b> how a KV cache grows with context and what eviction does ({{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}), and why a paged engine cannot always reclaim what eviction frees ({{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}}). <b>New terms:</b> <b>latent token</b> (one continuous embedding standing for a block of <i>N</i> tokens); <b>compression ratio <i>N</i></b> (tokens per latent: 4, 8 or 16); <b>encoder window <i>W</i></b> (how many tokens the encoder reads in one pass, 1,024 here); <b>adapter</b> (the MLP that maps encoder width to decoder width); <b>TTFT</b> (time to first token); <b>EXPAND</b> (the agent's tool that swaps a compressed chunk back for its text); <b>systems-realisable</b> (a cache saving an engine can actually free).</p>
 </section>
+</div></div>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-arch">Architecture</a><a href="#s-train">Training</a><a href="#s-search">Architecture search</a><a href="#s-res">Results</a><a href="#s-agent">Agent</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -36,6 +43,7 @@
 </div></div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-arch"><h2>Architecture</h2>
 [[S3|§3, Eq. 1]]
 <p>An LCLM is three trained parts in a row ({{§3|ax:S3}}, {{Figure 3 left|ax:S4.F3}}):</p>
@@ -50,6 +58,11 @@
 <li><b>Mean pooling</b>: average the hidden states over each block of <i>N</i> (Eq. 4 to 5). Common in vision and multimodal models.</li>
 <li><b>Concatenation</b>: stack the <i>N</i> hidden states into one vector of width <i>N</i>·<i>d</i><sub>enc</sub>, and widen the adapter's first layer to match (Eq. 6), like Qwen's patch merger.</li>
 </ul>
+<p>The <b>adapter</b> is a LLaVA-style two-layer MLP applied to each latent on its own; an attention-based alternative was also searched.</p>
+<details class="mist"><summary>The adapter's equation and size (App. D.2)</summary><div class="b"><p>The <b>adapter</b> is the LLaVA-style projector: RMSNorm, then a two-layer MLP with GELU, applied to each latent on its own, <i>s<sub>m</sub></i> = <i>W</i><sub>2</sub> GELU(<i>W</i><sub>1</sub> RMSNorm(<i>z<sub>m</sub></i>) + <i>b</i><sub>1</sub>) + <i>b</i><sub>2</sub> ({{Eq. 7 to 8|ax:A4.SS2}}). In the released 16x checkpoint it maps 1,024 dimensions to 2,560 through a hidden width of 2,560: <span id="adP"></span> parameters (shapes from the {{adapter weights' header|https://huggingface.co/latent-context/0.6b-4b-LCLM-16x/tree/main/adapter}}). The attention-based alternative adds one self-attention layer over the latents before the MLP (Eq. 9 to 11).</p></div></details>
+</section>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="kn">
 <div class="try"><b>Try:</b> click a latent (the squares below the strip) to see which input tokens it can depend on. Then switch <i>W</i> from <i>N</i> to the full window, and the mask from causal to bidirectional.</div>
 <div class="ctl">
@@ -62,7 +75,5 @@
 <div id="knOut" class="out"></div>
 <p class="small mute">Drawn with 64 input tokens so every token is visible. The paper's default is <i>N</i> = 16 and <i>W</i> = 1,024, which is 64 blocks per window: much wider, relative to the block, than the "64 (all)" setting here. Which tokens can influence a latent follows from the mask and the window; how much they do is learned.</p>
 </div>
-<p>The <b>adapter</b> is a LLaVA-style two-layer MLP applied to each latent on its own; an attention-based alternative was also searched.</p>
-<details class="mist"><summary>The adapter's equation and size (App. D.2)</summary><div class="b"><p>The <b>adapter</b> is the LLaVA-style projector: RMSNorm, then a two-layer MLP with GELU, applied to each latent on its own, <i>s<sub>m</sub></i> = <i>W</i><sub>2</sub> GELU(<i>W</i><sub>1</sub> RMSNorm(<i>z<sub>m</sub></i>) + <i>b</i><sub>1</sub>) + <i>b</i><sub>2</sub> ({{Eq. 7 to 8|ax:A4.SS2}}). In the released 16x checkpoint it maps 1,024 dimensions to 2,560 through a hidden width of 2,560: <span id="adP"></span> parameters (shapes from the {{adapter weights' header|https://huggingface.co/latent-context/0.6b-4b-LCLM-16x/tree/main/adapter}}). The attention-based alternative adds one self-attention layer over the latents before the MLP (Eq. 9 to 11).</p></div></details>
-</section>
+</div></div></div>
 

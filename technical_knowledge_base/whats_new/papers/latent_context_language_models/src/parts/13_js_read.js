@@ -67,22 +67,11 @@ fit($('knSvg'),kn);
 
 // ---- two pipelines, animated ----
 const CP={L:4,N:16};
+// the step titles; what each step shows is explained in the step lists on the left (04_run.html: sx-capL, sx-capK, sx-capF)
 const STEPS={
- lclm:[{t:'The prompt arrives',c:'T tokens of context. Each cell is T/64 tokens.'},
-       {t:'Cut into encoder windows of 1,024',c:'Windows are independent, so the encoder can run them in parallel batches: 128 windows (131,072 tokens) per forward pass of the 0.6B encoder.'},
-       {t:'Encode and mean-pool every N tokens',c:'Each block of N tokens becomes one latent; the window gives every token up to 1,024 tokens of context first.'},
-       {t:'Adapter: 1,024 to 2,560 dimensions',c:'An MLP maps each latent into the decoder\'s embedding space.'},
-       {t:'Decoder prefill over T/N latents',c:'The 4B decoder now prefills only T/N positions. Its KV cache is genuinely T/N entries long, in the standard layout, so paged attention and vLLM can use it.'},
-       {t:'First token',c:'Time to first token and peak memory are the paper\'s measurements (Figure 4).'}],
- kv:[{t:'The prompt arrives',c:'The same T tokens. The whole context has to fit in the decoder\'s window (262,144 positions for this decoder).'},
-     {t:'Full prefill through the 4B decoder',c:'Every one of the T tokens goes through all 36 layers and writes keys and values: the expensive part happens first, whatever the target ratio.'},
-     {t:'Score every cache entry',c:'Heuristics (attention to a query, expected attention, or a reconstruction pass in KVzip) decide what to keep. KVzip\'s scoring pass is two to three times the input length.'},
-     {t:'Evict to 1/N, unevenly across heads and layers',c:'Different heads keep different positions, so the sequence dimension cannot shrink: evicted entries are masked, not freed, in a paged engine. Pale cells are masked but still allocated.'},
-     {t:'First token',c:'Time is FastKVzip\'s; across all KV methods it is shown as a range. All of them stop at 256K.'}],
- full:[{t:'The prompt arrives',c:'The same T tokens, no compression.'},
-       {t:'Full prefill through the 4B decoder',c:'All T tokens through all 36 layers.'},
-       {t:'KV cache of T entries',c:'147,456 bytes per token in bf16 for this decoder.'},
-       {t:'First token',c:'The yardstick the paper\'s speed-up figures leave out: KV compression is never faster than this.'}]};
+ lclm:['The prompt arrives','Cut into encoder windows of 1,024','Encode and mean-pool every N tokens','Adapter: 1,024 to 2,560 dimensions','Decoder prefill over T/N latents','First token'].map(t=>({t})),
+ kv:['The prompt arrives','Full prefill through the 4B decoder','Score every cache entry','Evict to 1/N, unevenly across heads and layers','First token'].map(t=>({t})),
+ full:['The prompt arrives','Full prefill through the 4B decoder','KV cache of T entries','First token'].map(t=>({t}))};
 function capDraw(mode,k,e,w){const L=CP.L,N=CP.N,T=CTXN[L],cols=64,pad=2,cw=(w-2*pad)/cols,ch=Math.min(16,cw*1.6),gap=12;let s='',y=4;
   const lab=(t)=>{const mx=Math.max(20,Math.floor((w-2*pad)/6.3)),words=t.split(' ');let line='';const out=[];words.forEach(x=>{if((line+' '+x).trim().length>mx&&line){out.push(line);line=x}else line=(line+' '+x).trim()});if(line)out.push(line);
     out.forEach(l=>{s+=tx(pad,y+10,l,{fs:11,c:'var(--mute)'});y+=14})};
@@ -118,7 +107,7 @@ function capCnt(mode,k){const L=CP.L,N=CP.N,T=CTXN[L],tt=RC.fig4.ttft,mem=RC.fig
   let range='';if(mode==='kv'){const vs=['SnapKV','ExpAttn','KVzip','KVzipFast','AM-Fast','AM-Slow'].map(x=>tt[x]&&tt[x][CTX[L]]).filter(x=>x!=null);if(vs.length)range='all KV methods: '+Math.min(...vs).toFixed(2)+' to '+Math.max(...vs).toFixed(2)+' s'}
   return stat('Decoder positions prefilled',runs?fmt(pre):'none','of '+fmt(T)+' tokens')+stat('KV cache allocated',runs?gb(kv):'none',mode==='kv'&&k>=3?'masked entries still allocated':'bf16, from the config')
     +stat('Time to first token',k===last&&v!=null?(v<1?v.toFixed(3):v.toFixed(2))+' s':k===last?'did not run':'…',range||'measured, Figure 4')+stat('Peak GPU memory',k===last&&m!=null?m.toFixed(1)+' GB':k===last?'over 141 GB':'…','measured, Figure 4')}
-const anim=makeAnim({id:'cap',modes:STEPS,mode:'lclm',dur:2600,draw:capDraw,counters:capCnt});
+const anim=makeAnim({id:'cap',modes:STEPS,lists:{lclm:'sx-capL',kv:'sx-capK',full:'sx-capF'},mode:'lclm',dur:3600,draw:capDraw,counters:capCnt});
 const capRe=()=>{$('capLv').textContent=ctxLab(CP.L)+' ('+fmt(CTXN[CP.L])+' tokens)';if(anim)anim.draw()};
 $('capL').addEventListener('input',e=>{CP.L=+e.target.value;capRe()});segBind('capN',m=>{CP.N=+m;capRe()});capRe();
 
