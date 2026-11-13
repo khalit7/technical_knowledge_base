@@ -86,10 +86,20 @@ turns = [  # (label, without: new context tokens, output tokens; with: new conte
     ('tests from a 600-line reference', 600 * TOK, 4500, 150, 0, 600 * TOK + 4500),
     ('targeted read, 60 lines', 600, 200, 600, 200, 0),
     ('debug a 300-line file', 3000, 1500, 3000, 1500, 0)]
+SES = {}
 for lane, (ci, co, wk) in {'without': (1, 2, None), 'with': (3, 4, 5)}.items():
     ctx, proc, out, work = base, 0, 0, 0
     for t in turns:
         ctx += t[ci] + t[co]; proc += ctx; out += t[co]
         if wk: work += t[wk]
     print(f'  {lane}: final context {ctx:,}; input processed over 5 turns {proc:,}; output {out:,}; worker tokens {work:,}')
+    SES[lane] = (proc, out, work)
+# the context of each call, as the 3D stage's step list states it (31_js_sc_route.js draws the same columns)
+for lane, (ci, co) in {'without': (1, 2), 'with': (3, 4)}.items():
+    ctx, calls = base, []
+    for t in turns: ctx += t[ci] + t[co]; calls.append(ctx)
+    print(f'  {lane}: context per call {", ".join(f"{c:,}" for c in calls)}')
+    assert calls == {'without': [53300, 53600, 64100, 64900, 69400], 'with': [16400, 17900, 18050, 18850, 23350]}[lane]
+assert SES == {'without': (305300, 6800, 0), 'with': (94550, 2300, 92500)}
+assert round(100 * (1 - 94550 / 305300)) == 69
 print(f'  turn 1 bulk read: {41000:,} -> {4100:,} tokens in Claude\'s context = {100*(1-4100/41000):.0f}% fewer (by construction: the post\'s "around 90%")')

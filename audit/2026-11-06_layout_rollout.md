@@ -309,9 +309,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/zero` ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
 - [x] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
 - [x] `whats_new/tech_news/2026_08_31_tech_news` 2026-08-31: tech news
-- [~] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
+- [x] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
 - [~] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
-- [ ] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
+- [~] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
 - [ ] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
 - [ ] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
 - [ ] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
@@ -603,6 +603,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/zero`: Fig. 1 step 3 is busy (faded rows behind, the "V100 . 32 GB" label at the left edge); mk_coverage 52 of 53 (the Notion Takeaway text has a comma the card lacks; pre-existing).
 - `whats_new/tech_news/2026_08_24_tech_news`: DiffusionGemma stage step 3 the autoregressive lane is cut at the left edge; tab leads still say "below" for visuals now beside their items.
 - `whats_new/tech_news/2026_08_31_tech_news`: MCP stage step 5 "restarted, nothing lost" touches the right edge; its mk_issue.py uses different split markers (<!--left-->/<!--right:anim-->) from the 08-24 issue (<!--L-->/<!--R-->), not unified; DFlash step lists are filled by script (empty without JavaScript).
+- `whats_new/tech_news/2026_09_07_tech_news`: routing stage turns 4 and 5 columns run off the right edge at step 4; the 08-31 and 09-14 issues link this issue with "(time not yet measured)" and could now quote 49 min.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -757,3 +758,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - ZeRO: header 28 min counts the three hidden step-through comparison lists (one comparison about 24); no second stage for the trillion-parameter layout (one division; Megatron-LM's Fig. 3 draws such a cluster); the 32 GB plane is purple (orange is gradients); the step-through opens on DDP vs ZeRO-3 at N_d = 4. Keep?
 - Tech news 2026-08-24: the template tabs now remember the last tab (before, the page always opened At a glance); #v-diff now points at the stage's left-column text; full-width item cards capped at 60em; the "What the real runs measured" panel moved beside the harness item, above its animation; mk_issue.py builds the splits from markers in v_ parts (pattern for the later issues). Keep?
 - Tech news issues: the template tabs remember the last tab opened (old issues always opened At a glance); one line in 99_js_tabs.js would restore that if issues should always open on At a glance. Which do you want?
+- Tech news 2026-09-07: one 3D stage on the Portal routing session (illustrative session, per-call numbers asserted in recompute.py), replacing the 2D lanes; the At a glance annotation for Dev tools now says the session is "drawn in 3D". Keep?
