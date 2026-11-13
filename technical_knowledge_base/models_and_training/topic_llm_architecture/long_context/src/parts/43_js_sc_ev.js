@@ -36,8 +36,8 @@
     R.glow([XA, .45, ZA], .4, { c: P.q, a: .4 }); R.ball([XA, .45, ZA], .16, { c: r.exact ? P.good : P.bad });
     if (r.surv > 0) R.flowArc([x(nc), HM * .6, ZA], [XA, .45, ZA], .9, { c: P.c2, a: .9, r: .045 + .05 * sv, n: Math.max(2, Math.round(2 + 14 * sv)), speed: 1.4 });
     const lb = la(st, e, q => 1);
-    lab(R, [XA, .45, ZA], 'answer "' + r.pred.trim() + '": ' + (r.exact ? 'right' : 'wrong'), { fs: 12.5, b: 1, c: r.exact ? P.good : P.bad, dy: -26, a: lb });
-    lab(R, [XA, .45, ZA], 'number kept whole in ' + r.surv + ' of 90 caches', { fs: 12, c: P.ink, dy: 24, a: lb, wide: 1 });
+    lab(R, [XA, .45, ZA], 'answer "' + r.pred.trim() + '": ' + (r.exact ? 'right' : 'wrong'), { fs: 12.5, b: 1, c: r.exact ? P.good : P.bad, al: R.W < 520 ? 'right' : 'left', dx: R.W < 520 ? 14 : -14, dy: R.W < 520 ? 70 : -26, a: lb });
+    lab(R, [XA, .45, ZA], 'number kept whole in ' + r.surv + ' of 90 caches', { fs: 12, c: P.ink, al: 'left', dx: -14, dy: 24, a: lb, wide: 1 });
     lab(R, [X0, 0, z(NL - 1)], 'layer 29', { fs: 12, c: P.mute, al: 'right', dx: -6, wide: 1 }); lab(R, [X0, 0, Z0], 'layer 0', { fs: 12, c: P.mute, al: 'right', dx: -6, wide: 1 });
     lab(R, [X0, 0, z(NL - 1) + .1], 'token 0', { fs: 12, c: P.mute, dy: 14 }); lab(R, [X0 + NC * CW, 0, z(NL - 1) + .1], int(E.length) + ' · question', { fs: 12, c: P.mute, dy: 14 });
     const pct = pb === 'full' ? '100%' : (pb === 'local_global' ? 25 : +bud * 100) + '% kept';

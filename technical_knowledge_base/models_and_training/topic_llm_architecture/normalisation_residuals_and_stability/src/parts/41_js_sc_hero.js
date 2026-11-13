@@ -82,7 +82,8 @@
       T([XH, 0, ZS + .4], '§5 z-loss · §8 spikes', { c: P.c4, dy: 14 });
     }
   }
-  const full = { cam: [.2, .55], bounds: [[-5.7, 0, -1.5], [5.4, 1.1, 1.0]] };
-  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one block and where each fix acts', cam: full.cam, bounds: full.bounds, aspect: .4, dur: 1500, hold: 4800, draw, margin: NSK.margin,
-    view: k => k === 2 ? { cam: [.3, .38], bounds: [[-3.7, 0, -1.4], [-1.0, 1.7, .4]] } : k === 4 ? { cam: [.15, .5], bounds: [[2.4, 0, -1.5], [5.9, 1.2, 1.1]] } : full });
+  const full = { cam: [.2, .55], bounds: [[-5.7, 0, -1.5], [5.4, 1.1, 1.0]] }, fullP = { cam: [.4, .7], bounds: full.bounds }; // fullP: on a phone the row turns into depth so the block draws larger
+  const ph = () => (document.getElementById('stg-hero') || {}).clientWidth < 520;
+  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one block and where each fix acts', cam: full.cam, bounds: full.bounds, aspect: .37, dur: 1500, hold: 4800, draw, margin: w => w < 520 ? NSK.margin(w) : [26, 18, 34, 18],
+    view: k => k === 2 ? { cam: [.3, .38], bounds: [[-3.7, 0, -1.4], [-1.0, 1.7, .4]] } : k === 4 ? { cam: [.15, .5], bounds: [[2.4, 0, -1.5], [5.9, 1.2, 1.1]] } : ph() ? fullP : full });
 })();

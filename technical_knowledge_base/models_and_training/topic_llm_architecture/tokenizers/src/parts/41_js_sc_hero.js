@@ -57,6 +57,6 @@
       lab(R, [XP, .05, ZP0 - DP], 'scores all 4,096 rows: 2Vd = 2.10M FLOPs', { al: 'left', dx: 8, dy: 8, fs: 12.5, b: 1, c: P.c1, a: L(kk => kk === 6 ? 1 : 0), wide: 1 }); }
   }
   const close = { cam: [.08, .7], bounds: [[-6.5, 0, -1.6], [6.5, .8, 3]] }, full = { cam: [.22, .8], bounds: [[-6.6, 0, -3.5], [6.8, 1.1, 3]] };
-  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one sentence through the running example’s tokenizer', cam: full.cam, bounds: full.bounds, aspect: .48, dur: 1500, hold: 4600, draw,
+  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one sentence through the running example’s tokenizer', cam: full.cam, bounds: full.bounds, aspect: .4, dur: 1500, hold: 4600, draw,
     view: k => k <= 4 ? close : full, margin: w => w < 520 ? [16, 10, 18, 10] : [22, 170, 26, 90] });
 })();

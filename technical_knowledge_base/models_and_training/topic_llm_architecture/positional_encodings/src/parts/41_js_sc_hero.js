@@ -39,6 +39,6 @@
   }
   const full = { cam: [-.12, .26], bounds: [[-6.6, 0, -1.4], [6.6, 2.45, .3]] };
   const slowV = { cam: [-.1, .2], bounds: [[-6.6, .5, -1.4], [6.6, 2.45, -1.1]] };
-  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · the tiny GPT\'s 16 RoPE pairs', cam: full.cam, bounds: full.bounds, aspect: .38, dur: 1700, hold: 4800, draw,
+  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · the tiny GPT\'s 16 RoPE pairs', cam: full.cam, bounds: full.bounds, aspect: .34, dur: 1700, hold: 4800, draw,
     margin: w => w < 520 ? [26, 8, 12, 8] : [40, 20, 36, 150], view: k => k === 2 || k === 3 ? slowV : full });
 })();

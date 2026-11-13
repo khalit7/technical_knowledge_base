@@ -57,6 +57,7 @@
     }
   }
   S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one recorded token, one MoE layer', cam: [.22, .62], bounds: [[-5.1, 0, -1.6], [5.1, 1.2, 4.2]], aspect: .47, dur: 1500, hold: 4600, draw,
-    view: k => k === 1 || k === 2 ? { cam: [.12, .5], bounds: [[-5, 0, -.2], [5, 1.2, 4.1]] } : null,
+    view: k => { const ph = (document.getElementById('stg-hero') || {}).clientWidth < 520; // on a phone the camera turns the row into depth so the experts draw larger
+      return k === 1 || k === 2 ? { cam: ph ? [.42, .66] : [.12, .5], bounds: [[-5, 0, -.2], [5, 1.2, 4.1]] } : ph ? { cam: [.42, .72] } : null; },
     margin: w => w < 520 ? [14, 10, 18, 10] : [30, 16, 30, 110] });
 })();

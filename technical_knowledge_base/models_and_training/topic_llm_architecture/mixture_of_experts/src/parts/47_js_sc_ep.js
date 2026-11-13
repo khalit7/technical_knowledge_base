@@ -34,8 +34,8 @@
     if (k === 2) lab(R, [-2, 0, 3.7], 'sender ↓ · receiver →', { al: 'right', fs: 12, dx: -8, c: P.mute, wide: 1 });
     // dispatch and combine: every assignment's hidden state travels, dots proportional to the count; local copies stay home
     if (k === 3 || k === 5) for (let a = 0; a < W; a++) for (let b = 0; b < W; b++) {
-      const n = Math.max(2, Math.round(S[a][b] / 4)), src = [RX(a), .9, ZTK], dst = [RX(b) + (a - 1.5) * .12, .3, ZEX];
-      if (k === 3) R.flowArc(src, dst, a === b ? .35 : .9 + .25 * Math.abs(a - b), { c: RC(P, a), a: .8, r: .045, n, speed: 1.6 });
+      const n = Math.max(1, Math.round(S[a][b] / 9)), src = [RX(a), .9, ZTK], dst = [RX(b) + (a - 1.5) * .12, .3, ZEX];
+      if (k === 3) R.flowArc(src, dst, a === b ? .35 : .9 + .25 * Math.abs(a - b), { c: RC(P, a), a: .85, r: .05, n, speed: 1.6 });
       else R.flowArc(dst, src, a === b ? .35 : .9 + .25 * Math.abs(a - b), { c: RC(P, a), a: .7, r: .04, n, speed: 1.6 }); }
     // compute: rows received per rank; the busiest sets the pace; the glass sheet is the mean
     if (k >= 4) { for (let r = 0; r < W; r++) { const h = recv[r] * HR * (k === 4 ? e : 1);

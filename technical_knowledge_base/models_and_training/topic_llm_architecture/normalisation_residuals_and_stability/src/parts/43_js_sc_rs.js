@@ -15,7 +15,7 @@
   function draw(R, k, e, st) {
     const P = R.P; R.grid(-4.6, 4.8, -2.6, 2.8, .5);
     ROWS.forEach(r => {
-      const C = P[r.c], on = q => q >= r.from ? 1 : 0, foc = q => q === r.from || (q === 3 && r.id === 'pre') || q === 4 ? 1 : q === 3 ? .14 : .28;
+      const C = P[r.c], on = q => q >= r.from ? 1 : 0, foc = q => q === r.from || (q === 3 && r.id === 'pre') || q === 4 ? 1 : q === 3 ? .07 : .15;
       const a = tw(st, e, foc), shown = tw(st, e, on);
       // the row's floor strip and its empty slots, so the layout is there from the first step
       R.box([0, 0, r.z], [(N - 1) * DXp + .6, .02, .6], { fill: mix(P.paper, C, .12), a: .7, shadow: false });

@@ -42,7 +42,7 @@
     const t = ['a quarter of L', 'half of L', 'the trained length L', '', '', '', '', 's × L, the config’s target'][k];
     lab(R, [0, PES.bankBounds[1][1], 0], 'distance ' + fmt(d) + (t && e >= 1 ? ' · ' + t : ''), { fs: 13, b: 1, c: k >= 3 ? P.bad : P.ink, dy: -60 });
   }
-  const stP = S3.stage({ id: 'stg-past', list: 'sx-past', fig: 'Fig. 5 · plain RoPE past the trained length', cam: [-.05, .6], bounds: bankBounds, aspect: .42, dur: 1600, hold: 5000, draw: drawPast,
+  const stP = S3.stage({ id: 'stg-past', list: 'sx-past', fig: 'Fig. 5 · plain RoPE past the trained length', cam: [-.05, .6], bounds: bankBounds, aspect: .35, dur: 1600, hold: 5000, draw: drawPast,
     margin: w => w < 520 ? [56, 8, 12, 8] : [80, 130, 26, 90] });
   chips('pe-pastC', 'past', stP, 'sx-past'); txt('sx-past', F.past);
   // Fig. 6: the methods at s x L
@@ -55,7 +55,7 @@
       lab(R, [0, PES.bankBounds[1][1], 0], t + ' at ' + fmt(f.L * f.s), { fs: 13, b: 1, c: P.ink, dy: -60, a: la(st, e, q => q === k ? 1 : 0) });
       lab(R, [0, 0, PES.ZS + .3], 'strip height: how much each pair is slowed (log scale, full height ÷' + f.s + ')', { fs: 12, c: P.mute, dy: 16, wide: 1, a: la(st, e, q => q > 0 ? 1 : 0) });
     };
-    const stE = S3.stage({ id: 'stg-ext', list: 'sx-ext', fig: 'Fig. 6 · each method reshapes the dials', cam: [-.05, .6], bounds: bankBounds, aspect: .42, dur: 1600, hold: 5200, draw: drawExt,
+    const stE = S3.stage({ id: 'stg-ext', list: 'sx-ext', fig: 'Fig. 6 · each method reshapes the dials', cam: [-.05, .6], bounds: bankBounds, aspect: .35, dur: 1600, hold: 5200, draw: drawExt,
       margin: w => w < 520 ? [56, 8, 12, 8] : [80, 130, 26, 90] });
     chips('pe-extC', 'ext', stE, 'sx-ext'); txt('sx-ext', F.ext);
   }

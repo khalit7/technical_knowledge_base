@@ -37,5 +37,6 @@
     lab(R, [0, 1.2, -1.8], R.W < 560 ? TXT[k].split(': ').pop() : TXT[k], { fs: 13, b: 1, c: P.ink, a: la(st, e, kk => 1) });
   }
   S3.stage({ id: 'stg-fg', list: 'sx-fg', fig: 'Fig. 6 · finer experts at the same compute', cam: [.12, .62], bounds: [[-4.9, 0, -1.9], [5.1, 1.2, 3.2]], aspect: .5, dur: 1600, hold: 4800, draw,
+    view: () => (document.getElementById('stg-fg') || {}).clientWidth < 520 ? { cam: [.62, .8] } : null, // on a phone the row turns into depth
     margin: w => w < 520 ? [30, 8, 24, 8] : [40, 16, 30, 16] });
 })();

@@ -55,5 +55,5 @@
   }
   const full = { cam: [.3, .62], bounds: [[-6.4, 0, -4.2], [5.2, 1.4, 3.2]] };
   S3.stage({ id: 'stg-hyb', list: 'sx-hyb', fig: 'Fig. 5 · hybrid layer patterns, from the configs', cam: full.cam, bounds: full.bounds, aspect: .66, dur: 1700, hold: 5200, draw, margin: w => w < 520 ? [22, 8, 14, 8] : [30, 18, 20, 20],
-    view: k => k === 0 ? { cam: [.55, .62], bounds: [[-4.4, 0, .2], [4.4, .9, 1.6]] } : k === 1 ? { cam: [.45, .58], bounds: [[-4.4, 0, .2], [5.9, 1.4, 1.6]] } : k === 2 ? { cam: [.28, .55], bounds: [[-4.6, 0, -1.0], [6.0, 2.6, 1.6]] } : k === 4 ? { cam: [.3, .5], bounds: [[-5.6, 0, -4.4], [4.6, .9, -2.6]] } : full });
+    view: k => k === 0 ? { cam: [.55, .62], bounds: [[-4.4, 0, .2], [4.4, .9, 1.6]] } : k === 1 ? { cam: [.45, .58], bounds: [[-4.4, 0, .2], [5.9, 1.4, 1.6]] } : k === 2 ? { cam: [.28, .55], bounds: [[-4.6, 0, -1.0], [6.0, 2.6, 1.6]] } : k === 3 ? { cam: full.cam, bounds: [[-6.4, 0, -4.2], [5.2, .45, 3.2]] } : k === 4 ? { cam: [.3, .5], bounds: [[-5.6, 0, -4.4], [4.6, .9, -2.6]] } : full }); // step 4 holds only shallow rows: no room kept above them
 })();

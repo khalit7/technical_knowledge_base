@@ -16,10 +16,10 @@
   const stackTop = j => j * (TH + .012);
   function drawMLA(R, k, e, st, P) {
     const A = f => tw(st, e, f), L = f => la(st, e, f);
-    hSlab(R, A(q => q <= 2 ? 1 : .3), P);
+    hSlab(R, A(q => q <= 2 ? 1 : q === 3 ? .1 : .3), P); // step 4 frames the move to the cache, so h recedes further
     lab(R, [HX, .06, 14 * C / 2], 'hₜ · ' + int(M.D) + ' numbers', { fs: 12.5, b: 1, c: P.ink, dy: 16, a: L(q => q <= 1 ? 1 : 0) });
     // the down-projection and the RoPE key's projection: glass plates
-    const pa = A(q => q === 1 ? 1 : q === 2 ? .6 : q === 3 ? .3 : .12);
+    const pa = A(q => q === 1 ? 1 : q === 2 ? .6 : q === 3 ? .15 : .12);
     R.glass([PX, .05, -1.0], [0, 0, 1.15], [0, .95, 0], { c: P.good, a: pa, nu: 6, nv: 5 }); R.glass([PX, .05, .45], [0, 0, .45], [0, .6, 0], { c: P.k, a: pa * A(q => q >= 2 ? 1 : .35), nu: 3, nv: 3 });
     lab(R, [PX, 1.0, -.45], 'Wᴰᴷⱽ', { serif: 1, fs: 15, b: 1, c: P.good, dy: -8, a: L(q => q === 1 ? 1 : 0) });
     lab(R, [PX, .65, .67], 'Wᴷᴿ, then RoPE', { serif: 1, fs: 14, b: 1, c: P.k, dy: -8, a: L(q => q === 2 ? 1 : 0) });
@@ -35,7 +35,7 @@
     lab(R, [VX, TH, .55], 'kᴿₜ · ' + M.dr + ', shared by all heads', { fs: 12.5, b: 1, c: P.k, al: 'left', dx: 12, dy: 10, a: L(q => q === 2 ? 1 : 0) });
     // the cache of this layer: earlier tokens' entries
     for (let j = 0; j < OLD; j++) mlaEntry(R, [SX, stackTop(j), 0], A(q => q >= 3 ? 1 : 0), P);
-    lab(R, [SX + nC * C / 2 + C, stackTop(OLD) + TH, 0], 'cache: ' + int(mlaN) + ' numbers per token', { fs: 12.5, b: 1, c: P.good, al: 'left', dx: 10, a: L(q => q === 3 ? 1 : 0) });
+    lab(R, [SX, stackTop(OLD) + TH, 0], 'cache: ' + int(mlaN) + ' numbers per token', { fs: 12.5, b: 1, c: P.good, dy: -36, a: L(q => q === 3 ? 1 : 0) }); // above the stack, clear of the edge
     // prefill: each head's slice of the up-projections rebuilds keys and values from the latent: computed, used, never cached (dashed)
     const ga = A(q => q === 4 ? 1 : 0);
     if (ga > .01) { R.glass([-.6, .05, -1.95], [0, 0, 3.9], [0, 1.1, 0], { c: P.v, a: ga * .8, nu: 8, nv: 4 });
@@ -56,8 +56,8 @@
     if (ma > .01) { mhaEntry(R, [SX, 0, 0], ma, P, { dash: 1 });
       const l6 = L(q => q === 6 ? 1 : 0);
       lab(R, [SX, 0, 16 * C], 'MHA: ' + int(mhaN) + ' per token', { fs: 12.5, b: 1, c: P.v, dy: 16, a: l6 });
-      lab(R, [SX + 16 * C, stackTop(OLD) + TH, 0], 'MLA: ' + int(mlaN) + ' · about ' + Math.round(mhaN / mlaN) + ' times fewer', { fs: 12.5, b: 1, c: P.good, al: 'left', dx: 8, dy: -22, a: l6 });
-      lab(R, [SX + 16 * C, stackTop(OLD) + TH, 0], NL + ' layers, bf16: ' + bytes(mlaN * NL * 2) + ' against ' + bytes(mhaN * NL * 2), { fs: 12, c: P.mute, al: 'left', dx: 8, dy: -4, a: l6, wide: 1 }); }
+      lab(R, [SX + nC * C / 2 + C, stackTop(OLD) + TH, 0], 'MLA: ' + int(mlaN) + ' · about ' + Math.round(mhaN / mlaN) + ' times fewer', { fs: 12.5, b: 1, c: P.good, al: 'left', dx: 8, dy: -22, a: l6 });
+      lab(R, [SX + nC * C / 2 + C, stackTop(OLD) + TH, 0], NL + ' layers, bf16: ' + bytes(mlaN * NL * 2) + ' against ' + bytes(mhaN * NL * 2), { fs: 12, c: P.mute, al: 'left', dx: 8, dy: -4, a: l6, wide: 1 }); }
   }
   function drawMHA(R, k, e, st, P) {
     const A = f => tw(st, e, f), L = f => la(st, e, f);
@@ -93,7 +93,7 @@
   function draw(R, k, e, st) { const P = R.P; R.grid(-5.6, 4.8, -2.4, 2.4, .5); (mode === 'mla' ? drawMLA : drawMHA)(R, k, e, st, P); }
   const full = { cam: [-.72, .6], bounds: [[-3.7, 0, -2.1], [4.5, 1.6, 2.1]] };
   const st = S3.stage({ id: 'stg-mla', list: 'sx-mla', fig: 'Fig. 4 · one token through one layer, DeepSeek-V3', cam: full.cam, bounds: full.bounds, aspect: .62, dur: 1500, hold: 5200, draw, margin: AVS.margin,
-    view: k => mode === 'mla' ? (k <= 2 ? { cam: [-.8, .55], bounds: [[-3.7, 0, -1.2], [-.8, 1.0, 1.2]] } : k === 3 ? { cam: [-.75, .55], bounds: [[-3.4, 0, -1.2], [3.4, 1.0, 1.2]] } : k === 4 ? { cam: [-.7, .55], bounds: [[-1.8, 0, -2.1], [1.6, 1.4, 2.1]] } : k === 5 ? { cam: [-.6, .45], bounds: [[1.2, 0, -1.1], [3.8, 1.5, 1.1]] } : k === 6 ? { cam: [-.6, .6], bounds: [[.4, 0, -1.3], [4.6, .8, 1.3]] } : full)
+    view: k => mode === 'mla' ? (k <= 2 ? { cam: [-.8, .55], bounds: [[-3.7, 0, -1.2], [-.8, 1.0, 1.2]] } : k === 3 ? { cam: [-.75, .55], bounds: [[.6, 0, -.8], [3.4, .9, .8]] } : k === 4 ? { cam: [-.7, .55], bounds: [[-1.8, 0, -2.1], [1.6, 1.4, 2.1]] } : k === 5 ? { cam: [-.6, .45], bounds: [[1.2, 0, -1.1], [3.8, 1.5, 1.1]] } : k === 6 ? { cam: [-.6, .6], bounds: [[.4, 0, -1.3], [4.6, .8, 1.3]] } : full)
       : (k <= 2 ? { cam: [-.8, .55], bounds: [[-3.7, 0, -2.1], [.5, 1.1, 2.1]] } : k === 4 ? { cam: [-.6, .5], bounds: [[.4, 0, -1.3], [4.6, 1.5, 1.3]] } : full) });
   const seg = document.getElementById('av-mlaM');
   AVS.chips(seg, v => { mode = v; const a = document.getElementById('sx-mla'), b = document.getElementById('sx-mha'); a.hidden = v !== 'mla'; b.hidden = v !== 'mha'; st && st.list(v === 'mla' ? 'sx-mla' : 'sx-mha'); });

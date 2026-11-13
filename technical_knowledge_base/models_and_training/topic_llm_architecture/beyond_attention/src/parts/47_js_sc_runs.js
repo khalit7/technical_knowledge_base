@@ -39,5 +39,5 @@
   }
   const full = { cam: [.35, .62], bounds: [[-5.0, 0, -2.0], [4.4, 1.4, 2.4]] };
   S3.stage({ id: 'stg-runs', list: 'sx-runs', fig: 'Fig. 7 · the tiny GPT, five mixers, measured', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1500, hold: 5000, draw, margin: w => w < 520 ? [22, 8, 14, 8] : [30, 18, 20, 18],
-    view: k => k >= 2 ? { cam: [.25, .58], bounds: [[-3.4, 0, -2.0], [4.6, 1.4, 2.3]] } : full });
+    view: k => k >= 2 ? { cam: [.25, .58], bounds: [[-3.4, 0, -2.0], [4.6, 1.4, 2.3]] } : k === 0 ? { cam: [.35, .85], bounds: [[-5.0, 0, -2.0], [4.4, .45, 2.4]] } : full }); // step 1 holds only flat tiles: a steeper look fills the card
 })();

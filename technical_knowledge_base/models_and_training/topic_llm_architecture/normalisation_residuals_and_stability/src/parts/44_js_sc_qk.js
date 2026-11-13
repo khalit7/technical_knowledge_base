@@ -17,7 +17,7 @@
       R.box([X(l), 0, z], [.55, .05, .55], { a, shadow: false });
       R.box([X(l), .05, z], [.4, h, .4], { fill: mix(P.paper, C, .6), a, shadow: false, lw: .8 }); });
     lab(R, [X(0) - .45, .1, z], name, { fs: 12.5, b: 1, c: C, al: 'right', dx: -14, a: Math.max(a, .5), grp: 'rows' });
-    lab(R, [X(top), .05 + H(s.ml[top]), z], fmt(s.ml[top]), { fs: 12.5, b: 1, c: C, dy: -12, a });
+    lab(R, [X(top), .05 + H(s.ml[top]), z], fmt(s.ml[top]), z === ZB ? { fs: 12.5, b: 1, c: C, al: top ? 'right' : 'left', dx: top ? -14 : 14, dy: 6, a } : { fs: 12.5, b: 1, c: C, dy: -12, a }); // the front row's value sits beside its bar, clear of the row behind
     lab(R, [X(L - 1) + .4, .05, z], 'lowest entropy ' + Math.min(...s.ent).toFixed(2) + ' nats', { fs: 12, c: C, al: 'left', dx: 8, a, wide: 1 });
     return s;
   }

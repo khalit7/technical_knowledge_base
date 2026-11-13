@@ -16,12 +16,12 @@
   const kept = (k, i) => { const s = STEP[k]; return s.win ? i >= N - WIN : true; };
   const read = (k, i) => { const s = STEP[k]; if (s.win) return i >= N - WIN; if (s.kind === 'dsa') return TOP.includes(i); if (s.kind === 'csa') return i >= N - WIN || PICK.includes(Math.floor(i / BLK)); return true; };
   function column(R, i, k, a, P) {
-    const s = STEP[k], x = X(i), hot = read(k, i), al = a * (hot ? 1 : .28);
+    const s = STEP[k], x = X(i), hot = read(k, i), al = a * (hot ? 1 : s.kind === 'dsa' ? .1 : .28); // DSA: the unread entries recede further, so the top-k read stand out beside the indexer keys every token keeps
     if (!kept(k, i)) { R.quad([[x - W / 2, .002, -D / 2], [x + W / 2, .002, -D / 2], [x + W / 2, .002, D / 2], [x - W / 2, .002, D / 2]], { fill: P.soft, a: a * .8, ea: .6, lw: 1, dash: [3, 3] }); return; }
     if (s.kind === 'kv') { const h = s.n * S / 2; R.box([x, 0, 0], [W, h, D], { fill: mix(P.paper, P.k, .75), a: al }); R.box([x, h, 0], [W, h, D], { fill: mix(P.paper, P.v, .7), a: al, shadow: false }); }
     if (s.kind === 'mla' || s.kind === 'dsa') { const g = s.kind === 'dsa' ? dsa : mla, h1 = g.lat * S, h2 = g.rope * S;
       R.box([x, 0, 0], [W, h1, D], { fill: mix(P.paper, P.good, .7), a: al }); R.box([x, h1, 0], [W, h2, D], { fill: mix(P.paper, P.k, .8), a: al, shadow: false });
-      if (s.kind === 'dsa') R.box([x, h1 + h2, 0], [W, g.idx * S, D], { fill: mix(P.paper, P.c5, .8), a: a, shadow: false }); }
+      if (s.kind === 'dsa') R.box([x, h1 + h2, 0], [W, g.idx * S, D], { fill: mix(P.paper, P.c5, .8), a: a * (hot ? 1 : .45), shadow: false }); }
     // V4: every 4 tokens merged into one 512-number entry (one box over the 4 slots); the last 6 stay raw in the window
     if (s.kind === 'csa') { const h = v4.ent * S;
       if (i >= N - WIN) R.box([x, 0, 0], [W, h, D], { fill: mix(P.paper, P.good, .7), a: al });

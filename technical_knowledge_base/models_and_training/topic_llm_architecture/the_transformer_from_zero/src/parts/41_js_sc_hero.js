@@ -77,7 +77,7 @@
     L6([BX(3), RY, RD / 2], 'no residual sum ' + ab('noresid'), { dy: 18, grp: null });
     L6([XU, 2.3, 0], 'full model ' + ab('base'), { dy: -8, c: P.ink, grp: null });
   }
-  const full = { cam: [.22, .42], bounds: [[-6.4, 0, -1.1], [5.5, 2.6, 1.1]] };
+  const full = { cam: [.42, .52], bounds: [[-6.4, 0, -1.1], [5.5, 2.6, 1.1]] };
   S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 \u00b7 the tiny GPT end to end', cam: full.cam, bounds: full.bounds, aspect: .5, margin: K.margin, dur: 1500, hold: 4600, draw,
     view: k => k === 0 ? { cam: [.3, .4], bounds: [[-7.1, 0, -1.1], [-3, 2.4, 1.8]] } : k === 1 ? { cam: [.45, .42], bounds: [[-4.1, 0, -1.1], [-2, 1.5, 1.1]] }
       : k === 4 ? { cam: [-.2, .4], bounds: [[2.9, 0, -1.2], [5.8, 2.6, 1.2]] } : full });

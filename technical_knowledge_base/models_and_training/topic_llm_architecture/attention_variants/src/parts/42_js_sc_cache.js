@@ -65,7 +65,7 @@
       lab(R, [.6, 1.8, 0], 'teal: numbers per token per layer', { fs: 12, c: P.k, al: 'right', dx: -6, a: l4, wide: 1 });
       lab(R, [.6, 1.8, 0], 'orange: measured ms per step', { fs: 12, c: P.q, al: 'right', dx: -6, dy: 16, a: l4, wide: 1 }); }
   }
-  const full = { cam: [.42, .5], bounds: [[-4.9, 0, -1.3], [7.0, 2.4, 1.3]] };
+  const full = { cam: [.42, .5], bounds: [[-4.9, 0, -1.3], [7.6, 2.4, 1.3]] };
   S3.stage({ id: 'stg-cache', list: 'sx-cache', fig: 'Fig. 2 · the cache of one sequence, Llama 3.1 8B', cam: full.cam, bounds: full.bounds, aspect: .58, dur: 1500, hold: 4800, draw, margin: AVS.margin,
-    view: k => k === 0 ? { cam: [.62, .42], bounds: [[-5.2, 0, -1.3], [-2.6, 2.2, 1.3]] } : k === 3 ? { cam: [.3, .45], bounds: [[-1.5, 0, -1.3], [7.4, 2.4, 1.3]] } : k === 4 ? { cam: [.2, .4], bounds: [[-2.2, 0, -.6], [6.4, 2.3, .6]] } : full });
+    view: k => k === 0 ? { cam: [.62, .42], bounds: [[-5.2, 0, -1.3], [-2.6, 2.2, 1.3]] } : k === 3 ? { cam: [.3, .45], bounds: [[-1.5, 0, -1.3], [7.4, 2.4, 1.3]] } : k === 4 ? { cam: [.2, .4], bounds: [[-2.2, 0, -.6], [7.2, 2.3, .6]] } : full });
 })();

@@ -31,7 +31,7 @@
       if (k >= 1) for (let t = 0; t < n - 1; t++) R.flowArc([tile(t)[0], G, tile(t)[2]], BALL, .55, { c: P.q, a: .75, r: .045, n: 5, speed: 1.6 }); }
     else for (let i = 0; i < 4; i++) { const p = [XC - .5 + .35 * i, top * (i + .5) / 4, S / 2]; R.flowArc(p, BALL, .3, { c: P.q, a: .8, r: .05, n: 6, speed: 1.6 }); }
     // the recurrent layer: one plate per head, the same size at every token
-    if (sa > .01) { for (let h = 0; h < NH; h++) plate(R, [XS - S / 2, .04 + h * G, -S / 2], S, S, sa * (h === NH - 1 ? .9 : .32), { nu: h === NH - 1 ? 8 : 1, nv: h === NH - 1 ? 8 : 1, th: .02 });
+    if (sa > .01) { for (let h = 0; h < NH; h++) plate(R, [XS - S / 2, .04 + h * G, -S / 2], S, S, sa * (h === NH - 1 ? .9 : P.dark ? .07 : .32), /* lighter in dark mode, where 32 stacked plates read as a solid block */ { nu: h === NH - 1 ? 8 : 1, nv: h === NH - 1 ? 8 : 1, th: .02 });
       R.flowArc(BALL, [XS, NH * G * .6, .2], .35, { c: P.q, a: sa, r: .06, n: 7, speed: 1.3 });
       R.flowArc([XS - .3, NH * G * .4, .4], BALL, .25, { c: P.c1, a: sa, r: .055, n: 6, speed: 1.3 }); }
     // labels: what each object holds, one set per step

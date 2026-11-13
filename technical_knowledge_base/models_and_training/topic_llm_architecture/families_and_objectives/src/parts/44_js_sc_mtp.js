@@ -39,7 +39,7 @@
       R.flow([[XM, YB + .3, 0], [XM, YH + .3, 0], [XT(QI + 2), YH + .3, .5], [XT(QI + 2), .2, ZT]], { c: P.c4, a: sa, r: .06, n: 10, speed: 1.4 });
       const l3 = la(st, e, s => s === 2 ? 1 : 0);
       lab(R, [XM + .5, YM, 0], 'M · 2d to d', { fs: 12.5, b: 1, c: P.c4, al: 'left', dx: 8, a: l3, grp: 'r' });
-      lab(R, R.arcPt([XT(QI + 1), .16, ZT], [XM, YM, .2], .35, .5), 'Emb(t i+1), the known token', { fs: 12.5, b: 1, c: P.c4, dy: 16, a: l3 });
+      lab(R, R.arcPt([XT(QI + 1), .16, ZT], [XM, YM, .2], .35, .5), 'Emb(t i+1), the known token', { fs: 12.5, b: 1, c: P.c4, dy: 30, a: l3 }); // below its own stream
       lab(R, [XM + .5, YB + .13, 0], 'one block (TRM)', { fs: 12.5, b: 1, c: P.c4, al: 'left', dx: 8, a: l3, grp: 'r' }); }
     // step 4: as a draft, on the 8 prompts: acceptance and tokens per forward
     const da = tw(st, e, s => s === 3 ? 1 : 0), dl = la(st, e, s => s === 3 ? 1 : 0);

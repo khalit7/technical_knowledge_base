@@ -28,7 +28,7 @@
       K.plateZ(R, x, .62, ZP, .85, .85, { c, a: gA, nu: 4, nv: 8 });
       K.lab(R, [x, 1.47, ZP], nm + ' (256, 32)', { mono: true, fs: 12, b: 1, c, dy: -8, a: K.la(st, e, s => s === 0 ? 1 : 0) });
       if (kk === 0) R.flow([[XK + (x - XK) * .4, .4, ZN - .1], [x, 1.0, ZP], [x, .4, ZC + .1]], { c, a: e, r: .06, speed: 1.1 });
-      const ca = i === 0 ? K.tw(st, e, s => s === 0 || s === 1 ? 1 : s <= 4 ? .35 : 0) : i === 2 ? K.tw(st, e, s => s === 0 || s === 4 ? 1 : 0) : gA;
+      const ca = i === 0 ? K.tw(st, e, s => s === 0 || s === 1 ? 1 : s === 3 ? 0 : s <= 4 ? .35 : 0) : i === 2 ? K.tw(st, e, s => s === 0 || s === 4 ? 1 : 0) : gA;
       K.comb(R, [x, .28, ZC], vec, { wd: .85, h: .22, m: mq, c, a: kk === 0 ? Math.max(.15, e) * ca : ca, legs: 1 });
       K.lab(R, [x, .05, ZC + .1], ['q', 'k', 'v'][i] + ': 32', { mono: true, fs: 12, b: 1, c, dy: 16, a: K.la(st, e, s => s === 0 ? 1 : 0) });
     });

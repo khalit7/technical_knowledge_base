@@ -52,5 +52,5 @@
   }
   const full = { cam: [.22, .62], bounds: [[-4.6, 0, -4.8], [5, 1.4, 3.2]] };
   S3.stage({ id: 'stg-heads', list: 'sx-heads', fig: 'Fig. 4 \u00b7 8 heads of layer 1, row 157', cam: full.cam, bounds: full.bounds, aspect: .72, margin: w => w < 520 ? [22, 8, 14, 8] : [30, 18, 20, 18], dur: 1500, hold: 4800, draw,
-    view: k => k <= 1 ? { cam: [.25, .5], bounds: [[-4.3, 0, .4], [-.9, 1.6, 3.3]] } : k === 2 || k === 3 ? { cam: [.12, .7], bounds: [[-4.6, 0, -4.8], [4.4, 1.3, -.1]] } : k === 4 ? { cam: [.2, .5], bounds: [[1.4, 0, .2], [5.2, 1.6, 3.3]] } : full });
+    view: k => k <= 1 ? { cam: [.25, .5], bounds: [[-4.3, 0, .4], [-.9, 1.6, 3.3]] } : k === 2 || k === 3 ? { cam: [.12, .95], bounds: [[-4.6, 0, -4.8], [4.4, 1.3, -.1]] } : k === 4 ? { cam: [.2, .5], bounds: [[1.4, 0, .2], [5.2, 1.6, 3.3]] } : full });
 })();

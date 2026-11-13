@@ -30,7 +30,7 @@
     const bd = tw(st, e, s => s === 2 ? PRE : s === 3 ? ENC : 0), ba = la(st, e, s => s === 2 || s === 3 ? 1 : 0) * ga;
     if (ba > .01 && bd > 0) { const b = X0 + (bd - .5) * CS; R.line([[b, .01, z(0) - CS / 2], [b, .01, z(n - 1) + CS / 2]], { c: P.bad, w: 2, dash: [5, 4], a: ba }); R.line([[x(0) - CS / 2, .01, b], [x(n - 1) + CS / 2, .01, b]], { c: P.bad, w: 2, dash: [5, 4], a: ba }); }
     // keys along the back, queries down the left
-    P12.forEach((w, j) => lab(R, [x(j), 0, z(0) - CS * 1.7], w, { mono: true, fs: 12, c: P.mute, dy: j % 2 ? -16 : 0, a: gl, wide: 1 }));
+    P12.forEach((w, j) => lab(R, [x(j), 0, z(0) - CS * 2.4], w, { mono: true, fs: 12, c: P.mute, dy: j % 2 ? -16 : 0, a: gl, wide: 1 }));
     P12.forEach((w, q) => lab(R, [x(0) - CS * 1.15, 0, z(q)], w, { mono: true, fs: 12, al: 'right', c: q === qq && ga > .5 ? P.ink : P.mute, b: q === qq && ga > .5, a: gl, grp: 'rows' }));
     lab(R, [x(n - 1) + CS * .6, 0, z(0) - CS * 1.2], 'keys →', { fs: 12, al: 'left', c: P.mute, a: gl, wide: 1 });
     // the marked query: a ball at its row's left end; dots stream to it from every key it may read

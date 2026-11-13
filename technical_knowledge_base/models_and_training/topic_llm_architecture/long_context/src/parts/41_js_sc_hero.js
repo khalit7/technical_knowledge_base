@@ -35,7 +35,7 @@
     [0, 32768, 65536, 98304, 131072].forEach(t => { R.line([[X(t), .002, zt - .04], [X(t), .002, zt + .08]], { c: P.mute, w: 1, a: ax });
       const h = la(st, e, q => hot(q) === t ? 1 : 0);
       lab(R, [X(t), 0, zt + .08], t ? int(t) : '0 tokens', { fs: 12, c: P.mute, dy: 12, a: ax * Math.max(0, 1 - 3 * h), wide: t % 65536 !== 0 });
-      if (h > .01) lab(R, [X(t), 0, zt + .08], int(t) + ' tokens · ' + gib(seqB(t)) + ' (' + gb(seqB(t)) + ')', { fs: 12.5, b: 1, c: P.acc, al: t === Tm ? 'right' : 'center', dx: t === Tm ? 30 : 0, dy: 12, a: h }); });
+      if (h > .01) lab(R, [X(t), 0, zt + .08], int(t) + ' tokens · ' + gib(seqB(t)) + ' (' + gb(seqB(t)) + ')', { fs: 12.5, b: 1, c: P.acc, al: t === Tm ? 'right' : 'center', dx: t === Tm ? 30 : 0, dy: R.W < 520 ? 42 : 12, a: h }); });
     // writing: new tokens' keys and values stream into the growing end
     const fa = k === 1 || k === 2 ? (e < 1 ? 1 : .6) : 0;
     if (fa > .01 && T > 0) R.flowArc([X(T) + 1.0, .8, 0], [X(T), HG * .6, 0], .22, { c: P.acc, a: fa, r: .06, n: 7, speed: 1.4 });
@@ -43,7 +43,7 @@
     const wa = tw(st, e, q => q < 2 ? 0 : q === 4 ? .55 : 1);
     if (wa > .01) { const L = X(wTok) - X0; R.box([X0 + L / 2, 0, ZW], [L, HG, D], { fill: mix(P.paper, P.mute, .3), a: wa, lw: .8 });
       lab(R, [X0 + L * .4, HG, ZW - D / 2], 'weights · ' + gb(W8) + ' = ' + int(wTok) + ' tokens of cache', { fs: 12.5, b: 1, c: P.ink, dy: -12, a: la(st, e, q => q === 2 ? 1 : 0), wide: 1 });
-      lab(R, [X0, HG / 2, ZW], 'weights', { fs: 12.5, b: 1, c: P.mute, al: 'right', dx: -8, a: la(st, e, q => q === 4 ? 1 : 0) }); }
+      lab(R, [X0, HG / 2, ZW], 'weights', { fs: 12.5, b: 1, c: P.mute, al: 'right', dx: -8, a: la(st, e, q => q === 4 ? 1 : 0), wide: 1 }); }
     // three requests stacked, and a fourth that does not fit (they enter after the last step's labels have gone)
     const ra = la(st, e, q => q === 3 ? 1 : 0);
     if (ra > .01) { for (let i = 1; i < n3; i++) block(R, Tm, HG, 0, P.acc, ra, P, i * SH);
@@ -56,7 +56,7 @@
       if (k === 4 && e < 1) R.flowArc([X(TM) + 1.0, hM + .6, ZM], [X(TM), hM * .6, ZM], .22, { c: P.bad, a: ma, r: .07, n: 7, speed: 1.6 });
       const wl = k === 4 ? Math.max(0, (e - .9) / .1) : 1;
       R.glass([X(reach) + .02, 0, ZM - D / 2 - .08], [0, 0, D + .16], [0, hM + .3, 0], { c: P.bad, a: ma * wl, nu: 2, nv: 4 });
-      lab(R, [X(reach), hM + .3, ZM], 'GPU full at ' + int(reach), { fs: 12.5, b: 1, c: P.bad, al: 'left', dx: 6, dy: -6, a: ma * wl });
+      lab(R, [X(reach), hM + .3, ZM], 'GPU full at ' + int(reach), { fs: 12.5, b: 1, c: P.bad, al: 'left', dx: 6, dy: R.W < 520 ? -24 : -6, a: ma * wl });
       lab(R, [X0, hM * .7, ZM], 'MHA, 32 KV heads', { fs: 12.5, b: 1, c: P.bad, al: 'right', dx: -8, a: ma });
       lab(R, [X0, hM * .7, ZM], tokM / 1024 + ' KiB per token', { fs: 12, c: P.bad, al: 'right', dx: -8, dy: 16, a: ma });
       lab(R, [X0, HG / 2, D / 2], 'GQA-8, as released', { fs: 12.5, b: 1, c: P.acc, al: 'right', dx: -8, a: ma }); }

@@ -11,7 +11,7 @@
     tk.forEach((t, j) => t.top.forEach(e => { slot.push({ j, e, n: load[e] }); load[e]++; }));
     return T = { tk, load, slot, busy: Math.max(...load), idle: load.filter(v => !v).length }; }
   // experts are columns (x), tokens are rows (z); each expert's stack stands behind its column
-  const X = e => (e - (E - 1) / 2) * .78, Z = j => (j - (NT - 1) / 2) * .56 + .55, XT = -3.9, XR = -3.25, ZS = -2.35, C = .24;
+  const X = e => (e - (E - 1) / 2) * .78, Z = j => (j - (NT - 1) / 2) * .56 + .55, XT = -3.9, XR = -3.25, ZS = -2.95, C = .24;
   function draw(R, k, e, st) {
     const P = R.P, d = T || data(); R.grid(-4.6, 3.8, -3, 3.2, .5);
     const L = f => la(st, e, f);
@@ -44,7 +44,7 @@
     if (k === 5) d.slot.forEach(s => { const t = d.tk[s.j], g = s.e === t.top[0] ? t.w1 : 1 - t.w1;
       R.flowArc([X(s.e), s.n * C + .2, ZS], [XT, .3, Z(s.j)], .8, { c: ec(s.e), a: .3 + .6 * g, r: .03 + .04 * g, n: Math.round(3 + 8 * g), speed: 1.3 }); });
   }
-  const st = S3.stage({ id: 'stg-rt', list: 'sx-rt', fig: 'Fig. 3 · eight recorded tokens through one router', cam: [.18, .84], bounds: [[-4.4, 0, -2.7], [4.1, 1.5, 3.1]], aspect: .66, dur: 1500, hold: 4800, draw,
+  const st = S3.stage({ id: 'stg-rt', list: 'sx-rt', fig: 'Fig. 3 · eight recorded tokens through one router', cam: [.18, .84], bounds: [[-4.4, 0, -3.3], [4.1, 1.2, 3.1]], aspect: .66, dur: 1500, hold: 4800, draw,
     
     margin: w => w < 520 ? [14, 10, 24, 10] : [20, 110, 30, 80], onStep: () => live() });
   function live() { const d = T || data(), el = $('rt-live'); if (el) el.innerHTML = '<b>' + M.esc(D.runs[st0.run].short) + ', layer ' + (st0.lay + 1) + '</b>: loads ' + d.load.join(', ') + ' (E0 to E7); busiest expert ' + d.busy + ' of 16 assignments, max / mean ' + (d.busy / 2).toFixed(1) + ', ' + d.idle + ' idle.'; }

@@ -28,7 +28,7 @@
     if (da > .01) { stack(R, XD, da, P.c4, P); lab(R, [XD + SW / 2, LY(1), 0], 'decoder · causal', { fs: 12.5, b: 1, c: P.c4, al: 'left', dx: 8, a: ll * da, grp: 'r' }); }
     const fx = la(st, e, s => s === 2 || s === 3 ? 1 : 0);
     if (fx > .01) for (let l = 0; l < NL; l++) R.flowArc([XE + SW / 2 - .2, TOP + .1, 0], [XD - SW / 2, LY(l), 0], .35 + .12 * (NL - l), { c: P.c4, a: fx * .85, r: .05, n: 9, speed: 1.4 });
-    if (fx > .01 && k === 2) lab(R, [0, TOP + .5, 0], 'cross-attention in every decoder layer', { fs: 12.5, b: 1, c: P.c4, a: fx });
+    if (fx > .01 && k === 2) lab(R, [0, TOP + .5, 0], 'cross-attention in every decoder layer', { fs: 12.5, b: 1, c: P.c4, dy: -14, a: fx });
     // writing: one output per forward, the decoder's own cache grows beside it
     const nOut = k < 3 ? 0 : k > 3 ? 6 : Math.min(6, Math.floor(e * 6.99)), wa = la(st, e, s => s === 3 ? 1 : 0);
     for (let j = 0; j < 6; j++) { const on = j < nOut;
@@ -43,7 +43,7 @@
       lab(R, [x, h + .06, 1.1], v.toFixed(2), { mono: true, fs: 13, b: 1, c: P.ink, dy: -10, a: cl4 });
       lab(R, [x, 0, 1.45], nm, { fs: 12.5, b: 1, c: P.ink, dy: 12, a: cl4 }); lab(R, [x, 0, 1.45], pf, { fs: 12, c: P.mute, dy: 28, a: cl4 }); });
   }
-  const full = { cam: [.2, .5], bounds: [[-4.0, 0, -.7], [4.0, 1.75, 1.2]] };
+  const full = { cam: [.2, .5], bounds: [[-3.6, 0, -.6], [3.8, 1.75, 1.1]] };
   S3.stage({ id: 'stg-encdec', list: 'sx-encdec', fig: 'Fig. 5 · encoder-decoder: read once, cross-attend everywhere', cam: full.cam, bounds: full.bounds, aspect: .56, dur: 1500, hold: 5000, draw,
     margin: w => w < 520 ? [26, 8, 30, 8] : [30, 110, 30, 130],
     view: k => k === 0 ? { cam: [.25, .45], bounds: [[-4.8, 0, -.6], [.4, 1.7, 1.3]] } : k === 4 ? { cam: [.1, .32], bounds: [[-2.7, 0, .7], [2.7, 1.45, 1.6]] } : full });
