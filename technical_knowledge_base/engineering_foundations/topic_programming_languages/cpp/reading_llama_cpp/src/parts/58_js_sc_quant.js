@@ -59,9 +59,10 @@
       R.label([4.05,0,2.0],k===4?'4 sums · 16 multiply-adds':'4 outputs · one FMA applies both scales',{al:'right',mono:true,fs:12,dy:18,b:1,a:aa,wide:1});
       R.label([RX0+(t0%64+8)*BW,.15,z-.2],'vdotq_laneq_s32 '+(m+1)+' of 8',{mono:true,fs:12.5,b:1,dy:-14,c:P.acc,a:aa})}
   }
+  const N=()=>document.getElementById('stg-quant').clientWidth<520;
   const full={cam:[.28,.95],bounds:[[-4.5,0,-1.6],[4.3,.4,2.6]]};
   S3.stage({id:'stg-quant',list:'sx-quant',fig:'Fig. 3 · one real block, to scale',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1500,hold:4800,draw,
     // the block steps move in close on the 34 bytes; the repack and the kernel need the whole floor
-    view:k=>k===0?{cam:[.3,.5],bounds:[[-1.9,0,-.3],[2.2,.3,.6]]}:k<=2?{cam:[.3,.42],bounds:[[-1.9,0,-.3],[2.9,1.5,k===2?.9:.5]]}:k===3?{cam:[.28,.85],bounds:[[-4.5,0,-1.6],[3.4,.4,1.7]]}:{cam:[.28,.95],bounds:[[-4.5,0,.6],[4.3,.4,2.6]]},
+    view:k=>k===0?{cam:[.3,.5],bounds:[[-1.9,0,-.3],[2.2,.3,.6]]}:k<=2?{cam:[.3,.42],bounds:[[-1.9,0,-.3],[2.9,1.5,k===2?.9:.5]]}:k===3?{cam:[N()?.95:.28,.85],bounds:[[-4.5,0,-1.6],[3.4,.4,1.7]]}:{cam:[N()?.95:.28,.95],bounds:[[-4.5,0,.6],[4.3,.4,2.6]]},   // N(): a phone, the long rows turned into depth so they fill the tall card
     margin:w=>w<520?[16,10,16,10]:[20,20,18,20]});
 })();

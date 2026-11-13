@@ -29,6 +29,6 @@
     R.label([0,0,ZL+.6],t,{mono:true,fs:13,b:1,dy:34,c:k===1?P.bad:k===3||k===0?P.good:P.c5});
     R.label([0,0,ZL+.6],['counter in its own line','counters 8 bytes apart: 1 line','counters 64 bytes apart: 2 lines','counters 128 bytes apart: 4 lines'][k],{fs:12.5,dy:54,c:P.mute})
   }
-  S3.stage({id:'stg-fs',list:'sx-fs',fig:'4 counters, 128-byte lines',cam:[.02,.72],bounds:[[-4.3,0,-1.8],[4.3,.8,1.4]],aspect:.55,dur:2600,hold:5200,draw,
+  S3.stage({id:'stg-fs',list:'sx-fs',fig:'4 counters, 128-byte lines',cam:[.02,.72],bounds:[[-4.3,0,-1.8],[4.3,.8,1.4]],aspect:.45,dur:2600,hold:5200,draw,
     margin:w=>w<520?[14,10,64,10]:[18,20,70,20]});
 })();

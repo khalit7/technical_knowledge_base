@@ -44,6 +44,6 @@
   }
   const full={cam:[.42,.78],bounds:[[-4.5,0,-3.6],[3.2,.6,3.9]]};
   S3.stage({id:'stg-vec',list:'sx-vec',fig:'std::vector<int>: size against capacity',cam:full.cam,bounds:full.bounds,aspect:.72,dur:1700,hold:4600,draw,
-    view:k=>k<=3?{cam:[.42,.72],bounds:[[-5.1,0,-3.7],[2.2,.6,-.6]]}:full,
+    view:k=>k<=3?(document.getElementById('stg-vec').clientWidth<520?{cam:[.12,.95],bounds:[[-4.45,0,-3.6],[1.85,.4,-.3]]}:{cam:[.42,.72],bounds:[[-5.1,0,-3.7],[2.2,.6,-.6]]}):full,   // a phone: tighter, steeper, so the first buffers fill the tall card
     margin:w=>w<520?[20,10,24,10]:[24,96,24,14]});
 })();

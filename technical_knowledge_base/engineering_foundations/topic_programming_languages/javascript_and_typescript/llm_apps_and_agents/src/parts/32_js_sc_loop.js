@@ -35,8 +35,8 @@
       if(inV([MX,0,MZ+.5]))R.label([MX,0,MZ+.5],s.stop+(calls.length?' · '+Object.entries(nm).map(([n,c])=>n+(c>1?' ×'+c:'')).join(', '):''),{mono:true,fs:12.5,b:1,c:s.stop==='tool_use'?P.c4:P.good,a:ph2,dy:16,wide:1})}
     // the zod gate (arguments are model output: safeParse before any tool runs) and the two tools
     R.glass([GX,0,.25],[0,0,2.4],[0,1,0],{c:P.c4,nu:4,nv:3,a:.8});R.label([GX,1,.25],'zod safeParse',{fs:12.5,b:1,c:P.c4,dy:-10});
-    Object.entries(TZ).forEach(([n,z])=>{const used=calls.some(c=>c.name===n);R.box([TX,0,z],[1.1,.5,.8],{fill:mix(P.paper,P.c6,used?.35:.08),a:used?1:.4});
-      if(inV([TX,.5,z]))R.label([TX,.5,z],n,{mono:true,fs:12.5,b:used,c:used?P.ink:P.mute,dy:-10})});
+    Object.entries(TZ).forEach(([n,z])=>{const used=calls.some(c=>c.name===n);R.box([TX,0,z],[1.1,.5,.8],{fill:mix(P.paper,P.c6,used?.35:.08),a:used?1:last?.1:.4}); // the last step's close-up leaves an idle tool at the card's edge: nearly gone
+      if(inV([TX,.5,z])&&(used||!last))R.label([TX,.5,z],n,{mono:true,fs:12.5,b:used,c:used?P.ink:P.mute,dy:-10})});
     // 3. the calls cross the gate together and the results come back (errors are results too)
     if(e>=.52&&calls.length){calls.forEach((c,i)=>{const z=TZ[c.name],res=s.results[i],bad=!!res.is_error,off=(i-(calls.length-1)/2)*.28;
         R.flow([[LX+.75,.35,.5+off],[GX,.45,z+off],[TX-.55,.3,z+off]],{c:P.c4,a:ph3<1?1:.3,r:.065,n:8,speed:1.6});

@@ -86,9 +86,10 @@
       R.label([XB,1.2,ZE],'TypeScript, LLM apps',Object.assign({c:P.c4},la,{dy:-12}))}
   }
   const V={cmp:{cam:[.35,.55],bounds:[[-7.4,0,-.8],[-4.8,1.8,2.0]]},rt:{cam:[.3,.55],bounds:[[-6.8,0,-1.4],[-2.0,1.6,1.4]]},
-    eng:{cam:[.3,.6],bounds:[[-1.7,0,-.6],[2.6,1.3,1.8]]},io:{cam:[.3,.58],bounds:[[-1.7,0,-.6],[4.9,1.2,1.8]]},
-    wk:{cam:[.3,.6],bounds:[[-4.4,0,-2.6],[1.4,1.6,1.6]]},bd:{cam:[.3,.55],bounds:[[3.9,0,-.9],[7.9,1.4,1.8]]},full:{cam:[.45,.78],bounds:[[-7.0,0,-2.6],[7.9,1.6,2.1]]}};
+    eng:{cam:[.3,.6],bounds:[[-2.6,0,-.6],[2.6,1.3,1.8]]},io:{cam:[.3,.58],bounds:[[-1.7,0,-.6],[4.9,1.2,1.8]]},
+    wk:{cam:[.3,.6],bounds:[[-4.4,0,-2.6],[1.4,1.6,1.6]]},bd:{cam:[.3,.55],bounds:[[3.9,0,-.9],[7.9,1.4,1.8]]},full:{cam:[.45,.78],bounds:[[-7.0,0,-2.6],[7.9,1.6,2.1]]},
+    fullN:{cam:[1.0,.66],bounds:[[-7.0,0,-2.6],[7.9,1.6,2.1]]}};   // the map on a phone: turned so the long row runs into depth and fills the tall card
   S3.stage({id:'stg-je',list:'sx-je',fig:'Fig. 1 · one TypeScript program, from the editor to the boundary',cam:V.full.cam,bounds:V.full.bounds,aspect:.62,dur:1400,hold:5200,draw,
-    view:k=>k<=1?V.cmp:k===2?V.rt:k<=4?V.eng:k===5?V.io:k===6?V.wk:k===7?V.bd:V.full,
+    view:k=>k<=1?V.cmp:k===2?V.rt:k<=4?V.eng:k===5?V.io:k===6?V.wk:k===7?V.bd:document.getElementById('stg-je').clientWidth<520?V.fullN:V.full,
     margin:w=>w<520?[16,10,12,10]:[22,40,14,40]});
 })();

@@ -14,7 +14,8 @@
   const END=[64,52,16],D=CB.dot.v,ME=[D.l1_scalar.runs[0],D.l1_auto.runs[0],D.l1_neon.runs[0]],PR=[4/3.2,3/3.2,.25/3.2];
   const NAME=['scalar · fmadd chain','-O2 · fmul.4s, then fadd chain','NEON · 4 x fmla.4s'];
   function draw(R,k,e){const P=R.P;R.grid(-7,7,-5.2,1.6,.5);
-    const bandOn=bd=>k===0||k===5?1:(k===1&&bd===0)||(k===2&&bd===1)||(k>=3&&bd===2)?1:.28;
+    // on a phone the camera frames one band, so the others (cut at the card's edge) fade almost out
+    const nar=R.W<520,foc=k<=1?0:k===2?1:2,bandOn=bd=>nar&&k<5?(bd===foc?1:.07):k===0||k===5?1:(k===1&&bd===0)||(k===2&&bd===1)||(k>=3&&bd===2)?1:.28;
     // products at the front of each band, on a white plinth
     [0,1,2].forEach(bd=>{const al=bandOn(bd);R.box([BX[bd],0,.55],[N*LW+.12,.04,.3],{a:al,shadow:false});
       p.forEach((v,l)=>R.box([lx(bd,l),.04,.55],[LW*.7,Math.max(.01,v/pm*.75),.14],{fill:mix(P.paper,P.c2,.55),a:al,shadow:false,lw:.6}));
@@ -24,7 +25,7 @@
       R.label([BX[0]-N*LW/2-.4,0,zc(c)],'cycle '+c,{al:'right',dx:-4,mono:true,fs:12,c:P.mute,wide:1})});
     // instruction boxes; a step's boxes appear in their order during the step
     const mine=I.filter(x=>x[6]===k);
-    I.forEach(x=>{const [bd,l0,l1,c0,c1,ck,s]=x;if(s>k)return;let al=s<k?(k===5||bd===2&&k===4?1:.32):1;
+    I.forEach(x=>{const [bd,l0,l1,c0,c1,ck,s]=x;if(s>k)return;let al=s<k?(k===5||bd===2&&k===4?1:nar&&bd!==foc?.07:.32):1;
       if(s===k){const j=mine.indexOf(x),t=cl(e*mine.length*1.05-j*(k===1||k===2?1:.6),0,1);if(t<=0)return;al*=t}
       const w=(l1-l0+1)*LW-.04,cx=(lx(bd,l0)+lx(bd,l1))/2,z0=zc(c0),z1=zc(c1);
       R.box([cx,0,(z0+z1)/2],[w,H,Math.abs(z1-z0)-.025],{fill:mix(P.paper,P[ck],.6),a:al,shadow:false,lw:.7})});

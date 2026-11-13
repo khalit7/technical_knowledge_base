@@ -99,6 +99,7 @@
   const full={cam:[0,1.0],bounds:[[-5.3,0,-3.6],[5.3,.9,3.0]]};
   const V=[full,{cam:[.1,.95],bounds:[[-5.3,0,-3.6],[5.3,.9,3.0]]},{cam:[-.1,.92],bounds:[[-5.3,0,-3.4],[5.3,.9,3.2]]},{cam:[0,.9],bounds:[[-5.3,0,-.3],[5.3,.8,2.0]]},
     {cam:[.08,.85],bounds:[[-5.3,0,-.8],[5.3,.8,2.4]]},{cam:[0,.42],bounds:[[-5.3,0,.3],[5.3,2.6,1.9]]}];
+  // on a phone (card under 520 px) every step looks down more steeply, so the four lanes fill the tall card
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one program, four lanes, six axes',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5200,draw,
-    view:k=>V[k]||full,margin:w=>w<520?[16,8,14,8]:[22,16,16,118]});
+    view:k=>{const v=V[k]||full,h=document.getElementById('stg-hero');return h&&h.clientWidth<520?{cam:[v.cam[0],Math.min(1.32,v.cam[1]+.32)],bounds:v.bounds}:v},margin:w=>w<520?[16,8,14,8]:[22,16,16,118]});
 })();

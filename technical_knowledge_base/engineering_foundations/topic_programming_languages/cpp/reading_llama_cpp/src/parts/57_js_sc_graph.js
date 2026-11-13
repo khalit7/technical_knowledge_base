@@ -58,6 +58,7 @@
   const full={cam:[.3,.62],bounds:[[-6.4,0,-1.7],[6.3,1.2,1.7]]};
   S3.stage({id:'stg-graph',list:'sx-graph',fig:'Fig. 2 · layer 0 of the real graph',cam:full.cam,bounds:full.bounds,aspect:.55,dur:1500,hold:4600,draw,
     // each building step moves in on its nodes; the last two show the whole layer
-    view:k=>{if(k>=6)return full;const g=GROUPS[k],lo=Math.min(...xs(g))-(k===0?1.2:.8),hi=Math.max(...xs(g))+(k===2||k===3?.9:.6);return {cam:[.42,.58],bounds:[[lo,0,-1.7],[hi,1.1,1.7]]}},
+    view:k=>{if(k>=6)return document.getElementById('stg-graph').clientWidth<520?{cam:[1.0,.7],bounds:full.bounds}:full; // a phone: the long graph turned into depth so it fills the tall card
+      const g=GROUPS[k],lo=Math.min(...xs(g))-(k===0?1.2:.8),hi=Math.max(...xs(g))+(k===2||k===3?.9:.6);return {cam:[.42,.58],bounds:[[lo,0,-1.7],[hi,1.1,1.7]]}},
     margin:w=>w<520?[16,10,16,10]:[20,18,18,18]});
 })();

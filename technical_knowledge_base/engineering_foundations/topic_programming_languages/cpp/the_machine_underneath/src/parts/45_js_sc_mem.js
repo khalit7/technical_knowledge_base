@@ -28,6 +28,7 @@
     // which levels are about this step; the rest recede
     const on=[[0,1,2,3,4],[3,4],[2,3,4],[0,1,2,3,4],[0,1,2,3,4],[0,1,2,3,4]][k];
     LV.forEach((l,i)=>{const a=on.includes(i)?1:.22;plate(R,l,a,i);
+      if((k===1||k===2)&&!on.includes(i))return; // the close-ups leave the receding levels unnamed (they sit at the card's edge)
       R.label([-l.w/2,top(i),0],l.n,{al:'right',dx:-10,fs:12.5,b:on.includes(i)&&k>0,c:P[l.c],a:Math.max(.45,a),grp:'lv'})});
     if(k===0){LV.forEach((l,i)=>{if(i<4)R.flow([[l.w*.18,top(i)+.05,.3],[l.w*.18*.4,top(i+1)-.02,.3]],{c:P.c2,a:.35*e,r:.045,n:3,speed:.6})})}
     if(k===1){trip(R,3,.75+.25*e,0,{a:1});lab(R,3,f(tL1)+' ns · 3 cycles',{c:P.c3,a:e})}
@@ -48,7 +49,7 @@
       lab(R,0,f(tSQ)+' ns per load',{c:P.c3})}
   }
   const full={cam:[.2,.3],bounds:[[-4.2,0,-.8],[4.2,5,.8]]};
-  S3.stage({id:'stg-mem',list:'sx-mem',fig:'the memory ladder of one M1 Pro core',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1400,hold:4800,draw,
+  S3.stage({id:'stg-mem',list:'sx-mem',fig:'the memory ladder of one M1 Pro core',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:4800,draw,
     view:k=>k===1?{cam:[.2,.26],bounds:[[-2.6,3.3,-.8],[2.6,5.1,.8]]}:k===2?{cam:[.2,.28],bounds:[[-3.2,2.2,-.8],[3.2,5.1,.8]]}:full,
     margin:w=>w<520?[14,10,14,10]:[14,118,10,128]});
 })();

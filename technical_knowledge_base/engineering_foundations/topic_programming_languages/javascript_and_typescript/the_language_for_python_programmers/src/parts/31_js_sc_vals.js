@@ -93,6 +93,7 @@
       if(k===4){[['alias',LEN[0]],['shallow',LEN[1]],['deep',LEN[2]]].forEach(([b,v])=>L(R,[XB[b],.26,ZB+.25],'.msgs.length '+v,{mono:true,fs:12.5,b:1,dy:12,c:b==='deep'?P.good:P.c2,a:e}))}
     }
     S3.stage({id:'stg-copy',list:'sx-copy',fig:'Fig. 2 · alias, shallow and deep copies, then one push',cam:[-.25,.62],bounds:[[-3.9,0,-2.3],[4.0,1.0,2.3]],aspect:.62,dur:1300,hold:4500,draw,
+      view:()=>document.getElementById('stg-copy').clientWidth<520?{cam:[-.08,.9],bounds:[[-3.9,0,-2.3],[4.0,1.0,2.3]]}:null, // a phone: square on and steeper, so the row fills the tall card
       margin:w=>w<520?[12,8,22,8]:[16,16,28,16]});
   }
 

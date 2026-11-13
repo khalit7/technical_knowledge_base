@@ -91,5 +91,6 @@
   const views=[full,{cam:[.3,.55],bounds:[[-7.9,0,-1.3],[-4.6,.9,1.3]]},{cam:[.32,.42],bounds:[[-4.5,0,-1.0],[-1.9,1.3,1.0]]},{cam:[.28,.6],bounds:[[-3.0,0,-1.3],[1.6,.9,1.3]]},
     {cam:[.3,.5],bounds:[[2.0,0,-1.1],[5.3,1.1,1.3]]},{cam:[.3,.5],bounds:[[2.0,0,-1.1],[7.2,1.1,1.4]]},{cam:[.3,.55],bounds:[[-1.4,0,-.9],[2.6,.8,2.6]]}];
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one program, from install to run',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
-    view:k=>views[k]||full,margin:w=>w<520?[16,10,14,10]:[22,40,16,40]});
+    view:k=>k===0&&document.getElementById('stg-hero').clientWidth<520?{cam:[1.0,.66],bounds:full.bounds}:views[k]||full, // the overview on a phone: the long row turned into depth so it fills the tall card
+    margin:w=>w<520?[16,10,14,10]:[22,40,16,40]});
 })();

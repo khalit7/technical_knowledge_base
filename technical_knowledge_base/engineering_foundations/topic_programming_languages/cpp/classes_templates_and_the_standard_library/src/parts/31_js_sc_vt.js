@@ -80,7 +80,7 @@
     worldA(R,k,e,A);worldB(R,k,e,Bv)}
   const full={cam:[.12,.66],bounds:[[-4.2,0,-3.1],[3.9,1.2,2.4]]};
   S3.stage({id:'stg-vt',list:'sx-vt',fig:'A virtual call, followed through memory',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:4600,draw,
-    view:k=>k===0?{cam:[.12,.62],bounds:[[-4.4,0,-3.1],[-1.8,1,2.4]]}:k===1?{cam:[.12,.62],bounds:[[-4.4,0,-3.1],[1.6,1,2.4]]}:k===2?full:k===3?{cam:[.18,.6],bounds:[[-1.6,0,-3.1],[4,1.2,2.4]]}:
-      k===7?{cam:[.08,.8],bounds:[[-5,0,-3.1],[5,1,2.6]]}:{cam:[.08,.78],bounds:[[-4.6,0,-3.1],[4.4,1,2.6]]},
+    view:k=>k===0?{cam:[.12,.62],bounds:document.getElementById('stg-vt').clientWidth<520?[[-3.9,0,-3.1],[-2.3,1,2.4]]:[[-4.4,0,-3.1],[-1.8,1,2.4]]}:k===1?{cam:[.12,.62],bounds:[[-4.4,0,-3.1],[1.6,1,2.4]]}:k===2?{cam:[.12,.86],bounds:full.bounds}:k===3?{cam:[.18,.6],bounds:[[-1.6,0,-3.1],[4,1.2,2.4]]}:
+      k===7?{cam:[.08,1.0],bounds:[[-5,0,-3.1],[5,1,2.6]]}:{cam:[.08,.98],bounds:[[-4.6,0,-3.1],[4.4,1,2.6]]},
     margin:w=>w<520?[30,10,14,10]:[34,14,16,150]});
 })();

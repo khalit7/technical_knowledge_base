@@ -42,7 +42,7 @@
     // timers: a ring on each suspended task's slot, gold once it is due
     WHO.forEach((w,i)=>{const s=S1.st[w];if(s.z==='wait'||s.late&&S0.st[w].z==='wait'){const due=s.due,isDue=T>=due-.5,p=[WX[i],.1,TZ[i]];
       R.glow([p[0],.12,p[2]],.55,{c:isDue?P.c5:P.mute,a:isDue?.9:.25});
-      R.label([p[0],.1,p[2]+.42],(isDue?'due ':'due at ')+due.toFixed(0)+' ms',{fs:12,mono:true,c:isDue?P.c5:P.mute,dy:10,b:isDue,wide:1})}});
+      R.label([p[0],0,p[2]+.8],(isDue?'due ':'due at ')+due.toFixed(0)+' ms',{fs:12,mono:true,c:isDue?P.c5:P.mute,dy:8,b:isDue,wide:1})}});
     // the tasks: each glides from its place at the end of the last stretch to its place now, on a small hop; data flows along the move
     WHO.forEach(w=>{const a=S0.st[w],b=S1.st[w];if(a.z==='none'&&b.z==='none')return;
       const pa=pos(w,a),pb=pos(w,b),moved=Math.hypot(pa[0]-pb[0],pa[2]-pb[2])>.05,p=moved?R.arcPt(pa,pb,.55,e):pb;
