@@ -1,6 +1,6 @@
 // ---- The trace replay: the paper's own episodes stepped through, method against method ----
 // window.TRACES comes from mk_traces.py. makeTrace(id, episode ids) builds one replay card (its seg buttons,
-// then makeAnim). Modes are keyed "episode:mode"; the seg shows only the current episode's buttons.
+// then makeAnim as a widget: the reader picks episode and method and steps; Figure 1 on The paper tab is the 3D stage 31_js_sc_fig1.js). Modes are keyed "episode:mode"; the seg shows only the current episode's buttons.
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const MK={g:'hg',r:'hr',s:'hs',u:'hu'};
 const mk=t=>esc(t).replace(/\[\[([grsu]):(.*?)\]\]/g,(m,k,x)=>'<span class="'+MK[k]+'">'+x+'</span>').replace(/\n/g,'<br>');
@@ -49,12 +49,11 @@ function makeTrace(id,eps,first){
     const C=CODE[codeFor(ep,m)],on=C.m[S[k].r]||[];
     const code='<div class="small mute" style="margin-bottom:2px">The harness, as in the released code (shortened):</div><pre class="code">'+C.l.map((l,i)=>'<div class="'+(on.includes(i)?'on':'')+'">'+l+'</div>').join('')+'</pre><p class="small mute" style="margin:4px 0 0">'+esc(ep.env)+'. Source: '+esc(ep.src)+'.</p>';
     return '<div class="trgrid"><div class="tr">'+h+L+'</div><div>'+code+'</div></div>'};
-  const an=makeAnim({id,modes,mode:startKey,draw,counters,dur:2600});
+  const an=makeAnim({id,modes,mode:startKey,draw,counters,dur:2600,auto:false}); // a widget (long-replay rule): opens on the episode's last step, no autoplay
   seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const nt=$(id+'Note');if(nt){const [e]=ix[b.dataset.m];nt.innerHTML=esc(e.note)}}));
   const sel=$(id+'Ep');if(sel){sel.innerHTML=E.map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('');sel.value=startKey.split(':')[0];
     sel.addEventListener('change',()=>{showEp(sel.value);const b=seg.querySelector('button[data-ep="'+sel.value+'"][data-m$=":react"]')||seg.querySelector('button[data-ep="'+sel.value+'"]');b.click()})}
   const nt=$(id+'Note');if(nt)nt.innerHTML=esc(ix[startKey][0].note);
   return an}
-const RP=makeTrace('rp',['apple'],'apple:react');
 const TR=makeTrace('tr',['apple','myst','pepper','keys','web','soyuz'],'apple:react');
 onTab('t-run',()=>{if(TR){refit($('trSvg'))}});

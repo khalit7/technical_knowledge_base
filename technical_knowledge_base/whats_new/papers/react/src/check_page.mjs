@@ -1,6 +1,8 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end. Since 2026-11-13 (layout rollout):
+// the Then and now animation (th) plays by itself once scrolled into view; the trace replay (tr) is a widget and never moves by
+// itself; the 3D stage of Figure 1 and the layout rules are checked by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/react/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -10,7 +12,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: true });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -42,11 +44,13 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view and wait
-    for (const id of ['rp', 'tr', 'th']) {
+    // th plays by itself once scrolled into view; tr (a widget) never moves before the reader acts
+    for (const id of ['tr', 'th']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+      if (id === 'tr' && fr) problems.push(`${scheme} ${width}: tr (a widget) moved before any click (${fr} frames)`);
+      if (id === 'th' && !fr) problems.push(`${scheme} ${width}: th did not play when scrolled into view`);
     }
     // closed details hold controls and outputs too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');
@@ -80,7 +84,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle; the replay is stepped for every episode
-    for (const id of ['rp', 'tr', 'th']) {
+    for (const id of ['tr', 'th']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const eps = await p.$$eval(`#${id}Ep option`, os => os.map(o => o.value)).catch(() => []);
       for (const ep of (eps.length ? eps : [null])) {
