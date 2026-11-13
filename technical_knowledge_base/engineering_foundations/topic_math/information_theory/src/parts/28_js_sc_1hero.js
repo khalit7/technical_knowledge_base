@@ -14,12 +14,12 @@
     if(grow>0)S.surf(R,M,SY,{c:P.c4,grow,cap:CAP,lo:Hp,hi:CAP,a:k>=3?.55:.85,fa:.86});
     R.ball(pp,.09,{c:P.c1,top:1});R.glow(pp,.3,{c:P.c1,top:1,a:.6});
     R.label(pp,k===0?'target p · sat 0.8, dog 0.2':'target p',{al:'left',dx:12,dy:k===0?4:-2,fs:12.5,b:1,c:P.c1});
-    if(k<4){R.ball(pq,.09,{c:P.c2,top:1});R.label(pq,k===0?'tiny model q · (0.665, 0.245, 0.090)':k===1?'q · '+(CE0*grow).toFixed(3)+' nats':'q · '+CE0.toFixed(3),{al:'right',dx:-12,dy:-6,fs:12.5,b:1,c:P.c2})}
+    if(k<4){R.ball(pq,.09,{c:P.c2,top:1});if(k!==3)R.label(pq,k===0?'tiny model q · (0.665, 0.245, 0.090)':k===1?'q · '+(CE0*grow).toFixed(3)+' nats':'q · '+CE0.toFixed(3),{al:'right',dx:-12,dy:-6,fs:12.5,b:1,c:P.c2})}
     if(k>=1&&k<4&&grow>.2)R.line([S.at(q0,0),pq],{c:P.c2,w:1.2,dash:[3,3],a:grow});
     // 3. the floor: a glass plane at H(p), touched only at q = p
     const fa=k===2?e:k>2?1:0;
     if(fa>0){const cs=[[1,0,0],[0,1,0],[0,0,1]].map(c=>S.at(c,Hp*SY));R.quad(cs,{fill:P.c1,a:fa,fa:.22,ec:P.c1,ea:.9,lw:1.4,dz:50});
-      R.label(S.at([0,1,0],Hp*SY),'floor H(p) = '+Hp.toFixed(3)+' nats',{al:'left',dx:10,dy:4,fs:12.5,b:1,c:P.c1,a:fa})}
+      R.label(S.at([0,1,0],Hp*SY),'floor H(p) = '+Hp.toFixed(3)+' nats',{al:'left',dx:10,dy:4,fs:12.5,b:1,c:P.c1,a:fa,wide:k===3?1:0})}
     // 4. the gap above the bet: floor part and KL part as one column
     const ca=k===3?e:k>3?.35:0;
     if(ca>0){const b=S.at(q0,0);R.box(b,[.22,Hp*SY,.22],{fill:P.c1,a:ca,shadow:false});R.box([b[0],Hp*SY,b[2]],[.22,KL0*SY*(k===3?e:1),.22],{fill:P.c2,a:ca,shadow:false});

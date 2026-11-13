@@ -28,7 +28,7 @@
       R.label([1.9,0,ND/2],'loops='+f(D.ios.loops)+' (expected '+f(nb.seq.est)+')',{fs:12.5,mono:true,b:1,c:P.c2,dy:16,a:k===2?e:.8})}
     NODES.forEach(([key,l0,l1,x,y])=>{const a=ta(key),d=D[key];const bad=key!=='sort'&&key!=='lim'&&(d.act/d.est>10||d.est/d.act>10); // a Sort under a Limit stops early by design
       R.box([x,y,0],[NW,NH,ND],{a:Math.max(.35,a),fill:foc&&foc.includes(key)?mix(P.paper,bad?P.bad:P.good,.18):P.paper,shadow:y<.6});
-      R.label([x,y+NH/2,ND/2],fix?l1:l0,{fs:12.5,b:1,mono:true,a:Math.max(.45,a)});
+      R.label([x,y+NH/2,ND/2],fix?l1:l0,{fs:12.5,b:1,mono:true,a:Math.max(.7,a)});
       // the two bars: estimated (glass) and actual (solid; red when off by more than 10 times)
       const ba=a*(k===0?Math.min(1,e*1.4):1),grow=foc&&foc.includes(key)&&k!==6?e:1,ek=fix?(lerp(hh(nb[key].est),hh(d.est),e)):hh(d.est),ak=fix?lerp(hh(nb[key].act),hh(d.act),e):hh(d.act);
       const bx=x+NW/2+.4;R.box([bx,y,0],[.5,.03,.55],{a:ba,shadow:false});

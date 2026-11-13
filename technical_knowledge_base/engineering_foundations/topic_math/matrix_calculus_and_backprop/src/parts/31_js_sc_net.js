@@ -41,23 +41,23 @@
       // the two weight plates (the backward pass goes back through the same ones, transposed) and the ReLU gate
       [[PW1,'W1 · 3 × 2','P1',3,2],[PW2,'W2 · 3 × 3','P2',3,3]].forEach(([px,nm,key,nu,nv])=>{const a=A(key);
         R.glass([px,.08,ZB-.55],[0,0,ZF-ZB+1.1],[0,1.25,0],{c:P.c4,a:.35+.65*a,nu,nv});
-        if(V(px))R.label([px,0,ZF+.8],nm,{mono:true,fs:12.5,b:a>.5,c:P.c4,a:Math.max(.55,a),dy:8})});
-      R.box([XR,0,(ZF+ZB)/2],[.1,.6,ZF-ZB+.9],{fill:P.paper,fa:.35,a:.4+.6*A('R'),shadow:false});if(V(XR))R.label([XR,.72,ZF+.5],'ReLU',{mono:true,fs:12,c:P.mute,a:.5+.5*A('R')});
-      if(V(3.4))R.label([3.42,0,ZF+.8],'softmax, −ln p_sat',{mono:true,fs:12,c:P.mute,wide:1,a:.4+.6*Math.max(A('f4'),A('f5'))});
+        if(V(px))R.label([px,0,ZF+.8],nm,{mono:true,fs:12.5,b:a>.5,c:P.c4,a:Math.max(.7,a),dy:8})});
+      R.box([XR,0,(ZF+ZB)/2],[.1,.6,ZF-ZB+.9],{fill:P.paper,fa:.35,a:.4+.6*A('R'),shadow:false});if(V(XR))R.label([XR,.72,ZF+.5],'ReLU',{mono:true,fs:12,c:P.mute,a:.7+.3*A('R')});
+      if(V(3.4))R.label([3.42,0,ZF+.8],'softmax, −ln p_sat',{mono:true,fs:12,c:P.mute,wide:1,a:.65+.35*Math.max(A('f4'),A('f5'))});
       // forward row: empty slots for what is still to come, then the values
       all.forEach(i=>{const known=i<s.fw,a0=A('f'+i),fade=known&&isNew('fw',i)&&ps&&i>=ps.fw?e:1,vals=FV[i],n=vals.length;
         let v=vals;if(s.upd&&i===4)v=N.p_new;if(s.upd&&i===5)v=[N.loss_new];
         if(!known){U.comb(R,[XN[i],YP,ZF],new Array(n).fill(null),1,null,.5,HM,WD(n));}
         else U.comb(R,[XN[i],YP,ZF],v,sc(i),i===5?mix(P.paper,P.c3,.25):P.paper,a0*fade,HM,WD(n),{kept:(s.kept||nums)&&KEPT[i]});
-        if(V(XN[i]))R.label([XN[i],0,ZF+.42],FN[i]+' · '+SH[i],{mono:true,fs:12.5,b:a0>.5&&known,c:known?P.ink:P.mute,a:known?Math.max(.5,a0):.45,dy:6})});
+        if(V(XN[i]))R.label([XN[i],0,ZF+.42],FN[i]+' · '+SH[i],{mono:true,fs:12.5,b:a0>.5&&known,c:known?P.ink:P.mute,a:known?Math.max(.7,a0):.6,dy:6})});
       // backward row
       all.forEach(i=>{if(i===4)return;const known=s.bw.indexOf(i)>=0,a0=A('b'+i),fade=known&&isNew('bw',i)?e:1,n=FV[i].length;
         if(!known){if(s.fw>=6)U.comb(R,[XN[i],YP,ZB],new Array(n).fill(null),1,null,.35,HM,WD(n));return}
         U.comb(R,[XN[i],YP,ZB],BV[i],M,P.acc,a0*fade,HM,WD(n));
-        if(V(XN[i]))R.label([XN[i],0,ZB-.42],BN[i],{mono:true,fs:13,b:a0>.5,c:P.acc,a:Math.max(.5,a0),dy:-4})});
+        if(V(XN[i]))R.label([XN[i],0,ZB-.42],BN[i],{mono:true,fs:13,b:a0>.5,c:P.acc,a:Math.max(.7,a0),dy:-4})});
       // weight gradients: outer products, each shaped like its weight
       [['w1',PW1,N.gW1,F1,'W̄1 = ā xᵀ'],['w2',PW2,N.gW2,F2,'W̄2 = z̄ hᵀ']].forEach(([key,px,G,o,nm])=>{if(!s[key])return;const a0=A(key),g=isNew(key)?e:1;
-        U.field(R,[px,0,ZW],G,Object.assign({a:a0,t:g},o));if(V(px))R.label([px,o.hmax+.25,ZW],nm,{mono:true,fs:12.5,b:a0>.5,c:P.acc,a:Math.max(.5,a0),dy:-6})});
+        U.field(R,[px,0,ZW],G,Object.assign({a:a0,t:g},o));if(V(px))R.label([px,o.hmax+.25,ZW],nm,{mono:true,fs:12.5,b:a0>.5,c:P.acc,a:Math.max(.7,a0),dy:-6})});
       // flows: values forward (green), gradients back (blue); the outer products are fed by both
       const fl=(i,z)=>[XN[i],YP+.3,z];
       s.ff.forEach(([i,j])=>R.flow(U.path(fl(i,ZF),fl(j,ZF),16),{c:P.c3,a:s.ff.length>2?.75:Math.min(1,e*1.6),r:.07,speed:1.3}));
@@ -78,7 +78,7 @@
   const full={cam:[-.5,.62],bounds:[[-6.3,0,-2.8],[6.1,1.1,1.3]]};
   const zoom=(x0,x1)=>({cam:[-.35,.6],bounds:[[x0,0,-2.8],[x1,1.1,1.3]]});
   const marg=w=>w<520?[14,8,10,8]:[18,14,14,14];
-  if(document.getElementById('stg-net'))S3.stage({id:'stg-net',list:'sx-net',fig:'Fig. 1 · one forward pass, one backward pass',cam:full.cam,bounds:full.bounds,aspect:.5,margin:marg,dur:1500,hold:4600,draw:scene(HERO,false)});
+  if(document.getElementById('stg-net'))S3.stage({id:'stg-net',list:'sx-net',fig:'Fig. 1 · one forward pass, one backward pass',cam:[-.4,.62],bounds:[[-6,0,-2.4],[5.9,1.1,1.1]],aspect:.5,margin:marg,dur:1500,hold:4600,draw:scene(HERO,false)});
   const Z=[null,[-6.3,-1.9],[-3.3,.4],[-1,3.4],[2,6],[2,6],[-1,3.4],[-1,3.4],[-3.3,.4],[-6.3,-1.9],[-6.3,-1.9],null];
   if(document.getElementById('stg-two'))S3.stage({id:'stg-two',list:'sx-two',fig:'Fig. 5 · the two-layer network, by hand',cam:full.cam,bounds:full.bounds,aspect:.52,margin:marg,dur:1500,hold:4800,draw:scene(TWO,true,Z),
     view:k=>Z[k]?zoom(Z[k][0],Z[k][1]):full});

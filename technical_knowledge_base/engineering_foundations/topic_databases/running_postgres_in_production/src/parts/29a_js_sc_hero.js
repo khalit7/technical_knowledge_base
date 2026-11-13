@@ -60,6 +60,6 @@
   const full={cam:[.16,.6],bounds:[[-4.7,0,-1.9],[4.1,1.1,1.9]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one server, and the pins that page you',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1400,hold:4800,draw,
     margin:w=>w<520?[16,8,12,8]:[18,16,14,16],
-    // step 1 moves in close on clients and backends, step 2 on the write path; the rest show the whole server
-    view:k=>k===0?{cam:[.3,.6],bounds:[[-4.8,0,-2],[-1.2,1.0,2]]}:k===1?{cam:[.24,.6],bounds:[[-2.5,0,-2.1],[1.9,1.5,2.1]]}:full});
+    // step 1 moves in close on clients and backends, step 2 on the write path, step 4 on the table files; the rest show the whole server
+    view:k=>k===0?{cam:[.3,.6],bounds:[[-4.8,0,-2],[-1.2,1.0,2]]}:k===1?{cam:[.24,.6],bounds:[[-2.5,0,-2.1],[1.9,1.5,2.1]]}:k===3?{cam:[.2,.65],bounds:[[-1.1,0,-2.3],[2.8,1,-.1]]}:full});
 })();

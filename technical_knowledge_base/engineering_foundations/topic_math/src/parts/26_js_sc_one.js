@@ -56,7 +56,7 @@
       if(k===4)R.flow(path([XL,.6,ZF-.2],[XL,.6,ZB]).concat(path([XL,.6,ZB],[XZ+.5,YP+.35,ZB]).slice(1)),{c:C.ca,a:Math.min(1,e*1.6),r:.07,speed:1.2})}
     // 6. the weight gradient: an outer product (p - y) x^T, rank 1, shaped like W
     const aG=A('gW'),Gt=at(k,e,5);if(Gt>0){field(R,[PW,0,ZW],s0.gW,1.9,C.ca,aG,k===5?e:1);
-      if(on('gW'))R.label([PW,1.15,ZW],'∇W = (p − y) xᵀ',{mono:true,fs:12.5,b:aG>.5,c:C.ca,a:Math.max(.5,aG),dy:-6});
+      if(on('gW')&&k!==6)R.label([PW,1.15,ZW],'∇W = (p − y) xᵀ',{mono:true,fs:12.5,b:aG>.5,c:C.ca,a:Math.max(.5,aG),dy:-6});
       if(k===5){const tg=[PW,.6,ZW],a=Math.min(1,e*1.6);R.flowArc([XZ,YP+.35,ZB],tg,.45,{c:C.ca,a,r:.065,speed:1.2});R.flowArc([XX,YP+.35,ZF],tg,.8,{c:C.la,a,r:.065,speed:1.2})}}
     // 7. the step: the gradient flows into W, then the forward pass reruns
     if(k===6){const a=Math.min(1,e*1.6);R.flow(path([PW,.7,ZW+.5],[PW,.7,ZB-.4]),{c:C.op,a,r:.075,speed:1.2});
@@ -72,7 +72,8 @@
   }
   const full={cam:[-.5,.74],bounds:[[-5.5,0,-2.7],[5.1,1.7,1.4]]};
   const zoom=(x0,x1,ph,z0)=>({cam:[-.46,ph||.7],bounds:[[x0,0,z0||-2.7],[x1,1.7,1.4]]});
-  const V=[zoom(-5.6,-2.2,.72,-1.4),zoom(-5.6,-.6,.72,-1.4),zoom(-2.4,1.6,.72,-.6),zoom(-.4,3.6,.72,-.6),zoom(-2.4,3.4),zoom(-5.6,-.6,.8),full,zoom(1.6,5.2,.72,-.6),full];
+  const V=[zoom(-5.6,-2.2,.72,-1.4),zoom(-5.6,-.6,.72,-1.4),zoom(-2.4,1.6,.72,-.6),zoom(-.4,3.6,.72,-.6),zoom(-4.6,3.3,.76,-1.0),zoom(-5.6,-.6,.8),full,zoom(1.6,5.2,.72,-.6),full];
   S3.stage({id:'stg-one',list:'sx-one',fig:'Fig. 1 · one training step of the tiny model',cam:full.cam,bounds:full.bounds,aspect:.56,
-    margin:w=>w<520?[14,8,12,8]:[20,16,16,16],dur:1500,hold:5200,draw,view:k=>V[k]||full});
+    margin:w=>w<520?[14,8,12,8]:[20,16,16,16],dur:1500,hold:5200,draw,
+    view:k=>{const v=V[k]||full;return innerWidth<520?{cam:[v.cam[0],v.cam[1]+.25],bounds:v.bounds}:v}}); // on a phone the camera looks down more, so the long scene uses the card's height
 })();

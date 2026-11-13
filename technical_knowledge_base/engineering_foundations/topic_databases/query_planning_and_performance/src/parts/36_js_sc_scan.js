@@ -28,7 +28,7 @@
     R.label([X0+C*PT/2-.15,0,Z0+RW*PT],msg?'messages · 192,356 pages, each tile about 600':'users · 1,280 pages of 8 KB, each tile 4',{fs:12,c:P.mute,dy:16});
     // the index: root over leaves (276 for users)
     const ia=k===1?.3:1;R.box([IX,RY,0],[.8,.24,.6],{a:ia,fill:mix(P.paper,P.c2,.18)});
-    for(let j=0;j<8;j++){const inR=msg?j===0||j===1:j<2;R.box([IX,LY,LZ(j)],[.55,.18,.42],{a:ia*(k>=2&&!inR?.45:1),fill:k>=2&&inR?mix(P.paper,P.c2,.45):P.paper,shadow:false});R.line([[IX,RY,0],[IX,LY+.18,LZ(j)]],{c:P.mute,w:1,a:ia*.45})}
+    for(let j=0;j<8;j++){const inR=msg?j===0||j===1:j<2;R.box([IX,LY,LZ(j)],[.5,.14,.26],{a:ia*(k>=2&&!inR?.45:1),fill:k>=2&&inR?mix(P.paper,P.c2,.45):P.paper,shadow:false});R.line([[IX,RY,0],[IX,LY+.18,LZ(j)]],{c:P.mute,w:1,a:ia*.45})}
     R.label([IX,RY+.24,0],msg?'messages_pkey':'users_pkey · root over '+leaves+' leaves',{fs:12,b:1,mono:true,dy:-10,a:ia,wide:1});
     // the query
     if(k===0)R.label([0,0,-2.6],'WHERE id BETWEEN 5001 AND 25000 · 20,000 rows',{fs:13,mono:true,b:1,c:P.acc,a:e,dy:-14});

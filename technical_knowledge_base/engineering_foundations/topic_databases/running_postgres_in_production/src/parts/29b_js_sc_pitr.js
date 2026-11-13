@@ -13,11 +13,11 @@
   // per step: clock (hours), production rows, archived fraction
   const SP=[{h:0,prod:base,arc:0},{h:9,prod:base+today/3,arc:.35},{h:14.05,prod:good,arc:1},{h:14.05,prod:0,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1}];
   // a messages table as a column: the midnight rows, then today's rows as a cap drawn taller than their 1.2% (labelled)
-  function column(R,x,z,rows,a,tint,ghost){const P=R.P,b=Math.min(1,rows/base),t=Math.max(0,Math.min(1,(rows-base)/today));
-    R.box([x,0,z],[1.05,HB,1.05],{a:ghost?.12:a*.25,fill:P.paper,fa:.25,shadow:false,lw:.6});
+  function column(R,x,z,rows,a,tint,ghost,sh){sh=sh||.25;const P=R.P,b=Math.min(1,rows/base),t=Math.max(0,Math.min(1,(rows-base)/today));
+    R.box([x,0,z],[1.05,HB,1.05],{a:ghost?.12:a*sh,fill:P.paper,fa:.25,shadow:false,lw:.6});
     if(b>.002)R.box([x,0,z],[1.01,HB*b,1.01],{fill:mix(P.paper,tint,.35),a});
     if(t>.01)R.box([x,HB,z],[1.01,HT*t,1.01],{fill:mix(P.paper,P.acc,.6),a,shadow:false});
-    R.box([x,HB,z],[1.05,HT,1.05],{a:ghost?.12:a*.25,fill:P.paper,fa:.15,shadow:false,lw:.6,ec:P.mute})}
+    R.box([x,HB,z],[1.05,HT,1.05],{a:ghost?.12:a*sh,fill:P.paper,fa:.15,shadow:false,lw:.6,ec:P.mute})}
   function draw(R,k,e){const P=R.P,pitr=mode==='pitr',s0=SP[k],s1=SP[Math.max(0,k-1)];R.grid(-5.6,5.4,-2.4,2.4,.5);
     // the clock along the front
     R.line([[X(0),0,ZT],[X(15),0,ZT]],{c:P.mute,w:1.5});
@@ -41,7 +41,7 @@
     if(k===1&&pitr)R.flowArc([XP-.45,.6,ZP],[XS(Math.floor(arcF*nS*.9)),.25,ZS],.5,{c:P.c5,a:e,r:.06,speed:1.3});
     // production server
     const prodRows=k===3?lerp(good,0,e):s0.prod;
-    column(R,XP,ZP,k<=2?lerp(s1.prod,s0.prod,k===0?1:e):prodRows,k>=5?.35:1,P.c1);
+    column(R,XP,ZP,k<=2?lerp(s1.prod,s0.prod,k===0?1:e):prodRows,k>=5?.35:1,P.c1,false,k===4?.7:.25); // step 5: the emptied table's outline at full strength
     R.label([XP,HB+HT,ZP],'production · '+fmt(prodRows)+' rows',{fs:12.5,b:1,dy:-10,a:k>=5?.5:1});
     if(k===1||k===2)R.flow([[XP-1.6,.9,ZP],[XP-.5,.9,ZP]],{c:P.acc,a:e,r:.06,speed:1.2,n:4});
     if(k===3){R.glow([XS(nS-1),.25,ZS],.7,{c:P.bad,a:e*.8});R.label([X(14.05),.2,ZS-.4],'DELETE 14:03 · tx '+stopTx,{fs:12.5,b:1,c:P.bad,dy:-10,a:e});

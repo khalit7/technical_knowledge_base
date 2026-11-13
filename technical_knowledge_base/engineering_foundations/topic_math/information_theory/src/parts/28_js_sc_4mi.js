@@ -15,7 +15,7 @@
     const ja=two?(k===0?Math.min(1,e*1.5):k===3?.18:1):1;
     // the joint: one bar per cell
     T.cells.forEach(c=>{const x=gx(T,c.i),z=gz(T,c.j);R.quad([[x-CW/2,0.004,z-CW/2],[x+CW/2,.004,z-CW/2],[x+CW/2,.004,z+CW/2],[x-CW/2,.004,z+CW/2]],{fill:R.P.soft,a:a*.8,ea:.5,dz:.4});
-      if(c.v>0){R.box([x,0,z],[.62,c.v*SY*(two&&k===0?e:1),.62],{fill:mix(P.c1,P.paper,.3),a:a*ja});R.label([x,c.v*SY,z],c.v.toFixed(3),{mono:true,fs:12.5,b:1,dy:-10,c:P.c1,a:a*ja})}});
+      if(c.v>0){R.box([x,0,z],[.62,c.v*SY*(two&&k===0?e:1),.62],{fill:mix(P.c1,P.paper,.3),a:a*ja});if(!(two&&k===2&&c.v<c.ind))R.label([x,c.v*SY,z],c.v.toFixed(3),{mono:true,fs:12.5,b:1,dy:-10,c:P.c1,a:a*ja})}}); // step 3: a bar under its lid keeps its value off the glass
     if(k===0||!two){T.xs.forEach((s,i)=>R.label([gx(T,i),0,gz(T,T.ys.length-1)+CW/2],'x = '+s,{fs:12.5,dy:16,c:P.mute,a}));
       T.ys.forEach((s,j)=>R.label([gx(T,0)-CW/2-.5,0,gz(T,j)],'y = '+s,{al:'right',dx:-8,fs:12.5,c:P.mute,a}))}
     // the marginals on the edges: p(x) in front, p(y) on the right; dots flow from each cell into its row and column sums

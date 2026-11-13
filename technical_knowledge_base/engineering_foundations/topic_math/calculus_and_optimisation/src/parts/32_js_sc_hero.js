@@ -54,8 +54,8 @@
       R.label(np[Math.min(2,np.length-1)],'Newton: '+ntN+' steps',{al:'left',dx:10,dy:-14,fs:12.5,b:1,c:P.c1,a:e});
       R.label(gp[Math.min(10,gp.length-1)],'gradient descent: '+(C.gdPath.length-1)+' steps',{al:'right',dx:-10,dy:16,fs:12.5,b:1,c:P.c2,a:e})}
   }
-  const full={cam:[.35,.72],bounds:[[-3.7,0,-2.9],[3.7,2.2,2.9]]},near0=(()=>{const a=map(-2.2,-2,LO),b=map(3.4,2.4,LO);return {cam:[.4,.66],bounds:[[a[0],0,b[2]],[b[0],1.3,a[2]]]}})();
-  const fin=(()=>{const a=map(-.9,-1.4,LO),b=map(4.6,2.4,LO);return {cam:[.3,.9],bounds:[[a[0],0,b[2]],[b[0],.8,a[2]]]}})();
+  const full={cam:[.35,.72],bounds:[[-3.7,0,-2.9],[3.7,2.2,2.9]]},near0=(()=>{const a=map(-2.2,-2,LO),b=map(7.7,2.4,LO);return {cam:[.4,.66],bounds:[[a[0],0,b[2]],[b[0],1.5,a[2]]]}})();
+  const fin=(()=>{const a=map(-.9,-1.4,LO),b=map(7.7,2.4,LO);return {cam:[.3,.9],bounds:[[a[0],0,b[2]],[b[0],1.2,a[2]]]}})();
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · a real loss and its two local models',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[18,16,16,16],
     view:k=>k===1||k===2||k===3?near0:k===4?fin:full});

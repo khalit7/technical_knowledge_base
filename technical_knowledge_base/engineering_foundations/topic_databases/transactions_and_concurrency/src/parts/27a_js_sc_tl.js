@@ -48,7 +48,7 @@ window.TXTL=(function(){
     r.ev.forEach(e=>{const i=r.slot(e.k);if(e.kind==='marker'||e.kind==='begin'&&!e.retry)return;if(i>now+.02)return;const z=o.lanes[e.s];if(z==null)return;
       const fi=e.fin==null?null:r.slot(e.fin),waiting=fi!=null?fi>i:true,done=e.fin!=null&&fi<=now+.02,x=X(i);
       if(waiting){const x1=done?X(fi):Math.max(x,tEnd-W*.5);R.box([(x+x1)/2,0,z],[Math.max(.1,x1-x+W*.7),.2,.4],{fill:mix(P.paper,P.bad,.12),ec:P.bad,fa:.55,a,shadow:false});
-        if(x1-x>W*.8)R.label([(x+x1)/2,.2,z],'waits',{fs:12,dy:-9,c:P.bad,b:1,a,wide:1})}
+        if(x1-x>W*.8)R.label([x-W*.32,.2,z],'waits',{al:'left',fs:12,dy:-9,c:P.bad,b:1,a,wide:1})} // at the wait's start, clear of the label of the statement it becomes
       const fill=e.err?mix(P.paper,P.bad,.5):e.kind==='read'?mix(P.paper,P.c1,.4):e.kind==='write'?mix(P.paper,P.c2,.5):e.kind==='commit'?mix(P.paper,P.good,.5):e.kind==='rollback'||e.tf?mix(P.paper,P.bad,.35):mix(P.paper,P.ink,.08);
       const xb=done&&waiting?X(fi):x;R.box([xb,0,z],[W*.72,.26,.42],{fill,a});
       if(done||!waiting){const t=o.label(e);if(t)R.label([xb,.26,z],t,{fs:12,dy:-10,mono:true,b:e.err||e.kind==='write',c:e.err?P.bad:P.ink,a,wide:e.err?0:1})}

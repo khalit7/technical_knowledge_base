@@ -38,7 +38,7 @@
       R.label([pd[0],.24,pd[1]],'data: '+(T1.lp_len-hb)+' bytes',{fs:12.5,b:1,c:P.acc,dy:-14})}
   }
   const full={cam:[.08,.95],bounds:[[-5.3,0,-2.3],[5.3,.4,2.3]]};
-  S3.stage({id:'stg-page',list:'sx-page',fig:'Fig. 2 · page 0 of messages, to scale',cam:full.cam,bounds:full.bounds,aspect:.44,dur:1500,hold:4600,draw,
+  S3.stage({id:'stg-page',list:'sx-page',fig:'Fig. 2 · page 0 of messages, to scale',cam:full.cam,bounds:full.bounds,aspect:.4,dur:1500,hold:4600,draw,
     margin:w=>w<520?[16,8,14,8]:[22,56,16,56],
     view:k=>k===6?{cam:[.1,.9],bounds:[[.6,0,.4],[5.3,.5,2.4]]}:full});
 })();

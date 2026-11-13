@@ -57,7 +57,8 @@
   }
   const full={cam:[-.58,.7],bounds:[[-5.6,0,-2.6],[2.4,1.2,2.2]]};
   const st=S3.stage({id:'stg-fr',list:'sx-fr-rev',fig:'Fig. 3 · six slopes of the tiny model',cam:full.cam,bounds:full.bounds,aspect:.55,dur:1500,hold:4800,draw,
-    margin:w=>w<520?[14,8,10,8]:[18,14,14,14]});
+    margin:w=>w<520?[14,8,10,8]:[18,14,14,14],
+    view:()=>innerWidth<520?{cam:[-.95,.85]}:null}); // on a phone the camera turns and looks down more, so the scene uses the card's height
   const seg=document.getElementById('mc-fr-mode');
   if(seg&&st)seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;seg.querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===b));
     ['rev','fwd'].forEach(m=>{const l=document.getElementById('sx-fr-'+m);if(l)l.hidden=m!==mode});st.list('sx-fr-'+mode)});

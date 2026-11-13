@@ -49,7 +49,7 @@
     if(k===6)R.label([X0+11*DX,0,1.7],(R.W<520?'universal: ':'universal after the overwrites: ')+uow.space_amp+'x space (leveled '+ow.space_amp+'x)',{fs:12.5,b:1,c:P.c4,dy:30,a:e});
   }
   const full={cam:[.18,.55],bounds:[[-5.4,0,-2.1],[6,2.4,2.2]]};
-  S3.stage({id:'stg-lsm',list:'sx-lsm',fig:'Fig. 6 · an LSM-tree, on the measured RocksDB run',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:4800,draw,
+  S3.stage({id:'stg-lsm',list:'sx-lsm',fig:'Fig. 6 · an LSM-tree, on the measured RocksDB run',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4800,draw,
     margin:w=>w<520?[16,8,14,8]:[22,20,18,90],
     view:k=>k<=2?{cam:[.2,.55],bounds:[[-5.4,0,-.6],[1.6,3.2,2.5]]}:k===4?{cam:[.12,.4],bounds:[[-2,0,1],[4.6,2.6,2]]}:full});
 })();

@@ -48,5 +48,5 @@
   const B=js=>{let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,z0=1e9,z1=-1e9;js.forEach(j=>{const h=HS[j];x0=Math.min(x0,X[j]-h[0]*SC);x1=Math.max(x1,X[j]+h[0]*SC);y0=Math.min(y0,YC-h[1]*SC);y1=Math.max(y1,YC+h[1]*SC);z0=Math.min(z0,Z[j]);z1=Math.max(z1,Z[j])});return [[x0-.3,y0-.5,z0-.2],[x1+.3,y1+.4,z1+.2]]};
   const full={cam:[.42,.24],bounds:B([0,1,2,3])};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · A = UΣVᵀ, drawn to scale',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:4400,draw,
-    view:k=>k<=1?{cam:[.36,.22],bounds:B([0,1])}:k===2?{cam:[.4,.22],bounds:B([1,2])}:k===3||k===5?{cam:[.42,.22],bounds:B([2,3])}:full});
+    view:k=>k<=1?{cam:[.36,.22],bounds:B([0,1])}:k===2?{cam:[.4,.22],bounds:B([1,2])}:k===3||k===5?{cam:[.42,.22],bounds:B([1,2,3])}:full});
 })();
