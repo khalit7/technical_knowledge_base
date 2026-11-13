@@ -25,15 +25,61 @@
     B = EH.run({ stage: 'none', hooks: [] }, seed, { slip });
     W = EH.run(cfg, seed, { slip });
     B.cs = collapse(B.steps); W.cs = collapse(W.steps);
-    const L = Math.max(B.cs.length, W.cs.length);
-    steps = [{ t: 'reset()', c: cap(0) }];
-    for (let k = 1; k <= L; k++) steps.push({ t: stepTitle(k), c: cap(k) });
+    steps = stretches();
     const names = W.layers.slice().reverse().map(l => l.name);
     $('ewStack').innerHTML = 'Wrapped stack, outermost first: ' + names.join(' &gt; ') + '. ' + (cfg.order === 'swapped' && cfg.stage !== 'none' && cfg.hooks.length ? '<b>Swapped order:</b> the Stage sits outside the Contract, so its replay goes through the Contract.' : '');
   }
-  function stepTitle(k) {
-    const a = B.cs[k - 1], b = W.cs[k - 1];
-    return 'static: ' + (a ? esc(a.a) + (a.n > 1 ? ' (×' + a.n + ')' : '') : 'episode over') + ' · wrapped: ' + (b ? esc(b.a) + (b.n > 1 ? ' (×' + b.n + ')' : '') : 'episode over');
+  // ---- the long-replay rule (2026-11-06): the episode is replayed in at most 8 explained stretches, not one step per frame ----
+  // A stretch ends at an event of either world (a layer acting, a find, pick-up, clean, heat or put, a handoff, an episode's end);
+  // the shortest neighbouring stretches merge until there are at most 7 after the reset. Each gets a list item written from the traces.
+  const ITEM = t => /drawer/.test(t) ? t : t.replace(/ 1$/, '');
+  function evOf(x, wrapped) {
+    const o = x.obs, ev = [];
+    if (wrapped) { const h = layersHit(x.log); if (/^\[blocked\]/.test(o)) ev.push([5, 'blocked by the Contract ("' + esc(x.a) + '")']); else if (h.rules) ev.push([4, 'the Contract rewrites the answer to "' + esc(x.a) + '"']); if (h.link) ev.push([6, 'task A passes and the Chain hands off to B']) }
+    let m;
+    if ((m = o.match(/In it, you see a (mug|potato) 1/))) ev.push([2, 'finds the ' + m[1] + ' in ' + esc(ITEM(x.a.replace(/^open /, '')))]);
+    if ((m = o.match(/You pick up the (\w+) 1/))) ev.push([2, 'picks up the ' + m[1]]);
+    if ((m = o.match(/You clean the (\w+) 1/))) ev.push([3, 'cleans the ' + m[1]]);
+    if ((m = o.match(/You heat the (\w+) 1/))) ev.push([3, 'heats the ' + m[1]]);
+    if ((m = o.match(/You put the (\w+) 1 in\/on the ([\w ]+?) 1/))) ev.push([3, 'puts the ' + m[1] + ' on the ' + m[2]]);
+    return ev;
+  }
+  function stretches() {
+    const L = Math.max(B.cs.length, W.cs.length), E = new Set([L]);
+    [[B, 0], [W, 1]].forEach(([R, wr]) => { R.cs.forEach((x, i) => { if (evOf(x, wr).length || (x.a === 'look' && x.n > 1)) E.add(i + 1) }); if (R.cs.length) E.add(R.cs.length) });
+    let seg = [], a = 1; [...E].sort((p, q) => p - q).forEach(e => { if (e >= a) { seg.push([a, e]); a = e + 1 } });
+    while (seg.length > 7) { let j = 0, best = 1e9; for (let i = 0; i + 1 < seg.length; i++) { const n = seg[i + 1][1] - seg[i][0]; if (n < best) { best = n; j = i } } seg.splice(j, 2, [seg[j][0], seg[j + 1][1]]) }
+    const out = [{ a: 0, b: 0, t: 'reset(): the start state', c: resetText() }];
+    seg.forEach(([p, q]) => out.push({ a: p, b: q, t: stTitle(p, q), c: '<b>Static:</b> ' + summary(B, p, q, 0) + ' <b>Wrapped:</b> ' + summary(W, p, q, 1) }));
+    return out;
+  }
+  function resetText() {
+    const r = W.reset, rp = r.replay, h = layersHit(r.log), bits = [];
+    if (rp) { const nb = rp.filter(x => /^\[blocked\]/.test(x.obs)).length, nn = rp.filter(x => /^Nothing happens/.test(x.obs)).length;
+      bits.push('the Stage replays ' + rp.length + ' actions through the inner <code>step()</code>' + (nb || nn ? ', but ' + nb + ' are blocked by the Contract beneath it and ' + nn + ' do nothing, so the mug stays where it was' : ', so the mug starts ' + (r.st.mug === 'hand' ? 'in hand' : 'in ' + ITEM(r.st.mug)) + (r.st.mugClean ? ', already clean' : ''))) }
+    if (h.rules) bits.push('the Contract cuts the first observation to two sentences');
+    if (h.link) bits.push('the Chain resets task A only');
+    return 'Both worlds start from the same house: the mug on the countertop, the policy in the middle of the room. ' + (bits.length ? 'In the wrapped one ' + bits.join('; ') + '.' : 'No layer changes the start of the wrapped one.');
+  }
+  function stTitle(p, q) {
+    const R = W.cs.length >= p ? W : B, s0 = used(R, p - 1) + 1, s1 = used(R, Math.min(q, R.cs.length));
+    let top = null; W.cs.slice(p - 1, q).forEach(x => evOf(x, 1).forEach(v => { if (!top || v[0] > top[0]) top = v }));
+    const endW = W.cs.length >= p && W.cs.length <= q, endB = B.cs.length >= p && B.cs.length <= q;
+    const head = top && top[0] >= 4 ? 'wrapped: ' + top[1].replace(/ \(".*"\)$/, '') : endB && !endW ? 'the static episode ends' : endW ? 'the wrapped episode ends' : top ? 'wrapped: ' + top[1] : 'both walk';
+    return (s0 === s1 ? 'Step ' + s0 : 'Steps ' + s0 + ' to ' + s1) + (R === B ? ' (static)' : '') + ': ' + head;
+  }
+  function summary(R, p, q, wr) {
+    if (R.cs.length < p) return 'already over.';
+    const xs = R.cs.slice(p - 1, Math.min(q, R.cs.length)), out = [];
+    let mv = 0, nh = 0;
+    const flush = () => { if (mv) out.push('walks (' + mv + ' move' + (mv > 1 ? 's' : '') + ')'); if (nh) out.push(nh + ' action' + (nh > 1 ? 's do' : ' does') + ' nothing'); mv = 0; nh = 0 };
+    xs.forEach(x => { const ev = evOf(x, wr);
+      if (ev.length) { flush(); ev.forEach(v => out.push(v[1])) }
+      else if (x.a === 'look' && x.n > 1) { flush(); out.push('gives up and idles (' + x.n + ' steps)') }
+      else if (/^(go to|move)/.test(x.a)) mv += x.n; else if (/^Nothing happens/.test(x.obs)) nh += x.n; else if (/^open /.test(x.a)) { flush(); out.push('opens ' + esc(ITEM(x.a.slice(5))) + ', empty') } else mv += 0 });
+    flush();
+    if (R.cs.length <= q) out.push('episode over after ' + used(R, R.cs.length) + ' steps: ' + verdictText(R));
+    return (out.join(', ') || 'nothing new') + '.';
   }
   function obsHTML(hd, act, obs, extra) {
     let o = esc(obs || '');
@@ -100,23 +146,28 @@
     }
     return { s, h: y + 18 - y0 };
   }
+  const frameOf = (k, e) => { const S = steps[k]; if (e >= 1 || S.a === S.b) return [S.b, S.a === S.b ? e : 1]; const n = S.b - S.a + 1, u = e * n, i = Math.floor(u); return [S.a + i, u - i] };
+  let lastCap = -1;
   function draw(m, k, e, w) {
+    const [f, fe] = frameOf(k, e);
+    if (f !== lastCap) { lastCap = f; $('ewCap').innerHTML = cap(f) }
     const side = w >= 640, pw = side ? (w - 18) / 2 : w - 2;
-    const p1 = panel(B, k, e, 1, 2, pw, false), p2 = panel(W, k, e, side ? pw + 17 : 1, side ? 2 : p1.h + 14, pw, true);
+    const p1 = panel(B, f, fe, 1, 2, pw, false), p2 = panel(W, f, fe, side ? pw + 17 : 1, side ? 2 : p1.h + 14, pw, true);
     const H = side ? Math.max(p1.h, p2.h) + 6 : p1.h + p2.h + 22;
     return svgW(w, H, p1.s + p2.s, 'Static and wrapped episodes side by side');
   }
-  function counters(m, k) {
-    const cb = count(B.cs.slice(0, k)), cw = count(W.cs.slice(0, k));
-    return stat('Steps (static, wrapped)', used(B, Math.min(k, B.cs.length)) + ', ' + used(W, Math.min(k, W.cs.length)), 'actions the policy has taken') +
+  function counters(m, k, e) {
+    const f = frameOf(k, e)[0], cb = count(B.cs.slice(0, f)), cw = count(W.cs.slice(0, f));
+    return stat('Steps (static, wrapped)', used(B, Math.min(f, B.cs.length)) + ', ' + used(W, Math.min(f, W.cs.length)), 'actions the policy has taken') +
       stat('Blocked by the Contract', String(cw.b), 'wrapped only; the world is untouched') +
       stat('"Nothing happens" (static, wrapped)', cb.n + ', ' + cw.n, 'actions that did nothing') +
-      stat('Verdicts', (k > B.cs.length - 1 ? (B.verdict.success ? 'pass' : 'fail') : '…') + ', ' + (k > W.cs.length - 1 ? (W.verdict.success ? 'pass' : 'fail') : '…'), 'original verifiers, at the end');
+      stat('Verdicts', (f > B.cs.length - 1 ? (B.verdict.success ? 'pass' : 'fail') : '…') + ', ' + (f > W.cs.length - 1 ? (W.verdict.success ? 'pass' : 'fail') : '…'), 'original verifiers, at the end');
   }
+  function list() { $('sx-ew').innerHTML = steps.map(S => '<li><b>' + S.t + '.</b> ' + S.c + '</li>').join('') }
   function rebuild() {
-    compute();
-    if (!anim) { const o = { id: 'ew', modes: { x: steps }, mode: 'x', draw, counters, dur: 1400 }; anim = makeAnim(o); anim.o = o }
-    else { anim.o.modes.x = steps; anim.st.k = 0; anim.st.t = 1; anim.st.play = false; anim.st.lk = -1; anim.draw() }
+    compute(); list(); lastCap = -1;
+    if (!anim) { const o = { id: 'ew', modes: { x: steps }, mode: 'x', lists: { x: 'sx-ew' }, draw, counters, dur: 5600, move: .72 }; anim = makeAnim(o); anim.o = o }
+    else { anim.o.modes.x = steps; anim.reset() }
   }
   // controls
   segBind('ewStage', m => { cfg.stage = m; press('ewStage', m); rebuild() });
@@ -171,5 +222,6 @@
     $('vrLog').innerHTML = log.map(x => '<li>' + x + '</li>').join('');
   });
 
-  onTab('t-run', () => { if (!anim) rebuild(); else anim.draw() });
+  rebuild();
+  onTab('t-run', () => anim && anim.draw());
 })();

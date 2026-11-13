@@ -11,58 +11,7 @@
     return '<tr><td>' + k + '</td><td class="num">' + r[0] + ' <span class="mute small">(' + (i ? a.eh : a.orig) + '/140)</span></td><td class="num">' + r[1] + ' <span class="mute small">(' + (i ? b.eh : b.orig) + '/134)</span></td><td class="num">' + r[2] + '</td><td class="num">' + r[3] + '</td><td class="num">' + r[4] + '</td></tr>';
   }).join('');
 
-  // ---- the stack diagram: one step() through Chain > Contract > Stage > base env ----
-  function stack(w) {
-    const narrow = w < 560, H = narrow ? 412 : 310, lx = narrow ? 10 : 150, bw = w - lx - 10;
-    let s = '';
-    const rows = [
-      ['Policy π (black box)', 'calls reset() and step(a) on the outermost layer only', 'var(--soft)'],
-      ['Chain (Link)', 'runs E until it ends, then E_ext; one budget; R′ = R_A ∧ R_B', 'var(--acc2)'],
-      ['Contract (Rules)', 'f_A on the way down (rewrite or block a); f_T and f_O on the way up', 'var(--acc2)'],
-      ['Stage (Setup)', 'reset(): base reset, then replay δ through inner.step()', 'var(--acc2)'],
-      ['Base environment (frozen)', 'its own transitions T, tasks and verifier R, untouched', 'var(--open2)']];
-    const rh = narrow ? 58 : 44, gap = narrow ? 16 : 16;
-    rows.forEach((r, i) => {
-      const y = 8 + i * (rh + gap);
-      s += rc(lx, y, bw, rh, r[2], { s: 'var(--line)' });
-      s += tx(lx + 10, y + 19, r[0], { fs: 13, w: 600 });
-      if (narrow) { const words = r[1].split(' '); let l1 = '', l2 = ''; words.forEach(x => { if ((l1 + ' ' + x).length * 6.3 < bw - 20 && !l2) l1 += (l1 ? ' ' : '') + x; else l2 += (l2 ? ' ' : '') + x }); s += tx(lx + 10, y + 36, l1, { fs: 11.5, c: 'var(--mute)' }) + tx(lx + 10, y + 50, l2, { fs: 11.5, c: 'var(--mute)' }) }
-      else s += tx(lx + 10, y + 36, r[1], { fs: 12, c: 'var(--mute)' });
-      if (i < rows.length - 1) {
-        const ay = y + rh, ax1 = lx + bw * 0.86, ax2 = lx + bw * 0.94;
-        s += '<line x1="' + ax1 + '" y1="' + ay + '" x2="' + ax1 + '" y2="' + (ay + gap) + '" stroke="var(--c1)" stroke-width="1.6" marker-end="MARK"/>';
-        s += '<line x1="' + ax2 + '" y1="' + (ay + gap) + '" x2="' + ax2 + '" y2="' + ay + '" stroke="var(--c3)" stroke-width="1.6" marker-end="MARK"/>';
-      }
-    });
-    if (!narrow) {
-      s += tx(10, 30, 'step(a) goes down', { fs: 12, c: 'var(--c1)' }) + tx(10, 46, 'through each layer,', { fs: 12, c: 'var(--c1)' });
-      s += tx(10, 96, 'the response and', { fs: 12, c: 'var(--c3)' }) + tx(10, 112, 'observation come', { fs: 12, c: 'var(--c3)' }) + tx(10, 128, 'back up', { fs: 12, c: 'var(--c3)' });
-      s += tx(10, 200, 'evaluate() passes', { fs: 12 }) + tx(10, 216, 'straight through to', { fs: 12 }) + tx(10, 232, 'the base verifier', { fs: 12 });
-    } else s += tx(10, H - 20, 'Blue: step(a) going down.', { fs: 11, c: 'var(--c1)' }) + tx(10, H - 5, 'Green: response and observation coming back up.', { fs: 11, c: 'var(--c3)' });
-    $('stkSvg').innerHTML = svgEl(w, H, s, 'The EnvHarness stack');
-  }
-
-  // ---- the EnvRigger loop ----
-  function rig(w) {
-    const narrow = w < 560;
-    const names = [['Observe', 'K = 5 rollouts of π', 'on the base task'], ['Diagnose', 'root causes, and a', 'direction: easier or harder'], ['Write', 'Stage and/or Contract', 'as code (a candidate)'], ['Validate', 'K = 5 fresh rollouts', 'accept, refine or reject']];
-    let s = '', H;
-    if (!narrow) {
-      const bw = (w - 20 - 3 * 34) / 4, y = 30, bh = 64; H = 160;
-      names.forEach((n, i) => { const x = 10 + i * (bw + 34); s += bx(x, y, bw, bh, '', [n[0], n[1], n[2]], 12).replace('class=""', 'fill="var(--acc2)" stroke="var(--line)"'); if (i < 3) s += ar(x + bw + 3, y + bh / 2, x + bw + 31, y + bh / 2) });
-      const xv = 10 + 3 * (bw + 34), xw = 10 + 2 * (bw + 34);
-      s += '<path d="M' + (xv + bw / 2) + ',' + (y + bh) + ' C' + (xv + bw / 2) + ',' + (y + bh + 40) + ' ' + (xw + bw / 2) + ',' + (y + bh + 40) + ' ' + (xw + bw / 2) + ',' + (y + bh + 4) + '" fill="none" stroke="var(--c2)" stroke-width="1.5" marker-end="MARK"/>';
-      s += tx((xv + xw + bw) / 2, y + bh + 50, 'refine: back to Write with the new rollouts (at most 5 rounds)', { fs: 12, a: 'middle', c: 'var(--c2)' });
-      s += tx(xv + bw / 2, y - 10, 'accept: add to the EnvHarness', { fs: 12, a: 'middle', c: 'var(--good)' });
-    } else {
-      const bw = w - 60, bh = 50; H = 4 * (bh + 22) + 40;
-      names.forEach((n, i) => { const y = 8 + i * (bh + 22); s += bx(10, y, bw, bh, '', [n[0], n[1] + '; ' + n[2]], 11.5).replace('class=""', 'fill="var(--acc2)" stroke="var(--line)"'); if (i < 3) s += ar(10 + bw / 2, y + bh + 2, 10 + bw / 2, y + bh + 20) });
-      const yv = 8 + 3 * (bh + 22), yw = 8 + 2 * (bh + 22);
-      s += '<path d="M' + (10 + bw) + ',' + (yv + bh / 2) + ' C' + (w - 6) + ',' + (yv + bh / 2) + ' ' + (w - 6) + ',' + (yw + bh / 2) + ' ' + (10 + bw + 2) + ',' + (yw + bh / 2) + '" fill="none" stroke="var(--c2)" stroke-width="1.5" marker-end="MARK"/>';
-      s += tx(10, H - 8, 'Orange: refine loops back to Write, at most 5 rounds.', { fs: 11, c: 'var(--c2)' });
-    }
-    $('rigSvg').innerHTML = svgEl(w, H, s, 'The EnvRigger loop');
-  }
+  // (the stack diagram and the EnvRigger loop became 3D stages on 2026-11-13: 31_js_sc_stack.js and 32_js_sc_rig.js)
 
   // ---- every Table 2 and 3 gain against its noise (revealed by the first predict question) ----
   function noise(w) {
@@ -162,5 +111,5 @@
   PRED_REVEAL.pq3 = () => fit($('bandSvg'), band);
 
   PRED_REVEAL.pq2 = () => fit($('f5Svg'), f5);
-  onTab('t-read', () => { fit($('stkSvg'), stack); fit($('rigSvg'), rig); fit($('xmSvg'), xm) });
+  onTab('t-read', () => { fit($('xmSvg'), xm) });
 })();

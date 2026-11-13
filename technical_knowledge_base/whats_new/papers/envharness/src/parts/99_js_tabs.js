@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page skill template, 2026-10-25; storage key envharness-tab; links may carry data-to, the element to scroll to)
+// ---- Tabs ---- (the explainer-page template, recopied 2026-11-13; storage key envharness-tab; links may carry data-to, the element to scroll to)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
