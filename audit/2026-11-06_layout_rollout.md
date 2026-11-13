@@ -271,8 +271,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
 - [x] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
 - [x] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
-- [ ] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
-- [ ] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
+- [~] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
+- [~] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 - [ ] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
 - [ ] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
 - [ ] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
