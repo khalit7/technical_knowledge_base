@@ -23,7 +23,7 @@
       R.label([-2.8,1.0,-2.2],'fn biggest<T: PartialOrd + Copy>',{mono:true,fs:13,b:1,dy:-8,c:G,a:LA(A)});
       const ca=k===0?0:k===1?e:1;
       SYMS.forEach((s,i)=>{const a=A*cl(ca*SYMS.length-i,0,1);R.box([cx(i),0,0],[1.0,.5,.6],{fill:mix(P.paper,G,i===SYMS.length-1&&k===2?.6:.3),a});
-        R.label([cx(i),.5,0],s,{mono:true,fs:12,dy:i%2?-24:-9,a:LA(a)});
+        R.label([cx(i),.5,0],R.W<520?s.replace('biggest::',''):s,{mono:true,fs:12,dy:i%2?-24:-9,a:LA(a)});   // on a phone the type alone, so the four names fit
         if(k===1)R.flowArc([cx(i),1.0,-2.2],[cx(i),.5,0],.35,{c:G,a:a*.9,r:.06,n:5})});
       if(k>=2){const a=A*(k===2?e:1),cs=[XD,0,2.0];R.box(cs,[1.6,.3,.6],{fill:P.paper,a});R.label([XD,0,2.0],'biggest(&[1u8, 7, 3])',{mono:true,fs:12.5,b:1,dy:18,a:LA(a)});
         R.flowArc([XD,.3,2.0],[cx(SYMS.length-1),.5,0],.4,{c:G,a:a*(k===2?1:.4),r:.07,n:6});
@@ -32,9 +32,10 @@
     if(right>0){const A=right,hot=k===6;
       // two references, to scale
       cubes(R,XR,RS,ZR1,mix(P.paper,G,.4),A*(k===3||hot?1:.4));
-      R.label([XR,0,ZR1],'&Whitespace · '+RS+' B',{al:'right',dx:-8,dy:-4,fs:12.5,b:1,a:LA(A)*(k===3||hot?1:.4)});
+      const ph=R.W<520;   // on a phone the reference names go under their cubes: there is no room to their left
+      R.label([XR,0,ZR1],'&Whitespace · '+RS+' B',{al:ph?'left':'right',dx:ph?0:-8,dy:ph?14:-4,fs:12.5,b:1,a:LA(A)*(k===3||hot?1:.4)});
       cubes(R,XR,RD_,ZR2,i=>mix(P.paper,i<RD_/2?G:DY,.5),A);
-      R.label([XR,0,ZR2],'&dyn Tokenizer · '+RD_+' B',{al:'right',dx:-8,dy:-4,fs:12.5,b:1,a:LA(A)});
+      R.label([XR,0,ZR2],'&dyn Tokenizer · '+RD_+' B',{al:ph?'left':'right',dx:ph?0:-8,dy:ph?14:-4,fs:12.5,b:1,a:LA(A)});
       if(k===3||k===4){R.label([XR+B*RD_/4,.3,ZR2],'data',{fs:12,dy:-9,c:G,b:1,a:A});R.label([XR+B*RD_*3/4,.3,ZR2],'vtable',{fs:12,dy:-9,c:DY,b:1,a:A})}
       // the value
       R.box([1.6,0,ZV],[1.8,.45,.6],{fill:mix(P.paper,V,.3),a:A});R.label([1.6,.45,ZV],'Chars { per_token: 3 }',{mono:true,fs:12,dy:-9,a:LA(A)});

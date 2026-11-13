@@ -24,7 +24,7 @@
       STR.forEach((s,i)=>{const z=ZI(i),w=.9+s.t.length*.12;
         R.line([[XL+.28,.3,z],[XS-w/2,.3,z]],{c:P.mute,w:1.2,a:sfa});
         R.box([XS,.04,z],[w,.4,.55],{fill:P.paper,a:sfa,ec:k===1||k===2?PY:null});
-        R.label([XS,.44,z],'str "'+s.t+'"',{mono:true,fs:12,dy:-14,a:sfa,b:1});
+        R.label([XS,.44,z],'str "'+s.t+'"',{mono:true,fs:12,dy:R.W<520?-14:1,a:sfa,b:1});   // wide screens: on the box's top face, clear of its edges
         // café gets its UTF-8 copy cached inside the object when Rust first asks for it
         if(!s.ascii&&k>=1){const ca=k===1?cl(e*2,0,1):1;R.box([XS+w/2+.2,.04,z],[.35,.3,.45],{fill:mix(P.paper,P.c2,.55),a:sfa*ca});
           R.label([XS+w/2+.4,.34,z],'+ UTF-8 cache',{mono:true,fs:12,al:'left',dx:6,dy:-8,c:P.c2,a:sfa*ca,wide:1})}

@@ -20,7 +20,7 @@
       // the fresh environment
       R.glass([XV-PW/2,Y,-1],[PW,0,0],[0,0,2],{c:P.acc,a:flowsA,nu:5,nv:4});R.label([XV,Y,-1],'fresh .venv',{mono:true,fs:12.5,b:1,dy:-12,c:P.acc,a:flowsA});
       const vf=k<=2?cl(e*1.3-.2,0,1):1;pk.forEach((n,i)=>{R.box([XV,Y,slot(0,i)[2]],[1.5,.22,.42],{fill:mix(P.paper,P.acc,.3),a:vf*flowsA,shadow:false});R.label([XV,.24,slot(0,i)[2]],n,{mono:true,fs:12,a:vf*flowsA,wide:1})});
-      if(k<=2){const r=R0[k];R.label([XV,Y,1],r.name+': '+r.median_s.toFixed(2)+' s',{mono:true,fs:13,b:1,dy:18,c:P.ink,a:vf})}
+      if(k<=2){const r=R0[k];R.label([XV,Y,1],r.name+': '+r.median_s.toFixed(2)+' s',{mono:true,fs:13,b:1,dy:R.W<520?30:18,c:P.ink,a:vf})}
       // what moves: download (PyPI to cache or straight in), then the files into the environment
       const top=[XI+.7,.75,0];
       if(k===0)R.flowArc(top,[XV-PW/2+.2,.15,0],1.1,{c:P.c4,a:flowsA,r:.07,n:16,speed:1.4});
@@ -36,5 +36,6 @@
   const full={cam:[.12,.55],bounds:[[-4.6,0,-1.2],[4.6,1.4,1.4]]};
   S3.stage({id:'stg-inst',list:'sx-inst',fig:'Fig. 3 · where an install spends its time',cam:full.cam,bounds:full.bounds,aspect:.55,dur:1400,hold:4800,draw,
     margin:w=>w<520?[16,8,16,8]:[24,16,18,16],
-    view:k=>k===3?{cam:[.25,.38],bounds:[[-4,0,-1],[4,2.4,1]]}:full});
+    // on a phone the row runs diagonally so it fills more of the tall card
+    view:k=>k===3?(innerWidth<560?{cam:[.55,.38],bounds:[[-4,0,-1],[4,2.4,1]]}:{cam:[.25,.38],bounds:[[-4,0,-1],[4,2.4,1]]}):innerWidth<560?{cam:[.45,.62],bounds:full.bounds}:full});
 })();

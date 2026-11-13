@@ -97,7 +97,8 @@
     if (last) { down(R, 7, 1); up(R, 7, 1) }
   }
   const full = { cam: [.32, .3], bounds: [[-2.1, 0, -1], [4.2, Y0 + 1.1, 1]] };
-  const close = k => ({ cam: [.3, .36], bounds: [[-2.1, y(k) - .9, -1], [4.2, y(k) + .95, 1]] });
+  // on the tall cards (split layout, phone) the close-ups of the lowest plates aim above the plate, so the canvas is not left empty below the stack
+  const close = k => { const tall = innerWidth >= 1100 || innerWidth < 560, c = y(k) + (k >= 5 && tall ? 2.2 : 0); return { cam: [.3, .36], bounds: [[-2.1, c - .9, -1], [4.2, c + .95, 1]] } };
   S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one request, eight protocols, eight pages', cam: full.cam, bounds: full.bounds, aspect: .7, dur: 1500, hold: 5200, draw,
     margin: w => w < 520 ? [26, 10, 18, 10] : [30, 16, 22, 200],
     view: k => k < N ? (k === 0 ? { cam: [.3, .34], bounds: [[-2.1, y(1) - .5, -1], [4.2, Y0 + 1.1, 1]] } : close(k)) : full });

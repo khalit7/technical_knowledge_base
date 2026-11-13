@@ -1755,27 +1755,30 @@ window.RS=(function(){
   // what each step is about: everything else recedes
   const FOCUS=[null,['R','f','c','d','w1','w2','w3','w4','G'],['R','a','w1','D'],['R','c','w2','D'],['i','j','w1','w4','q1','q4'],['d','e','w3','q3'],['d','e','w3','B']];
   const inF=(k,id)=>!FOCUS[k]||FOCUS[k].includes(id);
+  // the parts the close-up views (left: steps 3-4, right: steps 6-7) leave at the canvas edge: nearly hidden, so they do not crop
+  const OUTL=['w3','w4','q3','q4','B','d','e','f'],OUTR=['w1','w2','q1','q2','D','R','a','b','h','p','q'],OUT=[null,null,OUTL,OUTL,null,OUTR,OUTR];
+  const ov=(k,e,id)=>{const o=j=>j>=0&&OUT[j]&&OUT[j].includes(id)?.06:1;return k===0?o(0):lerp(o(k-1),o(k),e)};
   function pos(s){if(!s)return null;const [a,b]=s.split(':'),n=+b;
     switch(a[0]){case 'L':{const w=+a[1]-1;return [WX[w]-.72+n*.29,.02,QZ]}
       case 'W':return [WX[+a[1]-1],.5,WZ];case 'G':return [-.75+n*.34,.035,GZ];case 'D':return [DX-.45+n*.42,.02,-1.72];case 'B':return [BX[n],.45,BZ]}}
-  function draw(R,k,e){const P=R.P,fx=id=>k===0?1:lerp(inF(k-1,id)?1:.28,inF(k,id)?1:.28,e);
+  function draw(R,k,e){const P=R.P,fx=id=>(k===0?1:lerp(inF(k-1,id)?1:.28,inF(k,id)?1:.28,e))*ov(k,e,id),fl=(id,a)=>Math.max(.45*ov(k,e,id),a);
     const fa=fx;R.grid(-5.5,5.5,-3.3,2.6,.5);
     // the four workers and their local queues
     WX.forEach((x,w)=>{const id='w'+(w+1),a=fx(id),hot=w===2&&k===5;
       R.box([x,0,WZ],[1.5,.5,.9],{fill:hot?mix(P.paper,P.bad,.3*e+.05):mix(P.paper,P.c1,.12),a});
-      R.label([x,0,WZ+.45],'worker '+(w+1),{fs:12.5,b:1,dy:12,c:hot?P.bad:P.ink,a:Math.max(.45,a)});
+      R.label([x,0,WZ+.45],'worker '+(w+1),{fs:12.5,b:1,dy:12,c:hot?P.bad:P.ink,a:fl(id,a)});
       R.glass([x-.9,.01,QZ-.3],[1.8,0,0],[0,0,.6],{c:P.c1,nu:6,nv:1,th:.03,a:fx('q'+(w+1))*.9,dz:200})});
-    R.label([WX[0]-.95,0,QZ],'local queues',{al:'right',fs:12,c:P.mute,dx:-4,wide:1});
+    R.label([WX[0]-.95,0,QZ],'local queues',{al:'right',fs:12,c:P.mute,dx:-4,wide:1,a:ov(k,e,'q1')});
     if(k===5)R.label([WX[2],.5,WZ],'no .await: worker held',{fs:12,b:1,c:P.bad,dy:-34,a:e});
     // the global queue
     R.glass([-1.05,.01,GZ-.33],[2.1,0,0],[0,0,.66],{c:P.c5,nu:6,nv:1,th:.03,a:fx('G'),dz:200});R.label([0,0,GZ+.33],'global queue',{fs:12,b:1,c:P.c5,dy:11,a:Math.max(.45,fx('G'))});
     // the I/O driver and timers: an upright glass plate with a tray of parked tasks in front
     {const a=fx('D');R.glass([DX-.95,0,-2.55],[1.9,0,0],[0,1.05,0],{c:P.c6,nu:6,nv:4,a});
-      R.label([DX,1.05,-2.55],'I/O driver + timers',{fs:12.5,b:1,c:P.c6,dy:-10,a:Math.max(.5,a)});R.label([DX,1.05,-2.55],'epoll / kqueue via mio',{fs:12,c:P.mute,dy:-26,a:Math.max(.5,a),wide:1});
+      R.label([DX,1.05,-2.55],'I/O driver + timers',{fs:12.5,b:1,c:P.c6,dy:-10,a:fl('D',a)});R.label([DX,1.05,-2.55],'epoll / kqueue via mio',{fs:12,c:P.mute,dy:-26,a:fl('D',a),wide:1});
       R.quad([[DX-.75,.004,-2.0],[DX+.75,.004,-2.0],[DX+.75,.004,-1.45],[DX-.75,.004,-1.45]],{fill:mix(P.paper,P.c6,.12),ec:P.c6,ea:.5,a,dz:200});
-      R.label([DX,0,-1.45],'parked at .await',{fs:12,c:P.c6,dy:11,a:Math.max(.45,a),wide:1})}
+      R.label([DX,0,-1.45],'parked at .await',{fs:12,c:P.c6,dy:11,a:fl('D',a),wide:1})}
     // the blocking pool
-    {const a=fx('B');BX.forEach(x=>R.box([x,0,BZ],[.5,.45,.5],{fill:mix(P.paper,P.c4,.18),a}));R.label([BX[1],.45,BZ],'blocking pool',{fs:12.5,b:1,c:P.c4,dy:-24,a:Math.max(.5,a)})}
+    {const a=fx('B');BX.forEach(x=>R.box([x,0,BZ],[.5,.45,.5],{fill:mix(P.paper,P.c4,.18),a}));R.label([BX[1],.45,BZ],'blocking pool',{fs:12.5,b:1,c:P.c4,dy:-24,a:fl('B',a)})}
     // the tasks: each glides from where it was at the end of the last step, data flowing along the move
     Object.entries(T).forEach(([id,L])=>{const s0=k>0?L[k-1]:L[0],s1=L[k],p0=pos(s0),p1=pos(s1);if(!p0&&!p1)return;
       const gone=!p1,born=!p0,pa=p0||p1,pb=p1||p0,moved=!gone&&!born&&Math.hypot(pa[0]-pb[0],pa[2]-pb[2],pa[1]-pb[1])>.05;

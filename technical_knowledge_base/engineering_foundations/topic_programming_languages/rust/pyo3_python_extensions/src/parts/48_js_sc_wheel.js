@@ -34,5 +34,7 @@
   const full={cam:[.05,.62],bounds:[[-6.5,0,-1.5],[6.5,1.1,2.6]]};
   S3.stage({id:'stg-wheel',list:'sx-wheel',fig:'Fig. 4 · one wheel, which interpreters',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4600,draw,
     margin:w=>w<520?[16,10,16,10]:[18,16,18,16],
-    view:k=>k===0?{cam:[.1,.6],bounds:[[-4.2,0,-1.5],[2.2,1.1,2.6]]}:k===1||k===2?{cam:[.08,.62],bounds:[[-6.5,0,-1.5],[2.4,1.1,2.6]]}:k===3?{cam:[0,.62],bounds:[[1.8,0,-1.5],[6.5,1.1,2.6]]}:full});
+    // on a phone the camera turns, so the wide, shallow row runs diagonally and fills the tall card instead of leaving bare floor
+    view:k=>{const v=k===0?{cam:[.1,.6],bounds:[[-4.2,0,-1.5],[2.2,1.1,2.6]]}:k===1||k===2?{cam:[.08,.62],bounds:[[-6.5,0,-1.5],[2.4,1.1,2.6]]}:k===3?{cam:[0,.62],bounds:[[1.8,0,-1.5],[6.5,1.1,2.6]]}:full;
+      return innerWidth<560?{cam:[v.cam[0]+.55,.8],bounds:v.bounds}:v}});
 })();

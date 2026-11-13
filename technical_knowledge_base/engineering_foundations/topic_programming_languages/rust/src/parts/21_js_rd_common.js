@@ -70,5 +70,8 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
 // section nav highlight
 (function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
   const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
-  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
-  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id||en.target.dataset.sec];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(!s)return;io.observe(s);
+    // on a phone a split's visual comes before its section: reading past the visual counts as being in that section
+    const L=s.parentElement,R=L&&L.classList.contains('s3L')&&L.previousElementSibling;
+    if(R&&R.classList.contains('s3R'))[...R.children].forEach(c=>{c.dataset.sec=id;io.observe(c)})});})();

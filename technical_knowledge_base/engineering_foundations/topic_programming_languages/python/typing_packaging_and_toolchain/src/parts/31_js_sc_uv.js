@@ -61,6 +61,7 @@
   const st=S3.stage({id:'stg-uv',list:'sx-uv',fig:'Fig. 2 · three files that must agree, a real uv session',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1400,hold:5000,draw,
     margin:w=>w<520?[16,8,16,8]:[24,16,18,16],
     // the uv run and system-python steps are about the environment: in close on it
-    view:k=>k===1||k===2?{cam:[.25,.6],bounds:[[1.6,0,-1.4],[5,1.2,2.8]]}:full,
+    // on a phone the three plates run diagonally so the wide row fills more of the tall card
+    view:k=>k===1||k===2?{cam:[.25,.6],bounds:[[1.6,0,-1.4],[5,1.2,2.8]]}:innerWidth<560?{cam:[.7,.8],bounds:full.bounds}:full,
     onStep:k=>{const t=document.getElementById('pb-sync-term');if(t)t.innerHTML=PBU.block(S[k].b)}});
 })();

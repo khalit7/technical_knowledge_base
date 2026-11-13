@@ -58,7 +58,7 @@
     const PL=[['1  data descriptor on type(o)',P=>P.c1],['2  o.__dict__',P=>P.c3],['3  class attribute or method',P=>P.c4],['4  __getattr__',P=>P.c5],['5  AttributeError',P=>P.bad]];
     // the two classes of the runs: columns are the names looked up, blocks are where each name lives
     const K={cols:{d:-1.5,nd:-.5,plain:.5,missing:1.5},blocks:[[0,'d'],[1,'d'],[1,'nd'],[2,'nd'],[2,'plain']],bar:'K.__getattr__'};
-    const S={cols:{temperature:-1.7,max_tokens:-.85,budget:0,describe:.85,'_temperature, _max_tokens':1.7},blocks:[[0,'temperature'],[0,'max_tokens'],[0,'budget'],[1,'_temperature, _max_tokens'],[2,'describe']]};
+    const S={cols:{temperature:-1.25,max_tokens:-.4,budget:.45,describe:.85,'_temperature, _max_tokens':1.7},blocks:[[0,'temperature'],[0,'max_tokens'],[0,'budget'],[1,'_temperature, _max_tokens'],[2,'describe']]};
     // per step: the class shown, the climbs (column, plate it stops at, colour key, the labels at the stop)
     const ST=[
       {cls:K,go:[]},
@@ -85,8 +85,9 @@
       s.go.forEach(([nm,stop,ck,log,out],j)=>{const x=s.cls.cols[nm],yh=yP(stop)+.12,ee=k===5?cl((e-.4)/.6,0,1):cl(e*1.2-j*.2,0,1),c=P[ck];
         const y=climb(R,x,.35,yh,ee,c,1);
         if(ee>.85){R.glow([x,yh,.35],.38,{c,a:.7,top:1});
-          const lp=[PW/2,yh,.35];if(log)L(R,lp,log,{al:'left',dx:10,dy:-8+j*34,mono:true,fs:12,c:P.mute,wide:log.length>30?1:0});
-          L(R,lp,out,{al:'left',dx:10,dy:9+j*34,mono:true,fs:12.5,b:1,c,wide:out.length>30?1:0});
+          const lp=[PW/2,yh,.35],low=k===6;if(log)L(R,lp,log,{al:'left',dx:10,dy:low?-8+j*22:-8+j*34,mono:true,fs:12,c:P.mute,wide:log.length>30?1:0});
+          // the last step's two errors are long: centred under the plates instead of clamped against the right edge
+          L(R,low?[0,0,PD/2]:lp,out,{al:low?'center':'left',dx:low?0:10,dy:low?22+j*19:9+j*34,mono:true,fs:12.5,b:1,c,wide:out.length>30?1:0});
           R.line([[x,yh,.35],[PW/2,yh,.35]],{c,w:1.2,a:.5,dash:[3,4]})}});
       if(k===0&&e>.8)L(R,[0,yP(4)+.25,0],'a lookup climbs from plate 1 until one answers',{mono:true,fs:12,dy:-8,c:P.mute,wide:1});
       if(k===5&&aNew>.5)L(R,[0,yP(4)+.25,0],"Sampling's s: vars(s) = "+VARS,{mono:true,fs:12,dy:-8,c:P.mute,wide:1});

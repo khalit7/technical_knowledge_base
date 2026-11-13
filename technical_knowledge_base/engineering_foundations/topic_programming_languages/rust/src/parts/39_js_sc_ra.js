@@ -54,15 +54,15 @@
     if(k<=2||last){const a=k<2?.14:k===2?Math.min(1,e*1.6):.55;hdr(XS,zv,a);blk(x1,zv,V.cap1,3,a,mix(P.paper,P.c2,.55));
       if(k===2){R.flowArc([XS-fw,YS+.33,zv],[x1-ew,.4,zv],.45,{c:P.c2,a:cl(e*2-.3,0,1),r:.06,n:7,speed:1.2});
         R.label([XS+fw*1.5,YS+.2,zv],'v · '+V.hdr+' B',{mono:true,fs:12.5,al:'left',dx:10,b:1,c:P.c2});R.label([x1+ew*1.5,.2,zv],'cap '+V.cap1,{mono:true,fs:12.5,al:'left',dx:10,b:1,c:P.c2})}}
-    if(k===3){const g=cl(e*2,0,1),m=cl(e*2-1,0,1),d=0;   // growth in the first half, the move in the second; drop(w) is in the step text
+    if(k===3){const g=cl(e*2,0,1),m=cl(e*2-1,0,1);   // growth in the first half, the move in the second; drop(w) is in the step text
       // growth: a new block of capacity 6; the old one freed
-      blk(x1,zv,V.cap1,3,1-g*.85,mix(P.paper,P.c2,.55));blk(x2,zw,V.cap2,4,g*(1-d*.8),mix(P.paper,P.c2,.55));
+      blk(x1,zv,V.cap1,3,1-g*.85,mix(P.paper,P.c2,.55));blk(x2,zw,V.cap2,4,g,mix(P.paper,P.c2,.55));
       if(g<1)R.flowArc([x1,.4,zv],[x2,.4,zw],.35,{c:P.c2,a:.9,r:.05,n:5});
       R.label([x2+ew*3,.2,zw],'cap '+V.cap2,{mono:true,fs:12.5,al:'left',dx:10,b:1,c:P.c2,a:Math.max(g,.01)});
       // the move: 24 bytes of header from v's slot to w's
-      hdr(XS,zv,1-m*.75);hdr(XS,zw,m*(1-d*.8));
+      hdr(XS,zv,1-m*.75);hdr(XS,zw,m);
       if(m>0&&m<1)R.flow([[XS,YS+.35,zv],[XS,YS+.35,zw]],{c:P.c2,a:.95,r:.06,n:4,speed:1});
-      if(m>.05&&d<1)R.flowArc([XS-fw,YS+.33,zw],[x2-ew*2.5,.4,zw],.4,{c:P.c2,a:m*(1-d),r:.06,n:6,speed:1.2});
+      if(m>.05)R.flowArc([XS-fw,YS+.33,zw],[x2-ew*2.5,.4,zw],.4,{c:P.c2,a:m,r:.06,n:6,speed:1.2});
       R.label([XS+fw*1.5,YS+.2,zv],m>.5?'v: moved, unusable':'v',{mono:true,fs:12.5,al:'left',dx:10,b:1,c:m>.5?P.mute:P.c2,grp:'mv'});
       R.label([XS+fw*1.5,YS+.2,zw],'w · '+V.hdr+' B copied',{mono:true,fs:12.5,al:'left',dx:10,b:1,c:P.c2,a:Math.max(m,.01),grp:'mv'})}
     // ---- 4. enums and traits: an 8-byte Option, a 16-byte fat pointer and its vtable ----
@@ -76,7 +76,7 @@
       R.flowArc([XD-.6+C.dyn*BW/4,.34,.7],[XD+1.25,.5,.15],.45,{c:P.c3,a:.9,r:.055,n:6});
       R.label([XD-.6,.34,-.7],'Option<&u64> · '+C.opt+' B',{mono:true,fs:12.5,b:1,c:P.c3,dy:-12,al:'right',dx:12,grp:'en'});
       R.label([XD-.6,.34,.7],'&dyn Tokenizer · '+C.dyn+' B',{mono:true,fs:12.5,b:1,c:P.c3,dy:-12,al:'right',dx:12,grp:'en'});
-      R.label([XD+1.25,1.0,.15],'vtable',{fs:12.5,b:1,c:P.c3,dy:-10});R.label([XD+.81,.17,.95],'the value',{fs:12,al:'left',dx:6,c:P.mute,grp:'en2'});R.label([XD+.6,.34,-.7],'u64',{mono:true,fs:12,dy:-10,c:P.mute,grp:'en2'})}
+      R.label([XD+1.25,1.0,.15],'vtable',{fs:12.5,b:1,c:P.c3,dy:-10});R.label([XD+.81,.17,.95],'the value',{fs:12,al:'left',dx:6,c:P.mute,grp:'en2'});R.label([XD+.6,0,-.49],'u64',{mono:true,fs:12,dy:12,c:P.mute,grp:'en2'})}
     // ---- 5. shared ownership: three Rc handles, one counted block; a thread that only Arc may enter ----
     const aE=A(k===5,k>5),rcf=mix(P.paper,P.c4,.4);
     [-1.0,-.45,.1].forEach(z=>R.box([XE-.8,0,z],[C.rcH*BW,.3,.36],{fill:rcf,a:aE}));

@@ -47,5 +47,5 @@
   }
   S3.stage({id:'stg-mro',list:'sx-mro',fig:'Fig. 5 · C3 turns the class graph into one stack that super() climbs',cam:[.3,.82],bounds:[[-2.4,0,-2.5],[2.4,.4,2.2]],aspect:.66,dur:1800,hold:5200,draw,
     margin:w=>w<520?[14,8,12,8]:[18,14,14,14],
-    view:k=>k===0?null:k<=2?{cam:[.32,.3],bounds:[[-1.6,0,-.6],[4.2,2.8,.6]]}:k===3?{cam:[.3,.3],bounds:[[-1.4,0,-.6],[6.4,3.0,.6]]}:{cam:[.3,.3],bounds:[[-2.4,0,-.6],[4.6,2.4,.6]]}});
+    view:k=>k===0?null:k<=2?{cam:[.32,.3],bounds:[[-2.0,0,-.6],[3.1,2.8,.6]]}:k===3?{cam:[.3,.3],bounds:[[-1.4,0,-.6],[6.4,3.0,.6]]}:{cam:[.3,.3],bounds:[[-2.4,0,-.6],[4.6,2.4,.6]]}});
 })();

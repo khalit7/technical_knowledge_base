@@ -15,7 +15,7 @@
   const GROUPS=[[0],[1],[2,3],[4,5,6]];
   const XS=-5.0,XF=-1.6,XM=1.0,XV=4.2,XE=-.3,ZW=i=>1.8-i*.6,ZV=i=>1.5-i*.6,YW=.3;
   const kept=i=>WORDS.slice(0,i).filter((_,j)=>KEEP[j]).length; // Vec slot of word i
-  function word(R,p,t,c,a,o){o=o||{};R.box(p,[.78,.26,.36],{fill:mix(R.P.paper,c,.4),a,shadow:p[1]<.05,lw:.6});R.label([p[0],p[1]+.26,p[2]],t,{mono:true,fs:12,dy:-7,a:o.la==null?a:o.la,b:o.b})}
+  function word(R,p,t,c,a,o){o=o||{};R.box(p,[.78,.26,.36],{fill:mix(R.P.paper,c,.4),a,shadow:p[1]<.05,lw:.6});R.label([p[0],p[1]+.26,p[2]],t,{mono:true,fs:12,dy:-7,a:o.la==null?a:o.la,b:o.b,wide:o.src})}   // src: a word resting in the source; on a phone its name is in the step text
   function stageBox(R,x,name,c,a,hi,low){R.glass([x,.02,-.75],[0,0,1.5],[0,.95,0],{c,a:a*(hi?1:.6),nu:3,nv:3});R.label(low?[x,0,.75]:[x,1.0,0],name,{mono:true,fs:12.5,b:1,dy:low?18:-8,c,a})}
   // the path a word takes: from its place in the source, through filter and map, to its Vec slot (or off the filter, if dropped)
   function path(i,slotX,slotZ,drop){const s=[XS,0,ZW(i)],a=[XS+1.5,YW,0],f=[XF,YW,0];if(drop)return [s,a,f,[XF+.2,0,1.2]];return [s,a,f,[XM,YW,0],[slotX-.9,YW,0],[slotX,0,slotZ]]}
@@ -26,13 +26,13 @@
     // the chain itself: one value, three nested stages on one plate
     const pa=k===0?1:.5;
     R.glass([XS-.8,.01,-2.4],[XM-XS+1.6,0,0],[0,0,4.7],{c:C,a:(eager?.15:.35)*(k===0?1:.6),nu:1,nv:1,th:.01});
-    if(k===0)R.label([(XS+XM)/2,0,2.3],'one value, '+SIZE+' bytes: Map<Filter<Iter<&str>, closure>, closure>',{mono:true,fs:12.5,b:1,dy:20,c:C,a:e});
+    if(k===0)R.label([(XS+XM)/2,0,2.3],'one value, '+SIZE+' bytes'+(R.W<520?'':': Map<Filter<Iter<&str>, closure>, closure>'),{mono:true,fs:12.5,b:1,dy:20,c:C,a:e});
     stageBox(R,XS+1.5,'Iter',P.ink,1,k===0,1);stageBox(R,XF,'Filter',F,1,k===0||k===2);stageBox(R,XM,'Map',M,eager?.4:1,k===0);
     if(!eager){R.glass([XV-.5,.02,-2.3],[1.0,0,0],[0,0,4.4],{c:C,a:.3,nu:1,nv:6,th:.01});R.label([XV,0,-2.3],take?'take(2) · collect: a Vec':'collect: a Vec',{mono:true,fs:12.5,b:1,dy:-14,c:C})}
     // the source words
     let moving=[];
     if(k>=1&&k<=4){const g=GROUPS[k-1];moving=g.map((i,j)=>({i,u:cl(e*g.length-j,0,1)}))}
-    if(k<=4)WORDS.forEach((w,i)=>{const m=moving.find(x=>x.i===i),inSrc=k===0||i>=GROUPS[k-1][0]&&!(m&&m.u>0);if(inSrc)word(R,[XS,0,ZW(i)],w,C,1)});
+    if(k<=4)WORDS.forEach((w,i)=>{const m=moving.find(x=>x.i===i),inSrc=k===0||i>=GROUPS[k-1][0]&&!(m&&m.u>0);if(inSrc)word(R,[XS,0,ZW(i)],w,C,1,{src:1})});
     // lazy: words already through sit in the Vec (or were dropped)
     if(k>=1&&k<=5){const upto=k===5?7:GROUPS[k-1][0];
       for(let i=0;i<upto;i++)if(KEEP[i])word(R,[XV,0,ZV(kept(i))],WORDS[i].toLowerCase(),C,lazyA);
@@ -50,7 +50,7 @@
       const kept1=runs.eager.filter(x=>x.f==='filter'&&x.keep).map(x=>x.w);
       // source words leave one by one through the filter
       const fdone=k===5?Math.floor(e*nf+.0001):nf;
-      WORDS.forEach((w,i)=>{if(i>=fdone)word(R,[XS,0,ZW(i)],w,C,1)});
+      WORDS.forEach((w,i)=>{if(i>=fdone)word(R,[XS,0,ZW(i)],w,C,1,{src:1})});
       R.glass([XE-.5,.02,-2.3],[1.0,0,0],[0,0,4.4],{c:F,a:.5*ea,nu:1,nv:6,th:.01});R.label([XE,0,-2.3],'first Vec · '+kept1.length,{fs:12.5,b:1,dy:-14,c:F,a:ea});
       kept1.forEach((w,j)=>{if(k===5&&kept(WORDS.indexOf(w))>=0&&j>=Math.round(e*kept1.length))return;word(R,[XE,0,ZV(j)],w,F,k===6?.6:1)});
       if(k===5)R.flow([[XS+.6,YW,0],[XF,YW,0],[XE,YW,0]],{c:F,a:.8,r:.06,n:9});
@@ -59,7 +59,7 @@
       R.label([XM,YW,0],k===5?'filter × '+nf:'map × '+nm,{fs:13,b:1,dy:44,c:k===5?F:M,a:ea})}
     // take(2): pulled until two words are out, the rest never read
     if(take){const sel=WORDS.slice(0,NT),kt=sel.filter((_,i)=>KEEP[i]),u=e;
-      WORDS.forEach((w,i)=>{if(i>=NT)word(R,[XS,0,ZW(i)],w,P.mute,.9,{la:1});else if(u<(i+1)/NT)word(R,[XS,0,ZW(i)],w,C,1-cl((u*NT-i)*2,0,1))});
+      WORDS.forEach((w,i)=>{if(i>=NT)word(R,[XS,0,ZW(i)],w,P.mute,.9,{la:1,src:1});else if(u<(i+1)/NT)word(R,[XS,0,ZW(i)],w,C,1-cl((u*NT-i)*2,0,1),{src:1})});
       kt.forEach((w,j)=>{if(u>=(j+1)/kt.length*.95)word(R,[XV,0,ZV(j)],w.toLowerCase(),C,1,{b:1})});
       if(u<.9)R.flow([[XS+.6,YW,0],[XF,YW,0],[XM,YW,0],[XV-.6,YW,0]],{c:C,a:.6,r:.05,n:10});
       R.label([XS,0,ZW(0)],(WORDS.length-NT)+' words never read',{fs:12.5,b:1,dy:30,c:P.mute,a:cl(u*2-1,0,1)});
@@ -67,6 +67,7 @@
   }
   const full={cam:[.62,.58],bounds:[[-5.6,0,-2.4],[4.8,1.2,2.4]]};
   S3.stage({id:'stg-lazy',list:'sx-lazy',fig:'An iterator chain, pulled one word at a time',cam:full.cam,bounds:full.bounds,aspect:.6,dur:2600,hold:4800,draw,
-    view:k=>k===0?{cam:[.62,.55],bounds:[[-5.6,0,-2.4],[2.4,1.2,2.4]]}:full,
+    // on a phone the camera looks further down, so the stacked words and the stages spread apart
+    view:k=>{const ph=innerWidth<560;return k===0?{cam:[.62,ph?.85:.55],bounds:[[-5.6,0,-2.4],[2.4,1.2,2.4]]}:ph?{cam:[.62,.85],bounds:full.bounds}:full},
     margin:w=>w<520?[28,10,16,10]:[30,14,18,14]});
 })();
