@@ -1,23 +1,4 @@
-// ---- The paper tab: many-pair dials, the shift test on trained weights, Figure 2 rebuilt, GLUE reveal ----
-// ---- Hero: one 8-dimensional query and key as 4 rotation pairs, at positions (5, 2) and (43, 40); theta_i = 10000^(-2i/8) ----
-(function(){const host=$('heroSvg');if(!host)return;
-  const TH=[0,1,2,3].map(i=>Math.pow(10000,-2*i/8));
-  // illustrative unrotated pairs: [angle, length] for q and k (fixed, so the figure is reproducible)
-  const Q=[[0.3,1],[1.2,1],[2.0,1],[-0.5,1]],K=[[1.4,1],[0.2,.85],[-1.0,1],[2.4,.9]];
-  const ROWS=[[5,2],[43,40]];
-  function draw(w){const n=4,cw=w/n,R=Math.max(22,Math.min(36,cw/2-14)),rh=2*R+82,top=0,H=top+2*rh;let s='';
-    ROWS.forEach(([m,nn],r)=>{const y0=top+r*rh;let tot=0;
-      s+=tx(4,y0+14,(w<520?'q at ':'query at position ')+m+', '+(w<520?'k at ':'key at ')+nn+' (offset '+(m-nn)+')',{fs:12,w:600});
-      for(let i=0;i<n;i++){const cx=cw*i+cw/2,cy=y0+R+28,aq=Q[i][0]+m*TH[i],ak=K[i][0]+nn*TH[i],c=Q[i][1]*K[i][1]*Math.cos(aq-ak);tot+=c;
-        s+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+R.toFixed(1)+'" fill="none" stroke="var(--line)"/>';
-        s+=ln2(cx,cy,cx+Q[i][1]*R*.92*Math.cos(aq),cy-Q[i][1]*R*.92*Math.sin(aq),'var(--c1)',{sw:2.6});
-        s+=ln2(cx,cy,cx+K[i][1]*R*.92*Math.cos(ak),cy-K[i][1]*R*.92*Math.sin(ak),'var(--c2)',{sw:2.4,da:'4 3'});
-        s+=tx(cx,cy+R+15,'θ = '+(TH[i]>=0.01?String(+TH[i].toPrecision(2)):TH[i].toPrecision(1)),{fs:11,a:'middle',c:'var(--mute)'});
-        s+=tx(cx,cy+R+30,(c>=0?'+':'')+c.toFixed(3),{fs:12,a:'middle',w:600})}
-      s+=tx(w-4,y0+14,'q⊤k = '+tot.toFixed(3),{fs:12,a:'end',w:600,c:'var(--c3)'})});
-    host.innerHTML=svgW(w,H,s,'Four rotation pairs of a query and a key at positions 5 and 2, and again at 43 and 40: the arrows turn, the angles between them and the score do not')}
-  onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
-
+// ---- The paper tab: many-pair dials, Figure 2 rebuilt, the linear-attention facts, GLUE reveal (the hero, the shift test and the decay walk are 3D stages, 31 to 33) ----
 (function(){
   const rcd=window.PAPER.rc;
   // ---------- many-pair dials (#clk): d = 16, 8 pairs, theta_i = 10000^(-2i/16) ----------
@@ -35,7 +16,7 @@
     for(let i=0;i<NP;i++){const cx=(i%cols)*cw+cw/2,cy=Math.floor(i/cols)*ch+R+32;
       const q=rot(QV,i,m),k=rot(KV,i,n),nq=Math.hypot(...q),nk=Math.hypot(...k),f=R/Math.max(nq,nk,1e-9)*.92;
       s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--line)"/>';
-      s+=ln2(cx,cy,cx+q[0]*f,cy-q[1]*f,'var(--c1)',{sw:2.4})+ln2(cx,cy,cx+k[0]*f,cy-k[1]*f,'var(--c2)',{sw:2.2,da:'4 3'});
+      s+=ln2(cx,cy,cx+q[0]*f,cy-q[1]*f,'var(--c2)',{sw:2.4})+ln2(cx,cy,cx+k[0]*f,cy-k[1]*f,'var(--c6)',{sw:2.2,da:'4 3'});
       s+=tx(cx,cy-R-19,'pair '+i,{fs:11,a:'middle',c:'var(--mute)'})+tx(cx,cy-R-6,'θ = '+(TH[i]>=0.01?TH[i].toPrecision(2):TH[i].toExponential(0)),{fs:11,a:'middle',c:'var(--mute)'});
       const bw=cw-16,bx0=cx-bw/2,by=cy+R+10,val=sc.parts[i]/mx;
       s+=rc(bx0,by,bw,10,'var(--soft)',{r:2})+ln2(cx,by-2,cx,by+12,'var(--mute)',{sw:1});
@@ -50,28 +31,8 @@
   $('clkR').addEventListener('click',()=>{seed++;draw();refit(el)});
   onTab('t-read',()=>fit(el,clk));fit(el,clk);
 
-  // ---------- the shift test on trained weights (#shf) ----------
+  // ---------- the toy's linear-attention numbers, written into the Linear attention section ----------
   if(window.RF){
-    const DIG=[3,8,1,6,0,9,4,4,7,2,5,1],N=DIG.length,OFFS=[0,4,8,12,16,20];
-    const M={rope:RF.load('rope'),sin:RF.load('sin')};
-    function bestHead(mod){const r=RF.run(mod,DIG);let b=0,bv=-1;for(let h=0;h<RF.h;h++){let v=0;for(let i=RF.START;i<N;i++)v+=r.att[h][i][i-RF.L1]+r.att[h][i][i-RF.L2];if(v>bv){bv=v;b=h}}return b}
-    const HEAD={rope:bestHead(M.rope),sin:bestHead(M.sin)};
-    const RUNS={};['rope','sin'].forEach(k=>{RUNS[k]=OFFS.map(o=>RF.run(M[k],DIG,{offset:o}))});
-    const onLag=k=>{const A=RUNS[k][0].att[HEAD[k]];let v=0,n=0;for(let i=RF.START;i<N;i++){v+=A[i][i-RF.L1]+A[i][i-RF.L2];n++}return (100*v/n).toFixed(0)+'%'};
-    const maxd=(k,j)=>{let x=0;const A=RUNS[k][0].att[HEAD[k]],B=RUNS[k][j].att[HEAD[k]];for(let i=0;i<N;i++)for(let c=0;c<=i;c++)x=Math.max(x,Math.abs(A[i][c]-B[i][c]));return x};
-    const okc=(k,j)=>{let c=0,t=0;for(let i=RF.START;i<N;i++){t++;if(RUNS[k][j].pred[i]===RF.target(DIG,i))c++}return c+' of '+t};
-    const mk=k=>OFFS.map((o,j)=>({t:'positions '+o+' to '+(o+N-1),c:j===0?(k==='rope'?'The 12 digits at the start, through the RoPE model. Its head '+(HEAD.rope+1)+' of 4 puts '+onLag('rope')+' of each row\'s weight on offsets 1 and 4 (orange outlines), the two the task needs; the other heads and the MLP do the rest.':'The same digits through the sinusoidal model. Its head '+(HEAD.sin+1)+' puts '+onLag('sin')+' of each row\'s weight on offsets 1 and 4, found through position vectors added to the input.')
-      :(k==='rope'?'Slid '+o+' positions later. Every score is a function of offsets only, so the weights are unchanged: the largest change is '+maxd(k,j).toExponential(1)+', floating-point noise.':'Slid '+o+' positions later. The absolute position vectors are different now, so the weights move (largest change '+maxd(k,j).toFixed(3)+'), even though the model still answers '+okc(k,j)+' positions correctly.')}));
-    const modes={rope:mk('rope'),sin:mk('sin')};
-    makeAnim({id:'shf',modes,mode:'rope',dur:2600,
-      draw:(m,k,e,w)=>{const H0=Math.min(w,460),cell=Math.floor((H0-40)/N),ox=Math.max(30,(w-cell*N)/2),oy=26,A=RUNS[m][Math.max(0,k-1)].att[HEAD[m]],B=RUNS[m][k].att[HEAD[m]];
-        let s='';for(let i=0;i<N;i++){s+=tx(ox-6,oy+i*cell+cell*.68,DIG[i],{fs:11,a:'end',c:'var(--mute)'});s+=tx(ox+i*cell+cell/2,oy-6,DIG[i],{fs:11,a:'middle',c:'var(--mute)'});
-          for(let c=0;c<N;c++){if(c>i){s+=rc(ox+c*cell+1,oy+i*cell+1,cell-2,cell-2,'var(--soft)',{r:2});continue}const v=k===0?B[i][c]:A[i][c]+(B[i][c]-A[i][c])*e;
-            s+=rc(ox+c*cell+1,oy+i*cell+1,cell-2,cell-2,'var(--c1)',{r:2,op:Math.max(.04,Math.min(1,v))});if(i-c===RF.L1||i-c===RF.L2)if(i>=RF.START)s+=rc(ox+c*cell+1,oy+i*cell+1,cell-2,cell-2,'none',{r:2,s:'var(--c2)',sw:1.4})}}
-        s+=tx(w/2,oy+N*cell+16,'keys (columns) at positions '+OFFS[k]+' to '+(OFFS[k]+N-1),{fs:11,a:'middle',c:'var(--mute)'})+tx(w/2,oy+N*cell+31,'orange outline: offsets 1 and 4',{fs:11,a:'middle',c:'var(--c2)'});
-        return svgW(w,oy+N*cell+38,s,'Attention weights of one head')},
-      counters:(m,k)=>'<div class="cnts">'+stat('placed at',OFFS[k]+' to '+(OFFS[k]+N-1),'all inside the 32 trained positions')+stat('largest weight change from step 1',k===0?'0':(m==='rope'?maxd(m,k).toExponential(1):maxd(m,k).toFixed(3)),m==='rope'?'identical up to rounding':'the pattern drifts')+stat('answers correct',okc(m,k),'(x[t−1] + x[t−4]) mod 10')+'</div>'});
-    window.PRED_REVEAL['pr-shift']=()=>{};
     const lf=$('linFacts');if(lf){const v=RF.data.variants;lf.innerHTML='trained identically, linear attention with RoPE in the numerator (Equation 19) answers <b>'+(100*v.lin_rope.res[32].acc).toFixed(1)+'%</b> of held-out positions at the trained length, against <b>'+(100*v.lin_nope.res[32].acc).toFixed(1)+'%</b> without it (chance is 10%) and '+(100*v.rope.res[32].acc).toFixed(1)+'% for softmax attention with RoPE. RoPE does carry position into linear attention, the paper\'s point; but at this size linear attention cannot focus on single offsets the way softmax can, a limit of the toy and of unnormalised weights, not a claim the paper makes. Details in the '+'<a href="#" data-tab="t-run" data-to="runLin">Train short, test long</a> tab'}
   }
 

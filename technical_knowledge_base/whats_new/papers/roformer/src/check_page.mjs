@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the 2D animation stepping end to end. Motion (2026-11-06): each animation and 3D stage
+// plays by itself once scrolled into view (the stages are stepped and checked in detail by check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/roformer/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -8,9 +9,9 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: true });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -19,15 +20,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
-  for (const [tab, id] of [['t-read', 'shf'], ['t-then', 'thn']]) {
-    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
-    await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
-    const ms = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
-    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-      if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
-      await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()) }
+  // autoplay (2026-11-06): each animation card and 3D stage, scrolled into view, plays by itself within about 2 s
+  for (const [tab, id] of [['t-read', 'stg-hero'], ['t-read', 'stg-shift'], ['t-read', 'stg-decay'], ['t-then', 'thn']]) {
+    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
+    await new Promise(r => setTimeout(r, 2000));
+    if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
   }
   await p.$eval('#tabs button[data-t=t-read]', b => b.click());
   const audit = async (where) => {
@@ -53,6 +50,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => { d.open = true })); await wait(250);
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -94,7 +92,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await audit('t-run after test');
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['shf', 'thn']) {
+    for (const id of ['thn']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

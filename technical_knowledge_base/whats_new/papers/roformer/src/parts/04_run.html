@@ -14,31 +14,37 @@
 <p><b>Training</b> (train.py): Adam (0.9, 0.98, ε 10<sup>−9</sup>) with linear warmup over 400 steps to 3 × 10<sup>−3</sup>, then inverse square root decay, the schedule of {{§4.1.2|ax:S4.SS1.SSS2}}; 6,000 steps of 64 fresh random sequences of length 32; seed 0. Between 33 and 52 seconds per model on a laptop CPU (2 threads). Held-out sets are drawn with separate seeds; of 500 held-out length-32 sequences, 0 occur in a 16,000-sequence sample of each training stream (10<sup>32</sup> possible sequences). Weights are shipped at 6 bits (one base64 character per weight, one scale per row; vectors as float16); quantisation cost at most 0.3 points of held-out accuracy (the learned table, 100% to 99.7%). The JavaScript forward pass gives identical predictions to PyTorch on every one of 1,160 test sequences, logits within 5 × 10<sup>−4</sup> and attention weights within 1.1 × 10<sup>−5</sup> (check_forward.py).</p>
 <p><b>One configuration choice, said plainly</b>: the first run used 2 heads of 16. There the RoPE model plateaued at 84% at the trained length after 6,000 steps (97% after 20,000; 100% after 20,000 at a peak learning rate of 10<sup>−3</sup>), while sinusoidal reached 99%. Switching to 4 heads of 8 brought every softmax model to 100% at the trained length in 6,000 steps. The choice was made on in-range accuracy only, before looking at lengths past 32; the logs are in model/sweep.</p></div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>Run a sequence</h3>
-<div class="an-top"><div class="seg" id="runV" role="group" aria-label="Model"><button class="on" data-m="rope" aria-pressed="true">RoPE</button><button data-m="sin" aria-pressed="false">Sinusoidal</button><button data-m="learned" aria-pressed="false">Learned absolute</button><button data-m="nope" aria-pressed="false">No position</button><button data-m="lin_rope" aria-pressed="false">Linear + RoPE</button><button data-m="lin_nope" aria-pressed="false">Linear, none</button></div></div>
+<p class="small mute" style="margin:4px 0">Each box is the model's output at that position: shaded when it equals (<i>x</i><sub><i>t</i>−1</sub> + <i>x</i><sub><i>t</i>−4</sub>) mod 10, outlined in orange when wrong; dashed boxes are positions 32 and later, never seen in training; the first four have no target.</p>
+<h3>Where one query looks</h3>
+<p class="try"><b>Try:</b> RoPE, length 64, query position 63. Inside the trained length the head puts its weight on offsets 1 and 4; here the weight drains to offsets past 31, angles the slow pairs never showed in training (the {{spectrum|tab:t-read:s-spec}} section says why), and the answer breaks. Now tick the sliding window: the query sees only offsets 0 to 31, all of them trained, and RoPE is right at every position up to 128, because nothing in its scores depends on absolute position. Do the same with Sinusoidal or Learned: the window does not help them, because their inputs at position 40 are themselves unseen.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="an-top"><div class="seg" id="runV" role="group" aria-label="Model"><button class="on" data-m="rope" aria-pressed="true">RoPE</button><button data-m="sin" aria-pressed="false">Sinusoidal</button><button data-m="learned" aria-pressed="false">Learned absolute</button><button data-m="nope" aria-pressed="false">No position</button><button data-m="lin_rope" aria-pressed="false">Linear + RoPE</button><button data-m="lin_nope" aria-pressed="false">Linear, none</button></div></div>
 <div class="ctl"><label>sequence length <b id="runLv">64</b><input type="range" id="runL" min="8" max="128" step="4" value="64"></label>
 <div class="small"><label><input type="checkbox" id="runW"> attend only to the last 32 tokens (sliding window)</label><br><label><input type="checkbox" id="runP"> Position Interpolation: positions × 32/length (RoPE models)</label></div>
 <div><button id="runR">New random digits</button></div></div>
 <div class="digs" id="runSeq" aria-live="polite"></div>
-<p class="small mute" style="margin:4px 0">Each box is the model's output at that position: shaded when it equals (<i>x</i><sub><i>t</i>−1</sub> + <i>x</i><sub><i>t</i>−4</sub>) mod 10, outlined in orange when wrong; dashed boxes are positions 32 and later, never seen in training; the first four have no target.</p>
 <div class="out" id="runCnt"></div>
-
-<h3>Where one query looks</h3>
 <div class="ctl"><label>query position <b id="runQv"></b><input type="range" id="runQ" min="4" max="63" step="1" value="63"></label><label class="small">head <select id="runH"><option value="-1" selected>the head that best tracks offsets 1 and 4</option><option value="0">head 1</option><option value="1">head 2</option><option value="2">head 3</option><option value="3">head 4</option></select></label></div>
-<div id="runOff"></div>
-<p class="try"><b>Try:</b> RoPE, length 64, query position 63. Inside the trained length the head puts its weight on offsets 1 and 4; here the weight drains to offsets past 31, angles the slow pairs never showed in training (the {{spectrum|tab:t-read:s-spec}} section says why), and the answer breaks. Now tick the sliding window: the query sees only offsets 0 to 31, all of them trained, and RoPE is right at every position up to 128, because nothing in its scores depends on absolute position. Do the same with Sinusoidal or Learned: the window does not help them, because their inputs at position 40 are themselves unseen.</p>
+<div id="runOff"></div></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="runAcc">Accuracy by position, held-out sequences of length 128</h3>
-<div class="ctl"><div class="seg" id="accM" role="group" aria-label="Test setting"><button class="on" data-m="full" aria-pressed="true">Full attention</button><button data-m="win" aria-pressed="false">32-token window</button><button data-m="pi" aria-pressed="false">Position Interpolation</button></div><div><button id="accRun">Run the test here (50 sequences per model)</button></div></div>
-<div id="accSvg"></div><div id="accOut" class="small"></div>
 <p class="small mute">Lines are each model's accuracy at every position over 500 held-out sequences, measured in PyTorch on the shipped weights (train.py export), averaged over blocks of 4 positions; the dashed line marks the trained length. "Run the test here" redraws them from 50 fresh sequences per model computed by this page's JavaScript, so the two can be compared. Position Interpolation applies only to the two RoPE models (the others are drawn as with full attention) and is used here without the fine-tuning its paper requires.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="ctl"><div class="seg" id="accM" role="group" aria-label="Test setting"><button class="on" data-m="full" aria-pressed="true">Full attention</button><button data-m="win" aria-pressed="false">32-token window</button><button data-m="pi" aria-pressed="false">Position Interpolation</button></div><div><button id="accRun">Run the test here (50 sequences per model)</button></div></div>
+<div id="accSvg"></div><div id="accOut" class="small"></div></div></div></div></div>
 
 <h3 id="runLin">Linear attention (Equation 19)</h3>
 <div id="linOut"></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>Training curves</h3>
-<div id="curSvg"></div><p class="small" id="curOut"></p>
+<p class="small" id="curOut"></p>
 <p class="small mute">Held-out accuracy at length 32 every 100 steps, straight from the training logs (model/train_*.log), not smoothed.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div id="curSvg"></div></div></div></div></div>
 
 <h3>What the toy reproduces, and what it does not</h3>
 <ul class="lst" id="runVerdict">

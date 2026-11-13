@@ -28,3 +28,7 @@ The question the paper keeps returning to: **does making attention depend only o
 
 - A rule for **papers whose evidence was added in a later version** (v1 had only the Chinese experiments; v2 added the English ones months after an independent replication): check every arXiv version's experiment section, not just the latest.
 - A rule for **comparison rows copied from another paper**: check which split they come from (here BERT's test-server table) before comparing.
+
+## 2026-11-13 layout rollout
+- Built: the hero as a 3D tower of four rotation pairs (fast at the top) with shares on plinths streaming into the sum; the shift test as two bar fields of trained attention weights side by side, digits sliding along the trained positions; the decay bound as a walk of 64 unit arrows with posts at the partial sums (average post height = the bound), then a Gaussian-weighted walk that does not decay.
+- Rejected: a 3D surface of the bound over distance and base (a curve with a selector reads better flat, and the chart already has the selector); a 3D version of the 8-dial widget (the hero tower carries the picture, the widget is a tool); a 3D Then and now (log-scale bars read best flat; Positional Encodings' Fig. 6 owns the 3D dials per method).
