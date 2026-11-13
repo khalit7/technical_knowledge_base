@@ -48,3 +48,26 @@ Why about 18 minutes is right: the core gained the sentence, hero and terms (abo
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 4, 155 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 214 actions, 0 problems (no frame before a click). `check_sim.py`: worst relative difference 9.5e-14. `mk_coverage.py`: 27 of 27.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Build**: `build.sh` finds the repo root by walking up to `.venv` or `html_utils` (no git call). New parts: `02_split.html` and `25_js_s3.js` (templates, unchanged), `31_js_sc_meth.js` (Fig. 1); `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `tpm-tab`).
+- **Split layout.** The paper tab: the core sentence, You need and New terms beside the hero; Idea beside its animation; Six methods beside the stage Fig. 1; Results beside the forgetting curves. Simulate: the intro and "Defaults reproduce" beside the simulator; "Does a ten times bigger bank hold more?" beside the row-collapse animation. Full width: Problem, Training, The metric (its widget sits in a predict reveal), Why it matters, Connections, How much to believe (its decay chart sits in a predict reveal), Using it, and the Tables tab.
+- **Fig. 1, where each method attaches the bank** (`31_js_sc_meth.js`), replaces the clickable 2D method explorer. The frozen Flan-T5-XL as two towers of 24 grey slabs (encoder, decoder; from the configuration through `recompute.py`), the bank as a gold glass plate (64 × 2,048; 640 at 10x), the write's fixed random W_Q, W_K, W_V as glass plates in the query, key and value colours, trained read projections (W_P, W_Mem) as blue plates; write paths flow orange (no gradient), read paths blue. Eight steps, the camera moving in close per step: the stateless model, the bank and its write, M.1, M.3, M.6 (two bands of four slots lit: 8 of 64), M.4 (a 256 × 256 matrix), M.2 and M.5 as designed (a branch per block), and as run (five through one door). Every parameter count comes from `PAPER.rc.params` and Table 2 as printed; token counts drawn are illustrative. The explorer's per-method card (write, read, trained, parameters) became the step list.
+- **The two 2D animations** (`tl`, stateless against a bank; `cap`, the 64 rows of a 1x bank) keep their drawings and gained step lists on the left, one per mode (`sx-tl-mem`, `sx-tl-base`, `sx-cap-zero`, `sx-cap-rand`), which replace the per-step captions. `makeAnim` in `11_js_ui.js` now plays once half in view, pauses off screen, stops for good on any control or at its last step, never moves under reduced motion, swaps the list and replays on a mode toggle, and sets `data-playing`. Six snapshots per mode in `cap` are already grouped stretches (turns 1, 2, 5, 20, 100, 600), so the long-replay rule is met.
+- **Kept 2D**: the hero (a one-screen summary of what trains and what does not, with the decay strip; Fig. 1 builds the same structure in 3D two screens below), the forgetting curves, the clipping widget, the F1 bars and the decay chart (numbers on axes, log scale), the row-collapse heatmap (64 × 32 cells; a heatmap reads best flat and 2,048 bars would be clutter), the simulator and the tables.
+- **Checks**: `check_page.mjs` now asserts that each animation and the stage play once scrolled into view (the 2026-10-25 "nothing moves before a click" assertion inverted) and runs at 1400 px too. `check_stages.mjs` is new: layout, autoplay, step-list counts, list clicks, reduced motion, and 34 step-list numbers against `PAPER.rc`, `PAPER.tables` and `SIM.simulate`.
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 17.7 min (4,075 words) | 21.1 min (4,853) |
+| The paper, closed | 3.0 min | unchanged |
+| Simulate; Tables; Further reading | 3.1; 5.6; 2.6 min | 4.0; 5.6; 2.6 min |
+
+The growth is the step lists: the method explorer's card and both animations' captions were drawn by script and invisible to the audit; they are now written out, and the hidden second list of each animation counts too (about 0.5 minute each). A reader following one mode reads about 20 minutes. Nothing was cut but the "pick a method" pointer. Header: "Reading: 21 min, plus 3 in closed details." (`reading.json`).
+
+Ledger: 237 units (core 205, depth 23, owned 4, volatile 0, fat 5); keys re-pointed on units 30 ("Fig. 1 attaches each method"), 32 ("Delegated or explicit read.") and 230 (the explorer card, now Fig. 1's list); three units added for the new step lists. `ledger.py check`: problems 0.
+
+Checks (2026-11-13): `checkpage.sh` 4 tabs, about 198 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems; `check_sim.py` worst relative difference 1.1e-13; `mk_coverage.py` 27 of 27; `verify_layout.mjs` 0 problems.

@@ -303,8 +303,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/switch_transformers` Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
 - [x] `whats_new/papers/t5` Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
 - [~] `whats_new/papers/terminal_universe` Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments
-- [~] `whats_new/papers/trained_persistent_memory` Trained Persistent Memory for Frozen Encoder-Decoder LLMs: Six Architectural Methods
-- [ ] `whats_new/papers/vit` An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
+- [x] `whats_new/papers/trained_persistent_memory` Trained Persistent Memory for Frozen Encoder-Decoder LLMs: Six Architectural Methods
+- [~] `whats_new/papers/vit` An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
 - [ ] `whats_new/papers/wsm` WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training
 - [ ] `whats_new/papers/zero` ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
 - [ ] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
@@ -596,6 +596,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/sol_pi`: Tables tab stays full width (table-tab exception); Fig. 1 step 1 family cubes small at 390 px; check_occ.mjs needs Node 22 (--experimental-strip-types) and was not rerun here (build.sh now skips it with a note, keeping the last inputs/check_occ.json, 50,000 of 50,000 identical).
 - `whats_new/papers/switch_transformers`: Figure 9 model-parallel step the tall token blocks hide the thin weight slices; capacity stage small on phones and the routing card sits above the Idea heading (too tall to pin); the paper's Figure 4 in a half-width column has small text at 1400.
 - `whats_new/papers/t5`: span stage "encoder . reads 10" label overlaps its plate at 1400; step 1 shows only the text row (card mostly empty); the mixing widget's table is much taller than its left column.
+- `whats_new/papers/trained_persistent_memory`: Fig. 1 step 5 the M.6 update-rule label runs off the right edge and the encoder tower is cut at the left; animation cards not sticky on phones (about 470 px).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -743,3 +744,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - SoL-Pi: the 3D loop stage replaces the static SVG hero; Fig. 2 uses simulator session B (seed 21) with a 1M window, independent of the replay tab (labelled illustrative); the search section's family counts moved into the hero list. Keep?
 - Switch Transformers: the capacity stage changes only the buffer size on a layer trained at 1.25 (the three-seed sweep training each factor stays on the Train tab); the 2D routing animation is kept beside the new stage (per-slot rule against real-batch outcomes; dropping it would save about 2 min); the page now remembers its last tab (sw-tab). Keep?
 - T5: the span stage opens on the i.i.d. baseline (Figure 2) rather than BERT-style; the architecture stage leaves out GLUE scores so it does not answer the prediction below it (could be a seventh step); the page's two tab extras moved into 99b_js_tablinks.js so the template stays unchanged. Keep?
+- Trained Persistent Memory: the 2D hero stays (Fig. 1 carries the 3D two screens below); M.6's top 8 of 64 slots drawn as 2 bands of 4 (labelled); Fig. 1 replaces the clickable method explorer. Keep?

@@ -21,26 +21,13 @@ onTab('t-run',run);
 // ---- the row-collapse animation: snapshots of a 1x attention-coupled bank ----
 const TURNS=[1,2,5,20,100,600],SN={};
 const snaps=m=>SN[m]||(SN[m]=SIM.simulate({rule:'ac',scale:1,init:m,T:600,snap:TURNS}).snaps);
-const CAPT={zero:[
- ['After turn 1','The bank starts at zero, so every row\'s key is zero and every row gets the same attention weight, 1/64: all 64 columns receive the same update.'],
- ['After turn 2','Equal rows give equal keys, so the next update is again identical for every row. One distinct row out of 64.'],
- ['After turn 5','Same again: the bank is one vector copied 64 times.'],
- ['After turn 20','The shared vector now mostly reflects the last 20 turns (γ = 0.95), but it is still one vector.'],
- ['After turn 100','Nothing can separate the rows: the write rule has no term that differs between equal rows.'],
- ['After turn 600','Still one distinct row. A 640-row bank behaves the same way, so 10x the rows store nothing more.']],
-rand:[
- ['After turn 1','A small random start (σ = 0.01) makes the rows differ, and the first update adds a different amount to each.'],
- ['After turn 2','The rows still differ, but each update pulls them towards the same vector, because their keys are close.'],
- ['After turn 5','The differences come from the start and shrink by γ every turn.'],
- ['After turn 20','The rows are converging on one shared vector.'],
- ['After turn 100','The spread is down to a fraction of a percent.'],
- ['After turn 600','The rows now agree to about nine significant digits (the few still counted as distinct differ only there): the random start only delays the collapse.']]};
-const MODES={};Object.keys(CAPT).forEach(m=>MODES[m]=CAPT[m].map(([t,c])=>({t,c})));
+// the steps' explanations are the step lists #sx-cap-zero and #sx-cap-rand on the left (2026-11-13); one step per snapshot
+const MODES={};['zero','rand'].forEach(m=>MODES[m]=TURNS.map(n=>({t:'After turn '+n})));
 function drawCap(m,k,e,w){const S=snaps(m)[TURNS[k]],P=S.P,R=64,D=32,pad=2,cw=(w-2*pad)/R,ch=Math.max(4,Math.min(7,cw*1.2)),H=D*ch+28;
   let mx=0;for(let i=0;i<P.length;i++)mx=Math.max(mx,Math.abs(P[i]));let s='';
   for(let r=0;r<R;r++)for(let c=0;c<D;c++){const v=mx?P[r*D+c]/mx:0;s+='<rect x="'+(pad+r*cw).toFixed(1)+'" y="'+(c*ch).toFixed(1)+'" width="'+Math.max(0.5,cw-0.4).toFixed(1)+'" height="'+ch.toFixed(1)+'" fill="'+(v>=0?'var(--c1)':'var(--c2)')+'" opacity="'+Math.abs(v).toFixed(2)+'"/>'}
   s+=tx(pad,D*ch+16,'64 rows of the bank, one column each →',{fs:11,c:'var(--mute)'});
   return svgW(w,H,s,'The 64 rows of the bank after turn '+TURNS[k])}
-makeAnim({id:'cap',mode:'zero',modes:MODES,dur:2600,draw:drawCap,counters:(m,k)=>{const S=snaps(m)[TURNS[k]];
+makeAnim({id:'cap',mode:'zero',modes:MODES,lists:{zero:'sx-cap-zero',rand:'sx-cap-rand'},dur:3800,draw:drawCap,counters:(m,k)=>{const S=snaps(m)[TURNS[k]];
   return stat('Turn',TURNS[k])+stat('Distinct rows',S.distinct+' of 64')+stat('Spread of the rows',pctS(S.spread))}});
 })();

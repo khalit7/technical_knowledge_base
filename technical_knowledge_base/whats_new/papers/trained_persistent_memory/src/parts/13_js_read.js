@@ -13,18 +13,8 @@ const arr=(x1,y1,x2,y2,c,op)=>{const a=Math.atan2(y2-y1,x2-x1),h=6;return ln2(x1
 const LAG=[0,0,20,40,256];
 const IN=['"I like reading." (session 1)','"I like reading." (session 1)','20 more turns of small talk','"What do I like?" (session 3, 40 turns on)','Same question, 256 turns on'];
 const OUT={mem:['"Nice!"','"Nice!"','(replies)','"Reading."','(guess)'],base:['"Nice!"','"Nice!"','(replies)','"I don\'t know."','"I don\'t know."']};
-const ST={mem:[
- {t:'Encode the turn',c:'The frozen encoder turns "I like reading" into a latent <i>Z<sub>t</sub></i>, exactly as the stateless model does (Eq. 1).'},
- {t:'Write it into the bank',c:'The write rule folds <i>Z<sub>t</sub></i> into the persistent bank <i>P</i>: <i>P<sub>t</sub></i> = <i>γP</i><sub><i>t</i>−1</sub> + <i>A</i><sup>⊤</sup><i>V</i>. No gradients: this is the inference-time "conversational learning" of Eq. 32.'},
- {t:'Twenty turns later',c:'Every turn multiplies what is already in the bank by <i>γ</i> = 0.95 before adding the new turn, so after 20 turns the fact keeps 0.95<sup>20</sup> = 36% of its weight.'},
- {t:'Session 3: the question',c:'The decoder reads the current question <i>and</i> the bank (Read(<i>Z<sub>t</sub></i>, <i>P</i><sub><i>t</i>−1</sub>), Eq. 2). After 40 turns the fact keeps 0.95<sup>40</sup> = 13%, so a trained read path can still find it. This is the case the paper motivates.'},
- {t:'At LoCoMo\'s typical lag',c:'62% of the test questions are 256 or more turns after their evidence. By then the fact keeps 0.95<sup>256</sup> ≈ 2 × 10<sup>−6</sup> of its weight: the bank has written over it. The answer is a guess, as in the stateless model.'}],
-base:[
- {t:'Encode the turn',c:'The frozen encoder turns "I like reading" into a latent <i>Z<sub>t</sub></i> (Eq. 1).'},
- {t:'Discard it',c:'The decoder answers and <i>Z<sub>t</sub></i> is thrown away: nothing survives the forward pass (Figure 1).'},
- {t:'Twenty turns later',c:'Each turn is encoded, answered and discarded. There is no state to carry the fact.'},
- {t:'Session 3: the question',c:'The model sees only "What do I like?" and has no way to know. This is the inter-session memory problem the paper targets (§1).'},
- {t:'At LoCoMo\'s typical lag',c:'Same answer at any lag: the stateless curve is flat, and the paper\'s metric scores it zero by construction.'}]};
+// the steps' explanations are the step lists #sx-tl-mem and #sx-tl-base on the left (2026-11-13); five steps per mode
+const ST={mem:['Encode','Write','20 turns','Question','Lag 256'].map(t=>({t})),base:['Encode','Discard','20 turns','Question','Any lag'].map(t=>({t}))};
 function drawTL(m,k,e,w){
   const H=250,pad=4,bw=Math.min(118,(w-2*pad-4*18)/5),gap=(w-2*pad-5*bw)/4,y0=26,bh=48;let s='';
   const xs=[0,1,2,3,4].map(i=>pad+i*(bw+gap));
@@ -49,37 +39,11 @@ function drawTL(m,k,e,w){
     if(k===1)s+=tx(xs[2]+bw/2,y0+bh+24,'✕ discarded',{fs:12,a:'middle',c:'var(--bad)',op:e.toFixed(2)});
   }
   return svgW(w,H,s,'Animation: the stateless model against a model with a persistent memory bank')}
-makeAnim({id:'tl',mode:'mem',modes:ST,dur:3200,draw:drawTL,counters:(m,k)=>{const l=LAG[k];
+makeAnim({id:'tl',mode:'mem',modes:ST,lists:{mem:'sx-tl-mem',base:'sx-tl-base'},dur:4200,draw:drawTL,counters:(m,k)=>{const l=LAG[k];
   return '<div class="small">'+(m==='mem'?'Turns since the fact: <b>'+(k?l:0)+'</b> · weight left: <b>'+(k?(Math.pow(GAM,l)>=0.01?(Math.pow(GAM,l)*100).toFixed(0)+'%':sci(Math.pow(GAM,l),1)):'not written yet')+'</b> · gradients at inference: <b>none</b>'
    :'Turns since the fact: <b>'+(k?l:0)+'</b> · state carried between turns: <b>none</b>')+'</div>'}});
 
-// ---------- 2. Method explorer (Tables 1 and 2, parameter counts recounted in recompute.py) ----------
-const PR=RC.params||{};
-const MX={
- 1:{n:'Encoder-input prefix',at:'enc',w:'Attention-coupled: P ← γP + AᵀV, V from Z',r:'P is projected to m soft tokens S = U<sub>P</sub>PW<sub>P</sub> and prepended to the input; the encoder mixes them in (delegated read)',tr:'W<sub>P</sub>',eq:'S4.SS1',src:'prefix tuning'},
- 2:{n:'Parallel decoder cross-attention',at:'dec',w:'Attention-coupled (same as M.1)',r:'a second cross-attention over P in each decoder block, added with a zero-initialised β (explicit read); as implemented, computed once with Z as a stand-in and passed as extra encoder positions',tr:'W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, O shared across layers, plus one β per layer',eq:'S4.SS2',src:'Flamingo'},
- 3:{n:'Decoder KV extension',at:'kv',w:'Attention-coupled (same as M.1)',r:'H = PW<sub>Mem</sub> is appended to Z, so every decoder layer\'s frozen cross-attention sees n + n<sub>P</sub> keys and values (delegated read)',tr:'W<sub>Mem</sub> (zero-initialised)',eq:'S4.SS3',src:'Memorizing Transformers'},
- 4:{n:'Hebbian / associative',at:'kv',w:'Hebbian: M ← γM + (1/n)(ZW<sub>K,H</sub>)ᵀ(ZW<sub>V,H</sub>), rescaled to Frobenius norm at most 1',r:'R = (ZW<sub>Q,H</sub>)M, projected by W<sub>Mem</sub> and appended to Z as extra keys and values (explicit read)',tr:'W<sub>Q,H</sub>, W<sub>Mem</sub>',eq:'S4.SS4',src:'fast weight programmers'},
- 5:{n:'Context-gated decoder branch',at:'dec',w:'Attention-coupled (same as M.1)',r:'a memory cross-attention whose output is multiplied by a learned gate g = σ(W<sub>g</sub>[s; c] + b<sub>g</sub>), with b<sub>g</sub> &lt; 0 so it starts nearly closed; implemented like M.2, as extra encoder positions',tr:'W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, W<sub>g</sub>, b<sub>g</sub>',eq:'S4.SS5',src:'Flamingo\'s tanh gate'},
- 6:{n:'Slot-based sparse write',at:'kv',w:'Sparse slots: score the S slots against the mean-pooled turn, move only the top k towards u = z̄W<sub>u</sub>: P[s] ← γP[s] + (1 − γ)u',r:'all slots projected by W<sub>Mem</sub> and appended to Z as extra keys and values (delegated read)',tr:'W<sub>Mem</sub>',eq:'S4.SS6',src:'Neural Turing Machines'}};
-const T2={};(TB.t2.rows||[]).forEach((r,i)=>T2[i+1]=r);
-function drawMX(w){const m=+($('mxM').querySelector('.on').dataset.m),o=MX[m];const H=200,pad=4;let s='';
-  const nb=w<520?5:5,bw=Math.min(112,(w-2*pad-4*16)/5),gap=(w-2*pad-5*bw)/4,y0=24,bh=46;const xs=[0,1,2,3,4].map(i=>pad+i*(bw+gap));
-  const L=[['x t','this turn'],['E frozen','encoder'],['Z t','latent'],['D frozen','decoder'],['ŷ t','answer']];
-  L.forEach((l,i)=>{s+=box(xs[i],y0,bw,bh,l,{sub:1,b:1,f:i===1||i===3?'var(--acc2)':'var(--soft)'})});
-  for(let i=0;i<4;i++)s+=arr(xs[i]+bw+2,y0+bh/2,xs[i+1]-3,y0+bh/2);
-  const py=136,pw=Math.min(150,bw*1.4),cx={enc:(xs[0]+xs[1]+bw)/2,kv:(xs[2]+xs[3]+bw)/2,dec:xs[3]+bw/2}[o.at],px=Math.max(pad,Math.min(w-pad-pw,cx-pw/2));
-  s+=box(px,py,pw,40,[m===4?'M (Hebbian matrix)':m===6?'P (slots)':'P (bank)'],{f:'none',s:C[m],sw:2,b:1});
-  s+=arr(cx,py-2,cx,y0+bh+4,C[m]);
-  s+=tx(cx+6,py-14,o.at==='enc'?'read: prefix tokens':o.at==='kv'?'read: extra keys and values':'read: branch in decoder',{fs:11,c:C[m],a:cx>w-160?'end':'start'});
-  const zx=xs[2]+bw/2;s+=ln2(zx,y0+bh,zx,py+20,'var(--c2)',{da:'4 3',sw:1.3});s+=arr(zx,py+20,(zx<px?px:px+pw)+(zx<px?-2:2),py+20,'var(--c2)');
-  s+=tx(zx+(zx<px?-4:4),py+38,'write (no gradient)',{fs:11,c:'var(--c2)',a:zx<px?'end':'start'});
-  $('mxSvg').innerHTML=svgW(w,H,s,'Where method M.'+m+' enters the frozen model');
-  const p=PR['M.'+m]||{},t2=T2[m]||{};
-  $('mxTxt').innerHTML='<div class="small" style="margin:6px 0"><div><b>M.'+m+' '+o.n+'</b> <span class="small mute">(after '+o.src+'; AXLINK)</span></div>'
-   .replace('AXLINK','<a href="'+PP.meta.ax+'#'+o.eq+'" target="_blank" rel="noopener noreferrer">§'+o.eq.replace(/S(\d+)\.SS(\d+)/,'$1.$2')+'</a>')
-   +'<div><b>Write:</b> '+o.w+'</div><div><b>Read:</b> '+o.r+'</div><div><b>Trained:</b> '+o.tr+'. <b>Parameters:</b> '+(t2.params||'')+' in Table 2; recounted '+(p.count?fmt(p.count):'')+' ('+(p.pct_of_backbone!=null?p.pct_of_backbone.toFixed(2):'')+'% of 2.85B)'+(m===4?'; 3.3M at 10x, where d<sub>h</sub> = 810':'')+'.</div></div>'}
-segBind('mxM',()=>refit($('mxSvg')));fit($('mxSvg'),drawMX);
+// ---------- 2. Where each method attaches the bank: the 3D stage Fig. 1 (31_js_sc_meth.js) ----------
 
 // ---------- 3. The metric: clipping per question makes noise look like memory ----------
 function rhoRun(){let h=+$('rhoH').value,l=+$('rhoL').value;if(h+l>100){l=100-h;$('rhoL').value=l}

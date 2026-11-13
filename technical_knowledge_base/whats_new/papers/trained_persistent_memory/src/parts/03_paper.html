@@ -1,14 +1,16 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
-<section id="s-core">
+<div class="s3sp"><div class="s3L"><section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> give a frozen Flan-T5-XL a persistent latent memory bank that a fixed, never-trained rule writes every turn and a small trained adapter reads; on LoCoMo every method scores above the stateless baseline's zero at 10x capacity, but that score cannot go below zero, and the write rule all but erases a turn within about 100 turns while most test questions are older.</p>
+<p class="small"><b>You need:</b> how an encoder-decoder's decoder reads the encoder through cross-attention ({{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}) and how a frozen model is adapted with a few trained parameters, prefix tuning and LoRA ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}). <b>New terms:</b> <b>persistent bank</b> <i>P</i> (an <i>n<sub>P</sub></i> × <i>d</i> matrix kept across turns); <b>injection point</b> (where the bank enters the frozen model); <b>write mechanism</b> (the rule that folds a turn into the bank); <b>delegated</b> or <b>explicit read</b> (the frozen cross-attention picks from the bank, or the adapter retrieves first); <b>conversational learning</b> (the bank keeps filling at inference, no gradients); <b>memory recall rate</b> <i>ρ</i> (the share of headroom the bank fills, clipped at zero); <b>evidence lag</b> (turns from the evidence to the question).</p>
+</section></div>
+<div class="s3R"><div class="s3side">
 <figure class="pfig" id="heroFig">
 <div class="t">Only the read is trained; the write is a fixed rule that forgets a turn in tens of turns</div>
 <div class="sc">@@HERO@@</div>
 <figcaption>Notice the two colours: the blue read adapter is the only thing gradient descent touches (§5); the orange write multiplies the whole bank by <i>γ</i> = 0.95 before adding each turn, so the bank is a moving average over about 20 turns. As run, M.1 enters before the encoder and the other five add extra positions to the decoder's cross-attention. Redrawn for this page from {{Eq. 2|ax:S1.E2}}, {{§5|ax:S5.SS0.SSS0.Px2}} and {{§6.2|ax:S6.SS2.SSS0.Px2}} (the paper is under arXiv's non-exclusive licence, so its own figures are not reproduced); swipe sideways on a phone.</figcaption>
 </figure>
-<p class="small"><b>You need:</b> how an encoder-decoder's decoder reads the encoder through cross-attention ({{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}) and how a frozen model is adapted with a few trained parameters, prefix tuning and LoRA ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}). <b>New terms:</b> <b>persistent bank</b> <i>P</i> (an <i>n<sub>P</sub></i> × <i>d</i> matrix kept across turns); <b>injection point</b> (where the bank enters the frozen model); <b>write mechanism</b> (the rule that folds a turn into the bank); <b>delegated</b> or <b>explicit read</b> (the frozen cross-attention picks from the bank, or the adapter retrieves first); <b>conversational learning</b> (the bank keeps filling at inference, no gradients); <b>memory recall rate</b> <i>ρ</i> (the share of headroom the bank fills, clipped at zero); <b>evidence lag</b> (turns from the evidence to the question).</p>
-</section>
+</div></div></div>
 <nav class="nav" id="nav"><a href="#s-core">Core idea</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Six methods</a><a href="#s-train">Training</a><a href="#s-eval">The metric</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -19,6 +21,18 @@
 <p class="lead"><b>The question:</b> can memory live in the model's <b>continuous latent space</b> instead, so that reading and writing become differentiable operations on dense vectors that can be trained end to end, while every backbone weight stays frozen?</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="s3side">
+<div class="card" id="tl">
+<div class="an-top"><div class="seg" id="tlM" role="group" aria-label="System"><button class="on" data-m="mem" aria-pressed="true">With a memory bank</button><button data-m="base" aria-pressed="false">Stateless baseline</button></div>
+<span class="small mute">The paper's example from §1; illustrative turns.</span></div>
+<div id="tlSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="tlBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="tlPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="tlFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="tlScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="tlSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cnt" id="tlCnt"></div>
+<p class="small mute" style="margin:6px 0 0">The bank's shading is the share of it that each turn still holds under the paper's decay <i>γ</i> = 0.95 per turn ({{§6.2|ax:S6.SS2}}): a turn written <i>l</i> turns ago keeps weight <i>γ</i><sup><i>l</i></sup> before normalisation. The {{simulation tab|tab:t-run}} runs the real write rules.</p>
+</div>
+</div></div><div class="s3L">
 <section id="s-idea"><h2>Idea</h2>
 [[S1|§1, Eq. 2]]
 <p>Add a <b>persistent memory bank</b> <i>P<sub>t</sub></i>, a matrix of <i>n<sub>P</sub></i> rows of width <i>d</i> (Flan-T5-XL's <i>d</i> = 2,048), that survives from turn to turn. Each turn now does three things ({{Eq. 2|ax:S1.E2}}):</p>
@@ -27,33 +41,42 @@
 <tr><td><b>Read</b></td><td><i>ŷ<sub>t</sub></i> = <i>D</i><sub>frozen</sub>(Read(<i>Z<sub>t</sub></i>, <i>P</i><sub><i>t</i>−1</sub>))</td><td>the answer sees what earlier turns left in the bank</td></tr>
 <tr><td><b>Write</b></td><td><i>P<sub>t</sub></i> = Write(<i>P</i><sub><i>t</i>−1</sub>, <i>Z<sub>t</sub></i>)</td><td>this turn's latent is folded into the bank</td></tr>
 </tbody></table></div>
-<p>Why not just keep the raw encoder outputs and let the decoder attend to all of them? The decoder's cross-attention was pre-trained to read <i>current</i> encoder states; piling up history in the same softmax spreads attention thin instead of sharpening retrieval. So a small trainable adapter <i>θ</i><sub>Mem</sub> learns to put memory in a form the frozen decoder can use ({{§1|ax:S1}}, {{§7.1|ax:S7.SS1}}). The animation runs the paper's own example through both systems: the stateless baseline and a model with a bank.</p>
-<div class="card" id="tl">
-<div class="an-top"><div class="seg" id="tlM" role="group" aria-label="System"><button class="on" data-m="mem" aria-pressed="true">With a memory bank</button><button data-m="base" aria-pressed="false">Stateless baseline</button></div>
-<span class="small mute">The paper's example from §1; illustrative turns.</span></div>
-<div id="tlSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="tlBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="tlPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="tlFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="tlScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="tlSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="tlStep"></div><p id="tlCap"></p></div>
-<div class="an-cnt" id="tlCnt"></div>
-<p class="small mute" style="margin:6px 0 0">The bank's shading is the share of it that each turn still holds under the paper's decay <i>γ</i> = 0.95 per turn ({{§6.2|ax:S6.SS2}}): a turn written <i>l</i> turns ago keeps weight <i>γ</i><sup><i>l</i></sup> before normalisation. The {{simulation tab|tab:t-run}} runs the real write rules.</p>
-</div>
-</section>
+<p>Why not just keep the raw encoder outputs and let the decoder attend to all of them? The decoder's cross-attention was pre-trained to read <i>current</i> encoder states; piling up history in the same softmax spreads attention thin instead of sharpening retrieval. So a small trainable adapter <i>θ</i><sub>Mem</sub> learns to put memory in a form the frozen decoder can use ({{§1|ax:S1}}, {{§7.1|ax:S7.SS1}}). The animation runs the paper's own example through both systems, the stateless baseline and a model with a bank, one step at a time:</p>
+<ol class="sx" id="sx-tl-mem">
+<li><b>Encode the turn.</b> The frozen encoder turns "I like reading" into a latent <i>Z<sub>t</sub></i>, exactly as the stateless model does ({{Eq. 1|ax:S1.E1}}).</li>
+<li><b>Write it into the bank.</b> The write rule folds <i>Z<sub>t</sub></i> into the persistent bank <i>P</i>: <i>P<sub>t</sub></i> = <i>γP</i><sub><i>t</i>−1</sub> + <i>A</i><sup>⊤</sup><i>V</i>. No gradients: this is the inference-time "conversational learning" of {{Eq. 32|ax:S5.E32}}.</li>
+<li><b>Twenty turns later.</b> Every turn multiplies what is already in the bank by <i>γ</i> = 0.95 before adding the new turn, so after 20 turns the fact keeps 0.95<sup>20</sup> = 36% of its weight.</li>
+<li><b>Session 3: the question.</b> The decoder reads the current question <i>and</i> the bank (Read(<i>Z<sub>t</sub></i>, <i>P</i><sub><i>t</i>−1</sub>), Eq. 2). After 40 turns the fact keeps 0.95<sup>40</sup> = 13%, so a trained read path can still find it. This is the case the paper motivates.</li>
+<li><b>At LoCoMo's typical lag.</b> 62% of the test questions are 256 or more turns after their evidence. By then the fact keeps 0.95<sup>256</sup> ≈ 2 × 10<sup>−6</sup> of its weight: the bank has written over it, and the answer is a guess, as in the stateless model.</li>
+</ol>
+<ol class="sx" id="sx-tl-base" hidden>
+<li><b>Encode the turn.</b> The frozen encoder turns "I like reading" into a latent <i>Z<sub>t</sub></i> (Eq. 1).</li>
+<li><b>Discard it.</b> The decoder answers and <i>Z<sub>t</sub></i> is thrown away: nothing survives the forward pass ({{Figure 1|ax:S3.fig1}}).</li>
+<li><b>Twenty turns later.</b> Each turn is encoded, answered and discarded. There is no state to carry the fact.</li>
+<li><b>Session 3: the question.</b> The model sees only "What do I like?" and has no way to know. This is the inter-session memory problem the paper targets (§1).</li>
+<li><b>At any lag.</b> The same answer however far back the fact is: the stateless curve is flat, and the paper's metric scores it zero by construction.</li>
+</ol>
+</section></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-meth"></div></div><div class="s3L">
 <section id="s-meth"><h2>Six methods</h2>
 [[S4|§4, Tables 1 and 2]]
 <p>The paper builds six variants spanning <b>three injection points</b> (where memory enters the frozen model: before the encoder, between encoder and decoder, or inside the decoder) and <b>four write mechanisms</b> (how the bank updates: an attention-coupled update, a Hebbian outer product, gated cross-attention, sparse slot addressing) ({{§1|ax:S1}}, {{Table 1|ax:S4.T1}}). The backbone stays frozen and only the small adapters train. Each method borrows a known primitive: prefix tuning (M.1), Flamingo's gated cross-attention (M.2, M.5), Memorizing Transformers' extra keys and values (M.3), fast-weight outer products (M.4) and Neural Turing Machine slots (M.6); the contribution claimed is the controlled comparison, not the primitives ({{§2|ax:S2}}).</p>
-<p>Pick a method to see where its memory enters and how it writes. Parameter counts are recounted from Flan-T5-XL's configuration (<i>d</i> = 2,048, 24 decoder layers, 2.85B parameters in total).</p>
-<div class="card" id="mx">
-<div class="seg" id="mxM" role="group" aria-label="Method"><button class="on" data-m="1">M.1 Prefix</button><button data-m="2">M.2 XAttn</button><button data-m="3">M.3 KV Ext</button><button data-m="4">M.4 Hebbian</button><button data-m="5">M.5 Gated</button><button data-m="6">M.6 Slot</button></div>
-<div id="mxSvg" class="an-svg"></div>
-<div id="mxTxt"></div>
-</div>
+<p>Fig. 1 attaches each method to the frozen model in turn, in the order of where its memory enters: write paths in orange (never trained), read paths in blue (trained). Parameter counts are recounted from Flan-T5-XL's configuration (<i>d</i> = 2,048, 24 decoder layers, 2.85B parameters in total); Table 2's printed counts are rounded.</p>
+<ol class="sx" id="sx-meth">
+<li><b>The frozen model, stateless.</b> The turn <i>x<sub>t</sub></i> passes the 24 encoder layers; the latent <i>Z<sub>t</sub></i> (<i>n</i> × 2,048) is read by each of the 24 decoder layers through cross-attention; the answer comes out and <i>Z<sub>t</sub></i> is thrown away. None of the 2.85B parameters trains.</li>
+<li><b>The bank and its write, never trained.</b> The bank <i>P</i> (gold, 64 rows × 2,048 at 1x, 640 at 10x) sits beside the model. Each turn, queries come from <i>Z<sub>t</sub></i>, keys from the bank, values from <i>Z<sub>t</sub></i>, through three fixed random plates (<i>W<sub>Q</sub></i>, <i>W<sub>K</sub></i>, <i>W<sub>V</sub></i>), and then <i>P</i> ← 0.95 <i>P</i> + <i>A</i><sup>⊤</sup><i>V</i>. This attention-coupled write is shared by M.1, M.2, M.3 and M.5 ({{Eq. 7|ax:S4.E7}}).</li>
+<li><b>M.1 Prefix: read before the encoder.</b> <i>P</i> is projected to <i>m</i> soft tokens <i>S</i> = <i>U<sub>P</sub>PW<sub>P</sub></i> and prepended to the turn; the frozen encoder mixes them in (a delegated read, after prefix tuning). Trained: <i>W<sub>P</sub></i>, 4.19M parameters (Table 2: 4.2M), 0.147% of the backbone ({{§4.1|ax:S4.SS1}}).</li>
+<li><b>M.3 KV extension: extra keys and values.</b> <i>H</i> = <i>PW</i><sub>Mem</sub> is appended to <i>Z<sub>t</sub></i>, so every decoder layer's frozen cross-attention sees <i>n</i> + 64 keys and values (delegated, after Memorizing Transformers). Trained: <i>W</i><sub>Mem</sub>, zero-initialised, 4.19M ({{§4.3|ax:S4.SS3}}).</li>
+<li><b>M.6 Slots: write 8 of 64.</b> The turn is mean-pooled and scored against the 64 slots; only the top 8 move towards <i>u</i> = <i>z̄W<sub>u</sub></i>, <i>P</i>[<i>s</i>] ← <i>γP</i>[<i>s</i>] + (1 − <i>γ</i>)<i>u</i> (two orange bands of four slots); the other 56 are untouched, so they do not decay. Read as M.3, all slots through <i>W</i><sub>Mem</sub> (delegated, after Neural Turing Machines). Trained: 4.19M ({{§4.6|ax:S4.SS6}}).</li>
+<li><b>M.4 Hebbian: a small matrix instead of rows.</b> The memory is one 256 × 256 matrix <i>M</i> (810 × 810 at 10x), written by an outer product, <i>M</i> ← <i>γM</i> + (1/<i>n</i>)(<i>ZW<sub>K,H</sub></i>)<sup>⊤</sup>(<i>ZW<sub>V,H</sub></i>), rescaled to Frobenius norm at most 1; the read <i>R</i> = (<i>ZW<sub>Q,H</sub></i>)<i>M</i> goes through <i>W</i><sub>Mem</sub> and is appended to <i>Z<sub>t</sub></i> (explicit, after fast weight programmers). Trained: <i>W<sub>Q,H</sub></i> and <i>W</i><sub>Mem</sub>, 1.05M (Table 2: 1.0M), 3.32M at 10x ({{§4.4|ax:S4.SS4}}).</li>
+<li><b>M.2 and M.5 as designed: a branch in every decoder block.</b> A second cross-attention over <i>P</i> in each of the 24 blocks, added with a zero-initialised <i>β</i> (M.2, after Flamingo, 16.78M trained) or multiplied by a learned gate <i>g</i> = σ(<i>W<sub>g</sub></i>[<i>s</i>; <i>c</i>] + <i>b<sub>g</sub></i>) whose negative bias starts it nearly closed (M.5, 20.97M) ({{§4.2|ax:S4.SS2}}, {{§4.5|ax:S4.SS5}}).</li>
+<li><b>As run: five through one door.</b> The per-block branch is approximated: computed once with <i>Z<sub>t</sub></i> standing in for the decoder's state and passed as extra encoder positions. So M.2 to M.6 all enter as extra positions in the frozen cross-attention, and only M.1 differs. Every adapter trains between 1.05M and 20.97M parameters, at most 0.74% of the backbone.</li>
+</ol>
 <p><b>Delegated or explicit read.</b> M.1, M.3 and M.6 hand all of <i>P</i> to the decoder as extra keys and values and let the frozen cross-attention pick; M.2, M.4 and M.5 do their own content-based retrieval first ({{Table 1|ax:S4.T1}}). Two of the three "inside the decoder" methods are not built that way: for M.2 and M.5 the per-layer read is approximated by computing it once with <i>Z<sub>t</sub></i> standing in for the decoder's hidden state and passing the result to the decoder as extra encoder positions ({{§4.2 implementation note|ax:S4.SS2}}, {{§4.5|ax:S4.SS5}}). As run, then, five of the six methods enter through the same door, extra positions in the decoder's cross-attention; only M.1 differs.</p>
 <details class="mist"><summary>The write rules in full (Eqs. 7, 16, 24 to 28) and how each method starts as the baseline</summary><div class="b"><p>Four methods share one <b>attention-coupled</b> write: queries from the current latent, keys from the bank, values from the current latent, then <span class="m"><i>P<sub>t</sub></i> = <i>γP</i><sub><i>t</i>−1</sub> + <i>A<sub>t</sub></i><sup>⊤</sup><i>V</i></span> with <span class="m"><i>A<sub>t</sub></i> = softmax(<i>QK</i><sup>⊤</sup>/√<i>d</i>)</span>. Taking values from <i>Z<sub>t</sub></i>, not from <i>P</i>, is what lets an all-zero bank fill up at all ({{Eq. 7|ax:S4.E7}}). M.4 keeps a <i>d<sub>h</sub></i> × <i>d<sub>h</sub></i> matrix, adds <span class="m">(1/<i>n</i>)(<i>ZW<sub>K,H</sub></i>)<sup>⊤</sup>(<i>ZW<sub>V,H</sub></i>)</span> each turn and rescales it whenever its Frobenius norm passes 1 ({{Eq. 16|ax:S4.E16}}). M.6 mean-pools the turn, scores the 64 slots, and moves only the top 8 towards the new vector, <span class="m"><i>γP</i>[<i>s</i>] + (1 − <i>γ</i>)<i>u<sub>t</sub></i></span> ({{Eqs. 24 to 28|ax:S4.E24}}). Zero-initialised read projections (M.2's <i>β</i>, M.3's <i>W</i><sub>Mem</sub>) and M.5's negative gate bias make each method start exactly or nearly as the frozen baseline; M.4 initialises <i>W<sub>Q,H</sub></i> small but non-zero, since zeroing both of its read matrices would deadlock the gradients ({{§4.4|ax:S4.SS4}}, {{§4.5|ax:S4.SS5}}).</p></div></details>
 <p>All three write rules multiply what is already stored by <i>γ</i> each turn (M.6 only in the slots it picks); that one fact drives most of the evidence section.</p>
-</section>
+</section></div></div>
 
 <section id="s-train"><h2>Training, then conversational learning</h2>
 [[S5|§5, §6.2 Implementation details]]
@@ -93,15 +116,10 @@
 <p>So the headline "all six positive" is close to guaranteed for any adapter whose answers change at all when the bank is wiped. What the metric can tell apart is <i>how much</i> each method helps and whether the help falls with lag, which is where the results start.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Results</h2>
 [[S6.SS4|§6.4, §6.5, §7.2; Tables 3 to 5]]
 <p>Evaluated on <b>LoCoMo</b> with the forgetting-curve protocol at two capacity scales, 1x and 10x ({{§6.4|ax:S6.SS4}}). LoCoMo is a public benchmark of 10 very long two-person conversations, generated by LLM agents and edited by people (19 to 32 sessions, 369 to 689 turns each) with annotated evidence turns for every question, which is what lets each question sit at a known lag ({{LoCoMo|https://arxiv.org/abs/2402.17753}}; counts from the {{released data|https://github.com/snap-research/locomo}}). The test set has 639 questions, and 62% of them sit 256 or more turns back.</p>
-<div class="card" id="fc">
-<div class="an-top"><div class="seg" id="fcM" role="group" aria-label="Capacity"><button class="on" data-m="x1" aria-pressed="true">1x capacity</button><button data-m="x10" aria-pressed="false">10x capacity</button></div>
-<label class="small"><input type="checkbox" id="fcE"> show ± 1 standard-error bound</label></div>
-<div id="fcSvg"></div>
-<p class="small mute" id="fcNote"></p>
-</div>
 <ul>
 <li><b>At 1x</b> three methods score near zero: M.1 Prefix 0.02%, M.3 KV Ext 0.00%, M.5 Gated 0.15% on average. M.2 XAttn and M.6 Slot start above 17% at short lag and fall to about 9% and 7%; M.4 Hebbian is nearly flat at about 9.3% ({{Table 3|ax:S6.T3}}). The 1x picture is weaker, and the honest read is that capacity is doing much of the work.</li>
 <li><b>At 10x</b> all six adapters score above zero at every lag, with means from 8.34% (M.5) to 12.05% (M.3). The paper says M.4 Hebbian "leads with ... the best mean (11.6%)" and that M.3 has "the highest short-lag recall (15.6%)"; its own table has M.3's mean higher (12.05 against 11.60) and M.4's short-lag score higher (15.86 against 15.58) ({{§6.4|ax:S6.SS4.SSS0.Px3}}). Weighted by the number of questions per bucket, M.4 does lead (10.60 against 10.17), and it has the best long-lag score (10.32).</li>
@@ -119,7 +137,15 @@
 <p><b>Net benefit at 10x</b> is positive for all six, +1.83 to +6.26 F1 points over the baseline; at 1x only M.2 (+6.76), M.6 (+5.75) and M.4 (+3.10) come out ahead ({{§7.2|ax:S7.SS2.SSS0.Px4}}). The taxes take only two values per scale (2.38 or 4.23 for the delegated-read methods, 3.39 for every explicit-read one), which is unusual for six separately trained adapters and is not explained.</p>
 <p><b>Knowledge accumulation</b> ({{§6.5|ax:S6.SS5}}, {{Table 4|ax:S6.T4}}): after writing sessions 1 to <i>s</i>, probe every question whose evidence is already written, and track the mean F1 <i>K<sub>s</sub></i>; Δ<i>K</i> = <i>K</i><sub>30</sub> − <i>K</i><sub>1</sub>. At 1x M.6 has the largest gain (Δ<i>K</i> = 9.71) and M.4 (7.84) and M.2 (7.34) follow, while M.1, M.3 and M.5 stay under 0.2. Two things do not add up (details below).</p>
 <details class="mist"><summary>Table 4 against the text: the terminal <i>K</i><sub>30</sub> and the baseline's gain</summary><div class="b"><p>The text says M.6 has "the highest terminal <i>K</i><sub>30</sub> = 9.7%", but M.2 (11.04) and M.4 (10.62) are higher in the same table. And the stateless baseline gains 5.57 points, explained as "more context injected into the current prompt", although the equal-input rule gives it only the current turn; with <i>K</i><sub>1</sub> = 0, what changes is which questions are answerable, not the baseline. Two of the three test conversations have 30 sessions; conv-49 has 25.</p></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side">
+<div class="card" id="fc">
+<div class="an-top"><div class="seg" id="fcM" role="group" aria-label="Capacity"><button class="on" data-m="x1" aria-pressed="true">1x capacity</button><button data-m="x10" aria-pressed="false">10x capacity</button></div>
+<label class="small"><input type="checkbox" id="fcE"> show ± 1 standard-error bound</label></div>
+<div id="fcSvg"></div>
+<p class="small mute" id="fcNote"></p>
+</div>
+</div></div></div>
 
 <section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
 [[S7.SS4|§7.4 Broader implications]]
