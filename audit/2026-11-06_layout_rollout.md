@@ -290,9 +290,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/re_grading_six_physics_benchmarks` Re-grading six physics benchmarks: most model failures were the test's fault
 - [x] `whats_new/papers/react` ReAct: Synergizing Reasoning and Acting in Language Models
 - [x] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
-- [~] `whats_new/papers/rocketeval` RocketEval: Efficient Automated LLM Evaluation via Grading Checklist
+- [x] `whats_new/papers/rocketeval` RocketEval: Efficient Automated LLM Evaluation via Grading Checklist
 - [~] `whats_new/papers/roformer` RoFormer: Enhanced Transformer with Rotary Position Embedding
-- [ ] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
+- [~] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
 - [ ] `whats_new/papers/scaffold_computational_separations` Understanding the Benefits of Scaffolds through Computational Separations
 - [ ] `whats_new/papers/scaling_laws_for_neural_language_models` Scaling Laws for Neural Language Models
 - [ ] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
@@ -584,6 +584,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/re_grading_six_physics_benchmarks`: hero has empty space above the towers at step 1; Results close-up rise labels sit over the row behind; replay card about 620 px on phones and not sticky.
 - `whats_new/papers/repo_to_skill`: router stage step 4 is busy and the area towers are cut at the top edge; stages sit as a band with empty space on phones. The release prints "720 safe tests passed" while its nine PASS suites sum to 745 (page quotes 720, bars not summed).
 - `whats_new/papers/react`: Fig. 1 step 5 the "Front Row (software)" label touches the right edge; about 100 px empty above the scene in close-in steps 5 to 7 at 1400; Tables tab Figure 2 lines end in unlabelled circles.
+- `whats_new/papers/rocketeval`: hero first steps leave empty space on the right on phones; last RocketEval step bars and score towers small at 390 px; CoT flip-rate labels pale. Two ledger keys elsewhere (benchmarks root, data curation root) carried the lowercased name from page text; re-keyed so no file contains the login string.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -719,3 +720,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Physics re-grading: the one-model Figure 1 chart (with pass@4) moved from Results to the Tables tab beside Table 1 (the 3D stage shows all three models' mean@4); corrected PHYBench's implied pass rate 96.5% to 96.6% (84/87). Keep?
 - Repo-To-Skill: the router replay's two alternatives ("every description up front", "both graphs whole") became one static to-scale figure instead of animation modes; the hero stays 2D. Keep?
 - ReAct: the trace replay is now a widget (long-replay rule) opening on each episode's last step; the 3D stage sits in Idea and the 2D hero stays; Table 2's chart moved into its own card under Table 1. Keep?
+- RocketEval: the hero is now a 3D amortisation grid plus cost towers (outcomes became a short list under the steps); the before/after is one stage with a mode toggle; bar labels are one word each (full items in the replay card); the CoT mode's three sampled digits (8, 6, 7) are illustrative (labelled). Keep?

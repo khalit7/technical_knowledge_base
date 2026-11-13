@@ -17,5 +17,8 @@ Question the page keeps returning to: when can a small judge stand in for a fron
 | P-rocketeval.11 | Recomputing Table 2 from released data | none | 4 | rejected | gradings exist for 3 of 6 human-judged models; the subset check is quoted in How much to believe |
 | P-rocketeval.12 | Running a small judge in the browser | none | 2 | rejected | far over the size limit; released gradings replace it |
 | P-rocketeval.13 | **Hero: the three stages and three outcomes** (static SVG drawn at the measured width, row of three at 800 px and up, stacked below), redrawn from the paper's Figure 2 because the paper is CC BY-NC-SA (light pass 2026-10-25) | Reading, top | 5 | built | the paper's own figure is not copied; numbers from Tables 2 to 4 and recompute.py |
+| P-rocketeval.14 | **Hero as a 3D stage** (2026-11-13): queries as rows, runs as columns, one checklist plate per query, small-judge cells against GPT-4o cells, 1,000-run cost towers to scale | Reading, top | 9 | built | `PAPER.rc.cost`; grid size illustrative |
+| P-rocketeval.15 | **The before/after as a 3D stage** (2026-11-13): seven lanes off one cached prefix against a chain of judgments with arcs to every earlier one; released probabilities as bars, Figure 5 flip rates as bars | Reading, Method | 11 | built | replaces P-rocketeval.2's 2D animation |
+| P-rocketeval.16 | Results (Tables 2 and 3) as a 3D bar field of judges by method | none | 4 | rejected | a dumbbell on one axis reads the change better; values on an axis stay 2D |
 
 Methodology note: for a judge or benchmark paper, the released per-item grades are the live ingredient; resampling the queries gives the error bars the paper omits, and a "noise plus bias" model separates what averages out from what does not.
