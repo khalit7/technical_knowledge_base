@@ -28,10 +28,10 @@
     const la=Math.max(0,(e-.6)/.4);
     // the weights glide from the last station to this one
     const wx=(f==null?XS[cheap?4:0]:f===0?XS[0]:lerp(XS[f-1],XS[f],e))+DXP;
-    const inF=i=>k===0?1:cheap?.2:i===f?1:.18;
+    const inF=i=>k===0?1:cheap?.2:i===f?1:.07; // close views: the neighbours almost vanish, so the card edges do not cut them
     // two floor bands: the base (what it knows) and post-training (what it does with it)
     [[-7.6,-1.6,P.mute],[-1.4,7.6,P.c4]].forEach(([x0,x1,c],b)=>{const a=k===0?1:cheap?.3:(f!=null&&(f<2)===(b===0))?.9:.3;
-      R.quad([[x0,.004,-2.5],[x1,.004,-2.5],[x1,.004,1.55],[x0,.004,1.55]],{fill:mix(P.card,c,P.dark?.16:.08),fa:a,ea:.3*a})});
+      R.quad([[x0,.004,-2.5],[x1,.004,-2.5],[x1,.004,1.55],[x0,.004,1.55]],{fill:mix(P.card,c,P.dark?.16:.08),fa:f!=null&&a<.5?.12:a,ea:f!=null?0:.3*a})});
     if(k===0){R.label([-4.6,0,1.55],ph?'the base':'the base: what it knows',{...mono,b:1,dy:30,c:P.mute});
       R.label([3.1,0,1.55],ph?'post-training':'post-training: what it does with it',{...mono,b:1,dy:30,c:P.c4})}
     ST.forEach((s,i)=>{const x=XS[i],a=inF(i),c=col(P,s.who),h=HY(SH[s.k]),on=k===0||i===f;
@@ -45,7 +45,7 @@
       // compute: a white column beside the plate, log scale
       const hh=k===0?Math.max(.02,h*e):h;R.box([x+DXC,0,ZC],[.42,hh,.42],{a});R.glow([x+DXC,hh+.06,ZC],.28,{c:P.acc,a:a*.45});
       // the weights' ghost at every other station
-      if(i!==f||k===0)plate(R,x+DXP,(k===0?.5:.12));
+      if(i!==f||k===0)plate(R,x+DXP,(k===0?.5:f!=null?.05:.12));
       // labels: every name and share in the map; the focused station's detail in its close view
       if(k===0){R.label([x,0,1.0],ph?s.s:s.n,{...mono,b:1,dy:14,c:P.ink});R.label([x+DXC,hh,ZC],s.pct,{...mono,dy:-12,c:P.acc,b:1,a:e})}
       if(i===f){R.label([x,0,1.0],s.n,{...mono,b:1,dy:14,c:P.ink,a:la});R.label([x,0,1.0],s.sig,{...mono,dy:30,c:P.c4,b:1,a:la});

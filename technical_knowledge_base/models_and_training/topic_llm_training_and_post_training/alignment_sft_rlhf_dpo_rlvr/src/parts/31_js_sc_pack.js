@@ -36,7 +36,7 @@
       R.flowArc(a1,a0,.3+.1*Math.abs(a1[0]-a0[0]),{c:P.bad,a:Math.min(1,e*1.6),r:.075,n:6,speed:1.3})}))});
     if(k===4)B.forEach((b,i)=>{const z=RZ(PK[i].r),xa=XL+sx(PK[i].o),xb=xa+sx(b.t);if(xb-xa>.25)R.flowArc([xb-.05,H0,z],[xa+.05,H0,z],.15+.1*(xb-xa),{c:TAB[i],a:Math.min(1,e*1.6),r:.065,n:4,speed:1})});
     // the counter for the step, written above the scene
-    const top=k>=5?[-1,1.95,-.8]:k>=2?[1.2,0,.85]:[0,.25,-2.6],tc={fs:12.5,b:1,mono:true,c:P.ink,dy:k===2?40:k>=3&&k<5?18:0,wide:k>=5?1:0};
+    const top=k===6?[-1,hSum+.5,-.8]:k>=5?[-1,1.95,-.8]:k>=2?[1.2,0,.85]:[0,.25,-2.6],tc={fs:12.5,b:1,mono:true,c:P.ink,dy:k===2?40:k>=3&&k<5?18:0,wide:k>=5?1:0};
     if(k===0)R.label(top,fmt(ST.b_sum_l)+' of '+fmt(ST.b_sum_t)+' tokens graded',{...tc,a:e});
     if(k===1)R.label(top,fmt(ST.b_pad_pos)+' positions · '+pct(ST.b_pad_real)+' real',{...tc,a:e});
     if(k===2)R.label(top,fmt(ST.b_pack_pos)+' positions · '+pct(ST.b_pack_real)+' real',{...tc,a:e});
@@ -52,5 +52,5 @@
   const full={cam:[0,.95],bounds:[[-5.1,0,-2.5],[4.7,.25,2.4]]};
   S3.stage({id:'stg-pack',list:'sx-pack',fig:'Fig. 2 · eight real Tulu 3 SFT rows in one batch',cam:full.cam,bounds:full.bounds,aspect:.44,dur:1500,hold:4800,draw,
     margin:w=>w<520?[18,8,12,8]:[20,14,12,56],
-    view:k=>k===2?{cam:[0,.85],bounds:[[-5.1,0,-1.0],[4.7,.22,1.0]]}:k===3||k===4?{cam:[0,.6],bounds:[[-5.1,0,-.9],[4.7,1.1,.9]]}:k>=5?{cam:[0,.32],bounds:[[-5.1,0,-.8],[4.7,1.9,.8]]}:full});
+    view:k=>k===2?{cam:[0,.85],bounds:[[-5.1,0,-1.0],[4.7,.22,1.0]]}:k===3||k===4?{cam:[0,.6],bounds:[[-5.1,0,-.9],[4.7,1.1,.9]]}:k===5?{cam:[0,.32],bounds:[[-5.1,0,-.8],[4.7,1.9,.8]]}:k===6?{cam:[0,.42],bounds:[[-5.1,0,-.8],[4.7,hSum+.5,.8]]}:full}); // step 7: the bars are short again, so the camera drops the room the tall bar needed
 })();

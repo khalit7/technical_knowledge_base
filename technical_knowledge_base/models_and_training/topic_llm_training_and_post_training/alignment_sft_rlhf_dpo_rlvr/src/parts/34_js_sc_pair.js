@@ -27,7 +27,7 @@
             R.flow(up?[[x,y+.05,z],[x,y+.55,z]]:[[x,y+.6,z],[x,y+.05,z]],{c:up?P.good:P.bad,a:fa*Math.min(1,.35+ag),r:.035+.035*Math.min(1,ag),n:2+Math.round(3*Math.min(1,ag)),speed:.8})}
           else if(sh&&k===3)R.glow([x,p*HT+.15,z],.18,{c:P.c4,a:.7*e})}});
       const lp=ri?o.Sr:o.Sc,lp0=ri?o0.Sr:o0.Sc;
-      R.label([xt(0)-.3,0,z],(ri?'rejected · wrong · ':'chosen · right · ')+toks.length+' tokens · log p '+f(lp)+(s?' (was '+f(lp0)+')':''),{al:'right',dx:-16,fs:12.5,b:1,c:ri?P.bad:P.good,grp:'row',wide:1});
+      R.label([xt(0)-.3,0,z],(ri?'rejected · wrong · ':'chosen · right · ')+(s?'':toks.length+' tokens · ')+'log p '+f(lp)+(s?' (was '+f(lp0)+')':''),{al:'right',dx:-30,fs:12.5,b:1,c:ri?P.bad:P.good,grp:'row',wide:1});
       R.label([xt(toks.length-1)+.2,0,z],(ri?'$24':'$8'),{al:'left',dx:6,mono:true,fs:12.5,b:1,c:ri?P.bad:P.good})});
     R.label([xt(.5),0,ZC+.15],'shared · 12 pens',{fs:12.5,b:1,dy:15,c:P.c4,a:k===0||k===3?1:.7,wide:1});
     // what the loss reads (step 2)
@@ -54,7 +54,7 @@
   const eq=()=>{$('prEq').innerHTML=met().eq};eq();
   const full={cam:[.06,.6],bounds:[[-4.0,0,-1.3],[4.0,.9,1.4]]};
   const stg=S3.stage({id:'stg-pr',list:'sx-pr',fig:'Fig. 5 · one pair, '+'eight losses (toy, illustrative probabilities)',cam:full.cam,bounds:full.bounds,aspect:.44,dur:1800,hold:5200,draw,
-    margin:w=>w<520?[16,10,14,10]:[20,14,14,250],onStep:k=>{try{readout(k)}catch(err){}},
+    margin:w=>w<520?[16,10,14,10]:[20,14,14,264],onStep:k=>{try{readout(k)}catch(err){}},
     view:k=>k===3?{cam:[.2,.5],bounds:[[-3.9,0,-1.2],[0.9,1.6,1.3]]}:full});
   chips.addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]');if(!b||b.dataset.m===cur)return;cur=b.dataset.m;
     chips.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));eq();stg.list('sx-pr')});

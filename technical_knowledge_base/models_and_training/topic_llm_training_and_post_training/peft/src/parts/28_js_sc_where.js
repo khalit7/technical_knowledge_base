@@ -31,6 +31,6 @@
     const HS=['','q, v · '+fmtM(tot(['q','v']))+' · '+pctAll(['q','v']),'attention · '+fmtM(tot(ATT)),'all · '+fmtM(tot(ALL))+' · MLP '+pctAll(MLP),'attention r '+Math.round(r*match)+' · '+fmtM(tot(ATT)*match)];
     if(k>=1)R.label([0,3.45,0],R.W<520?HS[k]:HL[k],{mono:true,fs:13.5,b:1,c:P.acc,a:e});
   }
-  S3.stage({id:'stg-where',list:'sx-where',fig:'Fig. 4 · one Llama 3 8B block, to scale',cam:[.12,.5],bounds:[[-5,0,-.4],[5,3.45,1.6]],aspect:.52,dur:1400,hold:4600,draw,
-    margin:w=>w<520?[16,10,26,10]:[22,26,40,26]});
+  S3.stage({id:'stg-where',list:'sx-where',fig:'Fig. 4 · one Llama 3 8B block, to scale',cam:[.12,.5],bounds:[[-5,0,-.4],[5,3.45,1.4]],aspect:.47,dur:1400,hold:4600,draw,
+    margin:w=>w<520?[16,10,26,10]:[22,26,24,26]});
 })();

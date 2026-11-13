@@ -70,9 +70,9 @@
         R.glow([XP,.6,0],.9,{c:P.c1,a:.5*e})}
     }
     const full={cam:[.1,.72],bounds:[[-4.9,0,-2.2],[3.4,1.2,2.3]]};
-    const stg=S3.stage({id:'stg-rl',list:'sx-ppo',fig:'Fig. 4 · one RL step, model by model',cam:full.cam,bounds:full.bounds,aspect:.54,dur:1600,hold:4800,
+    const stg=S3.stage({id:'stg-rl',list:'sx-ppo',fig:'Fig. 4 · one RL step, model by model',cam:full.cam,bounds:full.bounds,aspect:.47,dur:1600,hold:4800,
       draw:(R,k,e)=>{R.grid(-5.5,4,-3,2.5,.5);(mode==='ppo'?drawPPO:drawGRPO)(R,k,e)},margin:w=>w<520?[16,10,14,10]:[22,16,14,16],
-      view:k=>k>=2&&k<=3?{cam:[.1,.66],bounds:[[-2.6,0,-2.2],[3.4,1.3,2.3]]}:full});
+      view:k=>k>=2&&k<=3?{cam:[.1,.66],bounds:[[-2.6,0,-2.2],[3.4,1.3,2.3]]}:mode==='ppo'&&k<=1&&document.getElementById('stg-rl').clientWidth>=520?{cam:full.cam,bounds:[[-4.9,0,-2.2],[3.4,1.2,1.3]]}:full}); // steps 1 and 2: nothing stands in the front rows yet
     const chips=document.getElementById('rlM');
     if(chips)chips.addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]');if(!b||b.dataset.m===mode)return;mode=b.dataset.m;
       chips.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));

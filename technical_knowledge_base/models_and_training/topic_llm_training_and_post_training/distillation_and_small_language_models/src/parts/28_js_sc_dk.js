@@ -30,7 +30,7 @@
   // temperature drawn at step k, progress e (geometric between the steps' values)
   const TK=[1,1,1,2,4];
   function Tat(k,e){if(Tover!=null&&k>=1)return Tover;if(k===3)return Math.pow(2,e);if(k===4)return 2*Math.pow(2,e);return TK[k]}
-  const X=i=>i<N?-3.7+i*1.05:-3.7+N*1.05+.3,ZL=1.1,ZG=-.45,ZP=-2.0,HP=2.0,W=.62;
+  const X=i=>i<N?-3.7+i*1.05:-3.7+N*1.05+.3,ZL=1.1,ZG=-.8,ZP=-2.0,HP=2.0,W=.62;
   function draw(R,k,e){const P=R.P,p=PR[cur],T=Tat(k,e),d=dist(p,T),narrow=R.W<520;R.grid(-5,5,-2.6,2.4,.5);
     const zmax=p.top[0][1],KZ=1.25/zmax;
     // 1. the logits: white bars on a plinth at the back, z / T once the temperature changes

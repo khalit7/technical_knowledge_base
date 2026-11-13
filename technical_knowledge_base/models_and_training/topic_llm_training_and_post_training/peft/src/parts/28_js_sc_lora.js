@@ -50,7 +50,7 @@
         field(R3,dx,PZ,v,D.amD,acc,da,P.acc,.9);
         R3.label(k===3?[dx,Y0-.2,PZ+S/2]:[dx,Y0+1.05,PZ-S/2],(R3.W<520?'rank-'+R+' ΔW · '+share(R):'best rank-'+R+' ΔW · holds '+share(R)),{mono:true,fs:12.5,b:1,c:P.acc,a:da,dy:k===3?18:0})}}
     if(k===2){const ga=Math.min(1,e*1.6);R3.flowArc(out,[BX,Y0+.12,AZ+.2],.35,{c:P.c5,a:ga,r:.055,speed:1.1,n:8});R3.flow([[BX,Y0+.12,AZ+.2],[AX-SA/2+.1,Y0+.12,AZ+.2]],{c:P.c5,a:ga,r:.05,speed:1.1,n:9});
-      R3.label([BX+.6,Y0+.5,AZ+.5],'gradients reach A and B only',{mono:true,fs:12,al:'left',c:P.c5,a:ga,wide:1})}
+      R3.label([BX,Y0,AZ+SA/2],'gradients reach A and B only',{mono:true,fs:12,dy:20,c:P.c5,a:ga,wide:1})}
     // 4. before / after: the real update full fine-tuning made (SFT then DPO), behind the best rank-r copy, at the same scale
     const ra=k===3?Math.min(1,e*1.4):0;
     if(ra>.01){field(R3,DX,FZ,dW,D.amD,org,ra,P.c2,.9);R3.label([DX,Y0+1.05,FZ-S/2],(R3.W<520?'real ΔW · 100%':'real ΔW · full fine-tuning · 100%'),{mono:true,fs:12.5,b:1,c:P.c2,a:ra})}
