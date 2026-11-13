@@ -21,12 +21,13 @@
     const P = R.P, A = P.acc, cur = G[k] || [], who = new Set(); cur.forEach(i => { who.add(X[i][0]); who.add(X[i][1]); });
     const COL = [A, P.c6, P.c3, P.c5];
     R.grid(-5.4, 5.6, -3, 3.6, .5);
-    POS.forEach((p, i) => party(R, p, SZ[i], COL[i], NM[i], { a: who.has(i) ? 1 : .3, wide: i === 3 ? 1 : 0 }));
+    POS.forEach((p, i) => party(R, p, SZ[i], COL[i], (k === 3 || R.W < 520) && !who.has(i) ? null : NM[i], { a: who.has(i) ? 1 : .3, wide: i === 3 ? 1 : 0 }));
     // what has been received so far rests as plates beside its holder
     const C = [POS[0][0], 0, POS[0][2] + .4], have = (g, j) => k > g || (k === g && e > j);
     plate(R, [C[0] - .5, 0, C[2] + .85], P.c6, have(1, .9) ? (k === 1 ? 1 : .45) : 0, k === 1 ? 'resource + authorization_servers' : null, { w: .4, h: .5, wide: 1 });
     plate(R, [C[0], 0, C[2] + .85], P.c3, have(2, .9) ? (k === 2 ? 1 : .45) : 0, k === 2 ? 'issuer checked · S256 · CIMD' : null, { w: .4, h: .5, wide: 1 });
-    plate(R, [POS[2][0] + 1.15, 0, POS[2][2] + .2], P.c5, have(3, .9) ? (k === 3 ? 1 : .45) : 0, k === 3 ? 'client.json: name, redirect URI' : null, { w: .4, h: .5, al: 'left', dx: 14 });
+    plate(R, [POS[2][0] + 1.15, 0, POS[2][2] + .2], P.c5, have(3, .9) ? (k === 3 ? 1 : .45) : 0, null, { w: .4, h: .5 });
+    if (k === 3) R.label([POS[2][0] + 1.15, 0, POS[2][2] + .2], 'client.json: name, redirect URI', { fs: 12, b: 1, c: P.c5, dy: 16, al: 'left', dx: -6, a: have(3, .9) ? 1 : 0 });   // under the plate, clear of the names above
     plate(R, [C[0] + .5, 0, C[2] + .85], P.c4, have(4, .9) && k < 6 ? (k === 4 ? 1 : .45) : 0, k === 4 ? 'code · iss checked' : null, { w: .36, h: .45 });
     plate(R, [C[0] + .5, 0, C[2] + .85], P.c1, have(5, .9) ? (k === 5 ? 1 : .7) : 0, k === 5 ? 'JWT · aud = MCP server · ' + tok.scope + ' · ' + tok.expires_in / 60 + ' min' : null, { w: .42, h: .55, al: 'left', dx: 14 });
     // this stretch's exchanges, one after another
@@ -42,10 +43,10 @@
     if (k === 6) R.glow(up(POS[1], .85), .7, { c: P.good, a: .6 * win(e, .3, .6) });
   }
   // the camera moves in on the parties of each stretch
-  function view(k) { const g = G[k]; if (!g) return null; const hs = new Set(); g.forEach(i => { hs.add(X[i][0]); hs.add(X[i][1]); }); hs.add(0);
+  function view(k) { const g = G[k]; if (!g) return null; const hs = new Set(); g.forEach(i => { hs.add(X[i][0]); hs.add(X[i][1]); }); if (k !== 3) hs.add(0);   // the AS fetching client.json: in close on those two
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; hs.forEach(i => { x0 = Math.min(x0, POS[i][0]); x1 = Math.max(x1, POS[i][0]); z0 = Math.min(z0, POS[i][2]); z1 = Math.max(z1, POS[i][2]); });
     x0 -= 1.3; x1 += 1.5; z0 -= .8; z1 += 1.3; const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, hw = Math.max(3.2, (x1 - x0) / 2), hd = Math.max(2.1, (z1 - z0) / 2);
-    return { cam: [.12, .72], bounds: [[cx - hw, 0, cz - hd], [cx + hw, 1.2, cz + hd]] }; }
+    return { cam: [.12, innerWidth < 520 ? 1.0 : .72], bounds: [[cx - hw, 0, cz - hd], [cx + hw, 1.2, cz + hd]] }; }
   function bytes(k) { const el = document.getElementById('au-msg'); if (!el) return; el.textContent = (G[k] || []).map(i => (S[i].s || '').replace(/\r/g, '')).join('\n\n----\n\n'); }
   S3.stage({ id: 'stg-auth', list: 'sx-auth', fig: 'Fig. 5 · from a bare 401 to a token bound to one server', cam: [.12, .74], bounds: [[-5.3, 0, -2.4], [5.4, 1.2, 3.2]], aspect: .58, dur: 1600, hold: 4800, draw, view,
     margin: w => w < 520 ? [22, 8, 16, 8] : [26, 16, 22, 16], onStep: k => { try { bytes(k) } catch (x) { } } });

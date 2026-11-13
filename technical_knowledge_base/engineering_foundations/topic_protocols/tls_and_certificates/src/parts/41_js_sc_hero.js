@@ -40,7 +40,7 @@
       const a = [X1 - .6, .15, .2], b = [X0 + .9, .15, .2], t = win(e, 0, .55), q = path(route([a, b]), t);
       R.flow(route([a, b]), { c: AUT, r: .07, n: 7, speed: 1.3, a: win(e, 0, .25) });
       cert(R, q, AUT, 1, 'leaf ' + fmt(H.leaf) + ' B', { w: .8, h: .55, mono: 1 });
-      cert(R, [q[0] + 1.35, q[1], q[2]], AUT, 1, 'intermediate ' + fmt(H.inter) + ' B', { w: .8, h: .55, mono: 1, dy: -28 });
+      cert(R, [q[0] + 1.35, q[1], q[2]], AUT, 1, 'intermediate ' + fmt(H.inter) + ' B', { w: .8, h: .55, mono: 1, dy: -40 });
       plate(R, [q[0] + 2.55, q[1], q[2]], P.c4, win(e, .1, .3), 'signature ' + H.sig + ' B', { w: .3, h: .3, lc: P.c4, mono: 1 });
       cert(R, [CL[0] + .1, 1.95, -.35], P.good, win(e, .55, .75), 'root in its trust store', { w: .7, h: .5, glow: P.good, lc: P.good, dy: -8 });
       tick(R, [X0 + .4, 1.25, .2], win(e, .8, 1));
@@ -66,7 +66,7 @@
     }
   }
   const full = { cam: [.2, .42], bounds: [[-5.6, 0, -1.1], [5.6, 2.5, 1.1]] };
-  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · four tools, one connection', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4800, draw,
+  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · four tools, one connection', cam: full.cam, bounds: full.bounds, aspect: .44, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [26, 8, 14, 8] : [30, 16, 20, 16],
   });
 })();

@@ -24,7 +24,7 @@
     party(R, BAS, [1.7, .95, 1.2], P.c2, 'bastion', { a: fade });
     party(R, NODE, [1.4, .8, 1.1], P.c3, 'gpu-node-01', { a: fade });
     const dead = k === 4;
-    master(R, k === 0 ? win(e, 0, .5) : (barsOn ? .2 : dead ? 1 - .7 * win(e, .2, .6) : 1), dead ? P.bad : null, barsOn);
+    master(R, k === 0 ? win(e, 0, .5) : (barsOn ? .2 : dead ? 1 - .7 * win(e, .2, .6) : 1), dead ? P.bad : null, barsOn || dead);   // the exit step drops the faded session names (they sat under its label)
     plate(R, SOCK, P.c5, k === 0 ? win(e, .5, .9) : fade, k === 3 ? null : 'control socket cm/%C', { w: .42, h: .36, glow: P.c5, mono: 1 });
     if (k === 0) { R.flow(route([[X0, .48, LAP[2] - .25], [X1, .48, LAP[2] - .25]]), { c: P.c1, r: .06, n: 7, speed: 1.2, a: win(e, 0, .4) });
       R.flow(route([[X2, .48, LAP[2] - .2], [X3, .48, LAP[2] - .2]]), { c: P.good, r: .06, n: 7, speed: 1.2, a: win(e, .3, .6) });

@@ -29,7 +29,7 @@
   function inner(R, a, n) { if (a > .01) R.flow(innerPts(), { c: R.P.good, r: .085, n: n || 18, speed: 1.4, a }); }
   function tcpTo(R, to, a, c, lab) { const P = R.P; if (a <= .01) return; R.line([basR, to], { c: c || P.c3, w: 2.2, a, dash: [6, 4] }); if (lab) R.label([(basR[0] + to[0]) / 2, .45, (basR[2] + to[2]) / 2], lab, { fs: 12, b: 1, c: c || P.c3, dy: -12, a, wide: 1 }); }
   const SOCK = [BAS[0] + .2, .95, .2], ROOT = [BAS[0] + .2, 0, 1.75];
-  function agentSock(R, a, c) { plate(R, SOCK, c || R.P.c5, a, 'agent socket', { w: .38, h: .38, glow: c || R.P.c5 }); }
+  function agentSock(R, a, c) { plate(R, SOCK, c || R.P.c5, a, 'agent socket', { w: .38, h: .38, glow: c || R.P.c5, al: R.W < 520 ? 'left' : undefined, dx: R.W < 520 ? 32 : undefined }); }   // phone: beside the plate, off the bastion's name
   function root(R, a) { party(R, ROOT, [.7, .45, .5], R.P.bad, 'root on the bastion', { a, t: .45, fs: 12, lc: R.P.bad }); }
   function signBack(R, a) { if (a > .01) R.flowArc([SOCK[0], SOCK[1] + .3, SOCK[2]], [LAP[0] + .2, .95, .2], .8, { c: R.P.c5, r: .065, n: 10, speed: 1.3, a }); }
   // a login from the bastion to a node: who signs decides the colour (green: the laptop, as intended; red: root abusing the agent); refused ones get a cross
@@ -83,12 +83,13 @@
   const full = { cam: [.1, .5], bounds: [[-5.6, 0, -2.0], [5.4, 1.3, 2.3]] };
   const close = k => ({ cam: [.1, .5], bounds: [[-5.6, 0, -1.0], [1.4, 1.4, 1.6]] });
   if (document.getElementById('stg-jump'))
-    S3.stage({ id: 'stg-jump', list: 'sx-jump', fig: 'Fig. 5 · ProxyJump: a session inside a session', cam: full.cam, bounds: full.bounds, aspect: .46, dur: 1500, hold: 5000,
+    S3.stage({ id: 'stg-jump', list: 'sx-jump', fig: 'Fig. 5 · ProxyJump: a session inside a session', cam: full.cam, bounds: full.bounds, aspect: .38, dur: 1500, hold: 5000,
       draw: (R, k, e) => SC.pj(R, k, e), margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16], view: k => k === 0 ? close(k) : null });
   if (document.getElementById('stg-agent')) {
     let mode = 'forward';
-    const st = S3.stage({ id: 'stg-agent', list: 'sx-ag-forward', fig: 'Fig. 6 · what root on the bastion can do', cam: full.cam, bounds: full.bounds, aspect: .46, dur: 1500, hold: 5200,
-      draw: (R, k, e) => SC[mode](R, k, e), margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16] });
+    const st = S3.stage({ id: 'stg-agent', list: 'sx-ag-forward', fig: 'Fig. 6 · what root on the bastion can do', cam: full.cam, bounds: full.bounds, aspect: .38, dur: 1500, hold: 5200,
+      draw: (R, k, e) => SC[mode](R, k, e), margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16],
+      view: () => innerWidth < 520 ? { cam: [.35, .9] } : null });   // phone: turned and steeper, so root sits clear of the bastion and the parts are larger
     chips(document.getElementById('ag-mode'), 'sx-ag-', st, m => { mode = m; });
   }
 })();

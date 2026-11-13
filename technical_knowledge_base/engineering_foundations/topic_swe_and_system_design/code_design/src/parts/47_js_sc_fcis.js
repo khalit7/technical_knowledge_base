@@ -42,7 +42,8 @@
       tag(id, p, h, f.name, f.sloc + ' lines · cc ' + f.cc); return h; };
     const hRT = blk('RT', RT, F.render_transcript, P.c3), hPS = blk('PS', PS, F.parse_summary, P.c3), hSH = blk('SH', SH, F.summarize_chat, P.c5, 1.3);
     // ports: Protocols (no body), glass plates at the shell's edge; adapters: every method's lines summed
-    [[SPX, 'ChatStore', 'SP'], [MPX, 'ChatModel', 'MP']].forEach(([x, nm, id]) => { R.glass([x, .04, AZ - .45], [0, 0, .9], [0, .85, 0], { c: P.c6, a: A(id), nu: 2, nv: 3 }); tag(id, [x, .04, AZ], .85, nm, 'port'); });
+    [[SPX, 'ChatStore', 'SP'], [MPX, 'ChatModel', 'MP']].forEach(([x, nm, id]) => { R.glass([x, .04, AZ - .45], [0, 0, .9], [0, .85, 0], { c: P.c6, a: A(id), nu: 2, nv: 3 });
+      if (k === 1) lab(R, [x, 0, AZ + .45], nm, { mono: 1, fs: 12, b: 1, dy: 14, a: a1, wide: 1 }); else tag(id, [x, .04, AZ], .85, nm, 'port'); });   // step 2: a port's name under its plate, clear of its adapter's name above
     [[SAX, 'SqliteChatStore', hSA, 'SA'], [HAX, 'HttpChatModel', hHA, 'HA']].forEach(([x, nm, h, id]) => { R.box([x, 0, AZ], [.95, h, .8], { fill: mix(P.paper, P.c6, .4), a: A(id) });
       tag(id, [x, 0, AZ], h, nm, Math.round(h / HU) + ' lines'); });
     const fl = (pts, c, n, a) => R.flow(poly(pts, 10), { c, r: .08, n, speed: 1.3, a: (a == null ? 1 : a) * a1 });

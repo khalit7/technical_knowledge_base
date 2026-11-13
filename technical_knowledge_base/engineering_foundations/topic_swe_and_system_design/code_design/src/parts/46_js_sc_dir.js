@@ -22,7 +22,7 @@
     // 2. import arrows climbing inward, on two sides
     const ia = k === 1 ? e : k >= 2 ? .55 : 0;
     if (ia > .01) [[-1, 0], [0, 1]].forEach(([sx, sz], j) => { for (let i = 0; i < 2; i++) { const r0 = T[i][1] / 2 - .25, r1 = T[i + 1][1] / 2 + .05, y = T[i][2] + TH + .01;
-        arrow(R, [sx * r0, y, sz * r0], [sx * r1, T[i + 1][2] + TH * .5, sz * r1], P.ink, ia, { w: 2 }); }
+        arrow(R, [sx * r0, y, sz * r0], [sx * r1, T[i + 1][2] + TH * .5, sz * r1], P.ink, ia, { w: 2, top: 1 }); }   // drawn over the terraces, so the far side's arrows are not hidden behind them
       if (j === 1 && k === 1) lab(R, [0, TH, T[0][1] / 2 - .2], 'imports', { fs: 12, c: P.ink, dy: 14, a: ia }); });
     // 3. ports: Protocols the core defines (glass plates at its edge); adapters outside implement them
     const pa = k >= 2 ? (k === 2 ? e : 1) : 0;
@@ -55,5 +55,5 @@
   const full = { cam: [.55, .62], bounds: [[-4.9, 0, -2.6], [6.2, 1.3, 3.1]] };
   S3.stage({ id: 'stg-dir', list: 'sx-dir', fig: 'Fig. 3 · imports point in, calls flow out', cam: full.cam, bounds: full.bounds, aspect: .62, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [20, 8, 14, 8] : [28, 16, 18, 16],
-    view: k => k === 0 ? { cam: [.5, .7], bounds: [[-2.8, 0, -2.6], [2.8, 1.2, 2.8]] } : k === 2 ? { cam: [.75, .6], bounds: [[-1.5, 0, -2.0], [6.2, 1.4, 2.0]] } : null });
+    view: k => k <= 1 ? { cam: [.5, .7], bounds: [[-2.8, 0, -2.6], [2.8, 1.2, 2.8]] } : k === 2 ? { cam: [.75, .6], bounds: [[-1.5, 0, -2.0], [6.2, 1.4, 2.0]] } : null });
 })();

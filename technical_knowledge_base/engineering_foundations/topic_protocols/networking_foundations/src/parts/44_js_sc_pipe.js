@@ -38,9 +38,10 @@
     if (frac > .95) { const hq = g.q / bdp * L / 4 * win(e, .5, 1);
       R.box([X0 - .72, 0, 0], [1.0, .02, 1.0], { a: .5, shadow: false });
       R.box([X0 - .72, .02, 0], [.96, Math.max(.01, hq), .96], { fill: mix(P.paper, Q, .55), fa: .6, shadow: false, lw: .7 });
-      R.label([X0 - .72, .02 + hq, 0], 'queue ≈ ' + fmt(g.q / 1000) + ' KB', { fs: 12.5, b: 1, c: Q, dy: -12, a: win(e, .7, 1) });
+      R.label([X0 - .72, .02 + hq, 0], 'queue ≈ ' + fmt(g.q / 1000) + ' KB', { fs: 12.5, b: 1, c: Q, dy: R.W < 520 ? -30 : -12, a: win(e, .7, 1) });
       R.label([X0 - .72, 0, .5], 'round trip at the end: ' + fmt(g.end[0]) + ' to ' + fmt(g.end[1]) + ' ms', { fs: 12, c: Q, dy: 30, a: win(e, .75, 1), wide: 1 }); }
   }
   S3.stage({ id: 'stg-pipe', list: 'sx-pipe', fig: 'Fig. 4 · the window fills the pipe, or the queue', cam: [.14, .5], bounds: [[-4.7, 0, -.8], [4.7, 2.0, .9]], aspect: .42, dur: 1700, hold: 4800, draw,
-    margin: w => w < 520 ? [26, 8, 22, 8] : [34, 16, 34, 16] });
+    margin: w => w < 520 ? [26, 8, 22, 8] : [34, 16, 34, 16],
+    view: () => innerWidth < 520 ? { cam: [.45, .72] } : null });   // phone: the path turned into depth, so the parts are larger
 })();

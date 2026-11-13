@@ -21,7 +21,7 @@
       let col = P.mute, t = .12; if (started) { col = refused ? BAD : A; t = .35; } if (k >= 3 && !refused && c.send !== 'ok') { col = BAD; t = .5; } if (k >= 4 && c.reply === 'ok') { col = OK; t = .55; }
       if (workers) { col = A; t = .3; }
       node(R, [XC, 0, z], [.7, .34, .36], col, null, { t });
-      R.label([XC - .35, .17, z], 'client ' + c.client, { fs: 12, mono: true, al: 'right', dx: -6, c: P.ink, grp: 'cl' }); });
+      R.label([XC - .35, .17, z], 'client ' + c.client, { fs: 12, mono: true, al: 'right', dx: -12, c: P.ink, grp: 'cl' }); });
     const from = i => [XC + .35, .3, Z(i)];
     if (k === 1 || k === 2) { const set = CL.filter((c, i) => k === 1 ? i < 2 : i >= 2);
       set.forEach((c, j) => { const i = c.client, pts = arcPts(R, from(i), [QX(Math.min(1, i)) - .2, .2, 0], .4, 18), u = win(e, j * .08, .5 + j * .08);
@@ -33,11 +33,11 @@
     [0, 1].forEach(q => { const a = inQ(q); if (a > .01) chunk(R, [QX(q), 0, 0], A, a, { s: [.36, .2, .7], lab: String(q), dy: -8 }); });
     if (k === 3) CL.forEach((c, i) => { if (c.connect !== 'ok') return; const ok = c.send === 'ok', pts = arcPts(R, from(i), ok ? [QX(Math.min(1, i)), .25, 0] : [XS - .75, .35, Z(i) * .3], .35, 18);
       R.flow(pts, { c: ok ? A : BAD, r: .05, n: 6, speed: 1.4, a: .8 }); if (!ok) cut(R, path(pts, .62), win(e, .45, .65), .14);
-      R.label([XC + .35, .34, Z(i)], ok ? 'sent' : 'BrokenPipeError', { fs: 12, c: ok ? A : BAD, al: 'left', dx: 8, a: win(e, .5, .8), wide: 1 }); });
+      R.label([XC + .35, .34, Z(i)], ok ? 'sent' : 'BrokenPipeError', { fs: 12, c: ok ? A : BAD, al: 'left', dx: 14, a: win(e, .5, .8), wide: 1 }); });
     if (k === 4) { [0, 1].forEach(q => { const u = win(e, .1, .5); if (u > 0 && u < 1) chunk(R, [QX(q) + (XS - .6 - QX(q)) * u, 0, 0], A, 1, { s: [.36, .2, .7] }); });
       CL.forEach((c, i) => { if (c.connect !== 'ok') return; const ok = c.reply === 'ok';
         if (ok) R.flow(arcPts(R, [XS - .75, .4, 0], from(i), .45, 20), { c: OK, r: .055, n: 7, speed: 1.4, a: win(e, .45, .6) });
-        R.label([XC + .35, .34, Z(i)], ok ? 'reply "ok"' : 'connection reset', { fs: 12, b: ok, c: ok ? OK : BAD, al: 'left', dx: 8, a: win(e, .55, .85), wide: 1 }); }); }
+        R.label([XC + .35, .34, Z(i)], ok ? 'reply "ok"' : 'connection reset', { fs: 12, b: ok, c: ok ? OK : BAD, al: 'left', dx: 14, a: win(e, .55, .85), wide: 1 }); }); }
     if (k === 5) { [0, 1].forEach(q => chunk(R, [QX(q), 0, 0], A, 1, { s: [.36, .2, .7] }));
       const pts = arcPts(R, from(3), [QX(0) - .3, .25, 0], .35, 18); R.flow(pts, { c: BAD, r: .05, n: 6, speed: 1.4, a: .8 }); cut(R, path(pts, .9), win(e, .2, .4), .16);
       R.label([QX(0) - .3, .3, 0], 'SYN dropped', { fs: 12.5, b: 1, c: BAD, dy: -22, a: win(e, .3, .5) });
@@ -48,5 +48,6 @@
   }
   const full = { cam: [.12, .78], bounds: [[-4.6, 0, -2.2], [4.4, 1.0, 2.2]] };
   S3.stage({ id: 'stg-queue', list: 'sx-queue', fig: 'Fig. 5 · listen(2) and eight clients', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1700, hold: 4600, draw,
-    margin: w => w < 520 ? [22, 8, 18, 8] : [30, 16, 22, 80] });
+    margin: w => w < 520 ? [22, 8, 18, 8] : [30, 16, 22, 80],
+    view: () => innerWidth < 520 ? { cam: [.35, 1.0] } : null });   // phone: turned and steeper, so the scene fills more of the card
 })();

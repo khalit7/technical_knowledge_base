@@ -63,5 +63,6 @@
   const full = { cam: [.18, .55], bounds: [[-5.4, 0, -1.3], [5.4, 2.6, 2.7]] };
   S3.stage({ id: 'stg-mtls', list: 'sx-mtls', fig: 'Fig. 6 · the recorded mTLS handshake, issuance and rotation', cam: full.cam, bounds: full.bounds, aspect: .52, dur: 1500, hold: 5200, draw,
     margin: w => w < 520 ? [22, 8, 12, 8] : [28, 16, 16, 16],
-    view: k => k <= 2 ? { cam: [.16, .5], bounds: [[-5.4, 0, -1.1], [5.4, 2.3, 1.6]] } : null });
+    view: k => { const ph = innerWidth < 520;   // phone: turned into depth, so the parts are larger
+      return k <= 2 ? { cam: ph ? [.6, .62] : [.16, .5], bounds: [[-5.4, 0, -1.1], [5.4, 2.3, 1.6]] } : ph ? { cam: [.6, .7] } : null; } });
 })();

@@ -62,5 +62,5 @@
     margin: w => w < 520 ? [22, 8, 14, 8] : [30, 16, 18, 96],
     view: k => k <= 2 ? { cam: [.28, .4], bounds: [[1.2, 0, -1.0], [6.2, 2.4, 1.0]] }
       : k === 4 ? { cam: [.12, .42], bounds: [[-5.4, 0, -1.0], [0.6, 2.4, 1.0]] }
-      : k === 5 ? { cam: [.08, .62], bounds: [[-4.7, 0, 1.2], [4.7, .7, 2.9]] } : full });
+      : k === 5 ? { cam: [.08, .62], bounds: [[-4.7, 0, 1.2], [4.7, .7, 2.9]] } : innerWidth < 520 ? { cam: [.75, .55], bounds: full.bounds } : full });   // phone: the path turned into depth, so the hosts are larger
 })();

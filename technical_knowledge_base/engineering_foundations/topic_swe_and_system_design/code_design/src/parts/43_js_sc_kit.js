@@ -15,7 +15,7 @@ window.CDK = (function () {
   const poly = (ps, n) => { const o = [ps[0]]; for (let i = 1; i < ps.length; i++) seg(ps[i - 1], ps[i], n || 8).slice(1).forEach(p => o.push(p)); return o; };
   const arcPts = (R, a, b, h, n) => { const o = []; n = n || 20; for (let i = 0; i <= n; i++) o.push(R.arcPt(a, b, h, i / n)); return o; };
   // an arrow along the floor (an import or an "implements" edge): a line with a head
-  function arrow(R, a, b, c, al, o) { o = o || {}; if (al <= .01) return; R.line([a, b], { c, w: o.w || 2, a: al, head: o.head == null ? 7 : o.head, dash: o.dash }); }
+  function arrow(R, a, b, c, al, o) { o = o || {}; if (al <= .01) return; R.line([a, b], { c, w: o.w || 2, a: al, head: o.head == null ? 7 : o.head, dash: o.dash, top: o.top, dz: o.dz }); }
   // the page's concern colours (RD.CON holds CSS variable names) as palette keys
   const ccol = (P, v) => P[String(v).replace(/^--/, '')] || P.mute;
   return { lab, module, win, seg, poly, arcPts, arrow, ccol };

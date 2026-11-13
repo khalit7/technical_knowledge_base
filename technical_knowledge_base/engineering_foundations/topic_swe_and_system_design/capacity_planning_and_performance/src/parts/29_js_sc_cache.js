@@ -38,8 +38,8 @@
         for (let i = 0; i < 6; i++) req(R, [CA[0] - .4 + (i % 3) * .4, 0, CA[2] + .9 + Math.floor(i / 3) * .25], mix(P.paper, P.c2, .6), win(e, .1 + i * .05, .2 + i * .05));
         lab(R, [CA[0] - .3, 0, CA[2] + 1.2], 'the rest wait for the one rebuild', { fs: 12, c: P.c2, b: 1, dy: 14, al: 'right', dx: 10, a: win(e, .3, .6), wide: 1 }); }
       const u = 1.5 / FB[0];
-      bar(R, [DBB[0] - .35, 0, DBB[2]], FB[0] * u * (k === 3 ? win(e, .1, .7) : 1), P.bad, k === 3 ? 1 : .55, '17K/s, no leases', { w: .45, d: .45, fs: 12.5, grp: 'fb', al: 'left', dx: -12 });
-      if (k === 4) bar(R, [DBB[0] + .45, 0, DBB[2]], FB[1] * u * win(e, .2, .7), P.good, 1, '1.3K/s, leases', { w: .45, d: .45, fs: 12.5, grp: 'fb', al: 'left', dx: -12 });
+      bar(R, [DBB[0] - .35, 0, DBB[2]], FB[0] * u * (k === 3 ? win(e, .1, .7) : 1), P.bad, k === 3 ? 1 : .55, '17K/s, no leases', { w: .45, d: .45, fs: 12.5, grp: 'fb', al: 'left', dx: 4 });
+      if (k === 4) bar(R, [DBB[0] + .45, 0, DBB[2]], FB[1] * u * win(e, .2, .7), P.good, 1, '1.3K/s, leases', { w: .45, d: .45, fs: 12.5, grp: 'fb', al: 'left', dx: 4 });
       }
   }
 const narrow = () => (document.getElementById('stg-cache').clientWidth || 999) < 520;   // a phone: turn the long axis into depth and look down, so the scene fills the tall card

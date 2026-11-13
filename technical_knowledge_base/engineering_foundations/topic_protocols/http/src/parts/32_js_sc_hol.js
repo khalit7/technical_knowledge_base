@@ -11,8 +11,8 @@
   const CX = -4, SX = 4, Z1 = 0, Z2 = -1.7;
   function draw(R, k, e) {
     const P = R.P, A = P.c1, B = P.c2; R.grid(-5.4, 5.4, -2.8, 1.4, .5);
-    node(R, [CX, 0, -.85], [1.1, .7, 2.9], P.acc, 'Client', { sub: 'one process' });
-    node(R, [SX, 0, -.85], [1.1, .7, 2.9], P.good, 'Lab server', { sub: 'hypercorn' });
+    node(R, [CX, 0, -.85], [.9, .55, 2.5], P.acc, 'Client', { sub: 'one process' });
+    node(R, [SX, 0, -.85], [.9, .55, 2.5], P.good, 'Lab server', { sub: 'hypercorn' });
     const two = k === 2, h2 = k === 3;
     lane(R, CX + .55, SX - .55, Z1, .7, h2 ? P.c6 : P.c1, 1);
     lane(R, CX + .55, SX - .55, Z2, .7, P.c2, two ? at(k, e, 2) : 0);

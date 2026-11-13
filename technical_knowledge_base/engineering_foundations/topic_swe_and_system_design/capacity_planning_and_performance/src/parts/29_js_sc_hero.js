@@ -32,9 +32,9 @@
     R.box([BAR[0], .05, BAR[2]], [.8, 20 * U, .8], { fill: P.paper, a: .1, shadow: false });
     R.box([BAR[0], .05, BAR[2]], [.8, U, .8], { fill: mix(P.paper, P.c1, .8), shadow: false });
     R.box([BAR[0], .05 + U, BAR[2]], [.8, Math.max(.001, (w - 1) * U), .8], { fill: mix(P.paper, P.bad, .75), shadow: false });
-    lab(R, [BAR[0], .05 + w * U, BAR[2]], 'W = ' + (Math.abs(w - Math.round(w)) < .05 ? Math.round(w) : w.toFixed(1)) + 'S', { fs: 13, b: 1, mono: 1, c: P.bad, dy: -20 });
+    lab(R, [BAR[0], .05 + w * U, BAR[2]], 'W = ' + (Math.abs(w - Math.round(w)) < .05 ? Math.round(w) : w.toFixed(1)) + 'S', { fs: 13, b: 1, mono: 1, c: P.bad, dy: -30 });
     lab(R, [BAR[0] - .45, .05, BAR[2] + .4], 'work S', { fs: 12, c: P.c1, b: 1, al: 'right', dx: -6, dy: 2, wide: 1 });
-    if (k === 4) lab(R, [BAR[0], .05 + w * U, BAR[2]], 'mean ' + Math.round(meas.mean) + ' ms for ' + meas.S.toFixed(1) + ' ms of work', { fs: 12, c: P.mute, dy: -37, a: win(e, .3, .7), wide: 1 });
+    if (k === 4) lab(R, [BAR[0], .05 + w * U, BAR[2]], 'mean ' + Math.round(meas.mean) + ' ms for ' + meas.S.toFixed(1) + ' ms of work', { fs: 12, c: P.mute, dy: -47, a: win(e, .3, .7), wide: 1 });
   }
 const narrow = () => (document.getElementById('stg-hero').clientWidth || 999) < 520;   // a phone: turn the long axis into depth and look down, so the scene fills the tall card
   const phone = { cam: [1.05, .95], bounds: [[-5.0, 0, -1.0], [3.5, 1.5, 1.0]] };

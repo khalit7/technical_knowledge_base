@@ -59,7 +59,7 @@
       R.label([BR[0], 0, BR[2] + .3], 'http://127.0.0.1:30985 reaches the other program', { fs: 12, b: 1, c: P.bad, dy: 30, a: win(e, .5, .8), wide: 1 }); }
   ];
   const full = { cam: [.1, .52], bounds: [[-6.2, 0, -1.6], [5.0, 1.4, 2.1]] };
-  S3.stage({ id: 'stg-fwd', list: 'sx-fwd', fig: 'Fig. 8 · which end listens, where connections come out', cam: full.cam, bounds: full.bounds, aspect: .46, dur: 1500, hold: 5000,
+  S3.stage({ id: 'stg-fwd', list: 'sx-fwd', fig: 'Fig. 8 · which end listens, where connections come out', cam: full.cam, bounds: full.bounds, aspect: .38, dur: 1500, hold: 5000,
     draw: (R, k, e) => { frame(R, k); SC[k](R, e); }, margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16],
     view: k => k === 4 ? { cam: [.1, .52], bounds: [[-6.4, 0, -.9], [-1.0, 1.4, 2.2]] } : null });
 })();

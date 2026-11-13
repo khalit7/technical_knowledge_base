@@ -68,6 +68,7 @@
   const full = { cam: [.1, .58], bounds: [[-5.4, 0, -1.4], [5.6, 1.1, 2.6]] };
   const st = S3.stage({ id: 'stg-dl', list: 'sx-dl-0', fig: 'Fig. 4 · one abandoned request', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [22, 8, 18, 8] : [30, 16, 22, 16],
-    view: k => k === 3 || k === 4 ? { cam: [.14, .56], bounds: [[-1.4, 0, -1.8], [5.8, 1.2, 2.6]] } : null });
+    view: k => { const ph = innerWidth < 520;   // phone: turned and steeper, so the row runs into depth and the parts are larger
+      return k === 3 || k === 4 ? { cam: ph ? [.4, .85] : [.14, .56], bounds: [[-1.4, 0, -1.8], [5.8, 1.2, 2.6]] } : ph ? { cam: [.45, .85] } : null; } });
   chips(document.getElementById('dl-mode'), 'sx-dl-', st, v => { m = +v; });
 })();

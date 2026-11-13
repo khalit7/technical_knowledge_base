@@ -39,7 +39,7 @@
       if (cur) R.flow(route([[x0, .08, z], [x1, .08, z]]), { c, r: .065, n: 6, speed: 1.4, a: win(e, 0, .2) * (1 - win(e, .85, 1)) + .25 });
       R.box([x, 0, z], [.66, h, .62], { fill: mix(P.paper, c, clear ? .55 : .5), a, lw: .8 });
       if (!clear) R.glass([x - .38, 0, z + .36], [.76, 0, 0], [0, h + .08, 0], { c: ENC, a: a * .55, nu: 1, nv: 1, th: .02 });
-      if (cur) R.label([x, h, z], nm + ' ' + fmt(b) + ' B', { fs: 12, b: 1, mono: 1, c: clear ? P.ink : ENC, dy: nCur % 2 ? -30 : -10, a: win(e, .1, .3) });
+      if (cur) R.label([x, h, z], nm + ' ' + fmt(b) + ' B', { fs: 12, b: 1, mono: 1, c: clear ? P.ink : ENC, dy: nCur % 2 ? -42 : -10, a: win(e, .1, .3) });
     });
     // keys appear at both ends once the shares are in (step 2) and switch to application keys after Finished (step 5)
     if (k >= 1) [[XC - .55, 1.55, -2.25], [XS + .55, 1.55, -2.25]].forEach((p, i) => plate(R, p, k >= 4 ? P.good : P.c2, k === 1 ? win(e, .6, .9) : .8,

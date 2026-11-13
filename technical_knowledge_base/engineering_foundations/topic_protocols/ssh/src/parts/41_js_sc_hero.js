@@ -26,10 +26,10 @@
       R.label([0, YT, D * .3], 'one connection: lose it and every channel goes with it', { fs: 12.5, b: 1, c: P.ink, dy: 26, wide: 1 }); }
     // the three SSH layers, drawn faintly before their step so the reader sees the whole stack from the start
     const aT = k < 1 ? .12 : k <= 3 ? 1 : k === 6 ? .3 : .55, aA = k < 4 ? .1 : k === 4 ? 1 : k === 6 ? .3 : .55, aC = k < 5 ? .1 : 1;
-    const tc = k >= 3 ? CT : mix(P.paper, PL, .7);
-    slab(R, X0, X1, Y1, 0, D, tc, aT, { lab: k >= 3 ? 'transport · encrypted' : 'transport · in the clear', lc: k >= 3 ? CT : PL, at: [1.2, Y1, D / 2], al: 'center', dx: 0 });
-    slab(R, X0, X1, Y2, 0, D, CA, aA, { lab: 'user authentication', at: [1.2, Y2, D / 2], al: 'center', dx: 0 });
-    slab(R, X0, X1, Y3, 0, D, CC, aC, { lab: 'connection · channels', at: [1.2, Y3, D / 2], al: 'center', dx: 0 });
+    const tc = k >= 3 ? CT : mix(P.paper, PL, .7), ph = a => R.W < 520 && a <= .3;   // on a phone a faded layer keeps its slab but not its name (they would overlap)
+    slab(R, X0, X1, Y1, 0, D, tc, aT, { lab: ph(aT) ? null : k >= 3 ? 'transport · encrypted' : 'transport · in the clear', lc: k >= 3 ? CT : PL, at: [1.2, Y1, D / 2], al: 'center', dx: 0 });
+    slab(R, X0, X1, Y2, 0, D, CA, aA, { lab: ph(aA) ? null : 'user authentication', at: [1.2, Y2, D / 2], al: 'center', dx: 0 });
+    slab(R, X0, X1, Y3, 0, D, CC, aC, { lab: ph(aC) ? null : 'connection · channels', at: [1.2, Y3, D / 2], al: 'center', dx: 0 });
     if (k === 1) {   // banners and KEXINIT, readable by anyone on the path
       const a = [X0 + .3, Y1 + .06, -.3], b = [X1 - .3, Y1 + .06, -.3], c = [X1 - .3, Y1 + .06, .3], d = [X0 + .3, Y1 + .06, .3];
       R.flow(route([a, b]), { c: PL, r: .07, n: 8, speed: 1.3 }); R.flow(route([c, d]), { c: PL, r: .07, n: 8, speed: 1.3 });

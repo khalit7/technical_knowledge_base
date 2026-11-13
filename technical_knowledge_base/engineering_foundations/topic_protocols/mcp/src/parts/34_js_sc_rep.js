@@ -51,6 +51,7 @@
     el.innerHTML = '<div class="msg"><div class="h">' + t.m + ' to replica ' + t.rep + ' (request)</div><pre>' + E((hd ? hd + '\n\n' : '') + (t.rb || '(no body)')) + '</pre></div><div class="msg"><div class="h">reply ' + t.st + '</div><pre>' + E(t.sb || '(no body)') + '</pre></div>'; }
   const full = { cam: [.14, .7], bounds: [[-5.0, 0, -2.0], [4.4, 1.3, 2.8]] };
   const st = S3.stage({ id: 'stg-rep', list: 'sx-rep-0', fig: 'Fig. 4 · one confirm-then-delete call through a round-robin balancer', cam: full.cam, bounds: full.bounds, aspect: .58, dur: 2000, hold: 4400, draw,
+    view: k => innerWidth < 520 && D[mode].trace[k] ? { cam: [.5, 1.0] } : null,   // on a phone: turned and steeper, so the row runs into depth and the parts are larger
     margin: w => w < 520 ? [22, 8, 16, 8] : [28, 16, 22, 16], onStep: k => { try { bytes(k) } catch (x) { } } });
   const C = document.getElementById('rep-mode');
   if (C && st) C.addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; C.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));

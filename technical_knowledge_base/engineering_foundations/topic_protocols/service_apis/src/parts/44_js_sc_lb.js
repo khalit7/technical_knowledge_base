@@ -41,10 +41,12 @@
     if (s.bal) R.flow(seg(cOut, bIn), { c: P.c2, r: .065, n: 6, speed: 1.4 });
     if (s.hop) R.label([(BL[0] + RP[1][0]) / 2, .6, -2.4], 'GOAWAY about every second · reconnect · a new choice', { fs: 12, b: 1, c: P.c6, wide: 1 });
     RP.forEach((p, i) => bar(R, [p[0] + 1.5, 0, p[2]], s.n[i], unit * win(e, .15, .8) + 1e-6, P.c2, 1, { w: .4, d: .4, lab: String(s.n[i]) }));
-    R.label([RP[0][0] + 1.5, 0, RP[0][2] - 1.0], joined ? 'calls after backend-3 joined' : 'calls, of 30', { fs: 12, b: 1, c: P.mute, dy: -4, al: 'left', dx: -20, wide: 1 });
+    if (!joined) R.label([RP[0][0] + 1.5, 0, RP[0][2] - 1.0], 'calls, of 30', { fs: 12, b: 1, c: P.mute, dy: -4, al: 'left', dx: -20, wide: 1 });
+    else R.label([RP[0][0] + 1.5, Math.max(1.4, Math.max(...s.n) * unit * win(e, .15, .8)), RP[0][2]], 'calls after backend-3 joined', { fs: 12, b: 1, c: P.mute, dy: -34, al: 'right', dx: 20, wide: 1 });   // above the tallest bar, clear of it
     if (joined) R.label([RP[2][0], 0, RP[2][2] + .55], 'joined at ' + s.join.backend3_joined_s.toFixed(1) + ' s', { fs: 12, b: 1, c: P.c3, dy: 16, a: win(e, .2, .5) });
   }
   const full = { cam: [.12, .56], bounds: [[-5.2, 0, -2.4], [4.7, 1.3, 2.6]] };
   S3.stage({ id: 'stg-lb', list: 'sx-lb', fig: 'Fig. 5 · who chooses the replica, and how often', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1400, hold: 4600, draw,
-    margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16] });
+    margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16],
+    view: () => innerWidth < 520 ? { cam: [.45, .85] } : null });   // phone: turned and steeper, so the parts are larger
 })();

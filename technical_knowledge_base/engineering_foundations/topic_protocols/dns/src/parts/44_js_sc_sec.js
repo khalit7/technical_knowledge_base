@@ -51,7 +51,9 @@
     // the answer record on llm.test.
     const last = cur === 'a' || cur === 'exp' || cur === 'nx';
     if (!rolled) msg(R, [recP[0] + .1, top(2), recP[2] + .7], cur === 'exp' ? BAD : cur === 'nx' ? P.c4 : P.c3, last ? 1 : .35,
-      !last ? null : cur === 'nx' ? 'NSEC ' + (nsec ? nsec[0] + ' → ' + nsec[4] : '') : 'A 10.53.0.80 + RRSIG ' + TAG.lZ, { w: .55, h: .5 });
+      !last || cur === 'nx' ? null : 'A 10.53.0.80 + RRSIG ' + TAG.lZ, { w: .55, h: .5 });
+    // the NSEC record's label is long: it sits under the plate, clear of the zone's name
+    if (cur === 'nx') R.label([recP[0] + .1, 0, recP[2] + .7], 'NSEC ' + (nsec ? nsec[0] + ' → ' + nsec[4] : ''), { fs: 12, mono: true, b: 1, c: P.c4, dy: 14 });
     // links already proven: green lines
     const L = [[anc, kp(0)], [kp(0), zp(0)], [zp(0), dp(0)], [dp(0), kp(1)], [zp(1), dp(1)], [dp(1), kp(2)]];
     L.forEach((l, j) => { if (j < reach && !(j === reach - 1 && e < 1 && !rolled)) R.arc(mid(l[0], .45), mid(l[1], .45), .25, { c: OK, w: 1.8, a: .7 }); });

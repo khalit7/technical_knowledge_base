@@ -28,12 +28,12 @@
   function draw(R, k, e) {
     const P = R.P; R.grid(-4.4, 4.6, -2.8, 2.2, .5);
     // 1-2. the handler as it was: 52 lines, five concerns interleaved; then the idempotency lines pulled forward, five separate runs
-    const a0 = k <= 1 ? 1 : k === 2 ? 1 - win(e, 0, .45) : 0;
+    const a0 = k <= 1 ? 1 : k === 2 ? 1 - win(e, 0, .3) : 0;   // gone early in the glide, so the two towers never overlap
     if (a0 > .01) { const top = tower(R, B0, H0.length, a0, { pop: k === 1 ? .9 * e : 0, focus: k === 1 ? 'idem' : null });
       lab(R, [X0 + 1.4, top + .02, ZT], 'send_message · ' + S0.handler_lines + ' lines · complexity ' + S0.cc_handler, { b: 1, fs: 13, dy: -12, a: a0, mono: 1 });
       if (k === 1) runs.forEach((r, j) => { const y = H0.length * DY - (r[0] + 1) * DY; lab(R, [X0 + .2, y, ZT + .9 * e + DD / 2], 'run ' + (j + 1), { al: 'right', dx: -8, fs: 12, c: P.c4, a: e, grp: 'runs' }); }); }
     // 3. after: 17 lines, each concern one named call
-    const a1 = k === 2 ? win(e, .5, 1) : k >= 3 ? 1 : 0;
+    const a1 = k === 2 ? win(e, .6, 1) : k >= 3 ? 1 : 0;
     if (a1 > .01) { const top = tower(R, B1, H1.length, a1);
       lab(R, [X0 + 1.6, 0, ZT + DD / 2], 'send_message · ' + S10.handler_lines + ' lines · complexity ' + S10.cc_handler, { b: 1, fs: 13, dy: 16, a: a1, mono: 1 }); }
     // 4. behind each call, a module: interface on top, what it hides as height

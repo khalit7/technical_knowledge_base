@@ -17,7 +17,7 @@
     party(R, [X.cl, 0, 0], [.9, .6, .9], P.c2, k <= 1 || k === 6 ? 'client' : null, { a: k === 0 || k === 6 ? 1 : .35 });
     const PL = [['srv', 'uvicorn', 0], ['mw2', 'middleware added second', 1], ['mw1', 'middleware added first', 1], ['route', 'router', 2], ['dep', 'dependency', 3], ['val', 'validation', 4]];
     // in a close view, only the stages in it carry their names (labels are clamped inside the canvas, so names of stages out of view would pile up at its edge)
-    const VIS = [['srv', 'mw2'], ['srv', 'mw2', 'mw1'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['dep', 'val'], null][k];
+    const VIS = [['srv', 'mw2'], ['srv', 'mw2', 'mw1'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['dep', 'val'], ['srv', 'mw2', 'mw1', 'dep', 'val']][k];   // last step: the router's faded name sat on the middleware's
     PL.forEach(([id, nm, s]) => { const now = s === k || (k === 6 && (id === 'mw1' || id === 'mw2' || id === 'srv')), done = s < k;
       const c = id === 'mw1' || id === 'mw2' ? P.c1 : id === 'dep' ? P.c5 : id === 'val' ? P.c3 : id === 'route' ? P.c6 : P.c2;
       stagePlate(R, X[id], 0, c, now ? 1 : done ? .45 : .22, !VIS || VIS.includes(id) ? nm : null, { d: 1.4, h: 1.1, glow: c, gl: now ? .7 : 0, grp: 'pl', lc: now ? c : P.ink, amin: .35 }); });

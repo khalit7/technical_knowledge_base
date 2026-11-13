@@ -40,10 +40,10 @@
       if (k === 5) rise(i, C, 1); }
     // duplicate ACKs stream back while the later tokens arrive
     if (k === 2 || k === 3) { R.flow([[XL, .2, .45], [XS - .7, .2, .45]], { c: AK, r: .06, n: 10, speed: 1.3, a: k === 2 ? win(e, .3, .5) : .8 });
-      R.label([1.4, .2, .45], 'duplicate ACK ' + D.dup[0].lab.match(/ACK (\d+)/)[1] + ' × ' + D.dup.length, { fs: 12.5, b: 1, c: AK, dy: 16, a: k === 2 ? win(e, .5, .8) : 1 }); }
+      R.label([1.9, .2, .45], 'duplicate ACK ' + D.dup[0].lab.match(/ACK (\d+)/)[1] + ' × ' + D.dup.length, { fs: 12.5, b: 1, c: AK, dy: 16, a: k === 2 ? win(e, .5, .8) : 1 }); }
     if (k === 3) {
       if (mode === 'rto') { timer(R, [XS + 1.05, 0, 0], win(e, 0, .85), 1.1, P.c5, 1, 'timer ' + fmt(D.r.R + 200) + ' ms', { fired: e > .85, wide: 1 });
-        R.label([XS, YB, 0], 'fires at ' + fmt(D.fire, 1) + ' ms', { fs: 12.5, b: 1, c: P.bad, dy: -44, a: win(e, .85, 1) }); }
+        R.label([XS + .4, YB, 0], 'fires at ' + fmt(D.fire, 1) + ' ms', { fs: 12.5, b: 1, c: P.bad, dy: -44, al: 'right', a: win(e, .85, 1) }); }
       else { R.glow([XS - .6, YB, .3], .6, { c: AK, a: .6 * win(e, .2, .5) });
         R.label([XS, YB, 0], 'third duplicate: resend at ' + fmt(D.fire, 1) + ' ms', { fs: 12.5, b: 1, c: AK, dy: -44, a: win(e, .3, .6) }); } }
     if (k === 4) R.label([X(4), YA, 0], 'tokens 2 to 5 in one read · ' + fmt(D.land, 1) + ' ms', { fs: 12.5, b: 1, c: P.c4, dy: -34, a: win(e, .75, 1) });
@@ -52,7 +52,7 @@
       R.box([X(i), YA + .22, 0], [.26, Math.max(.01, h), .26], { fill: mix(P.paper, P.bad, .7), shadow: false, lw: .7 });
       if (i <= 5) R.label([X(i), YA + .22 + h, 0], (i === 2 ? 'token 2 ' : i === 5 ? 'token 5 ' : '') + '+' + fmt(v, 1) + ' ms', { fs: 12, b: 1, c: P.bad, dy: -10, a: win(e, .5, .9), grp: 'cost' }); }
   }
-  const full = { cam: [.12, .5], bounds: [[-4.8, 0, -.8], [4.6, 1.8, 1.0]] };
+  const full = { cam: [.12, .5], bounds: [[-4.8, 0, -.8], [5.2, 1.8, 1.0]] };   // room on the right for the timer's label
   const st = S3.stage({ id: 'stg-loss', list: 'sx-loss-rto', fig: 'Fig. 3 · token 2 lost on a 100 ms round trip', cam: full.cam, bounds: full.bounds, aspect: .4, dur: 1900, hold: 4600, draw,
     margin: w => w < 520 ? [20, 8, 18, 8] : [30, 16, 26, 90],
     view: k => k === 5 ? { cam: [.1, .4], bounds: [[-4.6, 0, -.8], [-.4, 2.8, .9]] } : innerWidth < 520 && (k === 2 || k === 4) ? { cam: [.12, .5], bounds: [[-4.7, 0, -.8], [1.6, 1.8, 1.0]] } : null });
