@@ -16,7 +16,9 @@ FAT = {1: 'the old header line ("About 24 min to read The paper tab"), replaced 
        2: 'the tab bar labels',
        96: 'a citation fragment "(Figure 7)" split off by the sentence splitter; the claims it cites are their own units',
        162: 'a citation fragment "(Appendix F.1)" split off by the sentence splitter; the claim it cites follows'}
-KEYS = {36: 'no solved example'}
+KEYS = {36: 'no solved example',
+        # re-pointed in the 2026-11-13 layout rollout (Stage 1 replaced the 2D polarisation animation; the knobs sentence and the benchmarks unit moved)
+        27: 'chosen because success is checked on the environment state', 56: 'stage 1 shows every task of one cell as a bar', 57: "every height comes from the authors' released counts", 65: 'the dark never-solved tiles thin out', 134: 'move the knobs on the temperature chart'}
 OWNED = {}  # id -> (label, key): the sentence moved to its owner
 NEW = [
  ('core', 'Core sentence: post-training raises pass@1 by polarising tasks; the tax measures lost retry value as a difference of calibrated areas (positive in 36 of 42); PTGS heats hard prompts during RL.', 'a task at either extreme gains nothing from another attempt'),
@@ -27,7 +29,12 @@ NEW = [
  ('core', 'Takeaway scoped on 26 October 2026 (takeaway_note).', 'scoped on 26 october 2026'),
  ('owned:' + RL, 'The pass@1 against pass@k debate on math and code (Yue et al.) and its counter-evidence, owned by RL for LLMs section 9.', 'rlvr-trained models beat their base at small k'),
  ('owned:' + SD, 'What temperature does to the distribution (divides the logits), owned by Sampling and Decoding.', 'temperature t divides the logits'),
- ('core', 'Reading: one-task pass@k chart, crossover curves, polarisation animation, retry-value chart, Theorem 2 lab, PTGS temperature chart, Table 2, drawn by script.', 'watch the same tasks move'),
+ ('core', 'Reading: one-task pass@k chart, crossover curves, polarisation stage (3D, Stage 1), retry-value chart, Theorem 2 lab, PTGS temperature chart, Table 2, drawn by script.', 'reads pass@1 and pass@'),
+ ('core', "Stage 1 (3D, gemma-4-31B WebShop): one bar per task, pass@1 22.7% as the field's mean height, 128 attempts lift it to 87.6%; post-training sends the easy end to always solved and the hard end to never solved (pass@1 39.5%), and 128 attempts lift it only to 56.0%.", 'retries add 16.5 points, against 64.9'),
+ ('core', 'Stage 1: the gap between the base and post-trained pass@128 levels is exactly lost minus gained tasks (gemma-4-31B WebShop: 165 lost, 7 gained, 31.6 points).', 'is exactly lost minus gained'),
+ ('core', 'Stage 1, gemma-4-E4B WebShop: post-training moves tasks off the never-solved edge (51.4% to 34.8%), pass@128 rises to 65.2% (133 gained, 50 lost), yet TaxS(128) is 0.081.', 'yet tax s (128) is still positive (0.081)'),
+ ('core', 'Stage 1, Qwen2.5-32B ACEBench: middle shrinks from 92.7% to 13.9%, pass@1 50.0% to 81.3%, pass@128 94.4% to 87.9% (74 lost, 24 gained), TaxS(128) 0.072.', 'the middle shrinks from 92.7% to 13.9%'),
+ ('core', 'Two-sampler animation, step 4: heating the four hard prompts raises their combined chance of a group with a success from 0.075 to 0.265; the realised groups had 0, 3, 8, 0, 0, 0, 8, 8 successes of 8.', '0, 3, 8, 0, 0, 0, 8, 8 successes of 8'),
  ('core', 'Replay tab: any cell replayed beside Table 7, tax across budgets, 42-cell map, drawn by script.', 'all 42 cells on one map'),
  ('core', 'Toy tab: one batch through both samplers, ten-seed sweep, traces, live run, drawn by script.', 'one batch, two samplers'),
  ('core', 'Tables tab: checks, Table 7 explorer, Tables 2, 9, 10 as intervals, Table 4, drawn by script.', 'what was checked, and how'),

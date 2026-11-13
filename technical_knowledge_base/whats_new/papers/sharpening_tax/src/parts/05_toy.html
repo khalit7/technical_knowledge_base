@@ -3,29 +3,46 @@
 <p>PTGS's evidence is RL on a 7B model, which nobody can rerun in a browser. The authors also released a small CPU toy built to show the mechanism ({{examples/ptgs_toy.py|https://github.com/changdaeoh/sharpening-tax}}). This tab runs this page's own port of it, so you can watch the sampler act on one batch and then train it yourself. It is a toy for the mechanism: it cannot say how large the effect is on a real agent.</p>
 <p><b>The toy.</b> 96 tasks, each a chain of 4 decisions with 6 choices; a rollout succeeds only if all 4 are right. Tasks come in 8 clusters that share a usual answer, but 30% of individual decisions are exceptions that only the task's own 24 features can encode. The policy is linear (one weight per decision, choice and feature) and starts biased toward each cluster's usual answer, which gives a base-model-like spread: easy usual tasks, very hard multi-exception ones. Training is the paper's loop at small size: 200 steps, 8 consecutive tasks per step (a fixed pool cycled, so prompts recur and the per-prompt posterior means something), groups of 8 rollouts, a group-relative advantage (success minus the group mean), learning rate 6.0 (tuned by the authors on the fixed-temperature arm, not on PTGS). Evaluation: 128 attempts per task at <i>T</i> = 1 with PTGS off. The mechanism the authors built in: an exception that never succeeds in a group gets no gradient, so it drifts toward never solved, which is the polarisation the tax measures.</p>
 
-<h3>One batch, two samplers</h3>
-<p>Eight prompts from the middle of a real PTGS training run (seed 0, step <span id="ptSnapStep"></span>, picked by a fixed rule: the batch with the most even mix of prompts solved often and almost never). Both modes use the same policy weights and the same prompts; only the temperature rule differs. Success probabilities are exact (the product of the right choice's probability at each decision), on a log scale because the hard ones are tiny.</p>
-<div class="card" id="pt">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="pt">
 <div class="an-top"><div class="seg" id="ptM" role="group" aria-label="Sampler"><button data-m="fixed" aria-pressed="false">Fixed temperature (T = 1)</button><button class="on" data-m="ptgs" aria-pressed="true">PTGS (τ = 1.5)</button></div></div>
 <div id="ptSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="ptBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ptPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ptFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="ptScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="ptSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="ptStep"></div><p id="ptCap"></p></div>
 <div class="an-cnt" id="ptCnt"></div>
 </div>
 
-<h3>Trained: four arms, ten seeds</h3>
+</div></div><div class="s3L"><h3>One batch, two samplers</h3>
+<p>Eight prompts from the middle of a real PTGS training run (seed 0, step <span id="ptSnapStep"></span>, picked by a fixed rule: the batch with the most even mix of prompts solved often and almost never). Both modes use the same policy weights and the same prompts; only the temperature rule differs. Success probabilities are exact (the product of the right choice's probability at each decision), on a log scale because the hard ones are tiny.</p>
+<ol class="sx" id="sx-pt-fixed" hidden>
+<li><b>Eight prompts.</b> Each row is one prompt of this training step; the dot is the policy's exact chance of solving it in one attempt at <i>T</i> = 1. Four are solved most of the time, four almost never.</li>
+<li><b>One temperature for all.</b> The fixed sampler uses <i>T</i> = 1 for every group, whatever the prompt's history.</li>
+<li><b>What a group of 8 can teach.</b> Right-hand bars: the chance the group of 8 rollouts contains at least one success (<i>I</i>, what PPO needs to reinforce a success) and the chance it is mixed (<i>J</i>, the only groups that give GRPO a nonzero advantage). For the four hard prompts both are close to zero: their groups will almost certainly all fail and teach nothing. The mastered ones produce mixed groups only because they still fail now and then.</li>
+</ol>
+<ol class="sx" id="sx-pt-ptgs">
+<li><b>Eight prompts, and what PTGS remembers.</b> The same prompts and weights. The hollow tick is PTGS's posterior mean for each prompt, built from its discounted past successes and failures. Prompt 65 is the interesting one: the policy now solves it 78% of the time, but its posterior still remembers earlier failures and sits near 9%.</li>
+<li><b>A Thompson draw sets each temperature.</b> PTGS draws <i>p̂</i> from each posterior and maps it to a temperature with Eq. 4: low draws are heated toward τ = 1.5, high draws cooled toward 1/τ. The four prompts with failing histories, and prompt 65, get 1.37 to 1.50; the three the posterior rates as mastered get 0.72 to 0.90.</li>
+<li><b>The temperature changes the odds.</b> Heating raises the hard prompts' success probabilities (several-fold, from tiny bases), and cooling pushes the mastered ones closer to certain. But prompt 65, heated on stale evidence, falls from 78% to 53%: Theorem 3's assumption, that heating raises a hard prompt's success probability, fails when the posterior lags.</li>
+<li><b>What a group of 8 can teach now.</b> Compare with the fixed sampler's last step. Heating the four hard prompts raises their chance of a group with a success from 0.075 to 0.265 combined (Theorem 3 (i)). Cooling the three mastered prompts turns most of their mixed groups into all-success groups (Proposition 5), so at this one step the expected number of mixed groups, the only ones GRPO learns from, falls. Over training the balance goes the other way (the trace below: more mixed groups than the fixed sampler late in training), because hard prompts that start to succeed stay in play. The realised groups at this step had 0, 3, 8, 0, 0, 0, 8, 8 successes of 8.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L"><h3>Trained: four arms, ten seeds</h3>
 <p>The authors' four arms: <b>base</b> (the starting policy, untrained), <b>fixed</b> (every group at <i>T</i> = 1), <b>global T</b> (every group at one hotter temperature, matched to PTGS's mean temperature on a seed-0 probe run: <span id="tyGT"></span>) and <b>PTGS</b> (τ = 1.5, γ = 0.95, target 0.25 rising to 0.5). The global-T arm is the control that separates "hotter" from "hotter where it fails".</p>
-<div class="card"><div id="tySvg"></div><div id="tyTab"></div><p class="small mute" id="tyNote" style="margin:4px 0 0"></p></div>
-<h3>During training</h3>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div id="tySvg"></div><div id="tyTab"></div><p class="small mute" id="tyNote" style="margin:4px 0 0"></p></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L"><h3>During training</h3>
 <p>The group statistics behind the result, averaged over the ten seeds and smoothed over 9 steps (as the paper's {{Figure 41|ax:A6.SS2}} does): the share of groups with at least one success (what PPO needs), the share of mixed groups (what GRPO needs), the mean sampling temperature and the mean entropy of the decision distributions.</p>
-<div class="card"><div class="seg" id="trM" role="group" aria-label="Statistic"><button class="on" data-m="any" aria-pressed="true">groups with a success</button><button data-m="mixed" aria-pressed="false">mixed groups</button><button data-m="temp" aria-pressed="false">mean temperature</button><button data-m="ent" aria-pressed="false">entropy</button></div><div id="trSvg2"></div><p class="small mute" id="trNote2" style="margin:4px 0 0"></p></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="seg" id="trM" role="group" aria-label="Statistic"><button class="on" data-m="any" aria-pressed="true">groups with a success</button><button data-m="mixed" aria-pressed="false">mixed groups</button><button data-m="temp" aria-pressed="false">mean temperature</button><button data-m="ent" aria-pressed="false">entropy</button></div><div id="trSvg2"></div><p class="small mute" id="trNote2" style="margin:4px 0 0"></p></div>
 
-<h3>Train it yourself</h3>
+</div></div></div>
+<div class="s3sp"><div class="s3L"><h3>Train it yourself</h3>
 <p>Pick a seed (each seed draws a new task pool) and PTGS's spread τ, and train the fixed, global-T and PTGS arms in your browser (about a second). With τ = 1.5 the result must equal the ten-seed sweep above for that seed, run for run; the line under the table says whether it does.</p>
-<div class="card" id="tyLive"><div class="ctl"><label>Seed <select id="tySeed"></select></label><label>τ = <b id="tyTauV"></b><input type="range" id="tyTau" min="1" max="2" step="0.1" value="1.5"></label><button id="tyGo">Train three arms</button></div><div id="tyLiveSvg"></div><div id="tyLiveOut" class="small"></div></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="tyLive"><div class="ctl"><label>Seed <select id="tySeed"></select></label><label>τ = <b id="tyTauV"></b><input type="range" id="tyTau" min="1" max="2" step="0.1" value="1.5"></label><button id="tyGo">Train three arms</button></div><div id="tyLiveSvg"></div><div id="tyLiveOut" class="small"></div></div>
 
+</div></div></div>
 <h3>What the toy shows, and what it cannot</h3>
 <ul>
 <li><b>Reproduces in direction</b>: PTGS beats both fixed and heat-matched global temperature on pass@1 and pass@128 (<span id="tyWin"></span>), and keeps more groups with a success than either during training, and more mixed groups than fixed (global T, sampling everything hotter, has about as many mixed groups late in training). The authors' own toy, run unmodified with 5 seeds, gives the same ordering (table below).</li>

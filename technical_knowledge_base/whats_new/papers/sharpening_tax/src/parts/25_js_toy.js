@@ -7,14 +7,10 @@ const I=q=>1-Math.pow(1-q,n),J=q=>1-Math.pow(q,n)-Math.pow(1-q,n);
 $('ptSnapStep').textContent=D.snap.step;$('tyGT').textContent='T = '+D.globalT.toFixed(3);
 // 1. one batch, two samplers (Theorem 3 on real toy prompts)
 const B=D.snap.batch;
-const SF=[{t:'Eight prompts',c:'Each row is one prompt of this training step; the dot is the policy\'s exact chance of solving it in one attempt at T = 1. Four are solved most of the time, four almost never.'},
-  {t:'One temperature for all',c:'The fixed sampler uses T = 1 for every group, whatever the prompt\'s history.'},
-  {t:'What a group of 8 can teach',c:'Right-hand bars: the chance the group of 8 rollouts contains at least one success (I, what PPO needs to reinforce a success) and the chance it is mixed (J, the only groups that give GRPO a nonzero advantage). For the four hard prompts both are close to zero: their groups will almost certainly all fail and teach nothing. The mastered ones produce mixed groups only because they still fail now and then.'}];
-const SP=[{t:'Eight prompts, and what PTGS remembers',c:'The same prompts and weights. The hollow tick is PTGS\'s posterior mean for each prompt, built from its discounted past successes and failures. Prompt 65 is the interesting one: the policy now solves it 78% of the time, but its posterior still remembers earlier failures and sits near 9%.'},
-  {t:'A Thompson draw sets each temperature',c:'PTGS draws p̂ from each posterior and maps it to a temperature with Eq. 4: low draws are heated toward τ = 1.5, high draws cooled toward 1/τ. The four prompts with failing histories, and prompt 65, get 1.37 to 1.50; the three the posterior rates as mastered get 0.72 to 0.90.'},
-  {t:'The temperature changes the odds',c:'Heating raises the hard prompts\' success probabilities (several-fold, from tiny bases), and cooling pushes the mastered ones closer to certain. But prompt 65, heated on stale evidence, falls from 78% to 53%: Theorem 3\'s assumption, that heating raises a hard prompt\'s success probability, fails when the posterior lags.'},
-  {t:'What a group of 8 can teach now',c:'Compare with the fixed sampler\'s last step. Heating the four hard prompts raises their chance of a group with a success from 0.08 to 0.27 combined (Theorem 3 (i)). Cooling the three mastered prompts turns most of their mixed groups into all-success groups (Proposition 5), so at this one step the expected number of mixed groups, the only ones GRPO learns from, falls. Over training the balance goes the other way (the trace below: more mixed groups than the fixed sampler late in training), because hard prompts that start to succeed stay in play. The realised groups at this step had '+B.map(b=>b.k).join(', ')+' successes of 8.'}];
-makeAnim({id:'pt',mode:'ptgs',modes:{fixed:SF,ptgs:SP},dur:2600,
+// the step texts are the step lists sx-pt-fixed and sx-pt-ptgs in 05_toy.html (2026-11-13); here only their titles
+const SF=[{t:'Eight prompts'},{t:'One temperature for all'},{t:'What a group of 8 can teach'}];
+const SP=[{t:'Eight prompts, and what PTGS remembers'},{t:'A Thompson draw sets each temperature'},{t:'The temperature changes the odds'},{t:'What a group of 8 can teach now'}];
+window.PTA=makeAnim({id:'pt',mode:'ptgs',modes:{fixed:SF,ptgs:SP},lists:{fixed:'sx-pt-fixed',ptgs:'sx-pt-ptgs'},dur:4200,
   draw(m,k,e,w){const narrow=w<480,rh=30,top=34,H=top+B.length*rh+30,lw=narrow?40:62,rw=narrow?118:176,x0=lw+6,x1=w-rw-8;
     const lx=p=>x0+(x1-x0)*(Math.log10(Math.max(p,1e-4))+4)/4;let s='';
     [1e-4,1e-3,1e-2,1e-1,1].forEach((v,i)=>{s+=ln2(lx(v),top-6,lx(v),top+B.length*rh,'var(--line)')+tx(lx(v),top+B.length*rh+14,['0.01%','0.1%','1%','10%','100%'][i],{fs:11,a:'middle',c:'var(--mute)'})});

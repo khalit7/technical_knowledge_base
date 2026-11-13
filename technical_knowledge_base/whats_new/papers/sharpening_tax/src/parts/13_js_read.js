@@ -1,4 +1,4 @@
-// ---- The paper tab: small live charts, the polarisation animation, the predict reveals ----
+// ---- The paper tab: small live charts and the predict reveals (the polarisation stage is 31_js_sc_tasks.js) ----
 // kchart: pass@k (solid) and pass^k (dashed) curves on a log2 budget axis; series [{n, c, cov, con}]
 window.kchart=function(w,series,o){o=o||{};const H=o.H||(w<480?230:260),K=o.K||128,lg=Math.log2;
   const F=linFrame({W:w,H,pl:42,pr:w<480?12:20,pt:12,pb:34,x:[0,lg(K)],y:[0,1],xt:[0,1,2,3,4,5,6,7].filter(v=>v<=lg(K)),fx:v=>String(2**v),fy:v=>Math.round(v*100)+'%',yt:[0,.25,.5,.75,1],xl:'budget k (attempts per task)'});
@@ -20,40 +20,7 @@ const pct=(v,d)=>(100*v).toFixed(d==null?1:d)+'%';
 // 2. predict reveal: the crossover on gemma-4-31B WebShop, from the released counts
 PRED_REVEAL['pr-cross']=()=>{const el=$('crossSvg'),cell=CX.get('webshop','gemma-4-31B'),st=CX.stats(cell);
   fit(el,w=>{el.innerHTML=kchart(w,[{n:'base + harness',c:CB,cov:st.b.cov,con:st.b.con},{n:'post-trained (-it)',c:CP,cov:st.p.cov,con:st.p.con}],{cross:st.cross,label:'gemma-4-31B WebShop'})})};
-// 3. the polarisation animation: the same tasks under the base and the post-trained model
-(function(){if(!$('bm'))return;
-  const NB=12,binOf=c=>c===0?0:c===128?NB-1:1+Math.min(NB-3,Math.floor((c-1)/127*(NB-2)));
-  const prep={};
-  function get(m){if(prep[m])return prep[m];const [bk,pair]=m.split('|'),cell=CX.get(bk,pair),T=cell.T;
-    const place=arr=>{const cnt=new Array(NB).fill(0),pos=new Array(T);for(let i=0;i<T;i++){const b=binOf(arr[i]);pos[i]=[b,cnt[b]++]}return {pos,cnt}};
-    const B=place(cell.cb),Pp=place(cell.cp);const mx=Math.max(...B.cnt,...Pp.cnt);
-    const kind=new Array(T);let nl=0,ng=0,ns=0,nf=0;for(let i=0;i<T;i++){const b=cell.cb[i],p=cell.cp[i];kind[i]=b>0&&p===0?'lost':b===0&&p>0?'gained':p>b&&b>0?'up':b>p&&p>0?'down':'same';if(kind[i]==='lost')nl++;if(kind[i]==='gained')ng++;if(kind[i]==='up')ns++;if(kind[i]==='down')nf++}
-    return prep[m]={cell,T,B,Pp,mx,kind,nl,ng,ns,nf,catB:CX.cats(cell.cb),catP:CX.cats(cell.cp)}}
-  const S=[{t:'The base model',c:'Each square is one task, placed by how often the base model (with the harness) solved it in 128 attempts. Most tasks sit in the middle: solved sometimes, which is exactly where more attempts help.'},
-    {t:'Three groups',c:'Left edge: never solved in 128 attempts. Right edge: solved every time. Between: pass given compute. Only the middle group can be turned into successes by retrying.'},
-    {t:'Post-training moves every task',c:'The same tasks, moving to how often the post-trained model solves them. Watch where the middle goes.'},
-    {t:'The post-trained model',c:'The middle has emptied toward both edges: more tasks solved every time, and more never solved. Higher pass@1, less left for extra attempts to win.'},
-    {t:'Who moved where',c:'Coloured by movement: lost (the base model solved it at least once, the post-trained model never), gained (the reverse), sharpened up, softened down, or unchanged. Lost tasks are the coverage post-training gave up.'}];
-  const KC={lost:'var(--bad)',gained:'var(--good)',up:'var(--c1)',down:'var(--c4)',same:'var(--dim)'};
-  makeAnim({id:'bm',mode:'webshop|gemma-4-31B',modes:{'webshop|gemma-4-31B':S,'webshop|gemma-4-E4B':S,'acebench|Qwen2.5-32B':S},dur:2600,
-    draw(m,k,e,w){const D=get(m),H=w<480?250:270,pl=4,pr=4,top=22,bot=40,gap=w<480?3:6,bw=(w-pl-pr)/NB,cap=H-top-bot,iw=bw-gap;
-      // unit chart: one square per task, packed into a block per bin; square size fits the fullest bin
-      let sz=Math.sqrt(iw*cap/D.mx);let cols=Math.max(1,Math.floor(iw/sz));while(cols*Math.floor(cap/(iw/cols))<D.mx)cols++;sz=iw/cols;const sq=Math.max(1,sz-(sz>3?0.8:0.3));
-      let s='';[0,NB-1].forEach(b=>{s+=rc(pl+b*bw,top-2,bw-gap/2,cap+4,'var(--soft)',{r:2})});
-      s+=tx(pl+bw/2,H-bot+30,'0',{fs:11,a:'middle',c:'var(--mute)'})+tx(pl+(NB-0.5)*bw,H-bot+30,'128',{fs:11,a:'middle',c:'var(--mute)'});
-      [0.5].forEach(v=>{s+=tx(pl+(1+v*(NB-2))*bw,H-bot+30,'50%',{fs:11,a:'middle',c:'var(--mute)'})});
-      s+=tx(w/2,H-bot+14,'success rate over 128 attempts',{fs:11,a:'middle',c:'var(--mute)'});
-      const t=k<2?0:k===2?e:1,hlCat=k===1||k===3;
-      const at=(b,j)=>[pl+b*bw+(j%cols)*sz,top+cap-(Math.floor(j/cols)+1)*sz];
-      for(let i=0;i<D.T;i++){const a=D.B.pos[i],b=D.Pp.pos[i],p0=at(a[0],a[1]),p1=at(b[0],b[1]);
-        const x=p0[0]+(p1[0]-p0[0])*t,y=p0[1]+(p1[1]-p0[1])*t;let f=k<2?CB:k===2?CB:CP;if(hlCat){const bin=(k===1?a:b)[0];f=bin===0?'var(--bad)':bin===NB-1?'var(--good)':(k===1?CB:CP)}if(k===4)f=KC[D.kind[i]];
-        s+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+sq.toFixed(1)+'" height="'+sq.toFixed(1)+'" fill="'+f+'"/>'}
-      s+=tx(pl,13,k<2?'base model':k===2?'moving':'post-trained model',{fs:12,w:'600',c:k<2?CB:k===2?'var(--mute)':CP});
-      return svgW(w,H,s,'per-task success rates')},
-    counters(m,k,e){const D=get(m),c=k<2?D.catB:D.catP,lab=k<2?'base':'post-trained';
-      let h='<span>'+lab+': always pass <b>'+pct(c[0])+'</b></span> <span>pass given compute <b>'+pct(c[1])+'</b></span> <span>always fail <b>'+pct(c[2])+'</b></span>';
-      if(k===4)h='<span><i class="kchip" style="background:var(--bad)"></i>lost <b>'+pct(D.nl/D.T)+'</b></span> <span><i class="kchip" style="background:var(--good)"></i>gained <b>'+pct(D.ng/D.T)+'</b></span> <span><i class="kchip" style="background:var(--c1)"></i>sharpened up <b>'+pct(D.ns/D.T)+'</b></span> <span><i class="kchip" style="background:var(--c4)"></i>softened <b>'+pct(D.nf/D.T)+'</b></span> <span>'+D.T+' tasks</span>';
-      return h}})})();
+// 3. the polarisation stage is the 3D scene 31_js_sc_tasks.js (Stage 1, since 2026-11-13)
 // 4. per-task retry value a_K(p)
 (function(){const el=$('akSvg');if(!el)return;const sp=$('akP'),sk=$('akK');
   const aK=(p,K)=>{let a=0;const qK=Math.pow(1-p,K);for(let k=1;k<K;k++)a+=Math.pow(1-p,k)-qK;return a};
