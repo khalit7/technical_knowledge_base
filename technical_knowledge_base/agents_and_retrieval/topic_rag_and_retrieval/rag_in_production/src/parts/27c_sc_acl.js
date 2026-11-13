@@ -56,10 +56,10 @@
     if((k===2||k===4)&&rr){h+='<div class="pac-ans">'+mark(rr.text,c.q.marker.concat([C.injection_marker]))+'</div>';
       h+='<p class="small"><span class="pac-v '+(rr.leak_new?'bad':'good')+'">'+(rr.leak_new?'Leak: the answer contains a fact only the restricted document holds.':rr.leak?'No new fact: the marker in the answer was already in the question.':'No leak in this answer.')+'</span> '+MODELS[c.g]+', temperature 0, real output; restricted facts checked: '+esc(c.q.marker.join(', '))+'.</p>'}
     $('pac-read').innerHTML=h}
-  const st=S3.stage({id:'stg-acl',list:'sx-acl',fig:'Fig. 3 · where the access check sits',cam:[.15,.85],bounds:[[-6.1,0,-1.4],[5.2,.7,1.6]],aspect:.5,dur:1500,hold:5200,draw,
+  const st=S3.stage({id:'stg-acl',list:'sx-acl',fig:'Fig. 3 · where the access check sits',cam:[.4,.8],bounds:[[-6.1,0,-1.4],[5.2,.7,1.6]],aspect:.5,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,8,12,8]:[26,18,26,18],onStep:k=>{try{readout(k)}catch(e){}},
     // in close on the documents while the search runs; the whole path while the prompt is built and answered
-    view:k=>k===1||k===3?{cam:[.2,.85],bounds:[[-6.1,0,-1.4],[.3,.7,1.8]]}:null});
+    view:k=>k===1||k===3?{cam:[.4,.8],bounds:[[-6.1,0,-1.4],[.3,.7,1.8]]}:null});
   if(!st)return;
   const re=()=>{st.draw();readout(st.st.k)};['pac-q','pac-g','pac-claim'].forEach(id=>$(id).addEventListener('change',re));readout(0);
 })();

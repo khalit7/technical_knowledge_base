@@ -25,11 +25,13 @@
         if(k===2&&r.rule==='verify'&&t.note)R.glow([x(t.n),h+.12,zz],.2,{c:P.acc,a:fa});
       });
       const last=r.turns[r.turns.length-1],lx=x(r.turns.length)+DX*.62;
+      // the longest run ends at the right edge: its end label sits above its last turn instead, so the card needs less room on the right
+      const lng=r.turns.length===maxT,LP=lng?[x(maxT)+DX*.4,last.pt/maxP*HM+.05,zz]:[lx,.42,zz],LO=lng?{al:'right',dx:0,dy:-10}:{al:'left',dx:8};
       // the end of each run: green flag when it passed, red when it stopped with a test failing
       if(k>=1&&k<=3)R.box([lx,0,zz],[.06,.42,.2],{fill:r.passed?P.good:P.bad,a:f,shadow:false});
       if(k===1&&trunc.includes(r.id)&&!nar)R.label([lx,.42,zz],'cut at 1,024 output tokens',{fs:12,mono:true,al:'left',dx:8,c:P.bad,a:fa,grp:'end'});
-      if(k===1&&early.includes(r.id)&&!nar)R.label([lx,.42,zz],r.id+': "done", tests failing',{fs:12,mono:true,al:'left',dx:8,c:P.bad,a:fa,grp:'end'});
-      if(k===3&&r.seed===2)R.label([lx,.42,zz],r.rule+' · '+r.turns.length+' turns · '+fmt(r.spent)+' tokens',{fs:12.5,mono:true,b:r.rule==='verify',al:'left',dx:8,c:r.rule==='verify'?P.bad:P.ink,a:fa,grp:'end'});
+      if(k===1&&early.includes(r.id)&&!nar)R.label(LP,r.id+': "done", tests failing',{fs:12,mono:true,...LO,c:P.bad,a:fa,grp:'end'});
+      if(k===3&&r.seed===2)R.label(LP,r.rule+' · '+r.turns.length+' turns · '+fmt(r.spent)+' tokens',{fs:12.5,mono:true,b:r.rule==='verify',...LO,c:r.rule==='verify'?P.bad:P.ink,a:fa,grp:'end'});
       if(k===2&&(r.id==='verify_s4'||r.id==='verify_s2'))R.label([lx,.42,zz],r.id==='verify_s4'?'seed 4: told the tests fail, fixed it':'seed 2: three nudges, still failing',{fs:12.5,b:1,al:'left',dx:8,c:r.passed?P.good:P.bad,a:fa,grp:'end'});
     });
     // the verifier: flows from the nudged turns back into the run (the failing test output shown to the model)
@@ -45,7 +47,7 @@
   }
   const zA=zOf[0],zB=zOf[zOf.length-1],full={cam:[.14,.7],bounds:[[x(1)-.6,0,zA-.4],[x(maxT)+.6,1.3,zB+.4]]};
   const zv=[11,15].map(i=>zOf[Math.min(i,zOf.length-1)]);
-  S3.stage({id:'stg-stop',list:'sx-stop',fig:'Fig. 3 · sixteen runs, turn by turn',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
-    margin:w=>w<520?[14,10,14,10]:[18,215,14,120],
-    view:k=>k===2?{cam:[.2,.6],bounds:[[x(1)-.4,0,zv[0]-.3],[x(maxT)+.4,1.3,zv[1]+.3]]}:full});
+  S3.stage({id:'stg-stop',list:'sx-stop',fig:'Fig. 3 · sixteen runs, turn by turn',cam:full.cam,bounds:full.bounds,aspect:.42,dur:1500,hold:5200,draw,
+    margin:w=>w<520?[14,10,14,10]:[18,175,14,110],
+    view:k=>k===2?{cam:[.42,.6],bounds:[[x(1)-.4,0,zv[0]-.3],[x(maxT)+.4,1.3,zv[1]+.3]]}:full});
 })();

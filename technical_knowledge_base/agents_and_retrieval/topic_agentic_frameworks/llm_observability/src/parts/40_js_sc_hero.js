@@ -56,8 +56,9 @@
       R.box([XB+.35,1.08,.35],[.24,.34*e,.24],{fill:mix(P.paper,P.c5,.7),a:fa});
       R.label([XB+.35,1.08+.34*e,.35],'score tests_pass = '+sc0.tests_pass,{mono:true,fs:12.5,b:1,c:mix(P.ink,P.c5,.45),dy:-14,a:fa})}
   }
-  const full={cam:[.3,.66],bounds:[[-6.3,0,-1.2],[5.9,1.5,1.2]]};
+  // the wide steps turn the scene a little more on wide cards, so the pipeline fills more of them; phones keep the flatter angle (labels)
+  const full={cam:[.45,.66],bounds:[[-6.3,0,-1.2],[5.9,1.5,1.2]]},fullN={cam:[.3,.66],bounds:full.bounds};
   const trace={cam:[.14,.62],bounds:[[-6.3,0,-.9],[XE+.2,1.05,1.2]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the local run as one trace, and where it goes',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1400,hold:5200,draw,
-    view:k=>k<=2?trace:k===3?{cam:[.2,.5],bounds:[[c4.x0-.4,0,-.6],[c4.x1+.3,1.6,1.7]]}:full});
+    view:k=>k<=2?trace:k===3?{cam:[.2,.5],bounds:[[c4.x0-.4,0,-.6],[c4.x1+.3,1.6,1.7]]}:innerWidth<520?fullN:full});
 })();

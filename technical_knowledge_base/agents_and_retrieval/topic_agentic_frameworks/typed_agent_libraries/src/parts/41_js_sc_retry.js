@@ -43,5 +43,5 @@
   }
   S3.stage({id:'stg-retry',list:'sx-retry',fig:'Fig. 2 · 30 recorded runs through the checks',cam:[.85,.6],bounds:[[-5,0,-2.4],[4.6,1.3,1.9]],aspect:.62,dur:2200,hold:4800,draw,
     margin:w=>w<520?[18,10,14,10]:[26,16,18,16],
-    view:k=>k===2?{cam:[.85,.55],bounds:[[-5,0,-2.2],[2,1.5,1.9]]}:null});
+    view:k=>k===2?{cam:[.85,.55],bounds:[[-5,0,-2.2],[4.5,1.5,1.9]]}:null});
 })();

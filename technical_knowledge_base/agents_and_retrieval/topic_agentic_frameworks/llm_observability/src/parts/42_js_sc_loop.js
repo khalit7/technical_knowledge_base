@@ -24,7 +24,7 @@
         const lab=key==='cost_usd'?'$'+v.toFixed(4):String(v);
         if(!nar||k>=3)R.label([x,.21+bh(key,v)*g,z],lab,{mono:true,fs:12,b:1,c:cl,dy:-10,a:(k===3||k===4)&&i>0?0:a*g});
         if(i===0&&k===2&&!nar)R.label([x,.21,z+.13],key,{mono:true,fs:12,c:P.mute,dy:14,a:fa*.9,grp:'keys'})});
-      if(k===3&&i===0)R.label([XS-.7+.56,1.0,z],'summary_complete = 1, should be 0',{fs:13,b:1,c:P.bad,dy:-12,a:fa})});
+      if(k===3&&i===0)R.label([XS-.7+.56,1.25,z],'summary_complete = 1, should be 0',{fs:13,b:1,c:P.bad,dy:-12,a:fa})});
     // the evaluator, the dataset, the gate, the deploy
     const on=(s)=>s.includes(k)?1:.2;
     R.box([EV[0],0,EV[1]],[.95,.6,.95],{fill:mix(P.paper,P.c5,.38),a:on([1,2]),lw:.8});R.label([EV[0],.6,EV[1]],'evaluator',{fs:13,b:1,c:mix(P.ink,P.c5,.4),dy:-12,a:on([1,2])>.5?1:k===0||k===3?0:.35});
@@ -42,5 +42,5 @@
       R.label([(DS[0]+DP[0])/2,0,GT[1]+.5],'every prompt, model, tool or harness change',{fs:12.5,c:P.mute,dy:18,a:fa,wide:1})}
   }
   S3.stage({id:'stg-loop',list:'sx-loop',fig:'Fig. 3 · three scored runs, one trace store, one loop',cam:[.25,.72],bounds:[[-4,0,-2.1],[4.1,1.1,2.1]],aspect:.52,dur:1300,hold:4800,draw,margin:w=>w<520?[14,10,14,10]:[16,14,14,190],
-    view:k=>k===3?{cam:[.2,.55],bounds:[[-3.9,0,.8],[-1.1,1.2,2.1]]}:k<=0?{cam:[.2,.7],bounds:[[-3.9,0,-2.1],[-1.1,.8,2.1]]}:null});
+    view:k=>k===3?{cam:[.2,.62],bounds:[[-4.1,0,-2.1],[-.8,1.3,2.2]]}:k<=0?{cam:[.2,.7],bounds:[[-3.9,0,-2.1],[-1.1,.8,2.1]]}:null});
 })();

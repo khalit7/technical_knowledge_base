@@ -9,11 +9,11 @@
     ['smolagents','run the code','final_answer()?','20 steps'],['Google ADK','function calls','no function call?','500 model calls']];
   const Z=i=>(i-1.5)*1.45,XM=-2.7,XA=0,XG=2.5;
   function draw(R,k,e){const P=R.P,nar=R.W<520;R.grid(-4.6,5.6,-3,3,.5);
-    const cur=k>=1?k-1:-1;
-    L.forEach(([nm,act,end,cap],i)=>{const z=Z(i),on=cur<0||cur===i,a=on?1:.13,c=[P.c1,P.c2,P.c3,P.c4][i];
+    const cur=k>=1?k-1:-1; // fr below: a lane in front of the one in focus sits close to the camera, so it fades further
+    L.forEach(([nm,act,end,cap],i)=>{const z=Z(i),on=cur<0||cur===i,fr=cur>=0&&i>cur,a=on?1:fr?.05:.13,c=[P.c1,P.c2,P.c3,P.c4][i];
       R.box([XM,0,z],[1.0,.55,.9],{fill:mix(P.paper,P.c4,.2),a});
       R.box([XA,0,z],[1.25,.42,.9],{fill:mix(P.paper,c,.25),a});
-      R.glass([XG,.02,z-.42],[0,0,.84],[0,.75,0],{c:P.acc,a:on?1:.15,nu:3,nv:3});
+      R.glass([XG,.02,z-.42],[0,0,.84],[0,.75,0],{c:P.acc,a:on?1:fr?.06:.15,nu:3,nv:3});
       if(on){R.label([XM-.55,.3,z],nm,{fs:13.5,b:1,c,al:'right',dx:-6,grp:cur<0?'lib':null});
         if(cur===i||!nar)R.label(i===3&&cur===3?[XG,.77,z]:[XG+.3,.4,z],'cap: '+cap,i===3&&cur===3?{fs:12.5,b:1,c:P.acc,dy:-28}:{fs:12.5,b:1,c:P.acc,al:'left',dx:8,grp:cur<0?'cap':null})}
       if(cur===i){R.label([XA,.42,z],act,{fs:12.5,c:P.ink,dy:-10});R.label([XG,.77,z],end,{fs:12.5,b:1,c:P.acc,dy:-10});}

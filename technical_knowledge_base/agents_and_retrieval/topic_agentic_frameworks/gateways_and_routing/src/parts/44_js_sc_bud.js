@@ -38,6 +38,6 @@
   const full={cam:[.15,.68],bounds:[[-5.0,0,-1.6],[3.6,1.6,1.6]]};
   const st=S3.stage({id:'stg-bud',list:'sx-bud-nomax',fig:'Fig. 5 · a $0.0004 key budget, twenty calls at once',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1600,hold:4400,draw,
     // admission moves in on the tank; with reservation off the final spend needs the tall view
-    view:k=>{const tall=(mode==='nomax'&&k===1)||(mode==='old'&&k>=2);return k===1||k===2?{cam:[.25,.55],bounds:[[-2.2,0,-1.2],[3.0,tall?3.4:1.5,1.2]]}:tall?{cam:[.3,.6],bounds:[[-5.0,0,-1.6],[3.6,3.4,1.6]]}:full}});
+    view:k=>{const tall=(mode==='nomax'&&k===1)||(mode==='old'&&k>=2);return k===1||k===2?{cam:[.25,.55],bounds:[[-4.7,0,-1.2],[3.0,tall?3.4:1.5,1.2]]}:tall?{cam:[.3,.6],bounds:[[-5.0,0,-1.6],[3.6,3.4,1.6]]}:full}});
   RD.seg(document.getElementById('fgw-e5mode'),m=>{mode=m;['old','nomax','max16'].forEach(x=>document.getElementById('sx-bud-'+x).hidden=x!==m);st.list('sx-bud-'+m)});
 })();

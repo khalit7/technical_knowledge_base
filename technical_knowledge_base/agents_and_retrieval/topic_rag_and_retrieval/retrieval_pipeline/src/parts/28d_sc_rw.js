@@ -32,7 +32,7 @@
   function readout(){const C=claim(),el=document.getElementById('rp-rw-out');if(!el)return;
     el.innerHTML='<b>This claim, the relevant abstract:</b> '+ROWS.map(([k,l])=>{const r=rk(C.lists[k]||[],C.rel);return l.split(',')[0]+' '+(r?'rank '+r:'not in the top 10')}).join(' · ')+'. Pick another claim in the widget below.'}
   const full={cam:[.3,.66],bounds:[[-7.4,0,-2.6],[6.4,1.0,2.6]]};
-  const st=S3.stage({id:'stg-rw',list:'sx-rw',fig:'Fig. 4 · one claim, four rewrites',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1500,hold:4800,draw,
+  const st=S3.stage({id:'stg-rw',list:'sx-rw',fig:'Fig. 4 · one claim, four rewrites',cam:full.cam,bounds:full.bounds,aspect:.54,dur:1500,hold:4800,draw,
     margin:w=>w<520?[16,8,14,8]:[22,16,18,16],
     view:k=>k===0?{cam:[.3,.62],bounds:[[-6.6,0,1.0],[6.2,1.0,3.0]]}:k===5?{cam:[.2,.42],bounds:[[-4.6,0,-.6],[4.6,2.6,.8]]}:full,onStep:()=>{try{readout()}catch(err){}}});
   // the widget's selects are filled by a later script: read the chosen query once they exist
