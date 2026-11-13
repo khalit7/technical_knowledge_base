@@ -10,7 +10,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -42,11 +42,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll the animation into view, wait, count frames
-    for (const id of ['ev']) {
+    // since 2026-11-13 every animation and stage plays by itself once scrolled into view (it used to wait for a click)
+    for (const id of ['ev', ...(await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id)))]) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // open every closed block and audit what it shows
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');

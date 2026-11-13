@@ -262,9 +262,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/flashattention` FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
 - [x] `whats_new/papers/gpt_3` Language Models are Few-Shot Learners (GPT-3)
 - [x] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
-- [~] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
+- [x] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
 - [~] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
-- [ ] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
+- [~] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
 - [ ] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
 - [ ] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
 - [ ] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
@@ -555,6 +555,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/flashattention`: Fig. 2 at 1400 is busy and the "standard: 4,608" label touches the right edge; at 390 px Fig. 2 is small and "l, m" sits close to "O"; the Theorem 2 chart's bottom "10^5" tick looks partly cut (clipcheck passes).
 - `whats_new/papers/gpt_3`: Tables 3.11/3.12 chart stays full width (table-tab exception); Fig. 1 labels 4 of 8 sizes on phones.
 - `whats_new/papers/graft`: Figs 1 and 2 small in tall cards on phones (Fig. 2 is wide and shallow); Fig. 3 step 3 the "87.9%" label sits on the h1 bar.
+- `whats_new/papers/harnessdev`: both stages leave empty space above the scene on phones.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -662,3 +663,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - FlashAttention: Fig. 2's block-size select replaced by a static table of whole-run counts at blocks of 4, 8, 16 (so step lists quote exact counts; could return as a mode); all mode lists count toward 29 min (default mode alone about 26); links Writing kernels' Fig. 6 for online softmax instead of redrawing it. Keep?
 - GPT-3: the 3D eight-sizes stage replaced the Figure 1.3 curve at the top (the curve moved beside "The scaling pattern"); Fig. 2 draws the 96 layers as 8 plates (labelled illustrative). Keep?
 - GRAFT: Fig. 2's group is the first sampler seed (seed 4) whose group has a right and a wrong solution, every hack and 6 to 10 flags (rule in toy_sweep.mjs, labelled illustrative); Fig. 3 sits after predict 3 and shows one seed (40.9% hacking) while the predict quotes five-seed numbers; new h3 "Result 1, inside the run". Keep?
+- HarnessDev: the hero stays the 2D chart and the protocol stage sits beside Idea and Method (EnvHarness precedent); the protocol stage follows Opus 4.8 throughout (best average); held-out orange and visible blue to match the replay tab. Keep?

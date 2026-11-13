@@ -32,7 +32,10 @@
     return {fb,ho}}
   let cur=LIN.find(l=>key(l)==='Self|GPT-5.5');
   const sel=$('evEp');LIN.forEach((l,i)=>{const o=document.createElement('option');o.value=i;o.textContent=name(l);if(l===cur)o.selected=true;sel.appendChild(o)});
-  const o={id:'ev',modes:build(cur),mode:'fb',dur:2600,
+  // the step lists on the left (one per view), written from the same texts the steps draw; refilled when the lineage changes
+  function lists(M){[['fb','sx-ev-fb'],['ho','sx-ev-ho']].forEach(([m,lid])=>{$(lid).innerHTML=M[m].map(S=>'<li><b>'+S.t+'.</b> '+S.c+'</li>').join('')})}
+  const M0=build(cur);lists(M0);
+  const o={id:'ev',modes:M0,mode:'fb',lists:{fb:'sx-ev-fb',ho:'sx-ev-ho'},dur:4200,move:.5,
     draw(m,k,e,w){const l=cur,n=l.n,H=Math.min(340,Math.max(250,w*.55)),pl=38,pr=w<480?40:64,pt=14,pb=34;
       const all=[...l.pair,...l.swe100,...l.term89.map(v=>100*v/89),...l.ho,l.pair[0]-4.75,l.pair[0]+4.75];let lo=Math.max(0,Math.floor(Math.min(...all)/10)*10),hi=Math.min(100,Math.ceil(Math.max(...all)/10)*10);
       const sx=i=>pl+(w-pl-pr)*(n>1?i/(n-1):.5),sy=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));let s='';
@@ -67,7 +70,7 @@
       $('pickOut').innerHTML=stat('Your pick, H'+i,'held-out '+l.ho[i].toFixed(2)+'%','visible rank '+rf(l.pair[i])+' of '+l.n+', held-out rank '+rh(l.ho[i])+' of '+l.n)
         +stat('The creator\'s pick, H'+l.declared,'held-out '+l.ho[l.declared].toFixed(2)+'%','visible rank '+rf(l.pair[l.declared])+', held-out rank '+rh(l.ho[l.declared]))
         +stat('Best held-out, H'+l.best_ho,l.ho[l.best_ho].toFixed(2)+'%','H0 was '+l.ho[0].toFixed(2)+'%')});b.appendChild(x)}}
-  sel.addEventListener('change',()=>{cur=LIN[+sel.value];o.modes=build(cur);an.st.play=false;an.st.k=0;an.st.t=1;an.st.lk=-1;an.draw();table();pick()});
+  sel.addEventListener('change',()=>{cur=LIN[+sel.value];o.modes=build(cur);lists(o.modes);an.reset();table();pick()});
   table();pick();
   onTab('t-run',()=>{refit($('evSvg'))});
 })();

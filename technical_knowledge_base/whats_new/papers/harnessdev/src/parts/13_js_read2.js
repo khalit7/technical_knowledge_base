@@ -1,4 +1,4 @@
-// ---- The paper tab, part 2: executor transfer, evolution gains, the 64 switches ----
+// ---- The paper tab, part 2: executor transfer and the 64 switches ----
 const LCOL=c=>CCOL[c]||'var(--mute)';
 const shortC=c=>c.replace(' 3.1 Pro','').replace(' V4 Pro','').replace(' 3.7 Max','').replace(' 4.8','').replace(' 2.0 Pro','');
 // Self-Eval against the same harnesses run by Gemini (Figure 6)
@@ -12,18 +12,7 @@ const shortC=c=>c.replace(' 3.1 Pro','').replace(' V4 Pro','').replace(' 3.7 Max
     host.innerHTML=svgW(w,CR.length*rh+42,s,'Self-Eval against Gemini-run scores')}
   segBind('trM',m=>{k=m;refit(host)});onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
 
-// visible feedback gain against held-out gain per lineage (Table 6)
-(function(){const host=$('gainPlot');if(!host)return;
-  function draw(w){const rows=PT.T6.rows;const narrow=w<520,lw=narrow?118:150,x0=lw,x1=w-40,lo=-12,hi=16,sx=v=>x0+(x1-x0)*(v-lo)/(hi-lo),rh=34;let s='';
-    const L=legend([['visible feedback pair','var(--acc)'],['held-out-630','var(--c2)']],x0,12,x1-x0);s+=L.s;const top=L.h+8;
-    s+=rc(sx(-4.75),top-4,sx(4.75)-sx(-4.75),rows.length*rh+6,'var(--dim)',{r:0,op:.45});
-    [-10,-5,0,5,10,15].forEach(v=>{s+=ln2(sx(v),top-4,sx(v),top+rows.length*rh+2,v===0?'var(--mute)':'var(--line)')+tx(sx(v),top+rows.length*rh+16,(v>0?'+':'')+v,{fs:11,a:'middle',c:'var(--mute)'})});
-    rows.forEach((r,i)=>{const y=top+i*rh;const lab=(r.setting==='Self'?'':(narrow?'fixed: ':'Gemini runs '))+shortC(r.creator);s+=tx(lw-8,y+15,lab,{fs:12,a:'end',c:r.setting==='Self'?'var(--ink)':'var(--mute)'});
-      [[+r.fbgain,r.fbgain,'var(--acc)',y+2],[+r.hogain,r.hogain,'var(--c2)',y+15]].forEach(([v,p,c,yy])=>{s+=rc(Math.min(sx(0),sx(v)),yy,Math.abs(sx(v)-sx(0)),11,c,{r:2});
-        s+=tx(v>=0?sx(v)+4:sx(v)-4,yy+10,p.replace('-','−'),{fs:11,a:v>=0?'start':'end',c:'var(--mute)'})})});
-    s+=tx(sx(0),top+rows.length*rh+30,'points, declared version minus H0',{fs:11,a:'middle',c:'var(--mute)'});
-    host.innerHTML=svgW(w,top+rows.length*rh+36,s,'Visible gain against held-out gain')}
-  onTab('t-read',()=>fit(host,draw));fit(host,draw)})();
+// (the visible-against-held-out gain chart was replaced on 2026-11-13 by the Evolution stage, 32_js_sc_evo.js)
 
 // the 64 switches: change in what the creator saw against change in what it never saw
 (function(){const host=$('swPlot');if(!host)return;

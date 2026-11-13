@@ -14,7 +14,8 @@ AB = 'measurement/topic_benchmarks/agentic'
 ES = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
 FAT = {}
 OWNED = {}
-KEYS = {13: 'it moves scores a lot', 25: 'is then frozen', 131: 'what the evolution edits were', 167: 'two examples the text does not tie to a lineage'}
+KEYS = {13: 'it moves scores a lot', 25: 'is then frozen', 131: 'what the evolution edits were', 167: 'two examples the text does not tie to a lineage',
+        117: 'declared version minus h 0 on the feedback pair', 218: 'it never moves by itself if your system asks for reduced motion'}
 NEW = [
  ('core', 'Core sentence: score the harness, not the answer; creator builds from a zero-scoring seed, harness frozen, executor runs it on 2,207 hidden tasks; best match references only where those ran the same or older models; Evolution visible +3.0 to +13.9 shrank to +1.43 to +4.44 held out.', 'score the harness , not the answer'),
  ('core', 'Hero: per benchmark, the six creators\' Self-Eval range and best against the human reference, labelled with the model the reference ran; losses of 10.7 to 39.6 points (derived) only where the reference ran a newer model.', 'by 10.7 to 39.6 points (derived)'),
@@ -23,6 +24,11 @@ NEW = [
  ('owned:' + AB, 'The harness alone moves an agentic benchmark score for the same model (Terminal-Bench public board, about 18 points across nine agents).', 'about 18 points across nine agents'),
  ('owned:' + ES, 'Binomial standard error of one score, sqrt(p(1-p)/n), and of a difference.', 'how precise is one score?'),
  ('core', 'Takeaway softened (2026-10-25): "match or beat" is the best one or two creators against references that ran the same or older models; the domain split is not a controlled comparison.', 'so the domain split is not a controlled comparison'),
+ ('core', 'Protocol stage (2026-11-13), steps 1 to 3: the seed\'s six empty slots; a creator (Opus 4.8 in Claude Code) writing into them with one to three development cases; complete implementations among the 18 code harnesses: execution loop 18, verification 15, tools 13, lifecycle 13, state 1, context not reported.', 'execution loop 18, verification 15, tools 13, lifecycle 13, state 1'),
+ ('core', 'Protocol stage, steps 4 to 6: frozen harness run on 2,207 hidden tasks (731, 89, 75, 46, 1,266); Opus 4.8 Self-Eval 69.3, 64.8, 32.9, 84.6, 52.4; under Gemini it falls on four of five and gains 1.2 on BrowseComp; against the human references it is behind on SWE-Pro, Terminal-Bench and BrowseComp, ahead on MLE-bench and EQ-Bench3.', 'behind on the first three and ahead on the last two'),
+ ('core', 'Evolution stage (2026-11-13), steps 1 to 3: Qwen 3.7 Max self lineage; declared H4 at 55.7 against 41.8 (+13.9); held out only +1.43 (275 of 630 against 266); H3 up 9.6 visible points collapsed to 151 of 630; best held-out H5 (46.8%).', 'collapsed to 151 of 630'),
+ ('core', 'Evolution stage, steps 4 to 6: all nine visible gains positive (+1.1 to +13.9); held-out gains; the best held-out version coincides with the declared one in only 2 of 9 lineages; fixed-Gemini GPT-5.5 passed over a version 16.51 points better.', 'passed over a version 16.51 points better'),
+
 ]
 F = HERE / 'ledger.json'
 u = json.loads(F.read_text())
