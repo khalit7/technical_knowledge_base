@@ -11,7 +11,7 @@
   // eigen-decomposition of a 2-D covariance: the contour at Mahalanobis radius r is mu + r (sqrt(l1) cos t v1 + sqrt(l2) sin t v2)
   function eig(c) { const a = c[0][0], b = c[0][1], d = c[1][1], tr = (a + d) / 2, q = Math.sqrt(Math.max(0, ((a - d) / 2) ** 2 + b * b)), l1 = tr + q, l2 = Math.max(1e-9, tr - q), an = Math.atan2(l1 - a, b || 1e-12);
     return { l1, l2, an, det: a * d - b * b }; }
-  const peak = S => 1 / (2 * Math.PI * Math.sqrt(eig(S.cov).det)), H0 = .9 / peak(PC.stats.test); // world height per unit of density: the real test bell is .9 tall
+  const peak = S => 1 / (2 * Math.PI * Math.sqrt(eig(S.cov).det)), H0 = 1.4 / peak(PC.stats.test); // world height per unit of density: the real test bell is 1.4 tall
   function ring(S, r, y) { const g = eig(S.cov), out = []; for (let i = 0; i <= 40; i++) { const t = 2 * Math.PI * i / 40, u = r * Math.sqrt(g.l1) * Math.cos(t), v = r * Math.sqrt(g.l2) * Math.sin(t);
       out.push([X([S.mu[0] + u * Math.cos(g.an) - v * Math.sin(g.an)]), y, Z([0, S.mu[1] + u * Math.sin(g.an) + v * Math.cos(g.an)])]); } return out; }
   // a fitted Gaussian as a glass bell: filled contour layers at heights H0 * density, a rim line on each, and the mean as a post to the peak
@@ -21,7 +21,8 @@
     const m = [X(S.mu), 0, Z(S.mu)]; R.line([m, [m[0], hp, m[2]]], { c, w: 1.6, a }); R.line([[m[0] - .12, .01, m[2]], [m[0] + .12, .01, m[2]]], { c, w: 2.4, a }); R.line([[m[0], .01, m[2] - .12], [m[0], .01, m[2] + .12]], { c, w: 2.4, a });
     return hp; }
   function draw(R, k, e) {
-    const P = R.P, S = PC.stats, cs = col(P, SET[set].color), cr = P.mute, d = E.dec[set], fl = E.dec.real;
+    const P = R.P, S = PC.stats, cs = col(P, SET[set].color), cr = P.dark ? [168, 168, 165] : [112, 112, 108], // the real test cloud: a neutral grey, apart from every set's hue
+      d = E.dec[set], fl = E.dec.real;
     R.grid(-4, 5.4, -3.9, 3.2, .5);
     // 1. two sets of images: the real test strip and the chosen set's strip (ten images each, one per class)
     const sa = k === 0 ? 1 : k === 1 ? 1 - .65 * e : k === 2 ? .35 - .15 * e : k === 5 ? .2 * e : 0; // gone in the close views of steps 4 and 5
@@ -56,7 +57,7 @@
   // the numbers the step list names, for the chosen set (the static text is DDPM's; check_stages.mjs compares them)
   function spans() { const d = E.dec[set], fl = E.dec.real, v = { set: SET[set].short, mean: fmt(d.mean, 2), cov: fmt(d.cov, 2), fid: fmt(d.mean + d.cov, 2), floor: fmt(fl.mean + fl.cov, 2) };
     document.querySelectorAll('#sx-fid [data-fid]').forEach(el => { el.textContent = v[el.dataset.fid]; }); window.EVS = window.EVS || {}; EVS.fid = Object.assign({ k: set }, v); }
-  const full = { cam: [-.2, .5], bounds: [[-3.4, 0, -3.4], [4.7, 1.7, 2.9]] };
+  const full = { cam: [-.2, .36], bounds: [[-3.4, 0, -3.4], [4.7, 1.7, 2.9]] };
   st = S3.stage({ id: 'stg-fid', list: 'sx-fid', fig: 'Fig. 1 · FID on 10,000 real and 10,000 generated images', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [14, 10, 14, 10] : [18, 16, 18, 130],
     view: k => k === 0 ? { cam: [0, .3], bounds: [[-3, 0, ZS - .1], [3, 1.7, ZS + .4]] } : k === 3 || k === 4 ? { cam: [-.1, .7], bounds: [[-3, 0, -2.7], [3, 1.6, 2.7]] } : full });

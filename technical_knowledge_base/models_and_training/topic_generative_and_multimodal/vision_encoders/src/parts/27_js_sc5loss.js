@@ -46,6 +46,6 @@
     lab(R, F, 'image tower → 8 image vectors · text tower → 8 caption vectors', { fs: 12.5, b: 1, c: P.ink, dy: 18, a: la(st, e, z => z === 0 ? 1 : 0) });
     if (k === 2) { const am = T.row[7].indexOf(Math.max(...T.row[7])); lab(R, [cx(am), YP + T.row[7][am] * HP, cz(7)], 'row 8 picks caption ' + (am + 1), { fs: 12, b: 1, c: P.bad, al: 'left', dx: 10, a: e }); }
   }
-  const st = S3.stage({ id: 'stg-loss', list: 'sx-loss', fig: 'Fig. 5 · a real batch of 8 pairs and its loss', cam: [.42, .7], bounds: [[-3.3, -.4, -3.0], [2.3, 2.0, 2.6]], aspect: .7, dur: 1500, hold: 5000, draw, margin: w => w < 520 ? [22, 8, 14, 8] : [30, 18, 20, 110] });
+  const st = S3.stage({ id: 'stg-loss', list: 'sx-loss', fig: 'Fig. 5 · a real batch of 8 pairs and its loss', cam: [.3, .7], bounds: [[-3.3, -.4, -2.7], [2.0, 2.0, 2.0]], aspect: .7, dur: 1500, hold: 5000, draw, margin: w => w < 520 ? [22, 8, 14, 8] : [30, 18, 20, 110] });
   VEK.onImage(() => st && st.draw());
 })();

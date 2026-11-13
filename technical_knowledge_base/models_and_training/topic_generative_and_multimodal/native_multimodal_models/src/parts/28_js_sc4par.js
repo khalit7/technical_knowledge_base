@@ -44,7 +44,7 @@
       for (let L = 0; L < 3; L++) { const z = GZ, h1 = .05 + 1.5 * cl[L] / 64 * t, h2 = .05 + 1.5 * fl[L] / mf * t;
         R.box([LX[L] - .6, 0, z], [.7, h1, .7], { fill: mix(P.paper, P.c1, .7) }); R.box([LX[L] + .6, 0, z], [.7, h2, .7], { fill: mix(P.paper, P.c2, .7) });
         lab(R, [LX[L] - .6, h1, z], cl[L] + ' calls', { mono: 1, fs: 12, b: 1, c: P.c1, dy: -12, a: win(e, .6, 1) });
-        lab(R, [LX[L] + .6, h2, z], (fl[L] / 1e6).toFixed(0) + ' MFLOP', { mono: 1, fs: 12, b: 1, c: P.c2, dy: -12, a: win(e, .6, 1) }); }
+        lab(R, [LX[L] + .6, h2, z], (fl[L] / 1e6).toFixed(0) + ' MFLOP', { mono: 1, fs: 12, b: 1, c: P.c2, dy: R.W < 520 ? -30 : -12, /* on a phone the FLOPs sit a line above the calls */ a: win(e, .6, 1) }); }
       lab(R, [0, 0, GZ + 1.3], 'sequential calls (blue) and FLOPs per image (orange), each to scale', { wide: 1, fs: 12.5, b: 1, c: P.ink, dy: 16, a: win(e, .6, 1) }); }
   }
   const full = { cam: [.0, .62], bounds: [[-5.3, 0, -2.3], [5.3, 2.3, 2.4]] };

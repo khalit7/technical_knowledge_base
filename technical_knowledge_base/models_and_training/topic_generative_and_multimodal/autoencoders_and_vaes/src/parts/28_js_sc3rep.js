@@ -56,7 +56,7 @@
       lab(R, [XM + BW / 2 + .15, .4, ZK], 'Σ = ' + KL.toFixed(2) + ' nats', { mono: 1, fs: 13, b: 1, c: P.bad, al: 'right', dx: -6, a: win(e, .7, 1) }); }
   }
   const full = { cam: [.12, .7], bounds: [[-5.6, 0, -2], [5.6, 1.1, 2.4]] };
-  st = S3.stage({ id: 'stg-rep', list: 'sx-rep', fig: 'Fig. 3 · z = μ + σ · ε on one test image', cam: full.cam, bounds: full.bounds, aspect: .38, dur: 1500, hold: 4800, draw, margin: AVK.margin,
+  st = S3.stage({ id: 'stg-rep', list: 'sx-rep', fig: 'Fig. 3 · z = μ + σ · ε on one test image', cam: full.cam, bounds: full.bounds, aspect: .32, dur: 1500, hold: 4800, draw, margin: AVK.margin,
     view: k => k <= 1 ? { cam: [.12, .7], bounds: [[-5.6, 0, -1.4], [-.6, 1.1, 2.5]] } : k === 5 ? { cam: [.12, .75], bounds: [[-5.6, 0, -2.6], [.4, 1.2, 1.2]] } : full });
   window.AVSC3 = { eps, z, kl, KL };
 })();

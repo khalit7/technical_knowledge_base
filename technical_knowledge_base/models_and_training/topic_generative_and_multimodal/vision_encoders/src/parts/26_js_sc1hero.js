@@ -29,6 +29,9 @@
     R.box([OX, 0, PZ], [.36, .95, .36], { fill: mix(P.paper, P.acc, .45), a: oa });
     R.glass([OX - .6, .08, -2.0], [1.2, 0, 0], [0, 0, 1.2], { c: P.c3, a: oa, nu: G, nv: G, th: .03 });
     if (k === 2) { R.flowArc([BX + BS / 2, 1.1, 0], [OX, .95, PZ], .35, { c: P.acc, r: .07, a: e, speed: 1.2 }); R.flowArc([BX + BS / 2, .7, -.6], [OX - .6, .15, -1.4], .3, { c: P.c3, r: .07, a: e, speed: 1.2 }); }
+    if (R.W < 520) { // on a phone the grouped labels hide, so the two outputs are named above and below them instead
+      lab(R, [OX, 0, PZ + .2], '1 pooled vector', { fs: 12.5, b: 1, c: P.acc, al: 'right', dx: 14, dy: 16, a: la(st, e, q => q === 2 ? 1 : 0) });
+      lab(R, [OX, .08, -2.0], 'every patch token', { fs: 12.5, b: 1, c: P.c3, al: 'right', dx: 10, dy: -12, a: la(st, e, q => q === 2 ? 1 : 0) }); }
     lab(R, [OX + .18, .95, PZ], '1 pooled vector', { fs: 12.5, b: 1, c: P.acc, al: 'left', dx: 8, grp: 'out', a: la(st, e, q => q === 2 ? 1 : 0) });
     lab(R, [OX + .18, .5, PZ], 'search, classify', { fs: 12, c: P.mute, al: 'left', dx: 8, grp: 'out', a: la(st, e, q => q === 2 ? 1 : 0) });
     lab(R, [OX + .6, .08, -1.6], 'every patch token', { fs: 12.5, b: 1, c: P.c3, al: 'left', dx: 8, grp: 'out', a: la(st, e, q => q === 2 ? 1 : 0) });

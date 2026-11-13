@@ -32,7 +32,7 @@
     const Y = 1.15;
     { const a = on(st, e, 0), C = P.c2; if (a > .01) { R.glass([CX - .35, .15, -.5], [0, 0, 1], [0, 1.6, 0], { c: C, a, nu: 4, nv: 8 }); R.glass([CX + .25, .15, -.5], [0, 0, 1], [0, 1.6, 0], { c: C, a, nu: 4, nv: 8 });
       if (k === 0) { R.flow(seg([PX + PS, Y, 0], [CX - .35, Y, 0], 10), { c: C, a, r: .07 }); R.flow(seg([CX + .3, Y, 0], [WX, Y, 0], 8), { c: C, a, r: .07 }); }
-      lab(R, [CX, 1.75, -.5], '2-layer MLP, each patch alone', { fs: 12.5, b: 1, c: C, dy: -14, a: lo(st, e, 0) }); } }
+      lab(R, [CX, 1.75, -.5], '2-layer MLP, each patch alone', { fs: 12.5, b: 1, c: C, dy: R.W < 520 ? -34 : -14, al: R.W < 520 ? 'left' : 'center', dx: R.W < 520 ? -14 : 0, a: lo(st, e, 0) }); /* on a phone: higher and to the right, clear of the photo */ } }
     { const a = on(st, e, 1), C = P.c6; if (a > .01) { balls(R, 32, 8, CX - .4, 1.9, .3, .13, C, a);
       if (k === 1) [[-3.9, .5], [-3.2, 1.2], [-4.2, 1.7], [-3, .4], [-3.6, 1.5]].forEach(([x, y], j) => R.flowArc([x, y + .15, 0], [CX - .4 + (j % 4) * .26, 1.9, .2 - (j % 3) * .13], .45, { c: C, a: a * .8, r: .05, n: 5, speed: 1.4 }));
       if (k === 1) R.flow(arcPts(R, [CX + .6, 1.9, 0], [WX + .3, .5, 0], .2, 14), { c: C, a, r: .07 });
@@ -68,7 +68,7 @@
       lab(R, [x, 0, .95], d.n, { fs: 12.5, b: 1, dy: 14, a: lo(st, e, 5) }); });
   }
   const full = { cam: [.26, .42], bounds: [[-5.1, 0, -.8], [2.1, 2.2, .9]] };
-  const st = S3.stage({ id: 'stg-conn', list: 'sx-conn', fig: 'Fig. 2 · five connectors, one photo', cam: full.cam, bounds: full.bounds, aspect: .52, dur: 1500, hold: 5000, draw, margin: K.margin,
+  const st = S3.stage({ id: 'stg-conn', list: 'sx-conn', fig: 'Fig. 2 · five connectors, one photo', cam: full.cam, bounds: full.bounds, aspect: .47, dur: 1500, hold: 5000, draw, margin: K.margin,
     view: k => k === 5 ? { cam: [.2, .5], bounds: [[-4.2, 0, .1], [2.6, 2.3, 1.2]] } : k === 2 ? { cam: [.32, .5], bounds: [[-5.1, 0, -.9], [2.2, 2.2, 1]] } : full });
   K.onPic(() => st && st.draw());
 })();

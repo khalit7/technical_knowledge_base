@@ -28,13 +28,13 @@
     if(k===2)surface(R,'replace',XR,11,G,1,e);
     if(k<=2){axis(R,XR,1);R.label([bx(XR,0)-.2,0,zg(0)],'generation 0',{wide:1,mono:true,fs:12,al:'right',dx:-4,c:P.mute});if(k>0)R.label([bx(XR,0)-.2,0,zg(k===1?10:G)],'generation '+(k===1?10:G),{wide:1,mono:true,fs:12,al:'right',dx:-4,c:P.mute,a:cl((e-.85)/.15,0,1)})}
     // the newest generation and its count
-    const lab=(m,x0,g,a)=>R.label([bx(x0,NB-1)+.2,HMAX*.75,zg(g)],(R.W<520?'':'generation '+g+': ')+runs[m].alive[g]+' types',{mono:true,fs:12.5,b:1,al:'left',dx:6,c:m==='replace'?P.c2:P.c3,a});
+    const lab=(m,x0,g,a)=>R.label([bx(x0,NB-1)+.2,HMAX*.75,zg(g)],(R.W<520?'':(m==='accumulate'?'gen. ':'generation ')+g+': ')+runs[m].alive[g]+' types',{mono:true,fs:12.5,b:1,al:'left',dx:6,c:m==='replace'?P.c2:P.c3,a});
     if(k===0)lab('replace',XR,0,cl(e*2-1,0,1));
     if(k===1){lab('replace',XR,0,1);lab('replace',XR,10,cl((e-.85)/.15,0,1))}
     if(k===2){lab('replace',XR,10,.5);lab('replace',XR,G,cl((e-.85)/.15,0,1))}
     if(k===1||k===2){const g=k===1?Math.min(10,Math.floor(e*10.99)):Math.min(G,11+Math.floor(e*20.99));if(g>0)[1,5,9].forEach(b=>R.flow([[bx(XR,b),HMAX+.12,zg(0)],[bx(XR,b),HMAX+.12,zg(g)]],{c:P.c2,a:.7,r:.05,speed:.8}))}
     // accumulate: the same 30 generations, with the real sample kept in every fit
-    if(k>=3){surface(R,'accumulate',XA,0,G,aa,k===3?e:null);if(k===3){axis(R,XA,cl((e-.8)/.2,0,1));
+    if(k>=3){surface(R,'accumulate',XA,0,G,aa,k===3?cl((e-.45)/.55,0,1):null);if(k===3){axis(R,XA,cl((e-.8)/.2,0,1));
         R.label([bx(XR,0),HMAX,zg(G)],'replace',{mono:true,fs:13,b:1,dy:-14,c:P.c2,a:.8});R.label([bx(XA,0),HMAX,zg(G)],'accumulate',{mono:true,fs:13,b:1,dy:-14,c:P.c3});
         lab('accumulate',XA,G,cl((e-.85)/.15,0,1))}}
     // the four workflows at generation 30, over 50 seeds: median as the column, the range as a glass slab
@@ -47,8 +47,8 @@
       R.label([-3.4,3.2*ref.expected_alive_gen0/V,.6],'expected in one real sample: '+Math.round(ref.expected_alive_gen0),{wide:1,mono:true,fs:12,al:'right',dx:-6,c:P.mute,a:g});
       R.line([[-3.35,.05+3.2*ref.expected_alive_gen0/V,.6],[2.75,.05+3.2*ref.expected_alive_gen0/V,.6]],{c:P.mute,w:1.2,dash:[5,4],a:g})}
   }
-  const full={cam:[.18,.7],bounds:[[-6.2,0,-2.4],[6.4,1.1,2.6]]};
+  const full={cam:[.18,.7],bounds:[[-6.2,0,-2.4],[7.4,1.1,2.6]]};
   S3.stage({id:'stg-col',list:'sx-col',fig:'Fig. 4 · word types a refit model can still produce, generation by generation',cam:full.cam,bounds:full.bounds,aspect:.6,dur:2200,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[18,16,18,16],
-    view:k=>k===0?{cam:[.12,.55],bounds:[[-6.4,0,1.2],[-.4,1.0,2.7]]}:k===1?{cam:[.2,.68],bounds:[[-6.2,0,.3],[.4,1.0,2.6]]}:k===2?{cam:[.24,.74],bounds:[[-6.2,0,-2.3],[.9,1.0,2.6]]}:k===4?{cam:[.08,.36],bounds:[[-4.9,0,0],[3.2,1.7,1.3]]}:full});
+    view:k=>k===0?{cam:[.12,.55],bounds:[[-6.4,0,1.2],[1.6,1.0,2.7]]}:k===1?{cam:[.2,.68],bounds:[[-6.2,0,.3],[2.2,1.0,2.6]]}:k===2?{cam:[.24,.74],bounds:[[-6.2,0,-2.3],[2.6,1.0,2.6]]}:k===4?{cam:[.08,.36],bounds:[[-4.9,0,0],[3.2,1.7,1.3]]}:full});
 })();

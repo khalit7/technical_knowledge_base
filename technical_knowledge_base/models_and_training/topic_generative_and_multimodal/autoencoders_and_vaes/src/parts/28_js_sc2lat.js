@@ -55,6 +55,6 @@
   }
   const full = { cam: [.1, .78], bounds: [[-5, 0, -2.3], [5, 1.2, 2.8]] };
   st = S3.stage({ id: 'stg-lat', list: 'sx-lat', fig: 'Fig. 2 · 600 test images, two latent spaces', cam: full.cam, bounds: full.bounds, aspect: .62, dur: 1500, hold: 4800, draw, margin: AVK.margin,
-    view: k => k === 1 ? { cam: [.15, .7], bounds: [[-4.9, 0, -2.2], [-.3, 2.2, 2.6]] } : k === 3 ? { cam: [.1, .9], bounds: [[.4, 0, -2.3], [5, .2, 2.4]] } : full });
+    view: k => k === 1 ? { cam: [.15, .7], bounds: [[-4.9, 0, -2.2], [-.3, 2.2, 2.6]] } : k === 2 ? { cam: [.1, .8], bounds: [[-.4, 0, -2.3], [5.2, 1.0, 2.8]] } : k === 3 ? { cam: [.1, .9], bounds: [[.4, 0, -2.3], [5, .2, 2.4]] } : full });
   window.AVSC2 = { T0, CLS };
 })();

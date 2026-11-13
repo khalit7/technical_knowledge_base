@@ -25,7 +25,7 @@ window.EVK = (function () {
   function column(R, c, w, d, h, o) {
     o = o || {}; const a = o.a == null ? 1 : o.a; if (a <= .01) return;
     R.box([c[0], 0, c[2]], [w, Math.max(.012, h), d], { fill: o.fill, a, shadow: o.shadow, fa: o.fa });
-    if (o.text != null) lab(R, [c[0], Math.max(.012, h), c[2]], o.text, { mono: true, fs: o.fs || 12.5, b: o.b, dy: -16, c: o.tc || R.P.ink, a: o.ta == null ? a : o.ta });
+    if (o.text != null) lab(R, [c[0], Math.max(.012, h), c[2]], o.text, { mono: true, fs: o.fs || 12.5, b: o.b, dy: -20, c: o.tc || R.P.ink, a: o.ta == null ? a : o.ta });
   }
   // numbers are rounded as the page's Python does (the double's exact value, so 10.135 stored as 10.13499... prints 10.13)
   // a label only when its anchor is on the canvas (the renderer clamps labels inside it, which would pile off-screen ones at the edge)

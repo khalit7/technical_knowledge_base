@@ -34,9 +34,9 @@
       // the noise that was added, drawn from where it took the point (sqrt(abar) x0) to x_t
       const B = K.at(c, Math.sqrt(ex.a) * ex.x0[0], Math.sqrt(ex.a) * ex.x0[1], .09);
       R.flow(K.seg(A, B, 6).concat(K.seg(B, X, 10).slice(1)), { c: P.c5, r: .05, n: 7, speed: 1, a: k === 0 ? e : .6 });
-      R.line([B, X], { c: P.c5, w: 2.2, head: 8, a: k === 0 ? e : .7 }); R.label(S3.lerp3(B, X, .5), 'noise √(1 − ā) ε', { fs: 12, mono: 1, dx: 14, al: 'left', c: P.c5, a: k === 0 ? e : .7, wide: 1 });
+      R.line([B, X], { c: P.c5, w: 2.2, head: 8, a: k === 0 ? e : .7 }); R.label(S3.lerp3(B, X, .5), 'noise √(1 − ā) ε', { fs: 12, mono: 1, dx: 30, al: 'left', c: P.c5, a: k === 0 ? e : .7, wide: 1 });
       if (k === 1) { R.line([X, E], { c: P.c4, w: 2.4, head: 8, a: e }); const Gp = K.at(c, ex.g[0], ex.g[1], .09); R.ball(Gp, .075, { c: P.c4, a: e });
-        R.label(Gp, 'its guess of x₀', { grp: 'exl', fs: 12.5, b: 1, al: 'right', dx: -12, dy: 0, c: P.c4, a: e > .8 ? (e - .8) * 5 : 0 }); R.label(E, 'network: −√(1 − ā) ε̂', { grp: 'exl', fs: 12, mono: 1, al: 'right', dx: -14, dy: 0, c: P.c4, a: e > .8 ? (e - .8) * 5 : 0, wide: 1 }); } }
+        R.label(Gp, 'its guess of x₀', { grp: 'exl', fs: 12.5, b: 1, al: 'right', dx: -16, dy: 8, c: P.c4, a: e > .8 ? (e - .8) * 5 : 0 }); R.label(E, 'network: −√(1 − ā) ε̂', { grp: 'exl', fs: 12, mono: 1, al: 'right', dx: -14, dy: -8, c: P.c4, a: e > .8 ? (e - .8) * 5 : 0, wide: 1 }); } }
     // the field: at every grid point, where the network says the noisy point came from
     if (k >= 2) TS.forEach((t, i) => { const a = k === 2 ? (i === 1 ? e : 0) : k === 3 ? (i === 0 ? e : i === 1 ? .35 : 0) : k === 4 ? (i === 2 ? e : .35) : 1; if (a > .01) arrows(R, C(i), f[t], a, P.c4); });
   }

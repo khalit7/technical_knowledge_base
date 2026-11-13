@@ -25,7 +25,7 @@
     lab(R, [xF(0), .05 + PH, PW / 2], '81 frames · 480 × 832 · 97 million numbers', { fs: 12.5, b: 1, c: P.ink, al: 'left', dy: -14, a: la(st, e, q => q === 0 ? 1 : 0) });
     lab(R, [xF(F - 1), .05, PW / 2], 'time →', { fs: 12.5, c: P.mute, al: 'left', dx: 8, a: la(st, e, q => q === 0 ? 1 : 0) });
     // 2. 21 latent frames: full size while grouping, then shrunk (step 3), gridded into 2 x 2 patches (step 4), receding (step 5)
-    const ga = tw(st, e, q => q === 0 ? 0 : q === 4 ? .28 : 1) * (k === 1 && st.pk === 0 ? win(e, .55, 1) : 1);
+    const ga = tw(st, e, q => q === 0 ? 0 : q === 4 ? .06 : 1) * (k === 1 && st.pk === 0 ? win(e, .55, 1) : 1);
     const sh = tw(st, e, q => q >= 2 ? 1 : 0), pg = tw(st, e, q => q >= 3 ? 1 : 0);
     if (ga > .01) for (let g = 0; g < LF; g++) {
       const w = lerp(PW, LW, sh), h = lerp(PH, LH, sh), x = xG(g), hot = g === 0 && k >= 3;

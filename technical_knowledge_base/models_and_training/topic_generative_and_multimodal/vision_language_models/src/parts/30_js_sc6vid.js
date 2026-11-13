@@ -21,7 +21,9 @@
     const P = R.P, cV = P.c4; R.grid(-5.4, 4.6, -2.4, 2.2, .5);
     for (let t = 15; t >= 0; t--) { const kept = KEEP.includes(t), a0 = s => s === 0 ? 1 : kept ? (s >= 5 ? .35 : 1) : 0, a = tw(st, e, a0);
       if (a <= .01) continue; const p0 = pos(t, st.pk), p1 = pos(t, k), u = e >= 1 ? 1 : e, p = [lerp(p0[0], p1[0], u), lerp(p0[1], p1[1], u) + (!kept && k === 1 ? .6 * e : 0), lerp(p0[2], p1[2], u)];
-      img(R, FR[t], p, [FW, 0, 0], [0, FH, 0], { a, sub: 1, rim: .025, grid: k >= 2 && kept ? [thw[2] / (k >= 3 ? 2 : 1), thw[1] / (k >= 3 ? 2 : 1), cV, tw(st, e, s => s >= 2 && s <= 3 ? .45 : 0)] : null, gw: .5 }); }
+      img(R, FR[t], p, [FW, 0, 0], [0, FH, 0], { a, sub: 1, rim: .025, grid: k >= 2 && kept ? [thw[2] / (k >= 3 ? 2 : 1), thw[1] / (k >= 3 ? 2 : 1), cV, tw(st, e, s => s >= 2 && s <= 3 ? .45 : 0)] : null, gw: .5 });
+      // steps 1 and 2: the fanned frames overlap, so each frame's dot is also drawn on top, where the frame would show it
+      const da = a * tw(st, e, s => s <= 1 ? 1 : 0); if (da > .01) R.ball([p[0] + (160 + (t / 15 - .5) * 240) / 320 * FW, p[1] + FH / 2, p[2] + .01], 18 / 320 * FW, { c: [220, 40, 40], a: da, top: 1 }); }
     const l = s => la(st, e, q => q === s ? 1 : 0);
     lab(R, [-4.6, Y0 + FH, 0], '16 frames, 0 to 3.75 s (4 per second)', { fs: 12.5, b: 1, al: 'left', dy: -14, a: l(0) });
     lab(R, [-4.6, Y0 + FH, 0], 'sampled at 2 per second: 8 of 16 kept', { fs: 12.5, b: 1, al: 'left', dy: -14, a: l(1) });

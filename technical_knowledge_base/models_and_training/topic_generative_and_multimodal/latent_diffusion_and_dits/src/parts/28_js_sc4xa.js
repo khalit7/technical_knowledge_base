@@ -41,7 +41,8 @@
       L(tx(NT - 1), 1.0, 'end + padding ' + Math.round(100 * M.end_and_padding) + '%', P.mute, { al: 'right', dx: 20 }); }
     lab(R, [0, .05, Z0 + 16 * C], 'the map of "bicycle" at step ' + (+last + 1), { fs: 12.5, b: 1, c: P.c3, dy: 16, a: la(st, e, q => q === 4 ? 1 : 0) });
   }
+  const phone = () => { const h = document.getElementById('stg-xa'); return !!h && h.clientWidth < 520; }; // on a phone the token row turns into depth, so the scene is larger
   const full = { cam: [.15, .7], bounds: [[-5.4, 0, -2.4], [5.4, 1.6, 3.0]] };
   S3.stage({ id: 'stg-xa', list: 'sx-xa', fig: 'Fig. 4 · text in, from SD 1.5\'s recorded attention', cam: full.cam, bounds: full.bounds, aspect: .62, dur: 1500, hold: 4800, draw, margin: LDK.margin,
-    view: k => k === 4 ? { cam: [.3, .72], bounds: [[-2.2, 0, -.5], [2.2, 1.0, 3.0]] } : full });
+    view: k => k === 4 ? { cam: [.3, .72], bounds: [[-2.2, 0, -.5], [2.2, 1.0, 3.0]] } : phone() ? (k <= 1 ? { cam: [-.7, .42], bounds: [[-5.2, 0, ZT - .4], [3.2, 1.3, ZT + .5]] } : { cam: [-.8, .55], bounds: [[-5.4, 0, -2.4], [3.4, 1.6, 3.0]] }) : full });
 })();

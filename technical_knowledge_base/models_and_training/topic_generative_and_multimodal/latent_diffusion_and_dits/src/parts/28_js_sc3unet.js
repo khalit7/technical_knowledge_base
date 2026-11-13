@@ -19,7 +19,7 @@
     ST.forEach(s => { const a = tw(st, e, show(s)), c = s.c === 4 ? P.c5 : P.acc;
       plates(R, s.x, s.z, s.w, s.w, s.np, c, a, { nu: Math.min(8, s.side / 8), gap: .08 }); });
     // resolution x channels, on the stages of the current step
-    const lbl = s => q => (q === 0 && s.i === 0) || (q === 1 && s.i >= 1 && s.i <= 4) || (q === 2 && s.i === 5) || (q === 3 && s.i >= 6 && s.i <= 9) || (q === 6 && s.i === 10) ? 1 : 0;
+    const lbl = s => q => (q === 0 && s.i === 0) || (q === 1 && s.i >= 1 && s.i <= 4) || (q === 2 && s.i === 5) || (q === 3 && s.i >= 6 && s.i <= 9) || (q === 6 && s.i === 10) ? 1 : q === 3 && s.i >= 1 && s.i <= 4 ? .6 : 0; // step 4 also names the down stages the skips leave from
     ST.forEach(s => lab(R, [s.x, .05, s.z + s.w / 2], s.side + '² × ' + s.c.toLocaleString('en-GB'), { mono: 1, fs: 12, b: 1, c: s.c === 4 ? P.c5 : P.acc, dy: 16, a: la(st, e, lbl(s)) }));
     lab(R, [ST[0].x, .2, ST[0].z - .5], 'noisy latent', { fs: 12.5, b: 1, c: P.c5, dy: -16, a: la(st, e, q => q === 0 ? 1 : 0) });
     lab(R, [ST[10].x, .2, ST[10].z - .5], 'predicted noise', { fs: 12.5, b: 1, c: P.c5, dy: -16, a: la(st, e, q => q === 6 ? 1 : 0) });

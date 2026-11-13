@@ -20,7 +20,7 @@
     const P = R.P, D = compute(), grey = S3.mix(P.paper, P.mute, .55), moon = i => K.D.Y[i] ? P.c2 : P.c1;
     R.grid(-6.8, 6.8, -2, 2, .5);
     // plate 1 carries the arrows in steps 1 to 3; the four plates carry the samples in steps 4 and 5
-    KEYS.forEach((key, i) => { const a = k <= 2 ? (i === 0 ? 1 : .15) : k === 3 ? (i < 3 ? 1 : .2) : 1;
+    KEYS.forEach((key, i) => { const a = k <= 2 ? (i === 0 ? 1 : .06) : k === 3 ? (i < 3 ? 1 : .2) : 1;
       K.plate(R, C(i), W, i === 3 ? P.c5 : P.c6, a, k <= 2 && i === 0 ? 't = ' + T + ', one noisy point' : TTL[i], k <= 2 && i === 0 ? '' : SUBS[i]); });
     const c0 = C(0), at = (x, y) => K.at(c0, x, y, .09), X = at(PT[0], PT[1]);
     if (k <= 2) { K.cloud(R, c0, K.D.X, moon, .4, { every: 2, r: .03, h: .04 });

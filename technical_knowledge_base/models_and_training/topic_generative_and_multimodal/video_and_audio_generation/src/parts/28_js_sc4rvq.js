@@ -21,7 +21,7 @@
       if (a > .01 || (on && rec > .01)) R.glass([xs(j), PY, PS / 2], [0, 0, -PS], [0, PS, 0], { c: fresh ? P.c2 : P.c4, a: Math.max(a, .01) * (j > 8 ? .7 : .85), nu: j > 8 ? 1 : 8, nv: j > 8 ? 1 : 8, th: .02 }); }
     if (k >= 1) { const p = [xs(1) - .02, PY + PS * (1 - 3.5 / 8), -PS / 2 + 5.5 * PS / 8]; R.glow(p, .16, { c: P.c2, a: rec * (k === 1 ? e : .6) });
       lab(R, p, 'entry ' + code0 + ' of 1,024', { fs: 12.5, b: 1, mono: 1, c: P.c2, al: 'right', dx: -14, dy: -18, a: la(st, e, q => q === 1 ? 1 : 0) }); }
-    [[1, 'codebook 1'], [2, '2'], [5, '3 to 8'], [20, '9 to 32']].forEach(([j, t], i) => lab(R, [j === 5 ? (xs(3) + xs(8)) / 2 : j === 20 ? (xs(9) + xs(32)) / 2 : xs(j), PY + PS, 0], t, { fs: 12.5, c: P.mute, dy: -12, a: rec * la(st, e, q => upto(q) >= [1, 2, 3, 9][i] && q < 5 ? 1 : 0) }));
+    [[1, 'codebook 1'], [2, '2'], [5, '3 to 8'], [20, '9 to 32']].forEach(([j, t], i) => lab(R, [j === 5 ? (xs(3) + xs(8)) / 2 : j === 20 ? (xs(9) + xs(32)) / 2 : xs(j), PY + PS, 0], t, { fs: 12.5, c: P.mute, dy: -12, al: i === 0 ? 'right' : 'center', dx: i === 0 ? -10 : 0, a: rec * la(st, e, q => upto(q) >= [1, 2, 3, 9][i] && q < 5 ? 1 : 0) }));
     // the residual flowing from stage to stage, thinner as less is left
     if (k >= 1 && k <= 4) { const res = j => rows[j - 1].resid / rows[0].resid;
       R.flow(seg([XV + .2, .6, 0], [xs(1), PY + .5, 0], 10), { c: P.c1, r: .09, n: 8, speed: 1.2, a: k === 1 ? e : 1 });
@@ -49,7 +49,7 @@
       lab(R, [-3.9, H * .55, ZC], 'spectral error', { fs: 12.5, b: 1, c: P.ink, al: 'right', a: la(st, e, q => q === 5 ? 1 : 0) });
     }
   }
-  const full = { cam: [-.6, .38], bounds: [[-4.2, 0, -.7], [3.3, 2.1, 2.0]] };
+  const full = { cam: [-.5, .55], bounds: [[-4.2, 0, -.7], [3.3, 2.1, 2.0]] };
   S3.stage({ id: 'stg-rvq', list: 'sx-rvq', fig: 'Fig. 4 · EnCodec RVQ, stage by stage (measured)', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1500, hold: 5000, draw, margin: VAK.margin,
     view: k => k === 5 ? { cam: [-.25, .38], bounds: [[-4.2, 0, .8], [3.6, 2.4, 2.3]] } : full });
 })();

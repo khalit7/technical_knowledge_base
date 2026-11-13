@@ -33,7 +33,8 @@
       R.label([0,0,ZS+.65],D.ss.nc+' names in gold',{mono:true,fs:12,dy:32,c:P.c5,a:k===0?cl(e*2-.6,0,1):1})}
     // the four prompts
     const pa=k===0?0:k===1?Math.min(1,e*1.6):k===4?.1:.75;
-    XS.forEach((x,i)=>{R.glass([x-.85,.05,ZP],[1.7,0,0],[0,.95,0],{c:P.c1,a:pa,nu:6,nv:3});
+    XS.forEach((x,i)=>{const ga=k===2&&i<2||k===3&&i>=2?lerp(pa,.3,e):k===3&&i<2?.3:pa; // a plate thins once its rewrite stands behind it
+      R.glass([x-.85,.05,ZP],[1.7,0,0],[0,.95,0],{c:P.c1,a:ga,nu:6,nv:3});
       if(k>=1&&k<4)R.label([x,0,ZP+.05],SN[STY[i]],{mono:true,fs:13,b:1,dy:15,c:P.c1,a:k===1?pa:(k===2&&i<2)||(k===3)?1:.55});
       if(k===1)R.flowArc([x*.25,.35,ZS-.65],[x,.45,ZP+.05],.55,{c:P.c6,a:.85*pa,r:.06,speed:1.3,n:8})});
     // the rewrites: Easy and Medium at step 3, Hard and Q/A at step 4

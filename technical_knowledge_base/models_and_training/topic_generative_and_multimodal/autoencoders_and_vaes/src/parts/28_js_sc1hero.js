@@ -58,6 +58,6 @@
     else tileFlat(R, [X.out, 0, 0], S, null, .14);
   }
   const full = { cam: [.1, .55], bounds: [[-6.7, 0, -1.2], [7.9, 1.1, 1.4]] };
-  st = S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one image, three bottlenecks', cam: full.cam, bounds: full.bounds, aspect: .33, dur: 1500, hold: 4800, draw, margin: AVK.margin,
+  st = S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one image, three bottlenecks', cam: full.cam, bounds: full.bounds, aspect: .3, dur: 1500, hold: 4800, draw, margin: AVK.margin,
     view: k => k === 0 ? { cam: [.12, .9], bounds: [[-6.8, 0, -1.3], [-4.4, .3, 1.5]] } : k === 1 ? { cam: [.12, .6], bounds: [[-6.8, 0, -1.3], [-.9, 1.2, 1.5]] } : full });
 })();

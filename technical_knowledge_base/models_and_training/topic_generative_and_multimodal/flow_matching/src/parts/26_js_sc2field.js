@@ -33,12 +33,13 @@
     if (k >= 5) {
       const t = k === 5 ? .1 : .95, m = k === 5 ? 1 : 4, A = k === 5 ? T.a01 : T.A[4], N = k === 5 ? T.n01 : T.n95;
       K.plate(R, t, { a: 1, c: c.u, ga: .45, lab: 't = ' + t + (m > 1 ? ' · arrows 4 times longer' : ''), lc: c.u, grp: 'pl' });
-      A.forEach(([p, v]) => K.arrow(R, t, p, [v[0] * m, v[1] * m], { c: c.u, w: 1.8, a: .9 }));
-      N.forEach(([p, v]) => K.arrow(R, t, p, [v[0] * m, v[1] * m], { c: c.net, w: 1.8, a: .9 * e }));
+      // step 7: the exact field steps back and the network's arrows are drawn heavier, so the miss reads
+      A.forEach(([p, v]) => K.arrow(R, t, p, [v[0] * m, v[1] * m], { c: c.u, w: k === 6 ? 1.5 : 1.8, a: k === 6 ? .9 - .45 * e : .9 }));
+      N.forEach(([p, v]) => K.arrow(R, t, p, [v[0] * m, v[1] * m], { c: c.net, w: k === 6 ? 2.4 : 1.8, a: (k === 6 ? 1 : .9) * e, head: k === 6 ? 6 : undefined }));
       K.lab(R, W(t, [0, 4.75]), k === 5 ? 'network (green) on top of the exact field' : 'network off the exact field near the data', { fs: 13, b: 1, c: c.net, a: K.win(e, .4, 1) });
     }
   }
-  const one = t => ({ cam: [-1.25, .2], bounds: [[TX(t) - .5, K.YC - K.HS - .3, -K.HS - .1], [TX(t) + .5, K.YC + K.HS + .25, K.HS + .1]] });
+  const one = t => ({ cam: [-1.42, .14], bounds: [[TX(t) - .5, K.YC - K.HS - .3, -K.HS - .1], [TX(t) + .5, K.YC + K.HS + .25, K.HS + .1]] });
   S3.stage({ id: 'stg-field', list: 'sx-field', fig: 'Fig. 2 · the exact marginal field at five times', cam: K.full.cam, bounds: K.full.bounds, aspect: .58, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [14, 10, 18, 10] : [22, 20, 24, 20],
     view: k => k < 3 ? one(TS[k]) : k === 3 ? { cam: [-1.2, .22], bounds: [[TX(.75) - .4, 0, -K.HS], [TX(1) + .2, K.YC + K.HS + .25, K.HS]] } : k === 5 ? one(.1) : k === 6 ? one(.95) : K.full });

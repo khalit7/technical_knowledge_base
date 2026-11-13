@@ -37,14 +37,16 @@
     // step 2: the bias is about K/N: the fitted curve over the real row's columns, drawn over the range it was fitted on
     if (k === 1) { const f = E.fit.real, pts = []; for (let i = 2; i < NS.length; i++) pts.push([XN(i), (f.inf + f.K / NS[i]) * HS, ZR(0)]); pts.push([XI, f.inf * HS, ZR(0)]);
       R.line(pts, { c: P.bad, w: 2.2, dash: [5, 4], a: e, top: 1 }); R.flow(pts, { c: P.bad, r: .05, n: 7, a: e, top: 1 });
-      lab(R, [XN(3), (f.inf + f.K / NS[3]) * HS, ZR(0)], 'FID∞ + K/N, K = ' + fmt(f.K, 0), { al: 'left', dx: 14, dy: -22, mono: 1, fs: 12.5, b: 1, c: P.bad, a: win(e, .4, 1) }); }
+      const ph = phone(), ic = ph ? 1 : 3; // on a phone the label sits higher and further left, clear of the fit column and its axis label
+      lab(R, [XN(ic), (f.inf + f.K / NS[ic]) * HS, ZR(0)], 'FID∞ + K/N, K = ' + fmt(f.K, 0), { al: 'left', dx: ph ? -10 : 14, dy: ph ? -46 : -22, mono: 1, fs: 12.5, b: 1, c: P.bad, a: win(e, .4, 1) }); }
     // step 5: the gap between DDPM and DDIM shrinks with N
     if (k === 4) [[0, 250], [5, 10000]].forEach(([i, n]) => { const a = fid('ddpm', n) * HS, b = fid('ddim', n) * HS, x = XN(i) + .42;
       R.line([[x, a, ZR(1)], [x, b, ZR(2)]], { c: P.bad, w: 2.4, a: e, top: 1 });
       lab(R, [x, b, ZR(2)], 'gap ' + fmt(d1('ddim', 'ddpm', n), 1), { al: 'left', dx: 8, mono: 1, fs: 12.5, b: 1, c: P.bad, a: win(e, .3, 1) }); });
   }
+  const phone = () => { const h = document.getElementById('stg-n'); return !!h && h.clientWidth < 520; }; // on a phone the real row turns into depth, so its columns are larger
   const full = { cam: [-.45, .5], bounds: [[-3.6, 0, -1.9], [4.6, 2.3, 2]] };
   const st = S3.stage({ id: 'stg-n', list: 'sx-n', fig: 'Fig. 2 · FID at six sample counts, four sets', cam: full.cam, bounds: full.bounds, aspect: .52, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [14, 10, 14, 10] : [18, 16, 18, 110],
-    view: k => k <= 1 ? { cam: [-.25, .38], bounds: [[-3.5, 0, ZR(0) - .4], [4.6, 1.5, ZR(0) + .6]] } : full });
+    view: k => k <= 1 ? { cam: phone() ? [-.75, .42] : [-.25, .38], bounds: [[-3.5, 0, ZR(0) - .4], [phone() ? 5.6 : 4.6, 1.5, ZR(0) + .6]] } : full });
 })();

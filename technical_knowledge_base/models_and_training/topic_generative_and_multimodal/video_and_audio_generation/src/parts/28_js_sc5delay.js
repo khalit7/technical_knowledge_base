@@ -25,7 +25,7 @@
     // what the token sees of its own frame: the earlier codebooks (flatten, delay); nothing (parallel)
     const T = 2;
     if (k === 1 || k === 3) for (let kk = 0; kk < NK - 1; kk++) { const s0 = ORD[k](T, kk), s1 = ORD[k](T, kk + 1);
-      R.flow(seg([X(T), hs(s0) + .05, Z(kk)], [X(T), hs(s1) + .05, Z(kk + 1)], 8), { c: P.c2, r: .06, n: 4, speed: .6, a: e }); }
+      R.flow(seg([X(T), hs(s0) + .05, Z(kk)], [X(T), hs(s1) + .05, Z(kk + 1)], 8), { c: P.c2, r: .09, n: 5, speed: .6, a: e, top: 1 }); } // drawn over the columns so the streams read
     const tot = { 1: '24 steps for 6 frames · 200 a second', 2: '6 steps · 50 a second · levels independent', 3: '9 steps (6 + 3) · about 50 a second' };
     [1, 2, 3].forEach(q => lab(R, [0, 0, Z(0) + .75], tot[q], { fs: 13, b: 1, mono: 1, c: P.ink, dy: 42, a: la(st, e, z => z === q ? 1 : 0) }));
     lab(R, [0, 0, Z(0) + .75], "height = the step at which a token is generated", { fs: 12.5, c: P.mute, dy: 42, a: la(st, e, z => z === 0 ? 1 : 0) });
