@@ -22,8 +22,8 @@
   function draw(R,k,e,st){const P=R.P;R.grid(-6.6,6.6,-1.6,1.8,.5);
     T.forEach((t,m)=>tower(R,P,m,tw(st,e,s=>A(s,m)),la(st,e,s=>A(s,m)>=1?1:0)));
     // one note above each tower the step is about
-    const note=(m,s,l1,l2)=>{const al=la(st,e,q=>q===s?1:0);if(al<=.01)return;const r=T[m].r,y=top(r)+.05;
-      lab(R,[T[m].x,y,0],l1,{fs:12.5,b:1,dy:-30,c:P.ink,a:al});if(l2)lab(R,[T[m].x,y,0],l2,{mono:true,fs:12,dy:-13,c:P.mute,a:al})};
+    const note=(m,s,l1,l2)=>{const al=la(st,e,q=>q===s?1:0);if(al<=.01)return;const r=T[m].r,y=top(r)+.05,dx=R.W<520&&m===4?-12:0; // on a phone the 3.8-27B note steps left, clear of the 2.4T tower
+      lab(R,[T[m].x,y,0],l1,{fs:12.5,b:1,dx,dy:-30,c:P.ink,a:al});if(l2)lab(R,[T[m].x,y,0],l2,{mono:true,fs:12,dx,dy:-13,c:P.mute,a:al})};
     const R0=T[0].r,R1=T[1].r,R2=T[2].r,R3=T[3].r,R4=T[4].r,R5=T[5].r,R6=T[6].r;
     note(0,0,'Apr 2025 · flagship',R0.L+' full-attention layers');note(1,0,'distilled student',R1.L+' layers');
     note(2,1,'Sep 2025 · tests',(R2.L-nF(R2))+' GDN + '+nF(R2)+' attention');

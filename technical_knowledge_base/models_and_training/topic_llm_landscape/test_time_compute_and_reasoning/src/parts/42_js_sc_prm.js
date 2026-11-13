@@ -10,7 +10,7 @@
     [3,0,.91,4,'42'],[3,1,.62,4,'17'],[3,2,.74,6,'42'],[3,3,.40,6,'42']];
   const KEEP={1:[0,2],2:[4,6]},CHAIN=[0,4,9],sum=a=>+N.filter(n=>n[4]===a).reduce((s,n)=>s+n[2],0).toFixed(2);
   window.TTCS=window.TTCS||{};TTCS.prm={s42:sum('42'),s17:sum('17'),d1:N.slice(0,4).map(n=>n[2]),d2:N.slice(4,8).map(n=>n[2]),d3:N.slice(8).map(n=>n[2]),chain:CHAIN.map(i=>N[i][2])};
-  const XD=d=>-4.3+d*2.55,ZR=r=>-1.95+r*1.3,BH=1.25,XA=XD(3)+2.2,ZA={'42':-.7,'17':.7};
+  const XD=d=>-4.3+d*2.55,ZR=r=>-1.95+r*1.3,BH=1.25,XA=XD(3)+2.9,ZA={'42':-.95,'17':.95};
   const pos=i=>i<0?[XD(0),0,0]:[XD(N[i][0]),0,ZR(N[i][1])];
   function draw(R,k,e){const P=R.P;R.grid(-5.6,7.4,-2.9,2.9,.5);
     // when each node appears, whether it is pruned, and how strongly it is drawn at this step
@@ -42,9 +42,9 @@
     if(k===7){['42','17'].forEach(ans=>{let y=0;N.forEach((n,i)=>{if(n[4]!==ans)return;const h=n[2]*BH*.7*ease(e),p=pos(i);
           R.flow([[p[0]+.15,.14+n[2]*BH,p[2]],[XA,y+h,ZA[ans]]],{c:ans==='42'?P.good:P.bad,a:.75,r:.05,n:5,speed:1.3});
           R.box([XA,y,ZA[ans]],[.6,Math.max(.02,h),.6],{fill:mix(P.paper,ans==='42'?P.good:P.bad,.35+.15*(y>0)),a:1,lw:1});y+=h});
-        R.label([XA+.3,y/2,ZA[ans]],ans+': '+sum(ans).toFixed(2)+(ans==='42'?' ✓':''),{mono:true,fs:13,b:1,al:'left',dx:8,c:ans==='42'?P.good:P.bad,a:e})})}
+        R.label([XA,y,ZA[ans]-.3],ans+': '+sum(ans).toFixed(2)+(ans==='42'?' ✓':''),{mono:true,fs:13,b:1,dy:-12,c:ans==='42'?P.good:P.bad,a:e})})}
   }
-  const full={cam:[.14,.88],bounds:[[-4.8,0,-2.6],[XA+.7,1.3,2.6]]};
+  const full={cam:[.14,1.02],bounds:[[-4.8,0,-2.6],[XA+.7,1.3,2.6]]};
   (TTCS.stage=TTCS.stage||{}).prm=S3.stage({id:'stg-prm',list:'sx-prm',fig:'Fig. 4 · scoring the end against scoring every step',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1600,hold:5000,draw,
     margin:w=>w<520?[14,10,14,10]:[18,14,16,14],
     view:k=>k<=2?{cam:[.3,.75],bounds:[[-4.8,0,-2.6],[XA+.6,1.2,-.1]]}:k<=4?{cam:[.14,.88],bounds:[[-4.8,0,-2.6],[XD(1)+1.5,1.3,2.6]]}:k===5?{cam:[.14,.88],bounds:[[-4.8,0,-2.6],[XD(2)+1.5,1.3,2.6]]}:k===6?{cam:[.14,.88],bounds:[[-4.8,0,-2.6],[XD(3)+1.6,1.3,2.6]]}:full});

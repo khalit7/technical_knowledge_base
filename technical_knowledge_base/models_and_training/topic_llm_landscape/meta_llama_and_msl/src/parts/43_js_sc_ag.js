@@ -44,7 +44,8 @@
       else{if(n==='att')return k>=3?'has token + inbox':'waiting';if(n==='agent'&&k>=2&&k<=5)return 'fooled; holds the real token';if(n==='hotel'&&k>=1&&k<=5)return 'hidden instruction'}return SUB[m][n]};
     Object.entries(Bx).forEach(([n,[x,z,w,h,d,nm]])=>{const a=fA(n),c=red(n)?mix(P.paper,P.bad,.55):grn(n)?mix(P.paper,P.good,.55):n==='sent'?mix(P.paper,P.c5,.35):P.paper;
       R.box([x,0,z],[w,h,d],{fill:c,a,lw:.9,shadow:n!=='app'});
-      const sl=fL(n);if(sl>.01){lab([x,h,z+d/2],nm,{fs:12.5,b:1,dy:-10,c:P.ink,a:sl,grp:'ag'});lab([x,h,z+d/2],sub(n),{fs:12,dy:7,c:red(n)?P.bad:grn(n)?P.good:P.mute,a:sl,grp:'ag'})}});
+      const sl=fL(n);if(sl>.01){ // name and note stand above the box's back top edge, off its own top
+        lab([x,h,z-d/2],nm,{fs:12.5,b:1,dy:-27,c:P.ink,a:sl,grp:'ag'});lab([x,h,z-d/2],sub(n),{fs:12,dy:-11,c:red(n)?P.bad:grn(n)?P.good:P.mute,a:sl,grp:'ag'})}});
     // packets: dots stream along each request's path while the step is about it
     const cen=n=>{const b=Bx[n];return [b[0],Math.min(.32,b[3]*.6),b[1]]};
     S[k][1].forEach(([path,ck,txt,stop],j)=>{const pts=path.map(cen),c=P[ck]||P.ink,a=Math.min(1,Math.max(0,e*1.6-j*.3));if(a<=.01)return;

@@ -21,10 +21,11 @@
     const rx=tw(st,e,s=>V[s].bounds[1][0]+.1),inC=p=>{const q=R.p(p);return q[2]>0&&q[0]>-4&&q[0]<R.W+4&&q[1]>-4&&q[1]<R.H+4};
     R.line([[rx,0,-1.7],[rx,H(3000),-1.7]],{c:P.mute,w:1,a:.6});
     [[10,'10'],[CHIN,'20 · compute-optimal'],[100,'100'],[1000,'1,000']].forEach(([v,t])=>{const y=H(v),cc=v===CHIN?P.c6:P.mute;if(v!==CHIN)R.line([[-4.35,y,-1.7],[rx,y,-1.7]],{c:P.mute,w:1,a:.28,dash:[3,4]});
-      R.line([[rx,y,-1.7],[rx+.12,y,-1.7]],{c:cc,w:1.4,a:.9});if(inC([rx,y,-1.7]))R.label([rx+.12,y,-1.7],t,{al:'left',dx:5,mono:true,fs:12,b:v===CHIN,c:cc})});
+      R.line([[rx,y,-1.7],[rx+.12,y,-1.7]],{c:cc,w:1.4,a:.9});if(inC([rx,y,-1.7]))R.label([rx+.12,y,-1.7],t,{al:'left',dx:5,dy:v===CHIN?-8:0,mono:true,fs:12,b:v===CHIN,c:cc})});
     if(inC([rx,H(3000),-1.7]))R.label([rx,H(3000),-1.7],'tokens per parameter, log',{al:'left',dx:4,dy:-11,mono:true,fs:12,c:P.mute});
     // Chinchilla's compute-optimal ratio as a glass plane under every column
-    R.glass([-4.35,HC,-1.7],[8.65,0,0],[0,0,3.2],{c:P.c6,a:.6,nu:16,nv:8,th:.02});
+    // (in a close-up it spans only the view, ending at the ruler, so it stays inside the card and clear of the ruler's labels)
+    {const gx0=Math.max(-4.35,tw(st,e,s=>V[s].bounds[0][0]-.3)),gx1=Math.min(4.3,rx);R.glass([gx0,HC,-1.7],[gx1-gx0,0,0],[0,0,3.2],{c:P.c6,a:.6,nu:Math.max(4,Math.round(16*(gx1-gx0)/8.65)),nv:8,th:.02})}
     OT.forEach(([gen,yr,tok,src,ms],g)=>{const c=C[g],n=ms.length;
       const ra=tw(st,e,s=>Math.max(...ms.map((_,m)=>A(s,g,m)))),rl=la(st,e,s=>ms.some((_,m)=>A(s,g,m)>=1)?1:0);
       if(ra>.01&&inC([XG[g],0,1.5])){R.label([XG[g],0,1.5],gen+' · '+yr,{fs:12.5,b:1,dy:12,c,a:Math.max(rl,.55)*Math.min(1,ra*3)});R.label([XG[g],0,1.5],tok,{mono:true,fs:12,dy:28,c:P.mute,a:la(st,e,s=>s<5&&ms.some((_,m)=>A(s,g,m)>=1)?1:0),wide:1})}

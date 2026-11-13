@@ -40,7 +40,7 @@
       if(lf>.01){const up=i%2===1,zp=up?-m.d/2:m.d/2,d1=up?-30:16,d2=up?-14:32;lab(R,[m.x,0,zp],m.s,{fs:12.5,b:1,dy:d1,c:P.ink,a:lf});lab(R,[m.x,0,zp],pct(m)+' · '+big(QW.stored(r)),{mono:true,fs:12,dy:d2,c:P.c1,a:lf})}});
     const lf=la(st,e,s=>s===4?1:0);if(lf>.01)lab(R,[M[3].x,0,M[3].d/2],'block area to scale: parameters per expert',{fs:12.5,dy:52,c:P.mute,a:lf})}
   const V=M.map(m=>{const pad=m.w*.55;return {cam:[.3,.72],bounds:[[m.x-m.w/2-pad,0,-m.d/2-m.w*.05],[m.x+m.w/2+m.w*.4,m.c*3,m.d/2+m.w*.05]]}});
-  V[4]={cam:[.12,1.0],bounds:[[-6.3,0,-1.1],[X1+.2,.3,1.1]]};
+  V[4]={cam:[.1,1.3],bounds:[[-6.3,0,-1.1],[X1+.2,.3,1.1]]};
   S3.stage({id:'stg-moe',list:'sx-moe',fig:'Fig. 3 · one MoE layer per release, expert blocks to scale',cam:V[0].cam,bounds:V[0].bounds,aspect:.52,dur:1600,hold:5000,draw,
     margin:w=>w<520?[30,8,70,8]:[40,24,80,24],view:k=>V[k]});
 })();

@@ -46,5 +46,6 @@
   const bnd=j=>{const L=lay[j];return [[-L.W/2-1.9,0,ZF-L.D-.7],[L.W/2+1.6,.8,2.75]]};
   S3.stage({id:'stg-moe',list:'sx-moe',fig:'One MoE layer to scale · from config.json',cam:[.12,.78],bounds:(b=>[b[0],[b[1][0],1.6,b[1][2]]])(bnd(2)),aspect:.7,dur:1700,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[16,20,16,20],
-    view:null}); // one camera for the three layers, so their sizes compare
+    // one camera for the three layers, so their sizes compare; on a phone the side labels hide, so the bounds drop their room and the camera looks down more steeply
+    view:()=>{const h=document.getElementById('stg-moe');if(!h||h.clientWidth>=520)return null;const L=lay[2];return {cam:[.12,1.0],bounds:[[-L.W/2-.15,0,ZF-L.D-.7],[L.W/2+.15,.8,2.75]]}}});
 })();

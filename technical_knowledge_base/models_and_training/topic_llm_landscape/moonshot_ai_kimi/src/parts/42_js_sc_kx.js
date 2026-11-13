@@ -41,7 +41,7 @@
       R.box([0,YP-.05,0],[FW+.16,.05,FW+.16],{a:gA,shadow:false});
       for(let i=0;i<N;i++)for(let j=0;j<N;j++){const v=Sd[i][j],h=Math.max(.012,Math.abs(v)/MX*.75);
         const hl=(k===1&&AL[i]<.7)||(k>=2&&k<=3&&kv[i]>.25)||(k===4&&qv[i]>.25);
-        R.box([cx(j),v>=0?YP:YP-.05-h,rz(i)],[PI*.7,h,PI*.7],{fill:v>=0?pos:neg,a:gA*(hl||k===0?1:.55),shadow:false,lw:.5,ea:.4})}
+        R.box([cx(j),v>=0?YP:YP-.05-h,rz(i)],[PI*.7,h,PI*.7],{fill:v>=0?pos:neg,a:gA*(hl||k===0?1:.25),shadow:false,lw:.5,ea:.4})}
       [[-FW/2,YP,-FW/2],[FW/2,YP,-FW/2]].forEach(()=>{});
       R.label([0,YP,FW/2+.1],'one head’s state S · 128 × 128',{fs:12.5,b:1,dy:22,c:P.acc,a:gA});
       // step 1: the token's hidden state streams in through the projections

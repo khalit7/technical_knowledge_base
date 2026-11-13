@@ -41,7 +41,7 @@
   const dl=e=>{const d=new Date(e.d);return d.getUTCDate()+' '+mon[d.getUTCMonth()]+' '+d.getUTCFullYear()};
   let range='all';
   function draw(){
-    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,9,20),T25=Date.UTC(2025,0,1);
+    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,10,1),T25=Date.UTC(2025,0,1);
     const W=Math.max(640,Math.min(900,Math.round(RD.width($('lnSvg').parentElement)))),pl=118,pr=14,w=W-pl-pr; // measured: the timeline sits in the right column of its split
     const x=t=>range!=='all'?pl+w*(t-t0)/(t1-t0):(t<T25?pl+w*.42*(t-t0)/(T25-t0):pl+w*(.42+.58*(t-T25)/(t1-T25)));
     const ev=E.filter(e=>e.d>=t0).sort((a,b)=>a.d-b.d);

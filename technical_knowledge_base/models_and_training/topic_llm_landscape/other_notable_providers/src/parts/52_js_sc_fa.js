@@ -61,7 +61,7 @@
       stat('Pretraining tokens',fmt(T.tok,2)+'T','stages 1 to 3')+stat('Public checkpoints',fmt(T.ck),mode==='open'?'of '+TOT+' by the end':'the final weights only')+
       stat('Public datasets',T.ds,mode==='open'?'one per stage, 6 in all':'none')+stat('Public log segments',T.lg,mode==='open'?'pretraining 41, midtraining 2, long context 1':'none')};
   const BO=[[-5.1,0,-1.8],[5.1,.4,1.8]],BW=[[-5.6,0,-1.9],[7.3,1.6,1.8]];
-  const sg=S3.stage({id:'stg-fa',list:'sx-fa-open',fig:'Olmo 3 32B Think, stage by stage',cam:[.12,.92],bounds:()=>mode==='ow'?BW:BO,aspect:.42,dur:1400,hold:5200,draw,
+  const sg=S3.stage({id:'stg-fa',list:'sx-fa-open',fig:'Olmo 3 32B Think, stage by stage',cam:[.12,.92],bounds:()=>mode==='ow'?BW:BO,aspect:.385,dur:1400,hold:5200,draw,
     view:k=>k>=4&&k<=6&&mode==='open'?{cam:[.32,.62],bounds:[[X(3)-.9,0,-2.0],[X(7)+.9,1.2,1.9]]}:null,
     margin:w=>w<520?[14,10,14,10]:[22,20,14,100],onStep:k=>{try{cnt(k)}catch(e){}}});
   const seg=document.getElementById('faM');if(seg&&sg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});

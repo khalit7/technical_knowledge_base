@@ -22,23 +22,23 @@
     const ty=TAU*sc;R.glass([-4.7,ty,-.55],[9.4,0,0],[0,0,1.1],{c:P.mute,a:.55,nu:12,nv:2,th:.02});R.line([[-4.7,ty,.56],[4.7,ty,.56]],{c:P.ink,w:1.6,dash:[6,4],a:.8,top:1});
     R.label([-4.7,ty,-.55],'τ = '+TAU,{al:'right',dx:-8,mono:true,fs:12.5,b:1,c:P.ink,grp:'L'});
     // the ruler on the left, relabelled when step 2 pulls back
-    const tk=lab(k,e,st,s=>s===1?0:1),tk2=lab(k,e,st,s=>s===1?1:0);
+    const tk=lab(k,e,st,s=>s===1||s===3?0:1),tk2=lab(k,e,st,s=>s===1?1:0);
     if(tk>.01)[200].forEach(v=>{R.line([[-4.7,v*sc,-.55],[4.7,v*sc,-.55]],{c:P.line,w:1,a:tk});R.label([-4.7,v*sc,-.55],String(v),{al:'right',dx:-8,mono:true,fs:12,c:P.mute,a:tk})});
     if(tk2>.01)[1000,1500].forEach(v=>{R.line([[-4.7,v*sc,-.55],[4.7,v*sc,-.55]],{c:P.line,w:1,a:tk2});R.label([-4.7,v*sc,-.55],v.toLocaleString('en-GB'),{al:'right',dx:-6,mono:true,fs:12,c:P.mute,a:tk2})});
     for(let i=0;i<N;i++){const h=Math.max(.02,vis(k,e,st,s=>val(s,i)*SC(s))),x=X(i); // the drawn height eases directly, so a column never overshoots while the scale changes
       const isHot=k===5?true:k>=4?false:hot[i]||(k===1&&hot[i]);
       const fill=k===5&&!hot[i]?mix(P.paper,OK,.55):isHot&&k<4?mix(P.paper,HOT,.8):mix(P.paper,OK,.7);
-      const a=k===3?(i===2?1:.14):1;
+      const a=k===3?(i===2?1:.06):1;
       R.box([x,0,0],[CW,h,CW],{fill,a});
       // the height it had before the clip, as a dashed ghost
       if(k>=4&&(hot[i]||k===5)){const h0=S[i]*sc,ga=vis(k,e,st,s=>s>=4?1:0);R.box([x,0,0],[CW+.04,h0,CW+.04],{fa:0,a:ga*.7,shadow:false,lw:.8})}
-      R.label([x,0,ZP+.35],'h'+(i+1),{mono:true,fs:12,dy:8,c:P.mute,a:k===3?(i===2?1:.3):1});
+      R.label([x,0,ZP+.35],'h'+(i+1),{mono:true,fs:12,dy:8,c:P.mute,a:k===3?(i===2?1:0):1});
       // the number above each column, for the steps that name it
       const nv=lab(k,e,st,s=>s===0||s===4||s===5?1:0);
       if(nv>.01&&k!==1){const vv=val(k===st.pk||e>=1?k:(e<.5?st.pk:k),i);R.label([x,h,0],(Math.round(vv*10)/10).toString(),{mono:true,fs:12.5,dy:-12,b:hot[i]||k===5,c:P.ink,a:nv})}
       const gv=lab(k,e,st,s=>s===2?1:0);if(gv>.01&&hot[i])R.label([x,S[i]*sc,0],'γ '+g[i].toFixed(3),{mono:true,fs:12.5,dy:-12,b:1,c:mix(HOT,P.ink,.35),a:gv});
       // the head's own weights in front: content query and key (scaled by the square root of gamma), rotary query (by gamma)
-      const pa=vis(k,e,st,s=>s===0?.9:s===1?.25:s===3?(i===2?1:.15):s===2?(hot[i]?1:.3):.85);
+      const pa=vis(k,e,st,s=>s===0?.9:s===1?.25:s===3?(i===2?1:.05):s===2?(hot[i]?1:.3):.85);
       const qf=vis(k,e,st,s=>fq(s,i)),rf=vis(k,e,st,s=>fr(s,i));
       [[-.25,P.q,qf],[0,P.k,qf],[.25,mix(P.q,P.paper,.35),rf]].forEach(([dx,c,f])=>R.glass([x+dx-.09,.04,ZP],[.18,0,0],[0,PH*f,0],{c,a:pa,nu:1,nv:3,th:.03}));
       // forward pass: query and key meet in the logit (step 1); the measured maximum goes back to the weights (step 3)

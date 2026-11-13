@@ -64,5 +64,5 @@
   const full={cam:[.28,.72],bounds:[[-3.7,0,-3.1],[3.7,1.1,2.3]]};
   S3.stage({id:'stg-lt',list:'sx-lt',fig:'Fig. 3 · lightning attention on four tokens, B = 2',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1500,hold:5000,draw,
     margin:w=>w<520?[14,8,24,8]:[22,18,28,18],
-    view:k=>k<=1?{cam:[.28,.7],bounds:[[-3.3,0,-1.1],[3.3,.45,2.3]]}:k===3?{cam:[.4,.66],bounds:[[-3.8,0,-3.1],[.4,1.0,2.3]]}:k===5?{cam:[.16,.66],bounds:[[-.6,0,-3.1],[4.1,1.3,2.3]]}:full});
+    view:k=>k<=1?{cam:[.28,.7],bounds:[[-3.3,0,-1.1],[3.3,.45,2.3]]}:k===3?{cam:[.4,.66],bounds:[[-3.8,0,-3.1],[.4,1.0,2.3]]}:k===5?{cam:[.16,.84],bounds:[[-.6,0,-3.1],[4.1,1.3,2.3]]}:full});
 })();

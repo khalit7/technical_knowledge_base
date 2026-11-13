@@ -51,7 +51,8 @@
       if(!ph)ROWS.forEach(Rw=>R.label([COLS[0].x-1.3,0,Rw.z+.9],Rw.t,{...mono,al:'right',dx:-8,c:P.mute}))}
     if(f!=null){const C=COLS[f];R.label([C.x,0,ROWS[0].z+.95],C.t,{...mono,b:1,dy:14,c:colOf(P,f),a:e});
       if(f===3)R.label([C.x,0,ROWS[0].z+.95],'no price on this page',{...mono,c:P.mute,dy:30,a:e});
-      T.filter(d=>d.c===f).forEach(d=>R.label([d.x,d.p?d.h+.12:.1,d.z],d.lab+(d.p?' · '+fmt(d.p):''),(d.p?{...mono,b:1,al:'left',dx:10,grp:'lab',a:e}:{...mono,b:1,al:d.i?'left':'right',dx:d.i?24:-24,dy:-8,a:e,wide:1})));
+      // in the closed column, the pillars left of centre carry their names on the left, so the close-up's six labels do not stack in one pile
+      T.filter(d=>d.c===f).forEach(d=>R.label([d.x,d.p?d.h+.12:.1,d.z],d.lab+(d.p?' · '+fmt(d.p):''),(d.p?{...mono,b:1,...(f===0&&d.x<C.x-.1?{al:'right',dx:-10,grp:'labL'}:{al:'left',dx:10,grp:'lab'}),a:e}:{...mono,b:1,al:d.i?'left':'right',dx:d.i?24:-24,dy:-8,a:e,wide:1})));
       }
     // step 3: where the thinking goes, as schematic dot streams: one chain along the front row for every lab; branches and a loop only in the closed column
     if(k===2){const a=e;R.flow([[COLS[0].x-1.25,.05,ROWS[0].z+.55],[COLS[3].x+1.25,.05,ROWS[0].z+.55]],{c:P.c5,a,r:.085,speed:1.2});

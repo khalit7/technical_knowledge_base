@@ -38,7 +38,7 @@
       BITS.forEach((b,j)=>{const g=GB(b);R.flowArc([XS[j],b*SH+.05,0],tk,.5,{c:[P.c4,P.c6,P.c5,P.acc][j],a:e*.9,n:Math.max(3,Math.round(g/1.1)),r:.06,speed:1.1})})}
   }
   const full={cam:[.3,.42],bounds:[[-4.4,0,-1.2],[4.4,2.8,1.4]]};
-  S3.stage({id:'stg-bits',list:'sx-bits',fig:'One 27B model at four precisions',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1400,hold:4600,draw,
+  S3.stage({id:'stg-bits',list:'sx-bits',fig:'One 27B model at four precisions',cam:full.cam,bounds:full.bounds,aspect:.43,dur:1400,hold:4600,draw,
     view:k=>k===4?{cam:[.55,.62],bounds:[[XS[3]-1.6,0,-1.2],[XS[3]+1.9,BITS[3]*SH+.8,1.2]]}:k===5?{cam:[.3,.36],bounds:[[-4.4,0,-1.2],[4.4,3.6,1.4]]}:full,
     margin:w=>w<520?[14,10,40,10]:[18,130,44,20]});
 })();

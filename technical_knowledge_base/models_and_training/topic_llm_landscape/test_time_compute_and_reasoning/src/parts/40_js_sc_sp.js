@@ -49,8 +49,9 @@
       R.label([XG,0,ZP(4)+.15],'verifier',{fs:13,b:1,dy:14,c:P.good,a});R.label([XG,0,ZP(4)+.15],'pass@5 = '+PK.toFixed(3),{mono:true,fs:12.5,dy:31,c:P.good,a})}
     if(k===0){R.label([0,CH,ZS+1.6-1.3],'10,000 tokens = 40 blocks of 250',{fs:13,b:1,dy:-12,c:P.ink,a:e})}
   }
+  // on a phone the full view turns so the 40-block row runs into depth (larger blocks in front)
   const full={cam:[.1,.85],bounds:[[-6.4,0,-1.8],[6.4,.6,4.1]]};
   (TTCS.stage=TTCS.stage||{}).sp=S3.stage({id:'stg-sp',list:'sx-sp',fig:'Fig. 2 · one budget, two shapes, to scale',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,16,64],
-    view:k=>k===0?{cam:[.4,.6],bounds:[[-1.5,0,-1.4],[1.5,.5,1.4]]}:k>=5?{cam:[.3,.8],bounds:[[-6.4,0,-.3],[-.9,1,4.4]]}:full});
+    view:k=>k===0?{cam:[.4,.6],bounds:[[-1.5,0,-1.4],[1.5,.5,1.4]]}:k>=5?{cam:[.3,.8],bounds:[[-6.4,0,-.3],[-.9,1,4.4]]}:document.getElementById('stg-sp').clientWidth<520?{cam:[-.6,.75],bounds:full.bounds}:full});
 })();

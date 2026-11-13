@@ -52,5 +52,6 @@
   }
   S3.stage({id:'stg-ap',list:'sx-ap',fig:'Fig. 5 · append-only: which reasoning and which cache survive request 4',cam:[.07,.3],bounds:[[-3.1,0,-.7],[4.6,3.9,.7]],aspect:.62,dur:1500,hold:5200,draw,
     margin:w=>w<520?[12,8,24,8]:[14,12,26,14],
-    view:k=>k===0?{cam:[.3,.36],bounds:[[-2.9,0,-.7],[4.4,3.5,.7]]}:null});
+    // on a phone the row names are hidden, so the view drops the room kept for them and the plates draw larger
+    view:k=>innerWidth<520?{cam:k===0?[.3,.36]:[.07,.3],bounds:[[-1.6,0,-.7],[4.6,3.7,.7]]}:k===0?{cam:[.3,.36],bounds:[[-2.9,0,-.7],[4.4,3.5,.7]]}:null});
 })();

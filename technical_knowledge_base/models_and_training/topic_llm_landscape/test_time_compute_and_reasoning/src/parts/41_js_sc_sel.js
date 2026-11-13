@@ -15,7 +15,7 @@
     const AC=[P.good,P.c2,P.c4,P.c1,P.c5];
     const pileA=k===5?off(5,e,5):1; // the piles recede when the bar field arrives
     // the sampler: one model, sampled at a temperature above zero
-    R.glass([XS-.05,0,-.55],[0,0,1.1],[0,1.1,0],{c:P.ink,a:.5*pileA,nu:4,nv:4});R.label([XS,1.1,0],'the model',{fs:12.5,dy:-10,c:P.mute,a:pileA});
+    R.glass([XS-.05,0,-.55],[0,0,1.1],[0,1.1,0],{c:P.ink,a:.5*pileA,nu:4,nv:4});R.label([XS,1.1,0],'the model',{fs:12.5,dy:-10,c:P.mute,a:k===5?Math.max(0,1-4*e):1});
     // answer plates on the floor
     const merge=k===4?ease(e):k>4?1:0;
     for(let a=0;a<5;a++){const wrong=a>0,xa=wrong?lerp(X(a),XM,merge):X(a),fa=wrong&&merge>0?(a===1?1:1-merge):1;
@@ -45,7 +45,7 @@
     if(k===3)R.label([X(0)-.32,YT(cnt[0])*.5,0],'vote: tallest pile',{fs:12.5,b:1,al:'right',dx:-14,c:P.ink,a:e,wide:1});
     if(k===4)R.label([XM+.32,YT(9)*.55,0],'now the tallest is wrong',{fs:12.5,b:1,al:'left',dx:14,c:P.bad,a:e,wide:1});
     // the bar field: rows are the three rules, columns n = 1, 5, 15, 63, height the probability of a right answer
-    if(k===5){const nar=R.W<520,cols=nar?[1,3]:[1,2,3],BX=c=>-3.4+cols.indexOf(c+1)*(nar?4.2:3.05),BZ=r=>-1.15+r*1.15,BL=nar?2.6:2.05,BC=[P.good,P.c1,P.bad],NM=['verifier (pass@n)','vote, wrong answers scatter','vote, wrong answers agree'];
+    if(k===5){const nar=R.W<520,cols=nar?[1,3]:[1,2,3],BX=c=>-3.4+cols.indexOf(c+1)*(nar?4.2:3.05),BZ=r=>nar?-1.15+r*1.15:-1.55+r*1.55,BL=nar?2.6:2.05,BC=[P.good,P.c1,P.bad],NM=['verifier (pass@n)','vote, wrong answers scatter','vote, wrong answers agree'];
       G.forEach((row,r)=>{row.forEach((v,c)=>{if(cols.indexOf(c)<0)return;const x0=BX(c-1),L=Math.max(.03,v*BL*ease(e));
           R.box([x0+BL/2,0,BZ(r)],[BL,.02,.56],{fill:mix(P.paper,BC[r],.12),a:e*.8,shadow:false,edge:false});
           R.box([x0+L/2,0,BZ(r)],[L,.26,.56],{fill:mix(P.paper,BC[r],.62),a:e,shadow:false});
@@ -57,5 +57,5 @@
   const full={cam:[.32,.6],bounds:[[-4.8,0,-1],[3.9,2,1.1]]};
   (TTCS.stage=TTCS.stage||{}).sel=S3.stage({id:'stg-sel',list:'sx-sel',fig:'Fig. 3 · fifteen samples, three selectors',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1600,hold:5000,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,16,16],
-    view:k=>k===5?{cam:[.06,1.02],bounds:document.getElementById('stg-sel').clientWidth<520?[[-3.7,0,-1.5],[5.3,.4,1.8]]:[[-6.2,0,-1.6],[5.6,.4,1.8]]}:full});
+    view:k=>k===5?{cam:[.06,1.02],bounds:document.getElementById('stg-sel').clientWidth<520?[[-3.7,0,-1.5],[5.3,.4,1.8]]:[[-6.2,0,-2.0],[5.6,.4,2.2]]}:full});
 })();
