@@ -1,4 +1,4 @@
-// ---- The paper tab: patch explorer, the ViT/ResNet animation, position-embedding tiles, data-scale and attention-distance charts ----
+// ---- The paper tab: patch explorer, position-embedding tiles, data-scale and attention-distance charts ----
 (function(){
 const PS=[1,2,8,14,16,32],RS=[224,384,512,518];
 // 1. patch-size explorer (reveal of the first predict question)
@@ -13,63 +13,7 @@ function pz(){const P=PS[+$('pzP').value],R=RS[+$('pzR').value];$('pzPv').textCo
 ['pzP','pzR'].forEach(id=>$(id).addEventListener('input',pz));
 PRED_REVEAL['pr-tok']=pz;
 
-// 2. the before/after animation: one image through the toy ViT and through the ResNet
-const MAC_VIT=[0,0,25088,25088,799488,1573888,2348288,3122688,3122848];
-const RF=[0,3,7,11,15,23,31,39,39],CNN_MAC=[0,28224,479808,931392,1182272,1633856,2386496,3402560,3402800];
-const VSTEPS=[
- {t:'The image',c:'A 28 × 28 grey image from the toy task: three outline shapes, two of the same kind. The model must name the kind that appears twice.'},
- {t:'Cut into patches',c:'Eq. 1 begins by cutting the image into <i>N</i> = 28·28 / 4² = 49 patches of 4 × 4 pixels, in raster order. This, and the position embeddings, are the only places the 2D layout of the image enters.'},
- {t:'Flatten and project',c:'Each patch is flattened to 16 numbers, and one shared linear map <b>E</b> takes it to <i>D</i> = 32: the patch embedding. Every patch is now one token, like a word.'},
- {t:'Class token and positions',c:'A learnable class token is prepended and a learned position embedding is added to every token: 50 tokens of width 32 enter the encoder.'},
- {t:'Layer 1',c:'The class token attends to all 49 patches at once (heads averaged; darker means more weight). Nothing limits its reach: after one layer, any pixel can already influence the decision.'},
- {t:'Layer 2',c:'Layer 2: every token has already mixed with every other, and the class token gathers again.'},
- {t:'Layer 3',c:'Layer 3: the class token\'s attention, from the trained weights.'},
- {t:'Layer 4',c:'Layer 4, the last: the class token\'s state <b>z</b><sub>4</sub><sup>0</sup> is the image representation.'},
- {t:'Classify',c:'<b>y</b> = LN(<b>z</b><sub>4</sub><sup>0</sup>) goes through the linear head. The probabilities for the five kinds:'}];
-const CSTEPS=[
- {t:'The image',c:'The same image, into the convolutional network. The square will show which pixels can influence one output position (its receptive field).'},
- {t:'Stem: 3 × 3 convolution, stride 2',c:'Each output sees a 3 × 3 window; the map shrinks to 14 × 14. Locality and translation equivariance are built in: every position runs the same small filter.'},
- {t:'Block 1, first convolution',c:'Stacking 3 × 3 convolutions grows the window: 7 × 7 pixels, still a fraction of one shape.'},
- {t:'Block 1, second convolution',c:'11 × 11 pixels: about one shape.'},
- {t:'Block 2, first convolution (stride 2)',c:'15 × 15; the map shrinks to 7 × 7 and each further layer grows the window faster.'},
- {t:'Block 2, second convolution',c:'23 × 23: now the window can hold two shapes, if they are close.'},
- {t:'Block 3, first convolution',c:'31 × 31: from the centre, one output position can now see the whole image.'},
- {t:'Block 3, second convolution',c:'39 × 39, more than the image: positions near the edge can see all of it too.'},
- {t:'Pool and classify',c:'Global average pooling mixes all positions with no distance limit, for the first time, and a linear layer classifies. The ResNet is not shipped in this page; its accuracy against the ViT is in the data-scale chart below.'}];
-let vx=null;
-function vxDraw(m,k,e,w){const D=demoSample(),img=D.s.img,wide=w>=560,S=Math.min(wide?250:Math.min(w-8,300),w*(wide?.42:1)),ox=wide?0:(w-S)/2,oy=4;
-  let h=svgImg(img,ox,oy,S),pw=wide?w-S-24:w,px=wide?S+24:0,py=wide?oy:S+18,ph=wide?S:170;const cs=S/7;
-  if(m==='vit'){
-    if(k>=1)h+=G(k===1?e:1,gridLines(ox,oy,S,7,'var(--c6)',.9));
-    if(k===2||k===3){const n=49,tw=Math.min(18,(pw-10)/25),rows=2;let s='';
-      for(let i=0;i<n;i++){const r=Math.floor(i/25),c=i%25,tx0=px+c*(tw+1)+(k===3?tw+4:0),ty0=py+20+r*(tw+14);
-        const sx=ox+(i%7)*cs,sy=oy+Math.floor(i/7)*cs,t=k===2?e:1;const x=sx+(tx0-sx)*t,y=sy+(ty0-sy)*t,z=cs+(tw-cs)*t;
-        s+='<svg x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+z.toFixed(1)+'" height="'+z.toFixed(1)+'" viewBox="'+((i%7)*4)+' '+(Math.floor(i/7)*4)+' 4 4" preserveAspectRatio="none"><image href="'+imgURL(img)+'" width="28" height="28" style="image-rendering:pixelated"/></svg>'}
-      s+=tx(px,py+12,k===2?'49 patch tokens, each 16 numbers × E → 32':'class token + 49 patch tokens, + E<tspan dy="3" font-size="11">pos</tspan>',{fs:12,c:'var(--mute)'});
-      if(k===3)s+=G(e,rc(px,py+20,tw,tw,'var(--c4)',{r:2})+tx(px+tw/2,py+20+tw+11,'cls',{a:'middle',fs:11,c:'var(--c4)'}));
-      if(k===3)for(let i=0;i<49;i++){const r=Math.floor(i/25),c=i%25;s+=G(e*.5,rc(px+c*(tw+1)+tw+4,py+20+r*(tw+14)+tw-3,tw,3,'var(--c3)',{r:0}))}
-      h+=s}
-    if(k>=4&&k<=7){const l=k-4,T=50,A=D.r.atts[l],v=new Array(49).fill(0);A.forEach(a=>{for(let j=0;j<49;j++)v[j]+=a[1+j]/A.length});
-      h+=G(e,heat(v,ox,oy,S,'var(--c2)',{op:.85}))+gridLines(ox,oy,S,7,'var(--c6)',.5);
-      let s=tx(px,py+12,'Class token attention, layer '+(l+1)+' (per head)',{fs:12,c:'var(--mute)'});const ms=Math.min((pw-30)/4,wide?70:72);
-      A.forEach((a,hh)=>{const x=px+hh*(ms+8),y=py+22;const vv=[];for(let j=0;j<49;j++)vv.push(a[1+j]);s+=svgImg(img,x,y,ms)+heat(vv,x,y,ms,'var(--c2)',{op:.9})+tx(x+ms/2,y+ms+13,'head '+(hh+1),{a:'middle',fs:11,c:'var(--mute)'})});
-      h+=G(e,s)}
-    if(k===8){h+=gridLines(ox,oy,S,7,'var(--c6)',.3);const bw=Math.min(pw,360);h+='<g transform="translate('+px+','+(py+4)+')">'+probBars(D.r.probs,D.s.label,bw).replace(/^<svg[^>]*>|<\/svg>$/g,'')+'</g>'}
-  }else{
-    const o=D.s.L[0],cx=o.x+(o.s-1)/2,cy=o.y+(o.s-1)/2,sc=S/28;
-    if(k>=1&&k<=8){const r0=RF[Math.max(1,k-1)],r1=RF[k],r=k===8?28:r0+(r1-r0)*e,x0=Math.max(0,cx-r/2),y0=Math.max(0,cy-r/2),x1=Math.min(28,cx+r/2+1),y1=Math.min(28,cy+r/2+1);
-      if(k===8)h+=rc(ox,oy,S,S,'var(--c1)',{r:0,op:.25*e});else h+=rc(ox+x0*sc,oy+y0*sc,(x1-x0)*sc,(y1-y0)*sc,'var(--c1)',{r:0,op:.28,s:'var(--c1)',sw:2});
-      h+='<circle cx="'+(ox+(cx+.5)*sc).toFixed(1)+'" cy="'+(oy+(cy+.5)*sc).toFixed(1)+'" r="3.5" fill="var(--c2)"/>';
-      const fm=k===0?28:k<=3?14:7;let s=tx(px,py+12,k===8?'global average pool, then linear':'feature map '+fm+' × '+fm,{fs:12,c:'var(--mute)'});
-      const ms=Math.min(pw*.5,120),gx=px,gy=py+22;if(k<8){s+=rc(gx,gy,ms,ms,'var(--soft)',{s:'var(--line)',r:0})+gridLines(gx,gy,ms,fm,'var(--mute)',.5);
-        const ci=Math.min(fm-1,Math.floor(cx*fm/28)),cj=Math.min(fm-1,Math.floor(cy*fm/28));s+=rc(gx+ci*ms/fm,gy+cj*ms/fm,ms/fm,ms/fm,'var(--c2)',{r:0})}
-      h+=s}
-  }
-  const H=wide?S+10:S+18+ph;return svgW(w,H,h,'one image through the model')}
-function vxCnt(m,k,e){if(m==='vit'){const rfx=k>=4?'the whole image (28 px)':k>=1?'one patch (4 px)':'n/a',tok=k>=3?50:k>=2?49:0;
-    return stat('Tokens',tok||'n/a','')+stat('Layer',k>=4?Math.min(4,k-3)+' of 4':'n/a','')+stat('Reach of the class token','<span style="font-size:14px;font-weight:500">'+rfx+'</span>','')+stat('Multiply-adds so far',fmt(MAC_VIT[k]),'of 3,122,848')}
-  const r=RF[k];return stat('Layer',k>=1&&k<=7?k+' of 7 convolutions':k===8?'pool':'n/a','')+stat('Receptive field',k===0?'n/a':k===8?'whole image':r+' × '+r+' px',k>=1&&k<8?pct(Math.min(1,r*r/784),0)+' of the image area, at most':'')+stat('Multiply-adds so far',fmt(CNN_MAC[k]),'of 3,402,800')}
-function initVx(){if(vx||!window.VIT||!VIT.models.includes('vit'))return;vx=makeAnim({id:'vx',modes:{vit:VSTEPS,cnn:CSTEPS},mode:'vit',draw:vxDraw,counters:vxCnt,dur:3200})}
+// 2. the before/after (ViT against the ResNet on one image) is the 3D stage in 32_js_sc_vx.js
 
 // 3. position-embedding similarity tiles (Figure 7, centre)
 let pecM='vit',pecQ=24;
@@ -127,8 +71,7 @@ function adcDraw(){if(!adcDraw.d){const m=VIT.load('vit'),L=VIT.cfg.L,H=VIT.cfg.
   const r=d.map(hs=>Math.min(...hs).toFixed(1)+' to '+Math.max(...hs).toFixed(1));let u=0;for(let i=0;i<49;i++)for(let j=0;j<49;j++)u+=Math.hypot(Math.floor(i/7)-Math.floor(j/7),i%7-j%7)*4/2401;
   $('adcO').innerHTML='Range across heads, px: '+r.map((x,l)=>'layer '+(l+1)+' <b>'+x+'</b>').join(' · ')+'. Attention spread evenly over all patches would give '+u.toFixed(1)+' px; attention only on itself, 0.'}
 
-function initRead(){try{initVx()}catch(e){__jsErr('anim: '+e.message)}
-  try{pecDraw()}catch(e){__jsErr('pec: '+e.message)}
+function initRead(){try{pecDraw()}catch(e){__jsErr('pec: '+e.message)}
   try{dscDraw();blToy()}catch(e){__jsErr('dsc: '+e.message)}
   setTimeout(()=>{try{adcDraw()}catch(e){__jsErr('adc: '+e.message)}},400)}
 onTab('t-read',()=>{if(!initRead.done){initRead.done=1;initRead()}else{[$('pecA'),$('pecB'),$('dscSvg'),$('adcSvg'),$('lbSvg'),$('pzSvg')].forEach(refit)}});

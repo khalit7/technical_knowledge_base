@@ -20,6 +20,9 @@ Scores: teaches (0 to 3), sourced or real (0 to 3), cost (3 cheap to 0 expensive
 | P-vit.14 | Hero: Figure 1 redrawn on the toy image, patches cropped from the real image, the toy model's real prediction (2026-10-24) | The paper, top | static diagram | built (`14_js_hero.js`); the arXiv licence is not CC BY, so no copy of the original figure | |
 | P-vit.15 | Results at a glance: Table 2 gaps to BiT-L per benchmark plus the compute bars (2026-10-24) | The paper, Results | static chart from `PAPER.tables.t2` | built: Results had no visual | |
 | P-vit.16 | Table 6 / Figure 5 chart moved from the tables tab into Reading, beside the compute claim (2026-10-24) | The paper, Performance against compute | moved | built (same code, drawn on `t-read`) | |
+| P-vit.17 | Figure 1 as a 3D stage on the toy (2026-11-13): patches lift into a row, one patch through E as a glass plate, class token and positions added, four layers of class-token attention as rows of bars with flows, the head as a glass plate into the probabilities | The paper, top | 3D stage, 6 steps | built (`31_js_sc_hero.js`), replaces P-vit.14's SVG | |
+| P-vit.18 | What each layer can see, ViT against ResNet, in 3D (2026-11-13): layers stacked over the image; ViT attention bars per layer and its reach, ResNet feature maps and the receptive field as a frustum | The paper, Inductive bias | 3D stage, two modes of 6 steps | built (`32_js_sc_vx.js`), replaces the 2D `vx` animation | |
+| P-vit.19 | Data scale (Figures 3 and 4) as a 3D bar field | The paper, Data scale | 3D | rejected: the page has only Table 5 (no ResNet rows) and the toy curves; a number on a log axis reads best flat | |
 
 ## Inspiration
 

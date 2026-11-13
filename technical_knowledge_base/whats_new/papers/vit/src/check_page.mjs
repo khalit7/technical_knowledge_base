@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the Then and now animation stepping end to end (the 3D stages: check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/vit/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: true });
+const b = await puppeteer.launch({ headless: 'shell' });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
@@ -42,10 +42,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
-    for (const id of ['vx', 'tn']) { if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
-      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
+    // autoplay on view (2026-11-06, replacing the 2026-10-24 never-autoplay rule): the step animation plays by itself once scrolled into view
+    // (the 3D stages, including the old vx animation, are checked by check_stages.mjs)
+    for (const id of ['tn']) { if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -92,7 +93,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await p.$eval('#rnAtt', e => e.scrollIntoView()); const el = await p.$('#rnAtt'); await el.screenshot({ path: `${shots}/x-maps-${scheme}-${width}.png` });
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['vx', 'tn']) {
+    for (const id of ['tn']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

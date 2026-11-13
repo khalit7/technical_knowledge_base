@@ -1,7 +1,18 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <div class="co key" id="core"><div class="t">The idea in one sentence</div><p class="lead" style="margin:2px 0 0">Cut the image into 16 × 16 patches, turn each patch into a token with one linear map, add a learned position and a class token, and run an unmodified Transformer encoder: with none of a CNN's built-in locality it loses on 1.3M training images and wins on 303M, at a quarter of the best CNN's pre-training compute.</p></div>
-<div class="card" id="hero-fig"><div class="t" style="font-weight:600;margin-bottom:4px">An image becomes a sentence of patch tokens, and the class is read off one extra token</div><div id="heroFig"></div><p class="small mute" style="margin:4px 0 0">After the paper's {{Figure 1|ax:S3.F1}}, redrawn (the arXiv paper is not CC BY, so no copy of the original). Token 0* is the learned class token; 1 to 49 are the patch tokens, numbered by position. Drawn on this page's toy image (28 × 28 px, 4 × 4 px patches, 49 tokens) and its trained toy model, whose real prediction is shown; ViT-B/16 does the same to a 224 × 224 image: 196 patches of 16 × 16 × 3 = 768 numbers, 197 tokens of width 768, 12 layers. Every step is Eq. 1 to 4 in {{Method|tab:t-read:s-meth}}.</p></div>
+<p id="hero-fig"><b>An image becomes a sentence of patch tokens, and the class is read off one extra token.</b> The paper's {{Figure 1|ax:S3.F1}} in 3D, run by this page's trained toy ViT ({{Run a ViT|tab:t-run}}) on one 28 × 28 image (4 × 4 px patches, 49 tokens); drag it to turn it.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The image.</b> One grey image from the toy task, 784 numbers: three outline shapes, two of the same kind, and the model must name the kind that appears twice. ViT-B/16's input is a 224 × 224 colour image.</li>
+<li><b>Cut into patches, in raster order.</b> 28 · 28 / 4² = 49 patches of 4 × 4 pixels lift off into a row: the image is now a sentence of 49 words. Cutting it, and the position embeddings, are the only places its 2D layout enters.</li>
+<li><b>One matrix makes every patch a token.</b> Patch <span id="hr-patch">25</span> (the one with the most ink) flattens to 16 pixel values; one shared learned matrix <b>E</b>, the glass plate, maps them to a token of width <i>D</i> = 32 (bars above the plinth are positive numbers, bars hanging below negative). The same <b>E</b> serves all 49 patches.</li>
+<li><b>A class token and a position on every slot.</b> A learned class token is put in front as token 0, and a learned position embedding is added to every token: 50 tokens of width 32, <b>z</b><sub>0</sub> of Eq. 1, enter the encoder.</li>
+<li><b>Four layers of attention.</b> Every token attends to every other, in every layer. Each row is one layer; each bar is how much the class token attends to that patch (heads averaged), and the dots stream into the class token in proportion. Nothing limits its reach: from layer 1 any patch can count.</li>
+<li><b>The head reads the class token.</b> Its final state <b>y</b> = LN(<b>z</b><sub>4</sub><sup>0</sup>) goes through the head to five probabilities, one per kind: here <span id="hr-pred">the right kind</span>.</li>
+</ol>
+<p class="small mute">After the paper's {{Figure 1|ax:S3.F1}}, redrawn (the arXiv paper is not CC BY, so no copy of the original). Token 0 is the learned class token; 1 to 49 are the patch tokens, numbered by position. Every bar is the shipped toy model's own number. ViT-B/16 does the same to a 224 × 224 image: 196 patches of 16 × 16 × 3 = 768 numbers, 197 tokens of width 768, 12 layers. Every step is Eq. 1 to 4 in {{Method|tab:t-read:s-meth}}; the same pipeline at CLIP B/32's real shapes is drawn on {{Vision encoders|n:3c65c17b0d0d81c99f60ceb2f02cf5ea}}, which owns patch embeddings.</p>
+</div></div>
 <p class="small"><b>You need</b> the Transformer encoder ({{The Transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}); this page adds only what is different for images. Vision towers as they are built today are taught on {{Vision encoders: ViT, CLIP and SigLIP|n:3c65c17b0d0d81c99f60ceb2f02cf5ea}}.</p>
 <p class="small"><b>New terms.</b> <i>Patch embedding</i>: one shared matrix <b>E</b> that maps a flattened patch to a token. <i>Class token</i>: a learned extra token whose output is the image representation. <i>Inductive bias</i>: an assumption built into the architecture (a CNN's locality) rather than learned. <i>JFT-300M</i>: Google's private set of 303M labelled images. <i>BiT</i>: Big Transfer, the ResNet baseline. <i>Few-shot linear accuracy</i>: a closed-form linear probe on frozen features. <i>TPUv3-core-days</i>: compute as cores times days.</p>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Method</a><a href="#s-bias">Inductive bias</a><a href="#s-pos">Positions</a><a href="#s-train">Training</a><a href="#s-res">Results</a><a href="#s-data">Data scale</a><a href="#s-inside">Inside</a><a href="#s-why">Why it matters</a><a href="#believe">Believe?</a></nav>
@@ -43,44 +54,56 @@
 <li><b>Sizes.</b> Taken from BERT: ViT-Base (12 layers, <i>D</i> = 768, MLP 3072, 12 heads, 86M parameters) and ViT-Large (24, 1024, 4096, 16 heads, 307M), plus a new ViT-Huge (32, 1280, 5120, 16 heads, 632M). ViT-L/16 means Large with 16 × 16 patches ({{Table 1|ax:S4.T1}}). The parameter counts are recounted from Eq. 1 to 4 in the {{tables tab|tab:t-tables:tb1}}.</li>
 <li><b>Hybrid.</b> The patches can instead come from a CNN feature map, here a ResNet50's, with 1 × 1 patches: flatten the map and project it to <i>D</i> ({{§3.1|ax:S3.SS1.SSS0.Px2}}, {{§4.1|ax:S4.SS1}}).</li>
 </ul>
-<p>The animation runs one image of this page's toy task through the trained toy ViT, with the class token's real attention at each layer, then through the toy ResNet, whose view grows one small square at a time (both models are described in {{Run a ViT|tab:t-run}}).</p>
-<div class="card" id="vx">
-<div class="an-top"><div class="seg" id="vxM" role="group" aria-label="Model"><button class="on" data-m="vit" aria-pressed="true">ViT</button><button data-m="cnn" aria-pressed="false">ResNet (CNN)</button></div>
-<span class="small mute">Same 28 × 28 image; the toy models' real sizes.</span></div>
-<div id="vxSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="vxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="vxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="vxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="vxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="vxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="vxStep"></div><p id="vxCap"></p></div>
-<div class="an-cnt" id="vxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">ViT: 4 × 4 patches (49 tokens plus the class token), <i>D</i> = 32, 4 layers, 4 heads; the heat map is the class token's attention averaged over heads, from the shipped weights. ResNet: a BiT-style network (GroupNorm) with a stride-2 3 × 3 stem and three residual blocks; the square is the theoretical receptive field of one output position, computed from kernel sizes and strides. Multiply-adds are counted by formula. It waits on its first step until you press play or step, and stops off screen.</p>
-</div>
+<p>Figure 1 at the top runs these four equations on the toy image, step by step.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-vx"></div></div><div class="s3L">
 <section id="s-bias"><h2>Inductive bias, made explicit</h2>
 [[S3.SS1.SSS0.Px1|§3.1, Inductive bias; §3.2]]
 <p>CNNs build three assumptions into every layer: <b>locality</b>, <b>two-dimensional neighbourhood structure</b> and <b>translation equivariance</b>. In ViT only the MLP layers are local and translation-equivariant (they act on each token separately); self-attention is global from layer one ({{§3.1|ax:S3.SS1.SSS0.Px1}}).</p>
 <p>The image's 2D structure enters at exactly two points: cutting it into patches, and adjusting the position embeddings to a new resolution at fine-tuning. The position embeddings start with no information about where patches are, so every spatial relation is learned from scratch ({{§3.1|ax:S3.SS1.SSS0.Px1}}, {{§3.2|ax:S3.SS2}}): the network must learn from examples what a CNN is handed for free.</p>
+<p id="vx">The stage runs one image of this page's toy task through the trained toy ViT, with the class token's real attention at each layer, then through the toy ResNet, whose view grows one small square at a time (both models are described in {{Run a ViT|tab:t-run}}). Same 28 × 28 image, the toy models' real sizes.</p>
+<div class="ctl"><div class="seg" id="vxM" role="group" aria-label="Model"><button class="on" data-m="vit" aria-pressed="true">ViT</button><button data-m="cnn" aria-pressed="false">ResNet (CNN)</button></div></div>
+<ol class="sx" id="sx-vxv">
+<li><b>Patches become tokens.</b> The image lies on the floor, cut into its 7 × 7 grid of 4 × 4 px patches; each becomes a token and the class token joins them. Before any attention, a patch token holds only its own 4 × 4 pixels.</li>
+<li><b>Layer 1: the whole image at once.</b> The class token attends to all 49 patches in one step; the bars are its attention, heads averaged, from the shipped weights. Its reach, the dashed lines, already covers every pixel: after one layer, any pixel can influence the decision.</li>
+<li><b>Layer 2.</b> Every token has already mixed with every other, and the class token gathers again.</li>
+<li><b>Layer 3.</b> The class token's attention at layer 3, from the trained weights.</li>
+<li><b>Layer 4, the last.</b> The class token's state <b>z</b><sub>4</sub><sup>0</sup> is now the image representation.</li>
+<li><b>Classify.</b> <b>y</b> = LN(<b>z</b><sub>4</sub><sup>0</sup>) goes through the linear head: the probabilities for the five kinds.</li>
+</ol>
+<ol class="sx" id="sx-vxc" hidden>
+<li><b>The same image, into the convolutional network.</b> The dot marks the output position we follow up; the square will show which pixels can influence it (its receptive field).</li>
+<li><b>Stem: 3 × 3 convolution, stride 2.</b> Each output sees a 3 × 3 window; the map shrinks to 14 × 14. Locality and translation equivariance are built in: every position runs the same small filter.</li>
+<li><b>Block 1: two 3 × 3 convolutions.</b> Stacking them grows the window from 7 × 7 to 11 × 11 pixels: about one shape.</li>
+<li><b>Block 2 (stride 2).</b> 15 × 15, then 23 × 23; the map shrinks to 7 × 7 and each further layer grows the window faster. Now the window can hold two shapes, if they are close.</li>
+<li><b>Block 3.</b> 31 × 31: from the centre one output position can now see the whole image; then 39 × 39, more than the image, so positions near the edge see all of it too.</li>
+<li><b>Pool and classify.</b> Global average pooling mixes all positions with no distance limit, for the first time, and a linear layer classifies. The ResNet is not shipped in this page; its accuracy against the ViT is in the data-scale chart below.</li>
+</ol>
+<div class="an-cnt" id="vxCnt"></div>
+<p class="small mute">ViT: 4 × 4 patches (49 tokens plus the class token), <i>D</i> = 32, 4 layers, 4 heads; the bars are the class token's attention averaged over heads, from the shipped weights. ResNet: a BiT-style network (GroupNorm) with a stride-2 3 × 3 stem and three residual blocks; the square is the theoretical receptive field of one output position, computed from kernel sizes and strides. Multiply-adds are counted by formula.</p>
 <div class="co key"><div class="t">Fine-tuning at a higher resolution</div>
 <p style="margin:2px 0">Pre-train on large data, then remove the pre-trained head and attach a zero-initialised <i>D</i> × <i>K</i> layer for the <i>K</i> downstream classes ({{§3.2|ax:S3.SS2}}). Fine-tuning at a higher resolution than pre-training helps; keep the patch size fixed, so the sequence gets longer (ViT-L/16 goes from 196 patches at 224 px to 576 at 384 and 1,024 at 512), and 2D-interpolate the pre-trained position embeddings to the new grid according to their location in the original image. This is now standard practice; how today's libraries resize the table is on {{Vision encoders|n:3c65c17b0d0d81c99f60ceb2f02cf5ea}}.</p></div>
 <details class="mist"><summary>Which head is replaced, in the appendix</summary><div class="b"><p>In the appendix, the whole two-layer head is replaced on transfer, which "we found to be a little more robust than simply re-initializing the very last layer" ({{App. B.1.1|ax:A2.SS1.SSS1}}).</p></div></details>
 </section>
+</div></div>
 
-<section id="s-pos"><h2>Position embeddings</h2>
+<div class="s3sp"><div class="s3L"><section id="s-pos"><h2>Position embeddings</h2>
 [[A4.SS4|§3.1, App. D.4, Table 8, Figure 7]]
 <p>ViT uses standard <b>learnable 1D position embeddings</b>, one vector per position in raster order ({{§3.1|ax:S3.SS1}}). The ablation on ViT-B/16 ({{Table 8|ax:A4.T8}}) compared no position information (a bag of patches), 1D, 2D (separate <i>X</i> and <i>Y</i> halves) and relative embeddings (an attention bias from the query-key offset), added at the stem or at every layer. No positions costs 2.82 points of 5-shot accuracy; every other variant lands within 0.33 points of the rest, because at patch level the grid is small (14 × 14, not 224 × 224) and any encoding learns it easily ({{App. D.4|ax:A4.SS4}}). The learned 1D embeddings recover the 2D grid on their own: nearby patches, and patches in the same row or column, get similar embeddings, sometimes with a sinusoidal pattern on larger grids, and the exact pattern depends on the hyperparameters ({{Figure 7, centre|ax:S4.F7}}, {{Figure 10|ax:A4.F10}}).</p>
-<div class="card" id="pec">
+
+<div class="pred" id="pr-pe" data-ans="1"><div class="q">Remove the position embeddings entirely, so the model sees an unordered bag of patches. On ViT-B/16 in the paper, how much accuracy does that cost?</div>
+<div class="opts"><button>Nothing measurable</button><button>A few points</button><button>About half the accuracy</button><button>It falls to chance</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>A few points: 61.4% against 64.2% 5-shot ({{Table 8|ax:A4.T8}}). Patches still carry a lot of information on their own: a bag of patches still knows which textures and parts are present. On this page's toy task the same ablation, trained the same way on 64,000 images, gets <b id="prPeNo"></b> of held-out images right against <b id="prPeYes"></b> with position embeddings. <span id="prPeWhy"></span></p></div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="pec">
 <p class="try"><b>Try:</b> this is the toy ViT's own learned table, one tile per patch (7 × 7 grid); each tile shows that patch's cosine similarity to every other patch. Click a tile to enlarge it. Switch to the model trained on 2,000 images to compare.</p>
 <div class="ctl"><div class="seg" id="pecM" role="group" aria-label="Model"><button class="on" data-m="vit" aria-pressed="true">Trained on 64,000 images</button><button data-m="vit_small" aria-pressed="false">Trained on 2,000</button></div></div>
 <div class="cols2"><div id="pecA"></div><div id="pecB"></div></div>
 <div class="out" id="pecO"></div>
 <p class="small mute">Cosine similarity of the 49 patch position embeddings of the shipped weights (6-bit quantised; the float weights give the same grid score to within 0.002, <span class="mono">pos_check.py</span>). "Grid score" is the correlation, over all patch pairs, between embedding similarity and minus the distance between the two patches on the grid: 1 would mean similarity falls exactly with distance.</p>
-</div>
-<div class="pred" id="pr-pe" data-ans="1"><div class="q">Remove the position embeddings entirely, so the model sees an unordered bag of patches. On ViT-B/16 in the paper, how much accuracy does that cost?</div>
-<div class="opts"><button>Nothing measurable</button><button>A few points</button><button>About half the accuracy</button><button>It falls to chance</button></div>
-<div class="fb"></div>
-<div class="reveal" hidden><p>A few points: 61.4% against 64.2% 5-shot ({{Table 8|ax:A4.T8}}). Patches still carry a lot of information on their own: a bag of patches still knows which textures and parts are present. On this page's toy task the same ablation, trained the same way on 64,000 images, gets <b id="prPeNo"></b> of held-out images right against <b id="prPeYes"></b> with position embeddings. <span id="prPeWhy"></span></p></div></div>
-</section>
+</div></div></div></div>
 
 <section id="s-train"><h2>Training and evaluation</h2>
 [[S4.SS1|§4.1, App. B]]

@@ -1,5 +1,5 @@
 #!/bin/sh
-R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
+R=$(cd "$(dirname "$0")" && while [ "$PWD" != / ] && [ ! -d html_utils ]; do cd ..; done; pwd) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both; the repo root is found by walking up to html_utils
 # Build ../index.html for a paper page. Fail-safe: every JS part in its own <script>, tab wiring last,
 # the hidden #jsErr box and global error handler before any script.
 # Link macros in the HTML parts:
@@ -19,9 +19,10 @@ python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '01b_css.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
+HTML = ['00_top.html', '01_css.html', '01b_css.html', '02_split.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
 JS = ['10_js_common.js', '_gen_data.js', '_gen_runs.js', '11_js_ui.js', '20_model_data.js', '21_js_gen.js', '22_js_vit.js', '12_js_vitui.js',
-      '14_js_hero.js', '13_js_read.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '90_js_tabs.js']
+      '14_js_hero.js', '13_js_read.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js',
+      '25_js_s3.js', '30_js_sc_lib.js', '31_js_sc_hero.js', '32_js_sc_vx.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)

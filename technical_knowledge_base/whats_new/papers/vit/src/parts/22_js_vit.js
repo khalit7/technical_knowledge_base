@@ -1,5 +1,5 @@
 // ---- The toy ViT's forward pass in plain JavaScript (mirrors train.py; check_forward.py checks it against PyTorch) ----
-// Reads window.VITW (20_model_data.js). VIT.load(key) -> model; VIT.forward(model, img) -> {logits, probs, atts, tokens}.
+// Reads window.VITW (20_model_data.js). VIT.load(key) -> model; VIT.forward(model, img) -> {logits, probs, atts, tokens, y} (y: the class token's final state after LN, which the head reads).
 (function(g){
   const W=g.VITW;if(!W)return;
   const {D,L,H,M,S,P,K}=W.cfg,GR=S/P,N=GR*GR,T=N+1,DH=D/H;
@@ -39,7 +39,7 @@
       const m2=lin(m1,T,M,Pm[p+'m2.weight'],Pm[p+'m2.bias'],D);for(let i=0;i<T*D;i++)z[i]+=m2[i]}
     const y=ln(z.subarray(0,D),1,Pm['nf.weight'],Pm['nf.bias']),logits=lin(y,1,D,Pm['head.weight'],Pm['head.bias'],K);
     const mx=Math.max(...logits),ex=[...logits].map(v=>Math.exp(v-mx)),su=ex.reduce((a,b)=>a+b,0);
-    return {logits:[...logits],probs:ex.map(v=>v/su),atts,tokens:z0}}
+    return {logits:[...logits],probs:ex.map(v=>v/su),atts,tokens:z0,y:Array.from(y)}}
   // attention rollout (Abnar and Zuidema 2020, as the paper's Appendix D.8): average heads, add the residual, renormalise, multiply through the layers
   function rollout(atts){let R=null;for(const al of atts){const A=new Float32Array(T*T);for(const a of al)for(let i=0;i<T*T;i++)A[i]+=a[i]/H;
       for(let i=0;i<T;i++){A[i*T+i]+=1;let s=0;for(let j=0;j<T;j++)s+=A[i*T+j];for(let j=0;j<T;j++)A[i*T+j]/=s}
