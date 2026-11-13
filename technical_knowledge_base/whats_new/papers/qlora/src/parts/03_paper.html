@@ -1,8 +1,7 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L">
 <p class="core1"><b>The idea in one sentence:</b> store the frozen base model in 4 bits (NF4, with its block constants quantised a second time), dequantise each weight to BF16 only at the moment it is used, and train 16-bit LoRA adapters on every linear layer; LLaMA 65B then finetunes on one 48 GB GPU instead of needing more than 780 GB, and matches 16-bit LoRA on MMLU.</p>
-<figure class="hfig"><img src="img/fig1_finetuning_memory.webp" alt="The paper's Figure 1: three columns, full finetuning, LoRA and QLoRA. Full finetuning has one large 32-bit optimizer state box updating a 16-bit Transformer; LoRA has small optimizer states updating small 16-bit adapters on a frozen 16-bit Transformer; QLoRA has the same adapters on a smaller 4-bit Transformer, with optimizer state pages moving to and from the CPU." loading="lazy">
-<figcaption><b>The base model shrinks to a 4-bit Transformer, yet gradients still flow through it into 16-bit adapters, and optimizer state pages out to the CPU when the GPU runs short.</b> Full finetuning updates every weight with 32-bit optimizer state; LoRA freezes a 16-bit base and trains small adapters; QLoRA freezes a 4-bit base. Figure 1 of the paper, credit Dettmers, Pagnoni, Holtzman and Zettlemoyer, CC BY 4.0, {{arXiv 2305.14314|ax:S1.F1}}.</figcaption></figure>
 <p class="small"><b>You need:</b> LoRA's low-rank update (the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}}; PEFT methods compared on {{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}) and how a low-bit number format with per-block scales works ({{Quantisation and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</p>
 <p class="small" style="margin-bottom:2px"><b>New terms</b></p>
 <ul class="terms">
@@ -12,6 +11,9 @@
 <li><b>Storage and computation data type</b>: NF4 on disk and in GPU memory, BF16 inside every matrix multiplication.</li>
 <li><b>Guanaco</b>: the paper's chatbots, LLaMA 7B to 65B finetuned with QLoRA on OASST1.</li>
 </ul>
+</div>
+<div class="s3R"><div class="s3side"><figure class="hfig" style="margin-top:0"><img src="img/fig1_finetuning_memory.webp" alt="The paper's Figure 1: three columns, full finetuning, LoRA and QLoRA. Full finetuning has one large 32-bit optimizer state box updating a 16-bit Transformer; LoRA has small optimizer states updating small 16-bit adapters on a frozen 16-bit Transformer; QLoRA has the same adapters on a smaller 4-bit Transformer, with optimizer state pages moving to and from the CPU." loading="lazy">
+<figcaption><b>The base model shrinks to a 4-bit Transformer, yet gradients still flow through it into 16-bit adapters, and optimizer state pages out to the CPU when the GPU runs short.</b> Full finetuning updates every weight with 32-bit optimizer state; LoRA freezes a 16-bit base and trains small adapters; QLoRA freezes a 4-bit base. Figure 1 of the paper, credit Dettmers, Pagnoni, Holtzman and Zettlemoyer, CC BY 4.0, {{arXiv 2305.14314|ax:S1.F1}}.</figcaption></figure></div></div></div>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-nf4">NF4</a><a href="#s-dq">Double quant</a><a href="#s-page">Paged optimizers</a><a href="#s-lora">All-layer LoRA</a><a href="#s-res">Does 4-bit match 16-bit?</a><a href="#s-guan">Guanaco</a><a href="#s-evalm">The evaluation</a><a href="#s-qual">Lemons</a><a href="#s-lim">Limits</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -29,25 +31,55 @@
 </div></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-eq5"></div></div><div class="s3L">
 <section id="s-idea"><h2>Idea: store in 4 bits, compute in 16</h2>
 [[S3|§3, Eq. 5 and 6]]
 <p>QLoRA backpropagates gradients through a <b>frozen, 4-bit quantised</b> pretrained model into LoRA adapters ({{Abstract|ax:abstract1}}). It has one <b>storage</b> data type (usually 4-bit NormalFloat) and one <b>computation</b> data type (BFloat16): whenever a weight tensor is used, it is dequantised to BF16 and the matrix multiplication runs in 16 bits ({{§3|ax:S3}}). For one linear layer with one adapter:</p>
 <div class="fm"><div class="eq"><b>Y</b><sup>BF16</sup> = <b>X</b><sup>BF16</sup> doubleDequant(<i>c</i><sub>1</sub><sup>FP32</sup>, <i>c</i><sub>2</sub><sup>k-bit</sup>, <b>W</b><sup>NF4</sup>) + <b>X</b><sup>BF16</sup><b>L</b><sub>1</sub><sup>BF16</sup><b>L</b><sub>2</sub><sup>BF16</sup></div><div class="wh">Equation 5 ({{§3|ax:S3.E5}}); doubleDequant first rebuilds the block constants from their 8-bit codes, then the weights from their 4-bit codes (Eq. 6, {{§3|ax:S3.E6}}). NF4 for <b>W</b> with blocks of 64, an 8-bit type for <i>c</i><sub>2</sub> with blocks of 256. <b>L</b><sub>1</sub>, <b>L</b><sub>2</sub> are LoRA's two thin matrices with a scalar <i>s</i> (Eq. 3, {{§2|ax:S2.E3}}), written <i>BA</i> on the LoRA page.</div></div>
-<p>Only the adapters get weight gradients (∂<i>E</i>/∂<b>L</b><sub>i</sub>); the 4-bit weights are never updated. Computing those gradients still needs ∂<b>X</b>/∂<b>W</b>, which goes through the same dequantisation to BF16 in the backward pass ({{§3|ax:S3}}). Everything new in the paper serves this one equation: a 4-bit type precise enough that the frozen base loses little (<a href="#s-nf4">NF4</a>), constants small enough that 4 bits really means about 4 (<a href="#s-dq">double quantisation</a>), and a guard against the memory spikes that would otherwise end a single-GPU run (<a href="#s-page">paged optimizers</a>). The fourth ingredient is not new but is tuned: LoRA on every linear layer (<a href="#s-lora">below</a>).</p>
-<p><b>Blockwise k-bit quantisation</b> ({{§2, Eq. 1 and 2|ax:S2.E1}}) is the standard absmax recipe, taught on {{Quantisation and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}: each block of <i>B</i> values is rescaled by its absolute maximum, <b>X</b><sup>Int8</sup> = round(127 / absmax(<b>X</b>) · <b>X</b>), and the scale <i>c</i> is stored, so one outlier wastes the bins of its own block only ({{§2|ax:S2}}). QLoRA uses it with B = 64 for the weights. The animation runs one real block of 64 LLaMA-7B weights through that recipe with three 4-bit types; the dots are the weights, the ticks are the 16 values the type can store, drawn to scale.</p>
+<p>Only the adapters get weight gradients (∂<i>E</i>/∂<b>L</b><sub>i</sub>); the 4-bit weights are never updated. Computing those gradients still needs ∂<b>X</b>/∂<b>W</b>, which goes through the same dequantisation to BF16 in the backward pass ({{§3|ax:S3}}).</p>
+<p class="sxh">Fig. 2, Equation 5 step by step</p>
+<p>On 1,024 real weights of LLaMA-7B (layer 15's value projection, row 37, inputs 0 to 1,023), quantised to NF4 as bitsandbytes stores them: 16 blocks of 64, one block per row of the plate. The adapter plates show shape only, and the input <b>X</b> stands for any token's activations.</p>
+<ol class="sx" id="sx-eq5">
+<li><b>Stored: 4-bit codes and their constants.</b> Each weight is a 4-bit index into NF4's 16 values and is drawn at that value, so the bars stand on 16 terraces between −1 and 1. Beside each block of 64 sits its constant <i>c</i><sub>2</sub> as an 8-bit code, and one FP32 <i>c</i><sub>1</sub> serves up to 256 blocks: these 1,024 weights take 512 bytes of codes plus 16 bytes of constants.</li>
+<li><b>doubleDequant, first the constants.</b> <i>c</i><sub>1</sub> and the 8-bit codes rebuild each block's FP32 absmax <i>c</i><sub>2</sub>, the largest |<i>w</i>| of its block: here <span id="eq5Am">0.0364 to 0.0613</span>.</li>
+<li><b>Then the weights, in BF16.</b> Every code value is multiplied by its block's constant, and a BF16 copy of the 16 blocks appears above the stored codes: the same terraces, rescaled block by block. The 4-bit codes stay where they are.</li>
+<li><b>The matmul runs in BF16: XW.</b> The input activations go through the BF16 copy exactly as they would through an unquantised layer.</li>
+<li><b>The adapter path, also BF16: XL<sub>1</sub>L<sub>2</sub>.</b> In parallel, <b>X</b> goes down through <b>L</b><sub>1</sub> (<i>d</i> × <i>r</i>) and back up through <b>L</b><sub>2</sub> (<i>r</i> × <i>d</i>), and the two outputs are added: <b>Y</b> = <b>XW</b> + <b>XL</b><sub>1</sub><b>L</b><sub>2</sub>.</li>
+<li><b>Backward: weight gradients for the adapters only.</b> The gradient of the loss flows back into <b>L</b><sub>2</sub> and <b>L</b><sub>1</sub>, which get weight gradients, and through the BF16 copy of <b>W</b> to give ∂<i>E</i>/∂<b>X</b> for the layer below. <b>W</b> gets no gradient and no optimizer state.</li>
+<li><b>The BF16 copy is dropped.</b> Only codes and constants stay in memory, 4.127 bits per weight against 16 in BF16; the next use of <b>W</b> dequantises again, which costs time (<a href="#s-use">What it takes</a>).</li>
+</ol>
+<p>Everything new in the paper serves this one equation: a 4-bit type precise enough that the frozen base loses little (<a href="#s-nf4">NF4</a>), constants small enough that 4 bits really means about 4 (<a href="#s-dq">double quantisation</a>), and a guard against the memory spikes that would otherwise end a single-GPU run (<a href="#s-page">paged optimizers</a>). The fourth ingredient is not new but is tuned: LoRA on every linear layer (<a href="#s-lora">below</a>).</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R">
 <div class="card" id="qb">
+<div class="t" style="font-weight:600;margin-bottom:4px">Fig. 3 · one real block of 64 weights through blockwise quantisation</div>
 <div class="an-top"><div class="seg" id="qbM" role="group" aria-label="Data type"><button data-m="int4" aria-pressed="false">Int4</button><button data-m="fp4_e2m1" aria-pressed="false">FP4 (E2M1)</button><button class="on" data-m="nf4" aria-pressed="true">NF4</button></div>
 <label class="small">weights <select id="qbT"></select></label></div>
 <div id="qbSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="qbBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="qbPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="qbFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="qbScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="qbSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="qbStep"></div><p id="qbCap"></p></div>
 <div class="an-cnt" id="qbCnt"></div>
-<p class="small mute" style="margin:6px 0 0">64 consecutive weights of a real LLaMA-7B matrix (huggyllama/llama-7b, FP16), quantised exactly as bitsandbytes does it: absmax per block of 64, round to the nearest code value. Codes: NF4 from Appendix E, FP4 as the bitsandbytes kernel dequantises it, Int4 as its 15 symmetric levels. It moves only when you press play or step. The {{quantiser tab|tab:t-quant}} does this for any block size, tensor and type.</p>
+<p class="small mute" style="margin:6px 0 0">64 consecutive weights of a real LLaMA-7B matrix (huggyllama/llama-7b, FP16), quantised exactly as bitsandbytes does it: absmax per block of 64, round to the nearest code value. Codes: NF4 from Appendix E, FP4 as the bitsandbytes kernel dequantises it, Int4 as its 15 symmetric levels. It plays once in view and stops for good when you take a control; the steps are on the left. The {{quantiser tab|tab:t-quant}} does this for any block size, tensor and type.</p>
 </div>
+</div><div class="s3L">
+<section id="s-block"><h3>One block of 64 weights, three 4-bit types</h3>
+<p><b>Blockwise k-bit quantisation</b> ({{§2, Eq. 1 and 2|ax:S2.E1}}) is the standard absmax recipe, taught on {{Quantisation and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}: each block of <i>B</i> values is rescaled by its absolute maximum, <b>X</b><sup>Int8</sup> = round(127 / absmax(<b>X</b>) · <b>X</b>), and the scale <i>c</i> is stored, so one outlier wastes the bins of its own block only ({{§2|ax:S2}}). QLoRA uses it with B = 64 for the weights. The animation runs one real block of 64 LLaMA-7B weights through that recipe with three 4-bit types; the dots are the weights, the ticks are the 16 values the type can store, drawn to scale.</p>
+<ol class="sx" id="sx-qb">
+<li><b>64 weights, as stored in FP16.</b> One block of 64 consecutive weights of the chosen LLaMA-7B matrix (the weights menu on the figure). They are small numbers, typically a few hundredths, and roughly bell-shaped around zero.</li>
+<li><b>Find the block's absolute maximum.</b> The largest magnitude in the block (highlighted) becomes the block constant <i>c</i>. Every block of 64 gets its own, so one outlier only affects its own block (§2).</li>
+<li><b>Divide by it: the block now spans [−1, 1].</b> Dividing by absmax maps the largest weight to exactly ±1 and everything else inside. The picture does not move: only the axis is relabelled.</li>
+<li><b>The 16 values the type can store.</b> NF4's values are normal quantiles: dense near zero, where most weights are, sparse in the tails; one is exactly 0 and the type is asymmetric (8 positive, 7 negative). Int4 spaces its 15 values evenly (−7 to 7, divided by 7): the same resolution in the tails as near zero. FP4 (E2M1) as bitsandbytes implements it is ±{0, 0.0052, 1/6, 1/4, 1/3, 1/2, 2/3, 1}: its exponent spends resolution on tiny values and leaves wide gaps around ±0.1. The type buttons on the figure switch between them.</li>
+<li><b>Round each weight to the nearest value.</b> Each weight snaps to its nearest code value and is stored as a 4-bit index. The orange line behind each dot is its rounding error; the counters give the block's error for each type.</li>
+<li><b>Store 4 bits each, plus the constant.</b> 64 × 4 = 256 bits of codes plus one 32-bit constant: 4.5 bits per weight (4.127 with double quantisation). To use the weight, multiply the code value by <i>c</i> and compute in BF16 (Eq. 5).</li>
+</ol>
 </section>
+</div></div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-nf4"></div></div><div class="s3L">
 <section id="s-nf4"><h2>4-bit NormalFloat (NF4)</h2>
 [[S3.SS0.SSS0.Px1|§3, Eq. 4, Appendix E and F]]
 <p><b>Quantile quantisation</b> puts the bin edges at the quantiles of the data, so every bin receives an equal number of values: information-theoretically optimal, but estimating quantiles is expensive, and fast approximations (SRAM quantiles) err most on outliers, which are often the most important values ({{§3|ax:S3.SS0.SSS0.Px1}}). NF4's way round it: pretrained weights are roughly zero-centred normal with some standard deviation σ ({{Appendix F|ax:A6}}), so once each block is scaled into [−1, 1] every tensor has the <i>same</i> quantiles, and they can be computed once, exactly, from N(0, 1) ({{§3|ax:S3.SS0.SSS0.Px1}}). The recipe: (1) estimate the 2<sup><i>k</i></sup> + 1 quantiles of N(0, 1); (2) normalise them into [−1, 1]; (3) normalise each input block into [−1, 1] by absmax. A symmetric construction has no exact zero, which matters for padding and other zeros, so NF4 is <b>asymmetric</b>: quantiles of two ranges, 2<sup><i>k</i>−1</sup> for the negative half and 2<sup><i>k</i>−1</sup> + 1 for the positive half, merged, with the duplicate zero removed. The result has an equal expected number of values in each bin; its 16 values are printed in {{Appendix E|ax:A5}}.</p>
@@ -65,35 +97,70 @@
 <div id="occSvg"></div>
 <p class="small mute">Shares and entropies from fetch_weights.py over every block of 64 of the whole matrix. The dashed line is 1/16.</p>
 </div></div>
+<p class="sxh">Fig. 4, NF4's levels against real weights</p>
+<p>The same 16 blocks of 64 as Fig. 2 (layer 15's value projection, row 37), one block per row of dots.</p>
+<ol class="sx" id="sx-nf4">
+<li><b>1,024 real weights, 16 blocks.</b> Each dot is one weight at its value; each row is one block of 64. The blocks differ in spread: their largest magnitudes run from <span class="nf4n" data-k="amlo">0.0364</span> to <span class="nf4n" data-k="amhi">0.0613</span>.</li>
+<li><b>Divide each block by its own absmax.</b> Every row now spans [−1, 1], and in every row exactly one weight (orange) lands on ±1: 16 of 1,024, 1.6%. That is the catch in "equal expected number in each bin".</li>
+<li><b>The distribution NF4 assumes, against the real one.</b> The bars at the back pile up all 1,024 normalised weights; the line is the normal density NF4 is built from, scaled so that ±1 sits at ±<span class="nf4n" data-k="z">1.848</span> standard deviations. The real blocks are narrower: their standard deviation is <span class="nf4n" data-k="sd">0.37</span> against the curve's <span class="nf4n" data-k="sdn">0.54</span>, because dividing by a block's own maximum is not dividing by a fixed multiple of σ (Yoshida's point, in the question above).</li>
+<li><b>Int4: 15 evenly spaced levels.</b> The glass slats are where a 4-bit integer type can put a weight: as many levels in the sparse tails as near zero, where most weights are.</li>
+<li><b>NF4: 16 levels at the normal's quantiles.</b> The slats crowd towards zero, and the stripes under the curve between neighbouring bin edges each hold about 1/16 of the assumed normal (<span class="nf4n" data-k="armin">5.6%</span> to <span class="nf4n" data-k="armax">7.1%</span>; exactly equal is impossible with an exact zero and 8 levels on one side, 7 on the other).</li>
+<li><b>Round each weight to its nearest level.</b> The dots snap to the NF4 slats and the bars at the front count how many land on each, against a fair share of 64 of 1,024: <span class="nf4n" data-k="cmin">14</span> on the emptiest level and <span class="nf4n" data-k="cmax">106</span> on the fullest. The narrower real distribution crowds the middle levels and leaves the outer ones thin, yet NF4 still rounds best: the error of these 16 blocks is <span class="nf4n" data-k="err">0.91%</span> of their squared size with NF4 against <span class="nf4n" data-k="erri">1.21%</span> with Int4.</li>
+</ol>
 <p><b>Are LLaMA's weights normal?</b> Appendix F tests it: Shapiro-Wilk on the weights of each hidden unit of LLaMA 7B finds 7.5% of neurons non-normal at the 5% level, "about 2.5% more than the expected false-positive rate" ({{Appendix F|ax:A6}}). Our rerun agrees for the middle of the network and not for its first and last layers.</p>
 <details class="mist"><summary>The Shapiro-Wilk rerun on whole LLaMA-7B matrices</summary><div class="b"><p>We reran the test on whole matrices (each output unit's 4,096 or 11,008 incoming weights): in the middle of the network it lands close to the paper (6.5% of the rows of layer 15's value projection, 5.9% of its MLP up projection), but the first layer's query projection rejects normality for 93% of its rows and the last layer's down projection for 76%; both are heavy-tailed (excess kurtosis 9.3 and 7.1). "Weights are normal" holds for the bulk of the network, not its ends ({{whole-matrix results|tab:t-quant:qz-whole}}).</p></div></details>
 </section>
+</div></div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-dq"></div></div><div class="s3L">
 <section id="s-dq"><h2>Double quantisation</h2>
 [[S3.SS0.SSS0.Px2|§3]]
 <p>Small blocks are needed for precise 4-bit quantisation, but each block's FP32 constant costs 32/64 = <b>0.5 bits per parameter</b> at block size 64. Double quantisation (DQ) quantises the constants themselves: the FP32 constants <i>c</i><sub>2</sub> of the first quantisation become inputs to a second one with 8-bit floats and blocks of 256, giving 8-bit constants and one FP32 second-level constant <i>c</i><sub>1</sub> per 256 blocks. The constants are all positive, so their mean is subtracted first to use a symmetric code. The cost drops to 8/64 + 32/(64 · 256) = <b>0.127 bits</b>, saving 0.373 bits per parameter, "approximately 3 GB for a 65B model" ({{§1|ax:S1}}, {{§3|ax:S3.SS0.SSS0.Px2}}). No degradation is observed for the 8-bit second step, in line with Dettmers and Zettlemoyer ({{§3|ax:S3.SS0.SSS0.Px2}}).</p>
+<p class="sxh">Fig. 5, double quantisation step by step</p>
+<p>The first 512 block constants of layer 15's value projection (one per block of 64 weights, its first eight rows), double-quantised as the released code does it.</p>
+<ol class="sx" id="sx-dq">
+<li><b>512 FP32 constants.</b> One per block of 64 weights, all positive, here <span class="dqn" data-k="lo">0.0298</span> to <span class="dqn" data-k="hi">0.0800</span>. At 32 bits each they cost 32/64 = 0.5 bits per weight: an eighth on top of the 4-bit codes.</li>
+<li><b>Subtract their mean.</b> The mean, <span class="dqn" data-k="off">0.0466</span>, is stored once and taken off every constant, so the values sit either side of zero and a symmetric 8-bit code fits them.</li>
+<li><b>Blocks of 256, each with one FP32 constant c<sub>1</sub>.</b> The 512 centred constants form two blocks; each block's largest magnitude becomes its second-level constant, <span class="dqn" data-k="c1a">0.0266</span> and <span class="dqn" data-k="c1b">0.0334</span>.</li>
+<li><b>Round each to 8 bits.</b> Divided by its block's c<sub>1</sub>, each constant is rounded to the nearest value of the 8-bit code. The red tips are the rounding error drawn 25 times larger: a mean of <span class="dqn" data-k="err">0.18%</span> of each constant, at most <span class="dqn" data-k="emax">0.62%</span>.</li>
+<li><b>The bill.</b> 8 bits per 64 weights plus 32 bits per 64 × 256: 0.127 bits per weight instead of 0.5, a saving of 0.373 bits, or 3.04 GB over LLaMA 65B's 65,285,660,672 parameters.</li>
+</ol>
+<details class="mist"><summary>Correction: the code's "8-bit float" is not FP8 (same memory, more precise)</summary><div class="b"><p>§3 says the constants are quantised to 8-bit floats. The released bitsandbytes quantises them with its default 8-bit <i>dynamic</i> map (the dynamic tree quantisation of the 8-bit optimizers paper), as far back as version 0.39.1, a month after the paper; the FP8 call is commented out ({{0.39.1 functional.py|https://github.com/bitsandbytes-foundation/bitsandbytes/blob/0.39.1/bitsandbytes/functional.py}}). The memory arithmetic is the same (8 bits either way), and on real LLaMA weights the dynamic map is the more precise of the two: mean relative error of the rebuilt constants 0.17% against 0.34% for an E4M3 grid, and both leave the weights' quantisation error within 1% of plain NF4's ({{measured|tab:t-quant:qz-whole}}).</p></div></details>
+</section>
+</div></div>
 <div class="card" id="dqc"><div class="ctl"><label>block size <b id="dqBv">64</b><input type="range" id="dqB" min="0" max="6" step="1" value="2"></label><label>second-level block <b id="dq2v">256</b><input type="range" id="dq2" min="0" max="4" step="1" value="2"></label><label>model <select id="dqM"><option>7B</option><option>13B</option><option>33B</option><option selected>65B</option></select></label></div>
 <div id="dqOut" class="res st"></div>
 <div id="dqSvg"></div>
 <p class="small mute">Defaults reproduce §3's 0.5, 0.127 and 0.373 bits and §1's "about 3 GB" (3.04 GB over all 65,285,660,672 parameters) independently, from the formula. The error line is measured: the first 512 block constants of the selected real LLaMA-7B matrix, double-quantised as the released code does it.</p></div>
-<details class="mist"><summary>Correction: the code's "8-bit float" is not FP8 (same memory, more precise)</summary><div class="b"><p>§3 says the constants are quantised to 8-bit floats. The released bitsandbytes quantises them with its default 8-bit <i>dynamic</i> map (the dynamic tree quantisation of the 8-bit optimizers paper), as far back as version 0.39.1, a month after the paper; the FP8 call is commented out ({{0.39.1 functional.py|https://github.com/bitsandbytes-foundation/bitsandbytes/blob/0.39.1/bitsandbytes/functional.py}}). The memory arithmetic is the same (8 bits either way), and on real LLaMA weights the dynamic map is the more precise of the two: mean relative error of the rebuilt constants 0.17% against 0.34% for an E4M3 grid, and both leave the weights' quantisation error within 1% of plain NF4's ({{measured|tab:t-quant:qz-whole}}).</p></div></details>
-</section>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-pg"></div></div><div class="s3L">
 <section id="s-page"><h2>Paged optimizers</h2>
 [[S3.SS0.SSS0.Px3|§3, §4, Appendix G]]
-<p>Paged optimizers allocate the optimizer states in NVIDIA unified memory, which transfers pages between CPU and GPU automatically, "like regular memory paging between CPU RAM and the disk": when the GPU runs out of memory the states are evicted to CPU RAM, and they are paged back when the optimizer update needs them ({{§3|ax:S3.SS0.SSS0.Px3}}). The spikes they absorb come from gradient checkpointing on mini-batches with long sequences ({{§1|ax:S1}}). The paper calls them critical for 33B and 65B on one 24 or 48 GB GPU but gives <b>no hard measurements</b>, because paging only happens on rare long mini-batches; it reports only that at batch size 16 on a 48 GB GPU, 65B trains as fast with paged as with regular optimizers, and leaves the slowdown to future work ({{§4|ax:S4}}). Appendix G adds that 33B "does not quite fit" a 24 GB GPU without them ({{Appendix G|ax:A7}}). The animation is that situation: the static memory is the paper's own Figure 6 labels, and the sequence of batches and their activation memory are illustrative.</p>
-<div class="card" id="pg">
-<div class="an-top"><div class="seg" id="pgM" role="group" aria-label="Optimizer"><button data-m="off" aria-pressed="false">Regular optimizer</button><button class="on" data-m="on" aria-pressed="true">Paged optimizer</button></div>
-<label class="small">setup <select id="pgS"><option value="65B" selected>LLaMA 65B on a 48 GB GPU</option><option value="33B">LLaMA 33B on a 24 GB GPU</option></select></label></div>
-<div id="pgSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="pgBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="pgPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="pgFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="pgScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="pgSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="pgStep"></div><p id="pgCap"></p></div>
-<div class="an-cnt" id="pgCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Static memory is Figure 6's printed labels (model, adapters, optimizer; 65B: 37,074, 1,440 and 5,760 MB; 33B: 19,302, 877.5 and 3,510 MB), with the weight gradients equal to the adapters (BF16; Figure 6 draws that segment the same height) ({{Appendix G, Figure 6|ax:A7.F6}}). Activations are an <b>illustrative</b> formula, not the paper's: gradient checkpointing keeps each layer's input (2 bytes × width × layers per token) plus one layer's attention probabilities while it is recomputed (3 × heads × tokens² × 2 bytes). The paper gives no per-length figures and paging time is not modelled. On 33B the static parts alone exceed 24 GB, which is Appendix G's "does not quite fit".</p>
-</div>
+<p>Paged optimizers allocate the optimizer states in NVIDIA unified memory, which transfers pages between CPU and GPU automatically, "like regular memory paging between CPU RAM and the disk": when the GPU runs out of memory the states are evicted to CPU RAM, and they are paged back when the optimizer update needs them ({{§3|ax:S3.SS0.SSS0.Px3}}). The spikes they absorb come from gradient checkpointing on mini-batches with long sequences ({{§1|ax:S1}}). The paper calls them critical for 33B and 65B on one 24 or 48 GB GPU but gives <b>no hard measurements</b>, because paging only happens on rare long mini-batches; it reports only that at batch size 16 on a 48 GB GPU, 65B trains as fast with paged as with regular optimizers, and leaves the slowdown to future work ({{§4|ax:S4}}). Appendix G adds that 33B "does not quite fit" a 24 GB GPU without them ({{Appendix G|ax:A7}}). Fig. 6 plays that situation on LLaMA 65B: the static memory is the paper's own Figure 6 labels, and the sequence of mini-batches and their activation memory are illustrative.</p>
+<div class="s3chips" id="pgM" role="group" aria-label="Optimizer"><button data-m="on" class="on" aria-pressed="true">Paged optimizer</button><button data-m="off" aria-pressed="false">Regular optimizer</button></div>
+<p class="sxh">Fig. 6, step by step</p>
+<ol class="sx" id="sx-pg-on">
+<li><b>LLaMA 65B, three ways, to scale.</b> Full 16-bit finetuning needs <span class="pgn" data-k="full">783.4 GB</span> before activations (BF16 weights and gradients, FP32 Adam moments), 16-bit LoRA <span class="pgn" data-k="lora">140.2 GB</span>, QLoRA <span class="pgn" data-k="q">44.1 GB</span>, against the glass plane of one 48 GB GPU. The same accounting as the bars in the Problem section.</li>
+<li><b>The paper's Figure 6: QLoRA at four sizes.</b> Its printed totals are 6.9, 11.3, 24.7 and 45.0 GB for 7B, 13B, 33B and 65B; the blocks are its labels for the frozen 4-bit model, the adapters, their gradients and the optimizer state. 33B pokes through the 24 GB plane: Appendix G's "does not quite fit".</li>
+<li><b>65B on one 48 GB GPU.</b> The static parts take <span class="pgn" data-k="static">45,714 MB</span> (model 37,074, adapters 1,440, their gradients 1,440, Adam 5,760), which leaves <span class="pgn" data-k="head">2,286 MB</span> for activations. CPU RAM sits beside the card, empty.</li>
+<li><b>Short mini-batches fit.</b> Four mini-batches of 512, 384, 1,024 and 512 tokens: the activations rise during each backward pass and are freed after it; the highest peak is <span class="pgn" data-k="p3">47,459 MB</span>.</li>
+<li><b>A 2,048-token mini-batch: the optimizer pages out.</b> The peak would be <span class="pgn" data-k="p4">50,009 MB</span>. Unified memory evicts <span class="pgn" data-k="e4">2,009 MB</span> of Adam's pages to CPU RAM for the backward pass and brings them back for the update step.</li>
+<li><b>640 tokens fit; 3,072 page out most of Adam.</b> The 3,072-token peak would be <span class="pgn" data-k="p6">53,364 MB</span>: <span class="pgn" data-k="e6">5,364 MB</span> of the 5,760 MB of optimizer state goes to the CPU and back.</li>
+<li><b>The run finishes; the cost is traffic.</b> The last mini-batch (512 tokens) fits. Over the eight, <span class="pgn" data-k="tr">14,747 MB</span> crossed between GPU and CPU. The paper never measured what that costs in time.</li>
+</ol>
+<ol class="sx" id="sx-pg-off" hidden>
+<li><b>LLaMA 65B, three ways, to scale.</b> As in the paged run: full 16-bit finetuning, 16-bit LoRA and QLoRA before activations, against one 48 GB GPU.</li>
+<li><b>The paper's Figure 6: QLoRA at four sizes.</b> The frozen 4-bit model, adapters, their gradients and the optimizer state, 6.9 to 45.0 GB.</li>
+<li><b>65B on one 48 GB GPU.</b> The same 45,714 MB of static memory and 2,286 MB of headroom, but the optimizer state is ordinary GPU memory: it cannot move.</li>
+<li><b>Short mini-batches fit.</b> The same four mini-batches (512 to 1,024 tokens) stay under 48 GB.</li>
+<li><b>A 2,048-token mini-batch: out of memory.</b> The peak would be 50,009 MB and nothing can leave the card, so the run stops. One long mini-batch is enough to end a single-GPU run.</li>
+</ol>
+<p class="small mute">Static memory is Figure 6's printed labels (model, adapters, optimizer; 65B: 37,074, 1,440 and 5,760 MB; 33B: 19,302, 877.5 and 3,510 MB), with the weight gradients equal to the adapters (BF16; Figure 6 draws that segment the same height) ({{Appendix G, Figure 6|ax:A7.F6}}). Activations are an <b>illustrative</b> formula, not the paper's: gradient checkpointing keeps each layer's input (2 bytes × width × layers per token) plus one layer's attention probabilities while it is recomputed (3 × heads × tokens² × 2 bytes). The paper gives no per-length figures and paging time is not modelled. On 33B the static parts alone exceed 24 GB, which is Appendix G's "does not quite fit".</p>
 </section>
+</div></div>
+
 
 <section id="s-lora"><h2>LoRA on every layer</h2>
 [[S2.SS0.SSS0.Px3|§2, §4, Figure 2, Appendix A]]
@@ -110,16 +177,19 @@
 <p class="small mute">Later work agrees on the direction, not the order: Thinking Machines' "LoRA Without Regret" (2025) found MLP-only about as good as MLP plus attention, where QLoRA found MLP plus attention ahead of MLP, ahead of attention ({{LoRA Without Regret|https://thinkingmachines.ai/blog/lora/}}, beyond the paper).</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Does 4-bit QLoRA match 16-bit?</h2>
 [[S4|§4, Tables 2 to 4, Figure 3]]
 <p><b>Setup.</b> Three architectures: GLUE with RoBERTa-large (encoder), Super-NaturalInstructions with T5 80M to 11B (encoder-decoder), and 5-shot MMLU after finetuning LLaMA 7B to 65B on FLAN v2 and Alpaca (decoder). QLoRA is compared with 16-bit adapter finetuning and, up to 3B, with full finetuning. Separately, NF4 is compared with other 4-bit types the way Dettmers and Zettlemoyer did it: zero-shot accuracy and perplexity right after quantisation, with no finetuning, for OPT, LLaMA, BLOOM and Pythia from 125M to 13B ({{§4|ax:S4}}, the text says 65B in one place, {{§4|ax:S4.SS0.SSS0.Px3}}).</p>
 <p><b>NF4 beats FP4 and Int4 as a storage type.</b> Mean Pile Common Crawl perplexity across those models: Int4 34.34, FP4 (E2M1) 31.07, FP4 (E3M0) 29.48, NF4 + DQ 27.41 ({{Table 2|ax:S4.T2}}). On LLaMA, mean zero-shot accuracy over Winogrande, HellaSwag, PiQA, Arc-Easy and Arc-Challenge is higher for NF4 than FP4 at every size; DQ only adds minor gains but lets the footprint be tuned to fit 33B and 65B into 24 and 48 GB ({{Figure 3|ax:S4.F3}}; an image without printed values, so it is not redrawn here).</p>
-<div class="card"><div id="t2Svg"></div><p class="small mute" id="t2Note"></p></div>
 <p><b>Adapters recover what quantisation loses.</b> On GLUE and Super-NaturalInstructions, 16-bit, 8-bit and 4-bit adapter finetuning replicate the 16-bit fully finetuned baseline, which "suggests that the performance lost due to the imprecise quantization can be fully recovered through adapter finetuning after quantization" ({{Table 3|ax:S4.T3}}). Full finetuning at and beyond 11B needs more than one server, so for LLaMA 7B to 65B the comparison is 4-bit QLoRA against <i>16-bit LoRA</i>: NF4 with DQ recovers 16-bit LoRA's MMLU (53.1 against 53.0 on average), while FP4 lags by about one point (52.2) ({{Table 4|ax:S4.T4}}).</p>
-<div class="card"><div class="ctl"><label>table <select id="rsT"><option value="t4" selected>Table 4: MMLU, LLaMA 7B to 65B</option><option value="t3">Table 3: GLUE and Super-NaturalInstructions</option></select></label></div><div id="rsSvg"></div><p class="small mute" id="rsNote"></p></div>
 <p>The section's further conclusion, in line with the k-bit inference work: for a fixed finetuning and inference budget it pays to increase the parameters while decreasing their precision. Since no degradation against full finetuning was seen with 4 bits, where the precision trade-off lies for QLoRA is left open ({{§4 Summary|ax:S4.SS0.SSS0.Px5}}).</p>
 <details class="mist"><summary>The same questions on small open models, measured for this page</summary><div class="b" id="toyBox"><div id="toyTxt"></div></div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Table 2 and our rerun: perplexity after 4-bit quantisation (lower is better)</div><div id="t2Svg"></div><p class="small mute" id="t2Note"></p></div>
+<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Tables 3 and 4: every adapter variant against the 16-bit reference</div><div class="ctl"><label>table <select id="rsT"><option value="t4" selected>Table 4: MMLU, LLaMA 7B to 65B</option><option value="t3">Table 3: GLUE and Super-NaturalInstructions</option></select></label></div><div id="rsSvg"></div><p class="small mute" id="rsNote"></p></div></div></div></div>
+
 
 <section id="s-guan"><h2>Guanaco: instruction tuning at 7B to 65B</h2>
 [[S5.SS1|§5.1, §5.3, Appendix B]]

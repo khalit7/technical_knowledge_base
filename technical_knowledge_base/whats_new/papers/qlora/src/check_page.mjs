@@ -19,14 +19,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
-  for (const id of ['qb', 'pg']) {
-    await p.$eval('#tabs button[data-t=t-read]', b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
+  // autoplay (2026-11-06, replacing the 2026-10-25 never-autoplay rule): the 2D animation plays by itself once scrolled into view, and replays
+  // after a mode switch; the 3D stages (Figs. 2, 4, 5, 6, including the paged-optimizer stage that replaced the 2D #pg) are checked by check_stages.mjs
+  for (const id of ['qb']) {
+    await p.$eval('#tabs button[data-t=t-read]', b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
     await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+    if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     const ms = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
-    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-      if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`) }
+    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()); await new Promise(r => setTimeout(r, 300));
+      if (!(await p.$eval('#' + id, e => e.hasAttribute('data-playing')))) problems.push(`${scheme} ${width}: ${id} did not replay on a mode switch`) }
   }
   const audit = async (where) => {
     const r = await p.evaluate(() => {
@@ -92,8 +93,8 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       }
       await p.$eval('#ev', e => e.scrollIntoView()); const el = await p.$('#ev'); await el.screenshot({ path: `${shots}/x-ev-${scheme}-${width}.png` });
     }
-    // step the animations through every step and screenshot the middle
-    for (const id of ['qb', 'pg']) {
+    // step the animation through every step and screenshot the middle
+    for (const id of ['qb']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

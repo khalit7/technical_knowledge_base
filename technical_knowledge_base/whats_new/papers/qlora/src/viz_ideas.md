@@ -36,3 +36,13 @@ Rejected:
 | P-qlora.22 | Category-level win rates of Guanaco against ChatGPT | 80 prompts over 9 categories is 8 to 10 prompts each: the intervals would swamp the differences; the prompt filter (drop coding and math) is enough |
 
 What the methodology lacked for this page: a rule for evaluation-heavy papers whose raw judgments are released. Rerunning the authors' own aggregation from the raw judgments, and adding the resampling interval they did not report, was the strongest visual on the page and should be the default for any paper with released ratings, generations or traces.
+
+## 2026-11-13 layout rollout (3D stages, renderer v2)
+
+| # | Idea | Where | Status | Notes |
+|---|---|---|---|---|
+| P-qlora.23 | **Fig. 2, Equation 5 in 3D**: 1,024 real LLaMA-7B weights stored as NF4 codes (terraces), constants rebuilt, a BF16 copy per matmul, BF16 adapters, gradients to the adapters only, the copy dropped | Reading, Idea | built | `31_js_sc_eq5.js`; adapters and X are shapes only (no LLaMA adapter on the page) |
+| P-qlora.24 | **Fig. 4, NF4 levels as glass slats** across 16 real blocks, against the histogram and the normal NF4 assumes, Int4 slats for contrast, counts per level | Reading, NF4 | built | `32_js_sc_nf4.js`; shows the real normalised blocks are narrower than the assumed normal (sd 0.37 against 0.54) |
+| P-qlora.25 | **Fig. 5, double quantisation** of 512 real constants on two 16 x 16 glass plates | Reading, DQ | built | `33_js_sc_dq.js`; rounding error drawn 100 times larger |
+| P-qlora.26 | **Fig. 6, memory to scale and paging** (65B three ways, the paper's Figure 6, then GPU and CPU RAM with Adam's pages moving) | Reading, Paged optimizers | built, replaces the 2D `pg` animation | `34_js_sc_pg.js`; eight illustrative mini-batches in four explained stretches |
+| P-qlora.27 | Fig. 3 (one block, three types) as a 3D stage | Reading | rejected | a number line with ticks reads best flat; kept 2D with a step list |

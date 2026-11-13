@@ -55,3 +55,51 @@ Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui` and `build.s
 - `mk_coverage.py`: the reading-time item now looks for the new header line; 47 of 47.
 
 Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 305 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 388 actions, 0 problems; `check_engine.mjs` PASS; `mk_coverage.py` 47 of 47.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership (OWNERS.md): this page owns the paper (its method, numbers, evidence and the two live tabs). LoRA as practised and QLoRA's memory calculator live on the PEFT page (its Fig. 2 draws LoRA on a real matrix and Fig. 5 the training state in 3D); quantisation formats and scale granularity on Quantisation and precision (Fig. 2 there shares scales on real rows). Nothing here rebuilds those: the four stages show what only QLoRA adds, on this page's own LLaMA-7B sample and Figure 6 labels.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| The paper | core sentence, You need, New terms | split | the paper's Figure 1 (image, CC BY 4.0) | no |
+| The paper | Problem | full width | memory bars inside the predict reveal (2D) | no |
+| The paper | Idea, Eq. 5 | split | **3D** `stg-eq5` (Fig. 2) | yes, 7 |
+| The paper | Idea, one block of 64 (`s-block`) | split | Fig. 3, 2D `makeAnim`, three types sharing one list | yes, 6 |
+| The paper | NF4 (with the Eq. 4 details and the occupancy predict question on the left) | split | **3D** `stg-nf4` (Fig. 4) | yes, 6 |
+| The paper | Double quantisation | split, then the calculator full width | **3D** `stg-dq` (Fig. 5); DQ calculator (2D widget) | yes, 5 |
+| The paper | Paged optimizers | split | **3D** `stg-pg` (Fig. 6), paged and regular modes | yes, 7 and 5 |
+| The paper | LoRA on every layer | full width | Figures 2 and 4 inside the predict reveal (2D) | no |
+| The paper | Does 4-bit match 16-bit? | split | Table 2 and Tables 3 to 4 cards (2D charts) | no |
+| The paper | Guanaco, Lemons, Limits, Believe?, Use it, Why it matters, Connections | full width | none | no |
+| The paper | How the chatbots were judged | full width | Elo intervals inside the predict reveal (2D) | no |
+| Quantise real weights | intro beside the quantiser; Table 2 and Table 3 at small scale | split; whole-matrix table and result tables full width | 2D tool and charts | no |
+| Rerun the tournament | intro beside the tournament; one ordering; Table 6 rebuilt | split; tables and agreement full width | 2D tool and charts | no |
+| The paper's tables, rebuilt; Further reading | | full width, unchanged | tables | no |
+
+**Fig. 2, Equation 5** (`31_js_sc_eq5.js`): the first 1,024 weights of the LLaMA-7B sample of layer 15's value projection (row 37, `QD.w[1]`), quantised to NF4 in blocks of 64 by the page's engine (`QE.quantise`), drawn as 16 rows of 64 bars standing on NF4's 16 terraces; the 16 block constants rebuilt with `QE.dq`; a BF16 copy (code value times rebuilt constant) above the stored codes; X, Y and the adapters L1, L2 as shapes only (no LLaMA adapter exists on the page); flows for the constants, the forward pass, the adapter path and the backward pass (gradients to the adapters only). Exposed as `window.QL_EQ5`.
+
+**Fig. 4, NF4's levels** (`32_js_sc_nf4.js`): the same 1,024 weights as dots, raw then divided by their block's absmax (one dot per row lands on ±1: 16 of 1,024); the histogram of the normalised weights at the back against the N(0, 1) NF4 is built from (±1 at the released offset's quantile, 1.848 sd); Int4 and then NF4 levels as glass slats; NF4's bins as equal-area stripes (5.6% to 7.1% each); the dots snapping to the nearest level with a count per level against a fair share of 64 (14 to 106). The stage shows something the old page only said in a reveal: the real normalised blocks are narrower than the assumed normal (sd 0.37 against 0.54). `window.QL_NF4`.
+
+**Fig. 5, double quantisation** (`33_js_sc_dq.js`): the 512 shipped FP32 constants of the same matrix on two 16 x 16 glass plates (blocks of 256), the mean subtracted, one c1 per plate, 8-bit rounding with `QE.dq` (error drawn 25 times larger), then the bill from `QE.constBits` and the recounted 65B parameters. `window.QL_DQ`.
+
+**Fig. 6, memory to scale and paging** (`34_js_sc_pg.js`, replaces the 2D `pg` animation): LLaMA 65B three ways (the Problem section's accounting from `PAPER.rc.llama`), the paper's Figure 6 at four sizes against 24 and 48 GB planes, then 65B on one 48 GB GPU with CPU RAM beside it; the eight illustrative mini-batches play in four explained stretches (the long-replay rule), Adam's pages moving to the CPU and back; a regular-optimizer mode stops with out of memory at 2,048 tokens. Activations remain the illustrative formula stated in the caption. The old setup menu (33B on 24 GB) became a sentence in step 2 and the caption. `window.QL_PG`.
+
+**Kept 2D, and why**: Fig. 3 (one block on a number line with ticks reads best flat; given a step list and autoplay instead of the caption box), the Problem's memory bars and Figure 2/4, Table 2 to 4 and Elo charts (numbers on axes), the DQ calculator, the Eq. 4 offset slider and the two live tabs (tools and charts), the tables tab.
+
+**Motion and lists**: `11_js_ui.js` takes `makeAnim` from the LoRA page (the 2026-11-06 rules: plays once half in view, pauses off screen, stops for good on a reader control or at its last step, never moves under reduced motion, marks its step list); the per-step caption box of Fig. 3 is gone, its text is `#sx-qb`. `check_page.mjs` now asserts that `qb` plays when scrolled into view and replays on a type switch (inverted from never-autoplay); `check_stages.mjs` (new, from the LoRA page's) checks every stage and animation at 1400 and 920 light and 390 dark, reduced motion, the splits, and every number the step lists state against `QL_*` with independent recomputes from `QD`.
+
+**Parts**: `02_split.html`, `25_js_s3.js`, `05z_errbox.js.html` are the skill templates unchanged; `99_js_tabs.js` the template (key `ql-tab`) plus opening the closed block that holds a `data-to` target. `build.sh` finds the repository root by path instead of asking git. Two CSS rules added at the end of `01_css.html` (an equation wraps in the left column; a wrapping segmented control keeps round buttons), as on the LoRA page.
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 24.7 min (5,678 words) | 31.6 min (7,278) |
+| The paper, closed | 7.5 min | unchanged |
+| Quantise real weights; Rerun the tournament | 4.1; 4.6 min | unchanged |
+| Tables (core plus closed); Further reading | 1.3 plus 7.9; 2.2 min | unchanged |
+| Visuals counted in Reading (audit) | 6 | 9 |
+
+The growth is the step lists: four stages and Fig. 3 add about 1,600 words (7,278 against 5,678), of which Fig. 3's six captions and the paging animation's eight were drawn by script before and invisible to the audit (read by every reader who played them). The rest is new content the stages carry with real numbers (the narrower real distribution, the 8-bit error of the constants, the memory three ways). Nothing was cut and the paper's argument keeps its order. Header: "Reading: 32 min, plus 8 in closed details." (`reading.json`).
+
+**Ledger**: 284 units (core 223, depth 54, fat 3, owned 3, volatile 1); 15 added for the step lists; keys re-pointed on units 75 (the paging sentence, reworded for Fig. 6) and 76 (the old setup menu, now the paged/regular chips). `ledger.py check`: problems 0.

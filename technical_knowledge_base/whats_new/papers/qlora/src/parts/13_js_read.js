@@ -35,13 +35,8 @@ const qbT=$('qbT');W8.forEach((t,i)=>{const o=document.createElement('option');o
 let QB=null;
 function qbBlock(){const t=W8[+qbT.value];return Array.from(t.w.slice(64*5,64*6))}
 function qbData(m){const x=qbBlock(),code=TYPES[m],r=QE.quantise(x,code,64),st=QE.stats(x,r,code);return {x,code,r,st,am:r.am[0]}}
-const qbSteps=m=>[
- {t:'64 weights, as stored in FP16',c:'One block of 64 consecutive weights from '+short(W8[+qbT.value].name)+' of LLaMA 7B. They are small numbers, typically a few hundredths, and roughly bell-shaped around zero.'},
- {t:'find the block\'s absolute maximum',c:'The largest magnitude in the block (highlighted) becomes the block constant <i>c</i>. Every block of 64 gets its own, so one outlier only affects its own block (§2).'},
- {t:'divide by it: the block now spans [−1, 1]',c:'Dividing by absmax maps the largest weight to exactly ±1 and everything else inside. The picture does not move: only the axis is relabelled.'},
- {t:'the 16 values '+TN[m]+' can store',c:m==='nf4'?'NF4\'s values are normal quantiles: dense near zero, where most weights are, sparse in the tails. One is exactly 0 and the type is asymmetric (8 positive, 7 negative).':m==='int4'?'Int4 spaces its 15 values evenly (−7 to 7, divided by 7): the same resolution in the tails, where few weights are, as near zero, where most are.':'FP4 (E2M1) as bitsandbytes implements it: ±{0, 0.0052, 1/6, 1/4, 1/3, 1/2, 2/3, 1}. Its exponent spends resolution on tiny values and leaves wide gaps around ±0.1.'},
- {t:'round each weight to the nearest value',c:'Each weight snaps to its nearest code value and is stored as a 4-bit index. The orange line behind each dot is its rounding error.'},
- {t:'store 4 bits each, plus the constant',c:'64 × 4 = 256 bits of codes plus one 32-bit constant: 4.5 bits per weight (4.127 with double quantisation). To use the weight, multiply the code value by <i>c</i> and compute in BF16 (Eq. 5). Compare the counters across the three types.'}];
+// the step texts are the list #sx-qb on the left (one list for all three types); the modes only carry the step count
+const qbSteps=()=>Array.from({length:6},()=>({t:''}));
 function drawQb(m,k,e,W){const d=qbData(m),H=210,pl=14,pr=14,ax=v=>pl+(W-pl-pr)*(v+1)/2,y0=150;
   let s='';const lab=k>=2;
   s+=ln2(pl,y0,W-pr,y0,'var(--mute)');
@@ -59,9 +54,9 @@ function cntQb(m,k){const d=qbData(m);const parts=[stat('absmax <i>c</i>',d.am.t
   if(k>=3)parts.push(stat('values available',d.code.length,TN[m]));
   if(k>=4){parts.push(stat('values used',d.st.used+' of '+d.code.length,'in this block'));parts.push(stat('relative squared error',(100*d.st.relmse).toFixed(2)+'%','Σ(q − w)² / Σw², this block'))}
   if(k>=5)parts.push(stat('bits per weight','4.5','4 + 32/64 (4.127 with DQ)'));return parts.join('')}
-const qbModes={int4:null,fp4_e2m1:null,nf4:null};Object.keys(qbModes).forEach(m=>{qbModes[m]=qbSteps(m)});
-QB=makeAnim({id:'qb',mode:'nf4',modes:qbModes,draw:(m,k,e,W)=>drawQb(m,k,e,W),counters:(m,k)=>cntQb(m,k),dur:2600});
-qbT.addEventListener('change',()=>{Object.keys(qbModes).forEach(m=>{const n=qbSteps(m);qbModes[m].forEach((S,i)=>{S.c=n[i].c})});if(QB){QB.st.lk=-1;QB.draw()}});
+const qbModes={int4:qbSteps(),fp4_e2m1:qbSteps(),nf4:qbSteps()};
+QB=makeAnim({id:'qb',mode:'nf4',modes:qbModes,lists:{int4:'sx-qb',fp4_e2m1:'sx-qb',nf4:'sx-qb'},draw:(m,k,e,W)=>drawQb(m,k,e,W),counters:(m,k)=>cntQb(m,k),dur:4200});
+qbT.addEventListener('change',()=>{if(QB)QB.draw()});
 
 // ---------- 3. NF4 builder: offset slider, Appendix E, Eq. 4 ----------
 function drawNf(){const host=$('nfSvg');fit(host,W=>{const off=+$('nfO').value,v=QE.nf4(off),E=QD.appE,eq=$('nfE').checked;
@@ -101,41 +96,7 @@ function drawDq(){const B1=B1s[+$('dqB').value],B2=B2s[+$('dq2').value],m=$('dqM
     host.innerHTML=svgW(W,H,s,'Error of double-quantised constants');})}
 ['dqB','dq2'].forEach(id=>$(id).addEventListener('input',drawDq));$('dqM').addEventListener('change',drawDq);qbT.addEventListener('change',()=>refit($('dqSvg')));drawDq();
 
-// ---------- 6. paged optimizers (animation) ----------
-// Static memory: Figure 6 labels (MB), weight gradients drawn equal to adapters. Activations: an illustrative formula.
-const F6=QD.fig.figure6,SHAPE={'65B':[8192,80,64],'33B':[6656,60,52]};let PGC={};
-function pgSet(m){const g=m==='65B'?48000:24000,[h,L,nh]=SHAPE[m];PGC={m,model:F6.model_MB[m],ad:F6.adapters_MB[m],opt:F6.optimizer_MB[m],budget:g,h,L,nh};PGC.wg=PGC.ad;PGC.static=PGC.model+PGC.ad+PGC.wg+PGC.opt}
-const act=T=>(2*PGC.h*PGC.L*T+6*PGC.nh*T*T)/1e6;
-const LENS=[512,384,1024,512,2048,640,3072,512];
-function pgSim(m){const out=[];let dead=false,traffic=0;LENS.forEach((T,i)=>{const a=act(T),peak=PGC.static+a,st={L:T,a,peak};
-  if(dead){st.dead=true;out.push(st);return}
-  if(m==='off'){if(peak>PGC.budget){st.oom=true;dead=true}}
-  else{const need=Math.max(0,peak-PGC.budget);st.evict=Math.min(PGC.opt,need);if(need>PGC.opt){st.oom=true;dead=true}traffic+=2*st.evict}
-  st.traffic=traffic;out.push(st)});return out}
-const pgCap=(m,k)=>{const s=pgSim(m)[k];if(s.dead)return 'The run already died on an earlier mini-batch: with a regular optimizer one long mini-batch is enough to end a single-GPU run.';
-  let c='Static memory '+fmt(PGC.static,0)+' MB (model, adapters, their gradients, Adam states) plus about '+fmt(s.a,0)+' MB of activations at the peak of the backward pass: '+fmt(s.peak,0)+' MB against '+fmt(PGC.budget,0)+'. ';
-  if(m==='off')c+=s.oom?'<b>Out of memory.</b> Nothing can move, so the run stops.':'It fits.';
-  else c+=s.oom?'<b>Out of memory</b> even after paging every optimizer page out.':s.evict>0?'Unified memory evicts '+fmt(s.evict,0)+' MB of optimizer pages to CPU RAM; after the backward pass the activations are freed and the pages come back for the update step.':'It fits; nothing moves.';
-  return c};
-const pgModes={off:LENS.map(()=>({t:'',c:''})),on:LENS.map(()=>({t:'',c:''}))};
-function pgCaps(){['off','on'].forEach(m=>pgModes[m].forEach((S,k)=>{S.t='mini-batch '+(k+1)+' of '+LENS.length+', '+fmt(LENS[k],0)+' tokens';S.c=pgCap(m,k)}))}
-pgSet('65B');pgCaps();
-function drawPg(m,k,e,W){const sim=pgSim(m),mx=Math.max(PGC.budget*1.12,...sim.map(s=>s.peak))*1.02,H=230,top=12,bot=190,ys=v=>bot-(bot-top)*v/mx;
-  const lw=Math.min(W<480?W*0.56:W*0.5,300),gx=lw+24,colw=Math.max(34,Math.min(70,(W-gx-36)/2));let s='';
-  const bw=lw/LENS.length;sim.forEach((st,i)=>{if(i>k)return;const v=st.dead?0:Math.min(st.peak,mx),c=st.dead?'var(--dim)':st.oom?'var(--bad)':st.evict>0?'var(--c5)':'var(--c3)';s+=rc(i*bw+2,ys(v),bw-4,bot-ys(v),c,{r:2,op:i===k?1:.6})});
-  const nk=bw<32;LENS.forEach((T,i)=>{s+=tx(i*bw+bw/2,bot+14,(T/1024).toFixed(T%1024?1:0)+(nk?'':'k'),{fs:11,a:'middle',c:'var(--mute)'})});
-  s+=ln2(0,ys(PGC.budget),lw,ys(PGC.budget),'var(--bad)',{da:'5 3',sw:1.5})+tx(2,ys(PGC.budget)-4,(PGC.budget/1000)+' GB GPU',{fs:11,c:'var(--bad)'})+tx(lw/2,H-8,nk?'peak per batch (k tokens)':'peak per mini-batch, by length',{fs:11,a:'middle',c:'var(--mute)'});
-  const st=sim[k],ev=(st.evict||0)*Math.min(1,e*1.5);const parts=[[PGC.model,'var(--c1)'],[PGC.ad+PGC.wg,'var(--c2)'],[PGC.opt-ev,'var(--c3)'],[st.dead?0:st.a*Math.min(1,e*1.2),'var(--c4)']];
-  let acc=0;s+=tx(gx+colw/2,top-2,'GPU',{fs:11,a:'middle',w:600});parts.forEach(p=>{if(p[0]<=0)return;const y1=ys(acc+p[0]),y0=ys(acc);s+=rc(gx,y1,colw,Math.max(0.5,y0-y1),p[1],{r:0,op:st.dead?.3:1});acc+=p[0]});
-  s+=ln2(gx-4,ys(PGC.budget),gx+colw+4,ys(PGC.budget),'var(--bad)',{sw:1.5});
-  if(st.oom&&!st.dead)s+=tx(gx+colw/2,ys(Math.min(acc,mx))-6,'OOM',{fs:12,a:'middle',c:'var(--bad)',w:700,op:e});
-  const cx=gx+colw+14;s+=tx(cx+colw/2,top-2,'CPU RAM',{fs:11,a:'middle',w:600})+rc(cx,top+6,colw,bot-top-6,'none',{s:'var(--line)',r:3});
-  if(ev>0){const y1=bot-(bot-top)*ev/mx;s+=rc(cx,y1,colw,bot-y1,'var(--c3)',{r:0,op:.8})+tx(cx+colw/2,Math.max(top+20,y1-4),fmt(ev,0),{fs:11,a:'middle'})}
-  const lg=legend([['model','var(--c1)'],['adapters, grads','var(--c2)'],['Adam','var(--c3)'],['activations','var(--c4)']],0,H+10,W);s+=lg.s;
-  return svgW(W,H+lg.h+6,s,'Paged optimizer memory')}
-function cntPg(m,k){const st=pgSim(m)[k];return stat('peak this batch',st.dead?'(stopped)':fmt(st.peak,0)+' MB','budget '+fmt(PGC.budget,0)+' MB')+stat('paged to CPU',m==='on'?fmt(st.evict||0,0)+' MB':'not possible','optimizer pages only')+stat('page traffic so far',m==='on'?fmt(st.traffic||0,0)+' MB':'0 MB','out and back')+stat('status',st.dead||st.oom?'out of memory':'training','')}
-const PG=makeAnim({id:'pg',mode:'on',modes:pgModes,draw:drawPg,counters:cntPg,dur:2200});
-$('pgS').addEventListener('change',()=>{pgSet($('pgS').value);pgCaps();if(PG){PG.st.k=0;PG.st.t=1;PG.st.lk=-1;PG.draw()}});
+// ---------- 6. paged optimizers: now the 3D stage Fig. 6 (34_js_sc_pg.js) ----------
 
 // ---------- 7. Figures 2 and 4 (behind the predict question) ----------
 function drawF2(){const host=$('f2Svg'),F=QD.fig.figure2.points,F4=QD.fig.figure4.points;fit(host,W=>{const cats=Object.keys(F),y0=59.4,y1=64.8,H=230,pl=40,pb=58,pt=10;

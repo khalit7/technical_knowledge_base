@@ -4,3 +4,5 @@ Notion: https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671 (a row of the 
 Site: https://khalit7.github.io/technical_knowledge_base/whats_new/papers/qlora/
 
 `index.html` is the whole page (read it on the site) (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
+
+Layout (2026-11-13): split layout with four 3D stages (Eq. 5, NF4 levels, double quantisation, memory and paging); see `src/README.md`.
