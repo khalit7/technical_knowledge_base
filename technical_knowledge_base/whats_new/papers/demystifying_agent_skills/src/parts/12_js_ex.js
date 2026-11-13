@@ -26,21 +26,28 @@ function lanes(w,s,e,opt){opt=opt||{};const T=opt.T||1000,pl=w<480?62:78,pr=12,t
     if(e>=1)g+=tx(X(s.total)+(X(s.total)>w-90?-4:4),yb,'total '+s.total+' ms',{fs:12,w:600,a:X(s.total)>w-90?'end':'start'})}
   else if(opt.bypass&&e>0){g+=ln2(X(7),top-4,X(7),top+rows.length*lh+2,'var(--bad)',{sw:2});g+=tx(X(7)+4,yb,'7 ms: no service was called',{fs:12,w:600,c:'var(--bad)'})}
   return svgW(w,H,g,'Checkout timeline')}
-// ---- the replay animation
+// ---- the replay animation: five steps per arm, explained by a step list per arm (filled here from the same excerpts); the card shows the excerpt and the timeline
 (function(){if(!$('rp'))return;const A=EX.arms;
   const firstAgent=m=>{const e=A[m].ents.find(x=>x.h==='Agent');return e?e.body.join(' '):''};
-  const given={raw:'Nothing: no prior trajectory, no skill.',wf:'Workflow Memory: the five source trajectories (one success, four failures), cleaned and structured, appended to the task instruction.',skill:'A SKILL.md distilled from the same five trajectories, placed in the environment. Its relevant part reads: <i>'+esc(A.skill.ents[0].body.join(' '))+'</i>'};
-  const did={raw:'"'+esc(firstAgent('raw'))+'" Its own checks show /api/products returning 500 and /api/checkout answering in about 4 to 5 ms; restarting the server fails with EADDRINUSE.',wf:'"'+esc(firstAgent('wf'))+'"',skill:'The agent applies the rule to the checkout route: start user and config at once, start profile the moment user resolves, await the rest together. It then measures POST /api/checkout five times: warm average 0.711576 s.'};
+  const ent=(m,h)=>{const e=A[m].ents.find(x=>x.h===h);return e?e.body.join(' '):''};
+  // what the figure shows at steps 2 and 3: the arm's input and the agent's own words, quoted
+  const given={raw:'no prior experience, no skill',wf:'+ five trajectories (1 success, 4 failures), cleaned, after the instruction',skill:'SKILL.md: <i>'+esc(A.skill.ents[0].body.join(' '))+'</i>'};
+  const did={raw:'"'+esc(firstAgent('raw'))+'"',wf:'"'+esc(firstAgent('wf'))+'"',skill:esc(ent('skill','Agent runtime measurement'))};
+  // the explanation, in the step list
+  const givenC={raw:'Nothing: no prior trajectory and no skill; it starts from the task alone.',wf:'Its prompt carries the five source trajectories (one success, four failures), cleaned and structured, after the task instruction.',skill:'A SKILL.md distilled from the same five trajectories, placed in the environment. The figure quotes the part that matters here: start promises early, await late, and start a dependent fetch as soon as its prerequisite resolves.'};
+  const didC={raw:'Its words are quoted in the figure. Its own checks show /api/products returning 500 and /api/checkout answering in about 4 to 5 ms; restarting the server fails with EADDRINUSE.',wf:'Its words are quoted in the figure: it finds the server-side waterfalls, the blocking analytics and the heavy compare bundle, and starts targeted fixes.',skill:'The agent applies the rule to the checkout route: start user and config at once, start profile the moment user resolves, await the rest together. It then measures POST /api/checkout five times: warm average 0.711576 s.'};
   const ver=m=>A[m].ents.filter(x=>x.h==='Verifier')[0].body.reduce((o,l)=>{if(o.length&&(/-$/.test(o[o.length-1])||/^\(/.test(l)))o[o.length-1]+=' '+l;else o.push(l);return o},[]);
+  const verC={raw:'test_checkout_fast passes, but test_external_api_actually_called fails: "Checkout API too fast (7 ms)". 10 of 11 tests, reward 0.',wf:'test_external_api_actually_called passes, but test_checkout_fast fails: "Checkout took 915 ms (should be &lt;800 ms)". 10 of 11 tests, reward 0.',skill:'Both checkout tests pass, and so do the other nine: 11 of 11, reward 1.'};
   const steps=m=>[
     {t:'The task and the bar',c:'An e-commerce site in Next.js is slow; fix it. The verifier times POST /api/checkout twice: it must answer in under 800 ms, and in at least 400 ms, to prove the external services are really called. The three services take 400, 600 and 300 ms, and profile needs the user id.'},
-    {t:'What the '+ARMN[m]+' arm was given',c:given[m]},
-    {t:'What the agent did',c:did[m]},
+    {t:'What the '+ARMN[m]+' arm was given',c:givenC[m]},
+    {t:'What the agent did',c:didC[m]},
     {t:'The checkout route it shipped, to scale',c:m==='raw'?'The paper does not print Raw\'s route. Its checkout answered in 7 ms, so no service call was made: fast, but it fails the "external API actually called" test.':m==='wf'?'Promise.all over user and config, then profile: 600 + 300 = 900 ms (measured 915 ms). This is the route the task ships with, unchanged.':'User and config start together; profile starts when user resolves; the two remaining promises are awaited together: max(400 + 300, 600) = 700 ms (measured 711.6 ms), the fastest schedule possible.'},
-    {t:'The verifier',c:esc(ver(m).join(' · '))+'. Reward '+A[m].reward+'.'}];
+    {t:'The verifier',c:verC[m]}];
   const modes={raw:steps('raw'),wf:steps('wf'),skill:steps('skill')};
-  makeAnim({id:'rp',mode:'skill',modes,dur:3200,
-    draw:(m,k,e,w)=>{let top='';if(k===1||k===2)top='<div class="ent '+(k===1?'r-f':'r-t')+'" style="margin:0 0 6px"><span class="who">'+(k===1?'given':'agent')+'</span>'+(k===1?given[m]:did[m])+'</div>';
+  Object.keys(modes).forEach(m=>{const L=$('sx-rp-'+m);if(L)L.innerHTML=modes[m].map(S=>'<li><b>'+S.t+'.</b> '+S.c+'</li>').join('')});
+  makeAnim({id:'rp',mode:'skill',modes,lists:{raw:'sx-rp-raw',wf:'sx-rp-wf',skill:'sx-rp-skill'},dur:3600,
+    draw:(m,k,e,w)=>{let top='';if(k===1||k===2)top='<div class="ent '+(k===1?'r-f':'r-t')+'" style="margin:0 0 6px"><span class="who">'+(k===1?'given':m==='skill'?'agent runtime measurement':'agent')+'</span>'+(k===1?given[m]:did[m])+'</div>';
       if(k===4){top='<div class="tr" style="margin:0 0 6px">'+ver(m).map(l=>'<div class="ent '+(/FAILED|Error|too fast|took/.test(l)?'r-e':'r-o')+'" style="padding:2px 8px">'+esc(l)+'</div>').join('')+'</div>'}
       const s=k>=3?SCHED[m]:null;return top+lanes(w,s,k>=3?(k===3?e:1):0,{bypass:m==='raw'&&k>=3})},
     counters:(m,k,e)=>{const show=k>=3,t=m==='raw'?7:SCHED[m].total,meas=MEAS[m];

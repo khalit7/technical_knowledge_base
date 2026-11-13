@@ -250,8 +250,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
 - [x] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
 - [~] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
-- [~] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
-- [ ] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
+- [x] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
+- [~] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
 - [ ] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
 - [ ] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
 - [ ] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
@@ -542,6 +542,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/context_language_models`: the cache stage step 3 labels crowd the near corner (FLOPs value, "notes", "turn 4 re-prefilled"); the stage is small in the 390 px card.
 - `whats_new/papers/deepseek_r1`: GRPO stage is wide and shallow (empty space above at 1400; raise the camera or set aspect); "In the paper" margin labels squeeze the left column; Stage 1 prediction question sits after the paragraph that gives 59.0 (pre-existing; move the question up).
 - `whats_new/papers/deepseek_v3_technical_report`: the promoted-accumulation card is sticky and about 750 px tall (overflows short laptop windows); FP8 and cost predict prompts are spoiled by the visual beside them (move the questions above their splits).
+- `whats_new/papers/demystifying_agent_skills`: the replay card (about 530 px) is not pinned on phones and scrolls away from its steps.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -636,3 +637,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - DDPM: hero plates zoom out as t grows (dashed square marks [-1, 1]^2); the density surface is rescaled to the same peak at each t (the 9-fold drop stated in the steps); the 2D Idea animation stays beside the 3D hero (shows the mu-tilde chain and counters); header counts all three Idea step lists (about 1.3 min shown one at a time). Keep?
 - DeepSeek-R1: the R1 recipe is now drawn on the paper page as a 3D flow (rejected in October because the DeepSeek lab page draws a "recipe river"); proposal: OWNERS.md names the R1 recipe flow as owned by `whats_new/papers/deepseek_r1` and the lab page links to it (reversible: delete the `stg-pipe` split). Cold start drawn at 4,000 samples for "thousands" (stated). Page 31 to 34 min, all step lists. Keep?
 - DeepSeek-V3: routing example uses illustrative seeded affinities (seed 17, labelled) with the paper's node-limited rule; the scaling heatmap became a widget opening on per tensor; DualPipe stays Table 2 plus a link to the DeepSeek lab page's simulation. Keep?
+- Demystifying Agent Skills: the 3D stage replaces the HTML bar hero (numbers moved to its step list); the page keeps a one-line patch to the template 99_js_tabs.js that opens the closed block a link points into (also on R1 and Chinchilla; consider adding it to the template); retrieval card positions and which cards each agent opens are illustrative (labelled). Keep?

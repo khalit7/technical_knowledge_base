@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page template; storage key das-tab; a data-to link scrolls to its target and opens the closed block that holds it)
+// ---- Tabs ---- (the explainer-page template; storage key das-tab; this page also opens the closed block a data-to link points into)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

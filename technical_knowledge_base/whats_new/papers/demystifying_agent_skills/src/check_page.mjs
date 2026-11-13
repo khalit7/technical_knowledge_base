@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end; the replay plays by itself in view.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/demystifying_agent_skills/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -40,12 +40,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
-  // no autoplay (2026-10-25): scroll the replay into view, wait, and it must not have drawn a frame; nor after an arm switch
+  // autoplay (2026-11-06 motion rules): scrolled into view, the replay plays by itself; an arm switch replays it; under reduced motion
+  // nothing moves (check_stages.mjs covers reduced motion, the step lists and the 3D stages)
   {
-    await p.$eval('#rp', e => e.scrollIntoView()); await wait(1200);
-    let fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: rp played before the reader acted (${fr} frames)`);
+    await clk('#tabs button[data-t=t-read]'); await wait(200);
+    await p.$eval('#rp', e => e.scrollIntoView({ block: 'center' })); await wait(1200);
+    let fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: rp did not play when scrolled into view`);
     await clk('#rpM button:not(.on)'); await wait(1000);
-    fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: rp played after an arm switch (${fr} frames)`);
+    const f2 = await p.$eval('#rp', e => +e.dataset.frames || 0); if (!(f2 > fr)) problems.push(`${scheme} ${width}: rp did not replay after an arm switch`);
     await clk('#rpM button[data-m=skill]');
   }
   for (const t of tabs) {
