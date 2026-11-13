@@ -8,7 +8,7 @@ The page follows arXiv v1 (15 September 2026), the only version on 3 October 202
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with the verdict; the core sentence, hero figure (`15_js_hero.js`), You need and New terms; Problem; The world; Design (Figure 3 rebuilt from the records, the day-numbering fix, the stress events, scoring); Phishing (all three scorecards as one grid, predict 1 with the Gemini lanes); Misinformation (predict 2); Memory breach; Indicators (crime curves from the records against the printed totals, conformity mechanisms, predict 3 with the Table 13 slope chart); Language; Over time; Model or population; the Claude world (outreach step animation, Figure 18 rebuilt from the records); How much of this to believe; What it takes to use this; Why it matters; Connections. Reference detail sits in eleven collapsed "details" blocks. |
+| The paper | `t-read` | Headline card with the verdict; the core sentence, You need and New terms; At a glance (Fig. 1, a 3D stage of the Gemini world under phishing); Problem; The world; Design (Figure 3 rebuilt from the records, the day-numbering fix, the stress events, scoring); Phishing (all three scorecards as one grid, predict 1 with the Gemini lanes); Misinformation (predict 2); Memory breach (Fig. 2, a 3D stage of searches in seven towns); Indicators (crime curves from the records against the printed totals, conformity mechanisms, predict 3 with the Table 13 slope chart); Language; Over time; Model or population; the Claude world (Fig. 3, a 3D stage of the outreach and containment rounds; Figure 18 rebuilt from the records); How much of this to believe; What it takes to use this; Why it matters; Connections. Reference detail sits in eleven collapsed "details" blocks. |
 | Replay the released logs | `t-run` | The live ingredient: any two of the seven exposed worlds replayed side by side through the phishing campaign or the memory breach, from the released tool-call records, with counters and the agents' own words; the classification rules; the recount of every testable number against the records. |
 | The paper's tables, rebuilt | `t-tables` | One all-measures table (printed and recounted columns), Tables 13, 14, 15, 16, 17, 18 and 5, and every check from `recompute.py` (36 reproduce, 18 close, 17 do not, 7 where the paper disagrees with itself, 3 derived). |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -47,3 +47,31 @@ The page follows arXiv v1 (15 September 2026), the only version on 3 October 202
 ## Checks (25 October 2026)
 
 `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (354 actions); `recompute.py` 36 reproduce, 18 close, 17 do not, 7 paper disagrees, 3 derived (unchanged); `mk_coverage.py` 30 of 30; `ledger.py check` problems 0.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`): every section with a visual is text left, visual right (sticky); sections without one stay full width. The paper: At a glance (stage), Design (Figure 3 card), Phishing (scorecard grid), Memory breach (stage), Indicators (crime curves), Claude world (stage), Quiet withdrawal (new `s-quiet`, Figure 18 card). Replay tab: notes, step lists and the classification rules left, the replay right; the event list and the recount full width below. Tables tab: Table 17's chart in a split, the tables full width. Problem, The world, Misinformation, Language, Over time, Model or population, the trust section and the rest have no visual and stay full width.
+- **Three 3D stages** (template `25_js_s3.js`, renderer v2, unchanged; one scene file each):
+  - `31_js_sc_town.js`, Fig. 1 (hero): the Gemini world under phishing, from `window.LOGS` (the released records as `mine_logs.py` classified them): ten agents, the Central Bank and billboard, and outside the town the attack pages, the database handle and NewtonOne. Five stretches between the stimuli (long-replay rule), with flows for warnings (blue) and fetches, database calls and transfers (orange), the fire at the bank; then the per-agent tally and the same tally for the seven exposed worlds as signed bars on plinths (warnings up, engagement down, square-root heights) with each world's Table 7 score. It replaces the static Table 7 dot grid (`15_js_hero.js`, removed); Table 7 itself stays in the Phishing grid.
+  - `32_js_sc_breach.js`, Fig. 2: seven towns, one column per agent of `memory_breach_scan` calls aimed at another agent (`breach.by_agent`), flows into each town's plate of leaked records, agents whose records end before or within a day of the notice greyed (`last_seen`), camera in close per world group, then Table 11's printed scores.
+  - `33_js_sc_contact.js`, Fig. 3: the Claude world's sandbox, the outside surfaces in the states the paper narrates, the four humans, the post_egress pipe from Town Hall (12 calls, 8 reached, 2 HTTP 200) and the Cloud Storage uploads. It replaces the 2D `makeAnim` animation (`13_js_anim.js`, removed); its captions became the step list.
+- **Kept 2D**: Figure 3's schedule (a timeline), the scorecard grid (a table), crime curves and the Table 13 slope (curves), the Figure 18 shares (curves), the Gemini database-call reveal, the replay (two timelines of dots on a square-root clock; 9 and 6 explained stretches), every table and Table 17's stacked bars.
+- **Motion**: `makeAnim` in `11_js_ui.js` is the Dream-RSI version (plays once half in view, pauses off screen, stops on any control or at the end, never under reduced motion, `data-playing`, one `ol.sx` per mode); the replay's captions moved from `23_js_run.js` into the step lists in `04_run.html`. `99_js_tabs.js` (key `ew-tab`) and `05z_errbox.js.html` recopied from the templates. `check_page.mjs` now asserts that each animation and stage plays when scrolled into view (it used to forbid it) and runs at 1400 px too; `check_stages.mjs` is new.
+- **Prose**: the hero caption folded into the At a glance paragraph and step list (ledger unit 394 keeps its key); the Phishing grid sentence, the contact-incident sentence and the replay caption were reworded (units 89, 90, 252, 253, 337 rekeyed); five units added for the numbers the stages state.
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 28.0 min (6,433 words) | 32.9 min (7,576) |
+| The paper, closed | 16.2 min (3,735) | 16.2 min (3,735) |
+| Replay | 8.6 min (1,976) | 10.5 min (2,404) |
+| Tables; Further reading | 13.9; 3.1 min | unchanged |
+| Visuals in The paper (audit) | 5 | 6 |
+
+The growth is the step lists that explain the three stages (about 1,100 words) and the replay's stretches, which were in script before and so not counted (the audit also counts the hidden breach list on the Replay tab). No knowledge was cut. The Claude-world list repeats parts of the closed "The incident in detail" block, and the breach list parts of the closed world-by-world block; those blocks keep the quotes and extra detail.
+
+Ledger: 402 units (core 255, depth 142, owned 2, volatile 0, fat 3); `ledger.py check` problems 0.
+
+## Checks (13 November 2026)
+`checkpage.sh`: tabs 4, about 305 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stages and animations over three widths, 0 problems. `verify_layout.mjs`: problems 0. `mk_coverage.py`: 30 of 30. `recompute.py` unchanged.

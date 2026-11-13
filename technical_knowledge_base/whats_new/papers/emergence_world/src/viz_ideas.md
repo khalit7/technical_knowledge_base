@@ -22,3 +22,7 @@ Scores: reproduces a published figure (0 to 2, counts double), computable from r
 | P-emergence_world.14 | Relationship and trust network graph (Figure 6) | | | The records hold the assign_relationship and rating calls, but Figure 6 is a two-number summary per world; a network adds little to "no negative label in four worlds" | | not built |
 
 What the Methodology lacked for this page: a rule for released logs. When a paper releases raw records, (1) deduplicate before counting (two files here repeat records exactly), (2) try each plausible counting rule and report which one reproduces each printed number (breach searches match "calls with a response" for three worlds and "all calls" for two), and (3) publish the classification rules beside any count that depends on them, with a hand-checked precision.
+
+## 2026-11-13 layout rollout
+- Built: Fig. 1 (Gemini world under phishing, 3D, from the records), Fig. 2 (breach searches in seven towns, 3D), Fig. 3 (contact incident, 3D, replacing the 2D step animation).
+- Rejected: a 3D replay of every world side by side (seven towns at once is clutter; the Replay tab's lane chart compares two worlds better); per-target breach flows (the shipped records keep only the searcher, not the target, and the raw dataset is not kept locally, so drawing searcher-to-target arcs would be invented); 3D for the crime curves and Figure 18 shares (curves read best flat).
