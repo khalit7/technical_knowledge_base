@@ -1,4 +1,4 @@
-// ---- The paper tab: decoded figures, the GRPO-group animation, the stage-by-stage animation, predict reveals ----
+// ---- The paper tab: decoded figures, the stage-by-stage animation (Table 3), predict reveals ----
 (function(){
 const RC=PAPER.rc,TB=PAPER.tables,TD=window.TOYDATA;
 const C1='var(--c1)',C2='var(--c2)',C3='var(--c3)',C4='var(--c4)',C5='var(--c5)',C6='var(--c6)';
@@ -41,39 +41,7 @@ const F7=RC.fig7;
   CF.forEach(p=>{s+=dotS(F.X(p[0]),Y2(p[1]),2.4,C2,{t:'step '+p[0]+': '+p[1]})});
   const lg=legendW([['reward model score (left)',C1,'l'],['Codeforces score (right)',C2,'l']],pl,14,w-pl-pr);el.innerHTML=svgW(w,H,s+lg.s,'Reward hacking: reward up, Codeforces down')})})();
 chart($('f18Svg'),{x:[1,0],y:[4000,22000],xl:'problem pass@1 (harder to the right)',yl:'thinking tokens (smoothed)',fx:v=>v.toFixed(1),fy:kfmt,xt:[1,0.8,0.6,0.4,0.2,0],series:[{pts:RC.fig18_band.map(p=>[p[0],(p[1]+p[2])/2]),band:RC.fig18_band,c:'var(--mute)',noline:true},{pts:RC.fig18,c:C1,sw:2.2}],hl:[{y:7000,c:C2,t:'7,000'},{y:18000,c:C2,t:'18,000'}],legend:[['mean (smoothed)',C1,'l'],['± one standard deviation (shaded)','var(--mute)','l']],label:'Thinking tokens against problem difficulty'});
-// ---------- the GRPO group animation ----------
-const AN=TD.anim,TOKC=t=>t<3?'a':t<6?'b':t===6?'tg':'ans',TOKT=t=>['0','1','2','零','一','二','/think','→0','→1','→2'][t];
-const QA=AN.q,ANSV=QA.reduce((a,b)=>a+b,0)%3;
-function grpSum(M){const D=AN[M],E=D.dlogp.map(v=>Math.exp(v)),Z=E.reduce((a,b)=>a+b,0),k=AN.os.map(o=>o.think);
-  return {before:k.reduce((a,b)=>a+b,0)/k.length,after:k.reduce((a,v,i)=>a+v*E[i],0)/Z,up:D.dlogp.filter(v=>v>0).length,down:D.dlogp.filter(v=>v<0).length}}
-const GSTEPS=[
- {t:'one question, sixteen answers',c:'The question is the five digits '+QA.join(' ')+'; the answer is their sum mod 3, which is '+ANSV+'. The toy\'s base model writes some answers straight away, some after a few thinking tokens, some after reading every digit; some switch language mid-chain. Each thinking token reads one digit and claims the running sum.'},
- {t:'the rule checks each answer',c:'Format: did the answer close its thinking with the &lt;/think&gt; tag before answering? Accuracy: is the final answer '+ANSV+'? Both are rules, no learned model. Short chains that guessed right pass too.'},
- {t:'rewards',c:'MODE'},
- {t:'the group is its own baseline',c:'Each answer\'s advantage is its reward minus the group mean, divided by the group\'s standard deviation (Eq. 3). Above the mean, push up; below, push down; every token of an answer shares its advantage. No value model is needed.'},
- {t:'one update',c:'After one gradient step (size 2, to make it visible), the change in each answer\'s log-probability. Complete chains rise; answers without tags fall hard (they lost both rewards). A short chain that guessed right also rises: an outcome reward cannot tell luck from reasoning, which is why it takes many groups to average luck out.'},
- {t:'what this does to length',c:'Weight each answer by how its probability changed and the average thinking length of these sixteen answers goes up. Repeat over thousands of questions and the policy writes longer chains wherever longer chains are what earn the reward. Nothing rewarded length directly.'}];
-const GCAP={zero:'Reward = accuracy + format, each 0 or 1 (Eq. 4): a complete correct chain scores 2, a correct answer without tags 1, a closed but wrong chain 1, a wrong answer without tags 0.',lc:'R1 adds the language-consistency reward (Eq. 7): the share of thinking tokens in the target language (here A, blue), up to 1 more. Correct chains that switched language now score less than single-language ones, so the update prefers them; an answer with no thinking counts as consistent.'};
-const steps=m=>GSTEPS.map(s=>({t:s.t,c:s.c==='MODE'?GCAP[m]:s.c}));
-makeAnim({id:'grp',mode:'zero',modes:{zero:steps('zero'),lc:steps('lc')},dur:3200,
- draw(m,k,e,w){const D=AN[m],n=AN.os.length,narrow=w<600,rh=narrow?18:19,top=26,lw=20,TW=narrow?w*0.55:Math.min(w*0.5,260),bx=TW/7,mk=32,BW=Math.max(70,w-lw-TW-mk-8-(narrow?8:0)),x0=lw,xm=lw+TW+4,xb=xm+mk+(narrow?8:0);
-   const cols=narrow?(k>=4?['d']:k>=3?['a']:k>=2?['r']:[]):['r','a','d'].slice(0,Math.max(0,k-1)),cw=narrow?BW:BW/3,cx=c=>narrow?xb:xb+cw*['r','a','d'].indexOf(c);
-   const NAMES={r:'reward',a:'advantage',d:'Δ log-prob'};let s='';const hdr=(x,t)=>tx(x,16,t,{fs:11,c:'var(--mute)'});s+=hdr(x0,'answer (tokens)');if(k>=1)s+=hdr(xm,'fmt acc');cols.forEach(c=>{s+=hdr(cx(c),NAMES[c])});
-   const H=top+n*rh+14;const endT=narrow?'end':'/think';
-   AN.os.forEach((o,i)=>{const y=top+i*rh;s+=tx(lw-4,y+rh*0.7,String(i+1),{fs:11,a:'end',c:'var(--mute)'});
-     o.t.forEach((t,j)=>{const cls=TOKC(t),fill=cls==='a'?C1:cls==='b'?C2:'var(--soft)',st=cls==='a'?C1:cls==='b'?C2:'var(--line)';
-       const ok=t>=7?(t-7===ANSV):null;
-       s+=rc(x0+j*bx+1,y+2,bx-2,rh-4,fill,{r:3,op:cls==='a'||cls==='b'?0.22:1})+rc(x0+j*bx+1,y+2,bx-2,rh-4,'none',{s:ok===null?st:(ok?'var(--good)':'var(--bad)'),sw:ok===null?1:1.6,r:3})+tx(x0+j*bx+bx/2,y+rh*0.72,t===6?endT:TOKT(t),{fs:11,a:'middle',c:'var(--ink)'})});
-     if(k>=1){const op=k===1?e:1;s+=G(op,tx(xm+7,y+rh*0.72,o.fmt?'✓':'✗',{fs:12,a:'middle',c:o.fmt?'var(--good)':'var(--bad)'})+tx(xm+22,y+rh*0.72,o.acc?'✓':'✗',{fs:12,a:'middle',c:o.acc?'var(--good)':'var(--bad)'}))}
-     if(cols.includes('r')){const r=D.R[i],sc=(cw-28)/3,f=k===2?e:1,x=cx('r');s+=rc(x,y+4,r*sc*f,rh-8,C5,{r:2})+tx(x+r*sc*f+3,y+rh*0.72,(+r.toFixed(2)).toString(),{fs:11,c:'var(--ink)'})}
-     if(cols.includes('a')){const a=D.A[i],mid=cx('a')+cw/2,sc=(cw/2-6)/1.6,f=k===3?e:1,ww=a*sc*f;s+=ln2(mid,y+1,mid,y+rh-1,'var(--line)',{sw:1})+rc(Math.min(mid,mid+ww),y+4,Math.abs(ww),rh-8,a>=0?'var(--good)':'var(--bad)',{r:2})}
-     if(cols.includes('d')){const d=D.dlogp[i],lim=4,mid=cx('d')+cw*0.62,sc=(cw*0.36-4)/lim,f=k===4?e:1,dd=Math.max(-lim*1.6,Math.min(lim,d))*f,ww=dd*sc;
-       s+=ln2(mid,y+1,mid,y+rh-1,'var(--line)',{sw:1})+rc(Math.min(mid,mid+ww),y+4,Math.abs(ww),rh-8,d>=0?'var(--good)':'var(--bad)',{r:2});if(d<-lim*1.6&&f>0.9)s+=tx(mid+ww-2,y+rh*0.72,'◀',{fs:11,a:'end',c:'var(--bad)'})}});
-   if(cols.includes('a'))s+=tx(cx('a')+cw/2,H-2,'mean '+D.mu.toFixed(2),{fs:11,a:'middle',c:'var(--mute)'});
-   if(k>=5)s+=G(e,rc(x0,top-2,TW,n*rh+4,'none',{s:'var(--acc)',sw:1.5,da:'4 3'}));
-   return svgW(w,H+4,s,'One GRPO step on sixteen toy answers')},
- counters(m,k,e){const D=AN[m],S=grpSum(m);const st=[stat('mean reward',k>=2?D.mu.toFixed(2):'·','group of 16'),stat('standard deviation',k>=3?D.sd.toFixed(2):'·','the advantage divides by it'),
-   stat('answers pushed up / down',k>=4?S.up+' / '+S.down:'·','sign of Δ log-prob'),stat('thinking tokens, weighted',k>=5?S.before.toFixed(2)+' → '+S.after.toFixed(2):S.before.toFixed(2),k>=5?'before → after the step':'mean of the 16 samples')];return st.join('')}});
+// (the GRPO group is the 3D stage in 31_js_sc_grp.js)
 // ---------- the stage-by-stage animation (Table 3) ----------
 const T3=TB.t3.rows,T12=TB.t12.rows;
 const pick=(b,m)=>T3.find(r=>r.bench===b&&(!m||r.metric.startsWith(m)));
@@ -81,13 +49,9 @@ const v3=(b,m)=>{const r=T12.find(r=>r.bench===b&&(!m||r.metric.startsWith(m)));
 const SETS={reason:[['AIME 2024','Pass','AIME 2024'],['CNMO 2024','Pass','CNMO 2024'],['MATH-500','Pass','MATH-500'],['LiveCodeBench','Pass','LiveCodeBench'],['Codeforces','Percentile','Codeforces percentile'],['GPQA Diamond','Pass','GPQA Diamond'],['Aider-Polyglot','Acc','Aider-Polyglot']],
   general:[['IF-Eval','Prompt','IF-Eval'],['AlpacaEval2.0','LC','AlpacaEval 2.0'],['ArenaHard','GPT','ArenaHard'],['MMLU-Pro','EM','MMLU-Pro'],['SimpleQA','Correct','SimpleQA'],['SWE Verified','Resolved','SWE-bench Verified'],['C-Eval','EM','C-Eval']]};
 const SN=['R1-Zero','Dev1','Dev2','Dev3','R1'];
-const STC=[
- {t:'R1-Zero: RL only, from V3-Base',c:'10,400 steps of GRPO with rule rewards (accuracy and format) on the base model, no supervised data. Strong reasoning, weak instruction following and writing: IF-Eval 46.6, AlpacaEval 24.7.',d:'0 supervised samples',st:'10,400 RL steps'},
- {t:'Dev1: cold start',c:'V3-Base fine-tuned on thousands of long, readable chains of thought, mostly R1-Zero\'s own, filtered and rewritten by DeepSeek-V3 and people. Instruction following jumps; reasoning falls well below R1-Zero (AIME 59.0).',d:'"thousands" of samples',st:'no RL yet'},
- {t:'Dev2: reasoning RL',c:'R1-Zero\'s RL recipe on Dev1, plus the language-consistency reward and a clip ratio of 10. Reasoning recovers (AIME 74.0, Codeforces 90.5th percentile); preference benchmarks barely move.',d:'reasoning prompts only',st:'step count not stated'},
- {t:'Dev3: rejection sampling and a fresh fine-tune',c:'Dev2 writes about 600K correct reasoning samples; DeepSeek-V3\'s data adds about 200K non-reasoning ones. V3-Base (not Dev2) is fine-tuned on all 804,745. Writing and engineering gain most: AlpacaEval 62.1, Aider 44.8.',d:'804,745 samples',st:'2 to 3 epochs'},
- {t:'R1: RL for all scenarios',c:'1,700 RL steps at temperature 0.7: rule rewards for reasoning, reward models for helpfulness (summary only) and safety (whole answer), the language reward throughout, preference rewards only in the last 400 steps. AlpacaEval 87.6, ArenaHard 92.3, IF-Eval 83.3; AIME 79.8.',d:'66K preference pairs, 106K safety prompts',st:'1,700 RL steps'}];
-makeAnim({id:'stg',mode:'reason',modes:{reason:STC,general:STC},dur:3400,
+// the step texts are the ol.sx list in 03_paper.html (sx-t3); what each stage did is the 3D pipeline's list (sx-pipe)
+const STC=SN.map(n=>({t:n}));
+makeAnim({id:'t3',mode:'reason',modes:{reason:STC,general:STC},lists:{reason:'sx-t3',general:'sx-t3'},dur:4200,
  draw(m,k,e,w){const set=SETS[m],rh=w<480?30:32,lw=Math.min(160,Math.max(122,w*0.3)),vw=74,bw=Math.max(80,w-lw-vw-8),X=v=>lw+bw*v/100;let s='',y=22;
    s+=tx(lw,14,'0',{fs:11,c:'var(--mute)'})+tx(lw+bw,14,'100',{fs:11,a:'end',c:'var(--mute)'})+tx(lw+bw/2,14,'score',{fs:11,a:'middle',c:'var(--mute)'});
    set.forEach(([b,mm,lab])=>{const r=pick(b,mm),now=r.n[k],prev=k?r.n[k-1]:r.n[0],v=prev+(now-prev)*e,base=v3(b,mm);
@@ -98,7 +62,7 @@ makeAnim({id:'stg',mode:'reason',modes:{reason:STC,general:STC},dur:3400,
      const d=now-prev;s+=tx(lw+bw+6,y+rh*0.58,now.toFixed(1)+(k&&e>0.6?' ('+(d>=0?'+':'')+d.toFixed(1)+')':''),{fs:11,c:k&&e>0.6?(d>=0?'var(--good)':'var(--bad)'):'var(--ink)'});y+=rh});
    if(w<480){s+=tx(8,y+12,'grey tick: DeepSeek-V3',{fs:11,c:'var(--mute)'})+tx(8,y+27,'dashed: the previous stage',{fs:11,c:'var(--mute)'});y+=15}else s+=tx(lw,y+12,'grey tick: DeepSeek-V3 · dashed: previous stage',{fs:11,c:'var(--mute)'});
    return svgW(w,y+18,s,'Benchmark scores at each R1 stage')},
- counters(m,k){const S=STC[k];return stat('checkpoint',SN[k],'Table 3 column')+stat('data in this stage',S.d,'')+stat('training',S.st,'')}});
+ counters(m,k){return ''}});
 // ---------- distillation chart ----------
 const T15=TB.v1t5.rows,DC=TB.t15.cols;let dsel=0;
 function drawD(){const el=$('dSvg');fit(el,w=>{const refs=['GPT-4o-0513','Claude-3.5-Sonnet-1022','OpenAI-o1-mini','QwQ-32B-Preview'],ref={},rows=[];

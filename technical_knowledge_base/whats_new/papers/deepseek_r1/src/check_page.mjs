@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the Table 3 animation stepping end to end (the 3D stages: check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/deepseek_r1/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -19,13 +19,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): each step animation on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
+  // autoplay on view (2026-11-06): the Table 3 animation and both 3D stages play by themselves once scrolled into view
+  // (src/check_stages.mjs checks the rest of the motion rules, including reduced motion)
   await p.$eval('#tabs button[data-t=t-read]', b => b.click());
-  for (const [id, m] of [['grp', 'lc'], ['stg', 'general']]) {
-    await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
-    await p.$eval(`#${id}M button[data-m=${m}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
+  for (const id of ['stg-grp', 'stg-pipe', 't3']) {
+    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2200));
+    if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
   }
   await p.evaluate(() => scrollTo(0, 0));
   const audit = async (where) => {
@@ -101,7 +100,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await audit('t-run after training');
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['grp', 'stg']) {
+    for (const id of ['t3']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
