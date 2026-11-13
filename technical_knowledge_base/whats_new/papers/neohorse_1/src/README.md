@@ -6,8 +6,8 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card with verdict (softened Takeaway); the core sentence, hero figure (the recipe's five parts and which the paper isolates), You need and New terms; Problem; Idea (the loop against curate-once, animated); Data from the routing harness (granularities, loss-mask widget, quality gates, Scene/Goal/Outcome); Routing signals and allocation; Training (Eq. 1, Eq. 2 widget, Eq. 3 with a predict question and live KL demo); Results (gains chart with error bars, predict question on 4B against base 9B, item-count error table); Traces (§5.1 and Appendix B); Data experiments (predict question with Figure 7 decoded against the base); How much to believe; What it takes to use this; Why it matters; Connections. |
-| Schedule the curriculum | `t-run` | The live ingredient: the three-stage routing curriculum animated against shuffled SFT, with traffic, router-confidence and reserve controls; the coarsened OPD loss lab. |
+| The paper | `t-read` | (split layout and one 3D stage since 2026-11-13) Card with verdict (softened Takeaway); the core sentence, hero figure (the recipe's five parts and which the paper isolates), You need and New terms; Problem; Idea (the loop against curate-once, a 3D stage); Data from the routing harness (granularities, loss-mask widget, quality gates, Scene/Goal/Outcome); Routing signals and allocation; Training (Eq. 1, Eq. 2 widget, Eq. 3 with a predict question and live KL demo); Results (gains chart with error bars, predict question on 4B against base 9B, item-count error table); Traces (§5.1 and Appendix B); Data experiments (predict question with Figure 7 decoded against the base); How much to believe; What it takes to use this; Why it matters; Connections. |
+| Schedule the curriculum | `t-run` | (split since 2026-11-13: step lists left, controls and card right) The live ingredient: the three-stage routing curriculum animated against shuffled SFT, with traffic, router-confidence and reserve controls; the coarsened OPD loss lab. |
 | The paper's tables and figures, rebuilt | `t-tables` | Tables 1 and 2 (track, scores or minus base, sort); Table 3 with the base, Figure 7's decoded runs and the released model added; benchmark sizes read from the scores; all 45 checks. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
@@ -41,8 +41,31 @@
 - `recompute.py`: 45 checks and every derived number, to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
 - `mk_coverage.py` writes `coverage.json` (35 items, this paper's own, verified against the built page).
-- `check_page.mjs` (run from the repo root with node): every control in both themes and widths, both animations stepped.
+- `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the curriculum animation stepped; since 2026-11-13 it asserts that the curriculum animation and the loop stage play once scrolled into view (it used to forbid it).
+- `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, both step lists of the loop stage, the curriculum animation's lists for every ordering and mix, and the numbers the stage's lists state against `window.NHLOOP` (and that its illustrative inputs are the Schedule tab's defaults).
+- `parts/31_js_sc_loop.js` (2026-11-13): the 3D scene on the template renderer `parts/25_js_s3.js`; `parts/14_js_run.js` now exposes the curriculum engine as `cuPool()` so the scene draws the same pool.
 
 ## Checks (3 October 2026; rerun 25 October 2026)
 
 `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (282 actions; nothing moves before a click); `recompute.py` 45 of 45; `mk_coverage.py` 35 of 35; `ledger.py check` problems 0.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after `01_css.html`). The paper: the top (core sentence, You need, New terms) beside the hero; Idea beside the loop stage (its toggle and two step lists in the left column); Three granularities beside the Figure 4 loss-mask card; the routing curriculum (Eq. 2 and the three stages) beside the Eq. 2 card; the start of Results (suite, baselines, what the paper reads) beside the gains chart. Problem, Quality gates (a table), Scene/Goal/Outcome (three text cards), Routing signals (a table), Supervision within a user turn and OPD (formulas, the predict question and its KL reveal), the error-bar table, Traces, Data experiments (the chart is inside a predict reveal), How much to believe, Use it, Why it matters and Connections stay full width. Schedule tab: the curriculum controls and card right (sticky), the step lists and the "what is the paper's" note left; the OPD lab split the same way; "What this cannot show" full width. Tables tab: unchanged, full width (tables). Further reading unchanged.
+- **One 3D stage** (template `25_js_s3.js`, renderer v2, unchanged): `31_js_sc_loop.js`, Figure 2 redrawn, replacing the 2D loop animation (`makeAnim` `lp`, nine steps). Seven steps for the loop (`sx-loop`) and four for curate-once (`sx-once`), swapped by the toggle with `S3.stage(...).list`. Stations on a U: front row the harness (traffic, router as a glass plate, tier towers C0 to C3, the three routing fields, the dedupe and structural gates as glass, the three outcome bins, six verdict tiles), back row training (three stage trays, the OPD bins between student and teacher, the evaluation plinths), the dashed return closing the loop. Flows carry turns from router to tiers (density by the pool's tier counts), tiers to the record, records through the gates, the mixture into the current stage, student and teacher to their bins, the student to evaluation, and allocation back to the mixture. Data: the evaluation bars are real (NeoHorse-1 minus its base on Tables 1 and 2, `recompute.json`); the pool (120 turns, 39, 36, 29, 16 by tier; stage means 0.46, 1.19, 2.15, shuffled 1.24, 1.23, 1.32; 8 held back) and the token distributions (K = 4: tail 0.169 against 0.570; KL 0.349 of 0.522) are the page's own illustrative engines at the Schedule tab's defaults, labelled so under the stage. The old animation's captions became the step lists and its counters went into their text.
+- **Kept 2D**: the hero (a verdict on which parts are tested, read best flat), the loss mask (a token sequence), the Eq. 2 widget and the gains chart (values on one axis), the KL reveal and the OPD lab (bars against one axis, driven by a slider), the curriculum animation (three controls, ends on a training curve; its 3D counterpart is the stage's step 4), Figure 7 against the base (log axis), every table.
+- **Curriculum animation**: `makeAnim` (`11_js_ui.js`) replaced by the JIT-Agent copy (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, one `ol.sx` per ordering, a click on a list item plays that step once). The caption box (`cuStep`, `cuCap`) went; its texts are the static step lists `sx-cu-soft`, `sx-cu-hard`, `sx-cu-shuf` (seven, seven and four steps, within the long-replay limit; the Train step is one stretch of 120 examples).
+- `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `nh-tab`), keeping one page line: a `data-to` target inside a closed block opens it.
+
+## Length judgement (2026-11-13)
+| | Before (audit, pre-pass) | After |
+|---|---|---|
+| The paper, core | 25.6 min (5,878 words) | 28.1 min (6,471) |
+| The paper, closed | 5.1 min (1,180) | 5.1 min (1,180) |
+| Schedule tab | 2.3 min (527) | 3.7 min (860; the three step lists replace the script-drawn caption box) |
+| Tables; Further reading | 7.4; 4.1 min | unchanged |
+
+The growth is the two stage step lists (about 600 words) that replace the 2D loop animation's script-drawn captions and counters (invisible to the word count before) and state the stage's numbers, plus the curriculum captions now written out as lists. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 28 min, plus 5 in closed details." from `reading.json`.
+
+Ledger: 304 units (core 254, depth 40, owned 5, volatile 2, fat 3); unit 25 re-keyed by hand ("the animation runs one round of each", the sentence now continues) and three units added for the step lists. `ledger.py check` problems 0. `mk_coverage.py` 35 of 35; `recompute.py` 45 of 45.

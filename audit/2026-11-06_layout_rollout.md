@@ -277,9 +277,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
 - [x] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
 - [x] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
-- [~] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
+- [x] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
 - [~] `whats_new/papers/olmo_2` 2 OLMo 2 Furious (OLMo 2)
-- [ ] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
+- [~] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
 - [ ] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
 - [ ] `whats_new/papers/phi_bench` Φ-Bench: Can Large Language Models Engineer the Infrastructure That Powers Them?
 - [ ] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
@@ -570,6 +570,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/mixtral_of_experts`: routing stage step 4 the far rows' layer labels fade into the bars; most token labels hide on phones.
 - `whats_new/papers/mole`: the observability stage's last step (all four corpora) is small on wide screens.
 - `whats_new/papers/moe_training_memory_bottlenecks`: towers stage step 4 the left labels ("H200 . 141 GB", dispatch, model state) crowd the left edge and overlap the first tower; ring stage round-1 close-up clips the neighbouring ranks' labels; towers stage small on phones.
+- `whats_new/papers/neohorse_1`: loop stage step 4 front-row stations are cut at the bottom edge and the "public_data" label touches the right edge; step 7 overview small on phones.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -692,3 +693,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Mixtral: the routing stage uses the toy's aux-loss variant and one hand-picked code snippet (sample 1, tokens 53 to 72, chosen for repeated tokens); the shuffled-order control is shown as the measured aggregate (a 20-token shuffle would mislead); decode animation steps slowed to 5.2 s. Keep?
 - MOLE: removed the RQ2 prediction "GPT-4.1 with reasoning or GPT-5.5 on audit events?" (the stage beside it would give the answer; markup saved outside the repo); the daily audit stays a manual widget opening on test day 3; the first stage uses 29 April 2026 (five completed harms, matches the trace viewer). Keep?
 - MoE memory bottlenecks: the Run tab was folded into the Reading tab (its four step-throughs now sit in their sections, anchors kept, #t-run opens #dsx); Reading is now 34 min (was 24; about 4.5 min is the moved Run tab, the rest step lists; could shorten by closing the "Step through it" paragraphs); the towers stage applies the operators in a fixed largest-first order. Keep, or condense?
+- NeoHorse-1: the loop stage's curriculum and OPD steps use the Schedule tab's illustrative defaults (labelled); only its evaluation step is real (4B and 9B); the curate-once mode keeps its own 4-step list. Keep?
