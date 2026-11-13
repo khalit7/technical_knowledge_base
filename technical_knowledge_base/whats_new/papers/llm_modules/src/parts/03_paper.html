@@ -1,14 +1,15 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
-<section id="s-core">
+<div class="s3sp"><div class="s3L"><section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> instead of distilling a large model into a small one, keep the large model <b>frozen</b> and train a small decoder that reads its last hidden states through cross-attention; a toy rebuild of the released code learns the task only once a <b>causal mask</b> is added, and as released the training loss is measured with the next token visible, so the paper's evidence (two prompts and a loss curve) cannot show that it works.</p>
-<figure class="pfig" id="heroFig">
+
+<p class="small"><b>You need:</b> distillation, the alternative the paper argues against ({{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}), and the causal mask in teacher-forced training ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}); this page is the paper. <b>New terms:</b> <b>knowledge source</b> (the frozen Qwen2-1.5B); <b>generation module</b> (the trainable GPT-Neo-sized decoder); <b>Enhanced Cross-Attention</b> (cross-attention plus an adapter and a gate, the bridge between them); <b>CombinedModel</b> (the pair); <b>the leak</b> (the bridge lets each position read later tokens during training).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="pfig" id="heroFig">
 <div class="t">The "small model" runs the whole frozen large model on every token</div>
 <div id="heroSvg" class="plot"></div>
 <figcaption>Notice the dashed box: Qwen2-1.5B never trains, so training is cheap, but it runs for every generated token, so deployment is not. And the bridge sits in front of the decoder, not inside it, which is not what the paper's prose says. Drawn from the released <code>model.py</code> (the paper has no figure); counts from the Hugging Face configs, by <code>recompute.py</code>. On this page's toy, the bridge as released answers %%released_gen%% of unseen problems when generating; with a causal mask, %%causal_gen%%; the small model alone, %%small_gen%% ({{the leak|tab:t-read:s-leak}}, {{the toy|tab:t-read:s-toy}}).</figcaption>
-</figure>
-<p class="small"><b>You need:</b> distillation, the alternative the paper argues against ({{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}), and the causal mask in teacher-forced training ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}); this page is the paper. <b>New terms:</b> <b>knowledge source</b> (the frozen Qwen2-1.5B); <b>generation module</b> (the trainable GPT-Neo-sized decoder); <b>Enhanced Cross-Attention</b> (cross-attention plus an adapter and a gate, the bridge between them); <b>CombinedModel</b> (the pair); <b>the leak</b> (the bridge lets each position read later tokens during training).</p>
-</section>
+</figure></div></div></div>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-method">Method</a><a href="#s-train">Training</a><a href="#s-leak">The leak</a><a href="#s-res">Results</a><a href="#s-toy">The toy</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
 <p class="small mute">Konstantin Kolomeitsev (independent, Almaty, Kazakhstan). {{arXiv 2502.08213|https://arxiv.org/abs/2502.08213}}, 12 February 2025, one version. {{Code and weights (Hugging Face, access on request)|https://huggingface.co/kkolomeitsev/llm-modules}}; the same code openly on {{GitHub|https://github.com/k-kolomeitsev/LLM-Modules}}; the author's {{blog post|https://k-kolomeitsev.github.io/LLM-Modules/}}. Added to this knowledge base on 2026-09-01 from a blog entry. Topics: llm-training-and-post-training, llms.</p>
@@ -21,6 +22,7 @@
 <p>The paper's alternative: leave the large model <b>frozen</b> and let a small trainable model read its internal representations directly, so the pair works as <b>two composable modules</b> rather than one distilled model ({{§1|ax:S1}}). It promises that training "significantly reduces training costs while remaining effective for solving specific business tasks", and ({{§2|ax:S2}}) that, unlike classic distillation, it preserves "a larger portion of the original model's information" and handles "longer input sequences (e.g., 128K tokens in Qwen2 versus 2K tokens in GPT-Neo)". That last claim does not survive the code: see {{the context claim|tab:t-tables:ev-ctx}}.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-arch"></div></div><div class="s3L">
 <section id="s-idea"><h2>Idea: a knowledge source and a generation module</h2>
 [[S3.SS1|§3.1]]
 <ul>
@@ -28,35 +30,33 @@
 <li><b>Generation module</b>: <b>GPT-Neo-125M</b>, trainable. It receives those representations "via Enhanced Cross-Attention layers and, combining them with its own computations, generates a coherent response".</li>
 <li><b>Only the small side trains</b>: the connecting layers and the small model. The framing is modular: the frozen model is a reusable knowledge source, and different small heads could in principle attach to it for different tasks. That composability is the structural difference from distillation.</li>
 </ul>
-<p>The picture below is the model as the released <code>model.py</code> builds it, not as the paper's prose suggests it; the two differ. Click a box for its code and parameter count (recounted in {{The evidence, rebuilt|tab:t-tables:ev-params}}).</p>
-<div class="card" id="ar">
-<div id="arSvg"></div>
-<p class="small" id="arOut" aria-live="polite"></p>
-<p class="small mute">Widths and counts from the Hugging Face configs of {{Qwen2-1.5B|https://huggingface.co/Qwen/Qwen2-1.5B/blob/main/config.json}} and {{GPT-Neo-125M|https://huggingface.co/EleutherAI/gpt-neo-125m/blob/main/config.json}} and from {{model.py|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}; computed by <code>recompute.py</code>.</p>
-</div>
 <div class="pred" id="pr-size" data-ans="2"><div class="q">The point was a small deployable model. To answer one question, how many parameters does the trained CombinedModel run?</div>
 <div class="opts"><button>About 125 million (GPT-Neo)</button><button>About 1.5 billion (Qwen2)</button><button>About 1.76 billion</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden><p>About <b>1.76 billion</b>, 1.14 times the frozen Qwen2-1.5B alone. Every generated token runs the whole frozen Qwen2 (1,543,714,304 parameters), the bridge (16.4 million), GPT-Neo's twelve blocks and positions (86.6 million) and a new output layer of 768 × 151,646 = 116.5 million. The pair is cheaper to <i>train</i> than Qwen2 (only 219.5 million parameters get gradients), but it is not a small model to <i>run</i>: it is the large model plus a head. Distillation's student, by contrast, runs alone. The paper never says which of the two costs it is saving; the abstract's "trained on limited computational resources" is the training one.</p><div id="prSizeBars"></div></div></div>
+<p>Where the layers sit is the part the prose gets wrong. The paper ({{§4.1|ax:S4.SS1}}) and the old version of this page say the cross-attention is inserted into GPT-Neo's stack. In the code it sits <b>in front of it</b>, inside the module called <code>ModifiedQwenWithCrossAttention</code>. Fig. 1 builds the pair as the released <code>model.py</code> does, in the order a token passes the parts, with each part's code lines and parameter count (recounted in {{The evidence, rebuilt|tab:t-tables:ev-params}}):</p>
+<ol class="sx" id="sx-arch">
+<li><b>Qwen2-1.5B reads the query, frozen.</b> The query, in Qwen2's tokenizer (151,646 tokens), runs through all 28 blocks of width 1536: 1,543.7M parameters, every one with <code>requires_grad = False</code>, run under <code>torch.no_grad()</code> (lines 140 to 148, 182). It never trains.</li>
+<li><b>Its last hidden state goes through pre_proj.</b> Qwen2 runs on the query; its last hidden state (<code>hidden_states[-1]</code>, one 1536-wide vector per position) goes through a trainable 1536 × 1536 projection, <code>pre_proj</code> (2.4M; lines 190 to 193). Qwen2's own output layer is never used.</li>
+<li><b>The stream g is made from the same state.</b> The stream g starts as an MLP of that same state (1536 → 1152 → 768, 2.7M; lines 171 to 178), and a separate linear projection, <code>proj</code> (1536 → 768, 1.2M; line 196), is kept for later. So the queries are not GPT-Neo's own states: both sides of the "cross"-attention are views of Qwen2's last layer, computed before GPT-Neo runs.</li>
+<li><b>Two Enhanced Cross-Attention layers update g.</b> Queries from g, keys and values from the <code>pre_proj</code> states (<span class="s3q">Wq</span>, <span class="s3k">Wk</span>, <span class="s3v">Wv</span>), then the adapter and the gate (lines 19 to 130, 204 to 207): 5.1M per layer, of which cross-attention 3.5M, adapter 0.4M and gate 1.2M. The mask covers padding only, which is the leak below.</li>
+<li><b>g + proj enters GPT-Neo as its input embeddings.</b> <code>final_states = gptneo_states + projected_states</code> (line 210) is all GPT-Neo ever sees. GPT-Neo's own token embeddings are never used, and its positional embeddings are zeroed at the start (they still train); sequences are cut to 2,048 positions (lines 246 to 250). Its 12 blocks of width 768 (85.0M) start from random weights (green in Fig. 1; see Method).</li>
+<li><b>A new output layer reads out Qwen2's vocabulary.</b> It maps 768 to Qwen2's 151,646 tokens (116.5M, line 232), because the pair uses Qwen2's tokenizer ({{§4.1|ax:S4.SS1}}): 53% of all trained parameters. Labels are the input tokens (line 435), so it is trained on every token, the system prompt included. The plate is not to scale: it would be 197 times longer than wide.</li>
+<li><b>Every token runs all of it.</b> 1.76B parameters per generated token, 1.14 times Qwen2-1.5B alone; 219.5M of them train (the bridge's 16.4M, the decoder and the new output layer).</li>
+</ol>
 </section>
 
 <section id="s-method"><h2>Method: Enhanced Cross-Attention</h2>
 [[S3.SS2|§3.2, §4.1]]
-<p>The paper describes its connecting layer in three parts ({{§3.2|ax:S3.SS2}}): <b>linear projections</b> that convert the large model's width (1536) to the small model's (768); an <b>adapter block</b>, an extra non-linear transformation; and a <b>gating mechanism</b> that "dynamically blends the original representations with the external knowledge". Read from the code, one layer is:</p>
+<p>The paper describes its connecting layer in three parts ({{§3.2|ax:S3.SS2}}): <b>linear projections</b> that convert the large model's width (1536) to the small model's (768); an <b>adapter block</b>, an extra non-linear transformation; and a <b>gating mechanism</b> that "dynamically blends the original representations with the external knowledge". Read from the code, one layer is (step 4 of Fig. 1):</p>
 <div class="fm"><div class="eq">a = Adapter( CrossAttn( Q = g W<sub>q</sub>, K = h W<sub>k</sub>, V = h W<sub>v</sub> ) ), &nbsp; z = σ( [g, a] W<sub>z</sub> ), &nbsp; g ← g + ( z ⊙ a + (1 − z) ⊙ g )</div>
 <dl><dt>h</dt><dd>Qwen2's last hidden state at every position, after a trainable 1536 × 1536 projection (<code>pre_proj</code>), LayerNormed</dd><dt>g</dt><dd>the stream that becomes GPT-Neo's input, 768 wide, LayerNormed before the query projection</dd><dt>Adapter</dt><dd>768 → 256 → GELU → 768, LayerNorm, plus a residual (the bottleneck adapter of {{Houlsby et al., 2019|https://arxiv.org/abs/1902.00751}}; adapters among the PEFT methods: {{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}})</dd><dt>z</dt><dd>a sigmoid gate per position and per channel, computed from the stream and the adapter's output</dd></dl>
 <div class="wh">8 heads of 96 dimensions, scores scaled by 1/√96, dropout 0.1 on the attention weights ({{model.py lines 19 to 130|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}).</div></div>
-<p>Where the layers sit is the part the prose gets wrong. The paper ({{§4.1|ax:S4.SS1}}) and the old version of this page say the cross-attention is inserted into GPT-Neo's stack. In the code it sits <b>in front of it</b>, inside the module called <code>ModifiedQwenWithCrossAttention</code>:</p>
-<ol>
-<li>Qwen2 runs on the query; its last hidden state goes through <code>pre_proj</code>.</li>
-<li>The stream g starts as an MLP of that same state (1536 → 1152 → 768). So the queries are not GPT-Neo's own states: both sides of the "cross"-attention are views of Qwen2's last layer, computed before GPT-Neo runs.</li>
-<li>Two Enhanced Cross-Attention layers update g; a separate linear projection of the Qwen2 state (1536 → 768) is added at the end.</li>
-<li>The result enters GPT-Neo as its input embeddings. GPT-Neo's own token embeddings are never used, and its positional embeddings are zeroed at the start (they still train).</li>
-<li>A new output layer maps 768 to Qwen2's 151,646 tokens, because the pair uses Qwen2's tokenizer ({{§4.1|ax:S4.SS1}}).</li>
-</ol>
 <p>Two more things the paper does not say. GPT-Neo is built with <code>GPTNeoForCausalLM(gptneo_config)</code> (line 220): from its configuration, with <b>random weights</b>, never loaded from the pretrained GPT-Neo-125M. So "the small model" brings an architecture, not knowledge; the paper's "GPT-Neo-125M-clean" control (trained from scratch) is the honest comparison for it.</p>
 <details class="mist"><summary>A freezing line that freezes nothing (harmless)</summary><div class="b"><p>The line meant to freeze the embedding layers sets an attribute on the module, not on its parameters, so it freezes nothing; it does not matter, because those embeddings are never used.</p></div></details>
+<p class="small mute">Fig. 1: widths and block counts from the Hugging Face configs of {{Qwen2-1.5B|https://huggingface.co/Qwen/Qwen2-1.5B/blob/main/config.json}} and {{GPT-Neo-125M|https://huggingface.co/EleutherAI/gpt-neo-125m/blob/main/config.json}} (a slab's side is proportional to the model's width), code lines from {{model.py|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}, parameter counts by <code>recompute.py</code>. Grey is frozen; the decoder's green marks its random start.</p>
 </section>
+</div></div>
 
 <section id="s-train"><h2>Training: what the code actually trained on</h2>
 [[S4.SS2|§4.2]]
@@ -70,25 +70,42 @@
 </ul>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-leak"></div></div><div class="s3L">
 <section id="s-leak"><h2>The leak: the cross-attention can see the answer</h2>
 <span class="where nolink">model.py lines 64 to 73</span>
 <p>Teacher-forced training feeds the whole text at once and is only honest if no position can see the tokens after it, which a causal mask guarantees ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}). Qwen2 and GPT-Neo are both causal. The cross-attention between them is not: it masks padding only (<code>mask = attention_mask.unsqueeze(1).unsqueeze(2)</code>, shape [batch, 1, 1, length]). So during training, position <i>t</i> can attend to Qwen2's state at position <i>t</i> + 1, which encodes token <i>t</i> + 1, the very token it must predict. At generation time the future does not exist yet, and that shortcut is gone.</p>
 <div class="pred" id="pr-leak" data-ans="1"><div class="q">Trained on reasoning traces with this mask, the toy below reaches a training loss of almost zero and a validation loss far below the honest model's. How often does it get the answer right when it actually generates?</div>
 <div class="opts"><button>More often than the honest (causal) model</button><button>Almost never</button><button>About as often</button></div>
 <div class="fb"></div>
-<div class="reveal" hidden><p>Almost never: <b>%%released_gen%%</b> of held-out problems against <b>%%causal_gen%%</b> for the same model with a causal mask (mean of 3 seeds each). Its teacher-forced loss on the held-out traces is %%released_loss%% against %%causal_loss%%, and its final training loss %%released_trainloss%% against %%causal_trainloss%%, although the operands in each prompt are drawn at random and no honest model can predict them. It looks far better on the number the paper reports and is useless when run. At the answer step it puts %%released_fut_eq%% of its first-layer cross-attention on later positions, %%released_ans_eq%% on the answer token alone. The animation shows why on one problem.</p></div></div>
-<div class="card" id="lk">
-<div class="an-top"><div class="seg" id="lkM" role="group" aria-label="Mask"><button class="on" data-m="released" aria-pressed="true">As released: padding mask only</button><button data-m="causal" aria-pressed="false">Fixed: causal mask</button></div></div>
-<div id="lkSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="lkBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="lkPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="lkFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="lkScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="lkSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="lkStep"></div><p id="lkCap"></p></div>
+<div class="reveal" hidden><p>Almost never: <b>%%released_gen%%</b> of held-out problems against <b>%%causal_gen%%</b> for the same model with a causal mask (mean of 3 seeds each). Its teacher-forced loss on the held-out traces is %%released_loss%% against %%causal_loss%%, and its final training loss %%released_trainloss%% against %%causal_trainloss%%, although the operands in each prompt are drawn at random and no honest model can predict them. It looks far better on the number the paper reports and is useless when run. At the answer step it puts %%released_fut_eq%% of its first-layer cross-attention on later positions, %%released_ans_eq%% on the answer token alone. Fig. 2 shows why on one problem.</p></div></div>
+<p>Fig. 2 runs this page's trained toy (built in {{The toy|tab:t-read:s-toy}}) on one held-out problem, teacher-forced as in training. Rows are query positions (the stream g that becomes the decoder's input), columns the frozen model's states (keys and values); a bar's height is the weight, first cross-attention layer, mean of 4 heads, computed in your browser from the shipped seed-0 weights. Orange bars read positions that come later.</p>
+<div class="seg" id="lkM" role="group" aria-label="Mask"><button class="on" data-m="released" aria-pressed="true">As released: padding mask only</button><button data-m="causal" aria-pressed="false">Fixed: causal mask</button></div>
+<ol class="sx" id="sx-lk-released">
+<li><b>The whole matrix, as released.</b> Every row may read every column, and most of the weight sits right of the diagonal, on states that come later. It piles up on two columns of the check line, its second "=" and the number after it, which even the first rows read.</li>
+<li><b>Position "sum" predicts the first operand.</b> Nothing before it says which number comes next: an honest model can only guess (1 in 20). The released mask lets this query read every state, later ones included.</li>
+<li><b>Position "a" predicts the second operand.</b> Again unknowable from the past, and again every state is readable, the operand being predicted included.</li>
+<li><b>"T" predicts the copy of a.</b> The trace starts by restating the problem: the answer is 3 positions back, readable without any shortcut. Here the answer is in the past, so no shortcut is needed.</li>
+<li><b>"b" predicts "=".</b> Pure format, learned from the traces.</li>
+<li><b>"=" predicts the answer.</b> The one step that needs knowledge. The frozen model's own state at "=" already holds the answer; the shortcut is to read the next state instead, which IS the answer token. An orange stream into the next column is the shortcut.</li>
+<li><b>"c" predicts "-".</b> Format again: the check line.</li>
+<li><b>"A" predicts the final answer.</b> A copy of the answer written earlier.</li>
+<li><b>Now generate: the future does not exist yet.</b> At generation time the model has only the tokens it has written, so the cross-attention can only read the past and the weights renormalise over it. On this problem the released model first goes wrong at "T": in training it read a from later states (the check line ends with it); now those states do not exist, and it writes "16" instead of "2". Its whole trace reads <code>T 16 % 6 = 6 ; 6 &lt; 6 ok A 6</code>. This problem was picked as the first held-out sum the fixed model gets right and the released one does not; over all 364 held-out problems the released model generates the right answer %%released_gen%% of the time (3 seeds).</li>
+</ol>
+<ol class="sx" id="sx-lk-causal" hidden>
+<li><b>The whole matrix, with a causal mask.</b> The same axes. Every bar stands on or left of the diagonal: no position can read a later state, so the grey half is empty.</li>
+<li><b>Position "sum" predicts the first operand.</b> The causal mask hides every later state, so this token can only be guessed (1 in 20); the loss on such tokens stays high, which is why the fixed model's loss looks worse.</li>
+<li><b>Position "a" predicts the second operand.</b> A guess again.</li>
+<li><b>"T" predicts the copy of a.</b> The answer is 3 positions back, in the past, so the mask costs nothing here.</li>
+<li><b>"b" predicts "=".</b> Pure format, learned from the traces.</li>
+<li><b>"=" predicts the answer.</b> Only the past is readable: the answer has to come from the frozen model's state at "=" itself, which is where the frozen model's knowledge is.</li>
+<li><b>"c" predicts "-".</b> Format again: the check line.</li>
+<li><b>"A" predicts the final answer.</b> A copy of the answer written earlier.</li>
+<li><b>Now generate: nothing changes.</b> The later states disappear, but this model never read them: at "=" its weights are the same as in training, and it writes the whole trace right, <code>T 2 + 5 = 7 ; 7 - 5 = 2 ok A 7</code>. Over all 364 held-out problems the fixed model generates the right answer %%causal_gen%% of the time (3 seeds).</li>
+</ol>
 <div class="an-cnt" id="lkCnt"></div>
-<p class="small mute">The real cross-attention weights of this page's trained toy (first layer, mean of 4 heads; line thickness is the weight), teacher-forced on a held-out problem, computed in your browser. Red lines read positions that come later. Nothing moves until you press play or step.</p>
-</div>
 <p>Two cautions. The toy may make the shortcut easier than it is in Qwen2. There, the last hidden state at <i>t</i> + 1 is tuned to predict token <i>t</i> + 2, though it is computed from token <i>t</i> + 1 and probably still carries much of it (unconfirmed: not measured here); how much the real run used the shortcut cannot be measured without running the 7.2 GB checkpoint. And the real CombinedModel does produce coherent text, so it also learned the honest path; the toy's released variant mostly did not. What the leak does settle: the paper's evidence of learning, a loss falling "from 13.8 to 2.3 in the first epoch and to 1.1" ({{§5.3|ax:S5.SS3}}), is measured with the shortcut open on both training and validation data, so it cannot show how well the model predicts text it has not seen.</p>
 </section>
+</div></div>
 
 <section id="s-res"><h2>Results: two prompts</h2>
 [[S5|§5, Table 1]]

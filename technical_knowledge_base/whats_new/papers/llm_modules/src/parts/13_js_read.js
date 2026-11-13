@@ -1,33 +1,9 @@
-// ---- The paper tab: architecture diagram, size reveal, training-data tiles, toy table, family table ----
+// ---- The paper tab: size reveal, training-data tiles, toy table, family table ----
 (function(){
   const RC=window.PAPER.rc,D=RC.data,BR=RC.bridge;
   const M=v=>(v/1e6).toFixed(v>=1e8?1:v>=1e7?1:2)+'M',B=v=>(v/1e9).toFixed(2)+'B';
   const pc=(v,d)=>(100*v).toFixed(d==null?0:d)+'%';
-  // 1. architecture, as model.py builds it
-  const NODES=[
-    {id:'tok',t:'Query tokens',s:'Qwen2 tokenizer, 151,646 tokens',k:'in',code:'qwen_tokenizer(full_text) (lines 415 to 426); the pair uses Qwen2\'s tokenizer throughout'},
-    {id:'qwen',t:'Qwen2-1.5B, frozen',s:'28 blocks, width 1536 · '+B(RC.qwen_params),k:'fz',code:'Qwen2ForCausalLM.from_pretrained("Qwen/Qwen2-1.5B"); every parameter requires_grad = False; run under torch.no_grad() (lines 140 to 148, 182)'},
-    {id:'pre',t:'pre_proj on hidden_states[-1]',s:'1536 → 1536 · '+M(BR.pre_proj),k:'tr',code:'hidden_states = outputs.hidden_states[-1]; pre_projected_states = self.pre_proj(hidden_states) (lines 190 to 193). Qwen2\'s own output layer is never used.'},
-    {id:'split',pair:[{id:'inter',t:'intermediate MLP: g',s:'1536 → 1152 → 768 · '+M(BR.intermediate),k:'tr',code:'Linear, LayerNorm, GELU, Linear, LayerNorm (lines 171 to 178). Its output is the stream g that the cross-attention updates: the "small model side" of the cross-attention is itself made from Qwen2\'s states.'},
-      {id:'proj',t:'proj',s:'1536 → 768 · '+M(BR.proj),k:'tr',code:'projected_states = self.proj(pre_projected_states) (line 196), added back after the two cross-attention layers (line 210).'}]},
-    {id:'xa',t:'2 × Enhanced Cross-Attention',s:'Q from g, K and V from pre_proj · '+M(BR.per_enhanced_layer)+' each',k:'tr',code:'CrossAttentionLayer (8 heads, LayerNorm on both inputs, mask = padding only), CrossAttentionAdapter (768 → 256 → 768), gate = sigmoid(Linear([g, out])), out = gate * a + (1 - gate) * g, then g = g + out (lines 19 to 130, 204 to 207). Per layer: cross-attention '+M(BR.cross_attention)+', adapter '+M(BR.adapter)+', gate '+M(BR.gate)+'.'},
-    {id:'add',t:'g + proj',s:'768 wide, one vector per token',k:'tr',code:'final_states = gptneo_states + projected_states (line 210). This is all GPT-Neo ever sees.'},
-    {id:'neo',t:'GPT-Neo-125M body, random weights',s:'12 blocks, width 768 · '+M(RC.neo_blocks)+' trained',k:'tr',code:'GPTNeoForCausalLM(gptneo_config): built from the config, not from_pretrained (line 220). Inputs are inputs_embeds, so its token embeddings ('+M(RC.neo_wte)+') are never used; positional embeddings zeroed at the start (line 227); sequences cut to 2,048 positions (lines 246 to 250).'},
-    {id:'head',t:'new output layer',s:'768 → 151,646 · '+M(RC.new_lm_head),k:'tr',code:'self.new_lm_head = nn.Linear(768, len(qwen_tokenizer), bias=False) (line 232): '+pc(RC.head_share_of_trained)+' of all trained parameters.'},
-    {id:'out',t:'Next-token logits',s:'trained on every token, system prompt included',k:'in',code:'labels = input_ids (line 435); cross-entropy on shifted logits, padding ignored (lines 643 to 659).'}];
-  let sel='xa';
-  function arDraw(w){const W=Math.max(300,w),bh=50,gap=18,x0=8,bw=W-16;let y=6,s='';const col={fz:'var(--closed2)',tr:'var(--acc2)',in:'var(--soft)'},str={fz:'var(--closed)',tr:'var(--acc)',in:'var(--line)'};
-    const box=(n,x,yy,ww)=>{const on=n.id===sel;s+='<g class="arn" data-id="'+n.id+'" style="cursor:pointer" tabindex="0" role="button" aria-label="'+n.t+'">'+rc(x,yy,ww,bh,col[n.k],{s:on?'var(--ink)':str[n.k],sw:on?2.2:1.2,r:7})+
-      tx(x+10,yy+20,n.t,{fs:13,w:600})+tx(x+10,yy+38,n.s,{fs:11.5,c:'var(--mute)'})+'</g>'};
-    NODES.forEach((n,i)=>{if(i)s+=ln2(W/2,y-gap+2,W/2,y-2,'var(--mute)');
-      if(n.pair){const hw=(bw-10)/2;box(n.pair[0],x0,y,hw);box(n.pair[1],x0+hw+10,y,hw)}else box(n,x0,y,bw);
-      if(n.id==='qwen')s+=tx(W-14,y+20,'frozen',{fs:11,a:'end',c:'var(--closed)',w:600});
-      if(n.id==='pre')s+=tx(W-14,y+20,'trained',{fs:11,a:'end',c:'var(--acc)',w:600});
-      y+=bh+gap});
-    const H=y-gap+6;$('arSvg').innerHTML=svgW(W,H,s,'The CombinedModel as model.py builds it');
-    $('arSvg').querySelectorAll('.arn').forEach(g=>{const go=()=>{sel=g.dataset.id;arDraw(w);info()};g.addEventListener('click',go);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}})})}
-  function info(){let n=NODES.find(x=>x.id===sel);if(!n)NODES.forEach(x=>{if(x.pair)x.pair.forEach(p=>{if(p.id===sel)n=p})});$('arOut').innerHTML='<b>'+n.t+'.</b> '+n.code}
-  info();
+  // 1. the architecture is the 3D stage Fig. 1 (31_js_sc_arch.js) since 2026-11-13; its code facts are its step list
   // 2. size reveal
   function sizeBars(){const rows=[['GPT-Neo-125M as published',RC.neo_params,'var(--c5)'],['trained by the pair (gets gradients)',RC.trained_params,'var(--acc)'],['Qwen2-1.5B alone',RC.qwen_params,'var(--closed)'],['the pair, run to answer',RC.inference_params,'var(--bad)']];
     const mx=Math.max(...rows.map(r=>r[1]));
@@ -57,5 +33,4 @@
     ['Distillation (2015), ~[abstract|https://arxiv.org/abs/1503.02531]~','nothing at inference','a student trained on the teacher\'s outputs','the student, alone','not applicable','the student is measured alone']];
   const L=s=>s.replace(/~\[([^|\]]+)\|([^\]]+)\]~/g,(m,t,u)=>A(u,t));
   $('famTab').innerHTML='<thead><tr><th>Design</th><th>Frozen</th><th>Trained</th><th>Generates</th><th>Gate</th><th>Evaluated on</th></tr></thead><tbody>'+FAM.map(r=>'<tr>'+r.map((c,i)=>'<td'+(i===0?' style="font-weight:600"':'')+'>'+L(c)+'</td>').join('')+'</tr>').join('')+'</tbody>';
-  onTab('t-read',()=>{fit($('arSvg'),arDraw)});
 })();
