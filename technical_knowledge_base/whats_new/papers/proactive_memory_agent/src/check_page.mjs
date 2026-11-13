@@ -1,13 +1,14 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end (motion rules of 2026-11-13: tl autoplays in view, rp never).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/proactive_memory_agent/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
+const shots = process.argv[2] || path.resolve(here, '../.shots'); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', protocolTimeout: 60000 });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
@@ -43,14 +44,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view, wait, count frames
+    // motion (2026-11-13, the rollout's rules): the Idea animation (tl) plays by itself once scrolled into view; the replay card (rp) is a widget
+    // under the long-replay rule and never moves before the reader acts; the 3D stage at the top is checked in check_stages.mjs
     for (const id of ['tl', 'rp']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+      if (id === 'rp' && fr) problems.push(`${scheme} ${width}: widget ${id} moved before a click (${fr} frames)`);
+      if (id === 'tl' && !fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
-    // the hero figure is drawn on the reading tab
-    if (t === 't-read' && !(await p.$eval('#heroSvg', e => !!e.querySelector('svg rect')))) problems.push(`${scheme} ${width}: hero figure empty`);
+    // the 3D stage at the top is drawn
+    if (t === 't-read' && !(await p.$eval('#stg-run', e => +e.dataset.draws > 0))) problems.push(`${scheme} ${width}: stage stg-run never drawn`);
     // open every closed block and audit what it shows
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)

@@ -44,11 +44,14 @@
         h+=x.o.length?'<ul class="tight small">'+x.o.map(o=>'<li><b>'+OPN[o[0]]+'</b>'+(o[1]?': '+esc(o[1]):'')+'</li>').join('')+'</ul>':'<p class="small mute">No bank edits.</p>';
         h+=x.i?'<p class="small" style="margin:6px 0 2px"><span class="vtag" style="border-color:'+LC[x.l]+'">'+x.l+'</span> <b>Reminder injected</b> ('+fmt(x.n)+' characters, ≈ '+Math.round(x.n/CPT)+' tokens):</p><div class="small" style="white-space:pre-wrap;border-left:3px solid '+LC[x.l]+';padding:2px 0 2px 10px">'+esc(x.c)+'</div>':'<p class="small"><b>&lt;no_intervention/&gt;</b>: silent.</p>'}}
     $('rpDet').innerHTML=h}
-  const an=makeAnim({id:'rp',modes,mode:'mem',draw,counters:counters2,dur:1700});
+  // a widget under the long-replay rule (up to 32 turns, one per frame): no autoplay and no step list; it opens on an informative turn,
+  // turn 4 of sqlite-with-gcov (the memory step the stage at the top follows), and on another task at the turn its first reminder goes into
+  const openAt=t=>{if(t==='sqlite-with-gcov')return 3;const x=TR[t].t.find(y=>y.i);return x?Math.min(TR[t].m.length-1,x.s):0};
+  const an=makeAnim({id:'rp',modes,mode:'mem',draw,counters:counters2,dur:1700,widget:true,start:openAt(task)});
   // task chips
   $('rpT').innerHTML=NAMES.map(n=>'<button data-m="'+n+'"'+(n===task?' class="on"':'')+'>'+n+'</button>').join('');
   function info(){const R=RCT[task],T=TR[task];$('rpInfo').textContent=R.base_turns+' turns alone, '+R.mem_turns+' with memory; reminders at '+R.inject+' of '+R.triggers+' memory steps'}
-  segBind('rpT',n=>{task=n;modes.mem=mkSteps(n,'mem');modes.base=mkSteps(n,'base');an.st.k=0;an.st.t=1;an.st.play=false;an.st.lk=-1;lastKey='';an.draw();info()});
+  segBind('rpT',n=>{task=n;modes.mem=mkSteps(n,'mem');modes.base=mkSteps(n,'base');an.st.user=true;an.st.play=false;an.st.k=openAt(n);an.st.t=1;an.st.lk=-1;lastKey='';an.draw();info()});
   info();
   // totals table and cost bars
   const tot=window.PAPER.rc.traces_total;

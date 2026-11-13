@@ -1,8 +1,9 @@
 # src: Remember When It Matters: Proactive Memory Agent for Long-Horizon Agents (arXiv 2607.08716)
 
-`sh build.sh` writes `../index.html` (it runs `mk_traces.py`, `recompute.py` and `mk_paper.py` first). Then:
+`sh build.sh` writes `../index.html` (it finds the repo root five folders up, without git) (it runs `mk_traces.py`, `recompute.py` and `mk_paper.py` first). Then:
 - `python3 mk_coverage.py`: `coverage.json`, every fact of `live.md` checked against the built page.
-- `node src/check_page.mjs [shots dir]` from the repo root: every control in both themes and widths, both animations stepped.
+- `node src/check_page.mjs [shots dir]` from the repo root: every control in both themes and widths, both animations stepped (since 2026-11-13: the Idea animation must play once in view, the replay widget must not).
+- `node src/check_stages.mjs [shots dir]` from the repo root: the 2026-11-06 layout and motion checks at three widths and under reduced motion, and every number in the stage's step list against the scene (`window.PMRUN`) and `recompute.py`.
 - `python3 parse_traces.py <examples dir>` re-parses the five released example traces into `inputs/traces.json` (download commands in its docstring; the HTML exports are not kept, three are over 1 MB).
 
 | File | What |
@@ -36,3 +37,25 @@
 - **Length judgement**: Reading core 25 min before (5,745 words) and 25 after (5,734), plus 2 in closed details (517 words, from 0; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 2 minutes and the moves took out about as much. What stays is core: the design as the paper states it, the results turned into task counts, the ablation that undercuts the title, what the released traces show, the training study and an evidence section that changes the reading. Other tabs unchanged (Replay 3, Tables 5, Further reading 3). Visuals inline: 4 before, 5 after (the hero).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 265 units; core 247, depth 13, owned 4, fat 1; `ledger.py check` problems 0.
 - **Checks (26 October 2026)**: `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (276 actions); `mk_coverage.py` 26 of 26.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after `01_css.html`). The paper: the top (core sentence, the stage's step list, You need, New terms) beside the new 3D stage; Idea beside its one-memory-step animation; Results, Ablations and Training beside their charts (Table 1, Table 2, Table 4), with the predict questions in the left column. Problem, Method, In the traces (a predict question whose chart is in its reveal), Qualitative (Table 3), Why it matters, Connections, How much to believe, Using it and Corrections stay full width (no visual). Replay tab: the intro, Try, the reading notes and the label key left, the task chips and the replay card right; the five-task table full width; the cost chart right of a new short paragraph saying how to read it. Tables tab unchanged (tables, full width). Further reading unchanged.
+- **One 3D stage** (template `25_js_s3.js`, renderer v2, unchanged), `parts/31_js_sc_run.js`, replacing the static SVG hero (`14_js_hero.js`, retired): one released memory run, `sqlite-with-gcov`, from `_gen_traces.js` and `recompute.py`. Columns are turns; back lane the actor's logged prompt tokens; middle row Phase 2 (a tile coloured by this page's reminder label, or grey for the no-op); front lane the bank after Phase 1 (knowledge teal, procedural gold). Seven explained steps (`sx-run`): the run (11 turns, 980 to 21,171 tokens); before turn 4 the memory agent reads the task, the window (turns 1 to 3) and its bank (2 and 2), camera in close; Phase 1 drops the gcov entry and rewrites the private status (a glass plate); Phase 2 adds 295 characters (about 79 tokens) to turn 4's 3,871-token call; all ten memory steps (3 reminders, 7 no-ops); the memory agent's estimated input per step as a front lane (about 92k tokens against the actor's 126k; five runs about 0.7 times, cost 2.2 times); and `git-multibranch` after a full fade (28 of 31, 20 procedural entries deleted at memory step 29; 52 of 80 over five runs). `check_stages.mjs` asserts each of these numbers against `window.PMRUN`, and the memory input against `recompute.py`.
+- **Kept 2D**: the Idea animation (its content is a command, bank entries and reminder text under six designs, which read flat; the stage above carries the spatial picture of the same step), the Table 1, 2 and 4 bars, the predict reveals, the replay card (a reader-driven widget over up to 32 turns), the cost bars and every table.
+- **Motion**: `makeAnim` (`11_js_ui.js`) replaced by the Just-in-Time Memory copy (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, step lists, a `widget` option). The Idea animation's per-step caption box went; one static step list `sx-tl` serves all six modes (the mode's own text is drawn inside the figure). The replay card is a widget under the long-replay rule (no autoplay, no step list, live caption kept), opening on turn 4 of `sqlite-with-gcov` and, after a task switch, on the turn its first reminder goes into. The Idea animation and the replay now count the reminder as exported (295 characters), not the page's copy with its dash written as a comma (294).
+- `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `pm-tab`). `build.sh` no longer calls git to find the repo root. `check_page.mjs` inverted (tl must autoplay; rp must not) and creates its shots folder.
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 24.9 min (5,734 words) | 27.3 min (6,287) |
+| The paper, closed | 2.2 min (517) | 2.2 min (517) |
+| Replay tab | 3.2 min (742) | 4.0 min (916) |
+| Tables; Further reading | 5.2; 3.5 min | unchanged |
+| Visuals in Reading (audit) | 5 | 5 (the stage replaces the hero) |
+
+The growth is the two step lists: about 430 words explaining the stage and about 290 for the Idea animation, whose 30 captions were drawn by script before (invisible to the count); the hero's caption (about 90 words) went. The Replay tab gained the widget's opening note and the cost chart's paragraph. Nothing was cut or closed: the stage's list is the page's quickest route to the design and to the two trace findings (the agent speaks often; its own input is near the actor's), and the rest is unchanged. Header: "Reading: 27 min, plus 2 in closed details." from `reading.json`.
+
+Ledger: 266 units (core 248, depth 13, owned 4, fat 1). Unit 259 (the hero) re-pointed to the stage (key "the watcher reads"), unit 66 re-keyed to "each percentage is turned back into whole tasks", unit 210 to "estimated cost per run, list prices, no caching" (both recorded in `label_ledger.py` KEYS); one unit added for the stage's cost step. `ledger.py check` problems 0. `mk_coverage.py` 26 of 26.

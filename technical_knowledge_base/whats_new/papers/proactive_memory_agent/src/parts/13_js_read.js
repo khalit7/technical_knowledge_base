@@ -18,7 +18,8 @@ function hbars(w,rows,max,o){o=o||{};const lw=Math.min(o.lw||170,Math.floor(w*.4
 (function(){
   const REM='The memory bank records that `gcov` is not a separate package, it comes bundled with `gcc`. The command `apt-get install -y gcc make gcov` failed specifically because of the "gcov" part. You just need to run `apt-get install -y gcc make` (without gcov) and gcov will be available automatically.';
   const BANK=[['K','Task: compile SQLite in /app/sqlite with gcov, add to PATH; tarball in /app/vendor; no network'],['K','Source tree in /app/sqlite/sqlite: autosetup configure; Makefile.linux-generic as fallback'],['P','Extracting creates a nested /app/sqlite/sqlite directory'],['P','configure failed: "No working C compiler found"; install gcc first'],['P','"gcov" is not a separate package; it comes with gcc (new this step)']];
-  const BANK_TOK=Math.round(1265/CPT),REM_TOK=Math.round(REM.length/CPT),PROMPT=3871;
+  // the reminder's length as exported (295 characters; the text above writes its one dash as a comma), the same count the stage at the top uses
+  const REM_N=window.TRACES['sqlite-with-gcov'].t[3].n,BANK_TOK=Math.round(1265/CPT),REM_TOK=Math.round(REM_N/CPT),PROMPT=3871;
   const T2=Object.fromEntries(TB.T2.rows.map(r=>[r[0],r]));
   const M={
     full:{nm:'Proactive memory',p1:['SAVE_PROCEDURAL: "gcov" is not a separate package, it comes with gcc','UPDATE_STATUS (private): retry with apt-get install -y gcc make'],bank:1,
@@ -63,10 +64,11 @@ function hbars(w,rows,max,o){o=o||{};const lw=Math.min(o.lw||170,Math.floor(w*.4
     rows.forEach((r,i)=>{const yr=y+22+i*22;se+=tx(lw,yr+13,esc(r.n),{fs:12,a:'end',c:r.dim?'var(--mute)':null,w:r.b?600:null});se+=rc(x0,yr+2,bww*r.v/70,14,r.c,{r:2,op:r.op});se+=tx(x0+bww*r.v/70+5,yr+13,r.t,{fs:12})});
     s+=G(op(4),se);y+=26+rows.length*22;
     return svgW(W,y+4,s,'One memory step under '+x.nm)}
-  function counters(m,k,e){const x=M[m];return stat('Added to turn 4\'s prompt',k>=3?(x.add?'≈ '+x.add+' tokens':'0'):'…',k>=3&&x.ill?'illustrative':k>=3&&x.add?'real reminder, '+REM.length+' characters':'')+
+  function counters(m,k,e){const x=M[m];return stat('Added to turn 4\'s prompt',k>=3?(x.add?'≈ '+x.add+' tokens':'0'):'…',k>=3&&x.ill?'illustrative':k>=3&&x.add?'real reminder, '+REM_N+' characters':'')+
     stat('Memory phases run',x.ph,m==='full'?'two Opus calls, each with bank and window':'')+
     stat('τ²-Bench task-weighted',k>=4?(m==='base'?'55.0%':T2[x.row][7].toFixed(1)+'%'):'…',k>=4?'Table 2; baseline 55.0%':'')}
-  makeAnim({id:'tl',modes,mode:'full',draw,counters,dur:3200});
+  // one static step list (sx-tl) serves every mode: the mode's own text is drawn inside the figure
+  makeAnim({id:'tl',modes,mode:'full',draw,counters,dur:3600,lists:Object.fromEntries(Object.keys(M).map(m=>[m,'sx-tl']))});
 })();
 
 // ---------- Table 1 chart ----------

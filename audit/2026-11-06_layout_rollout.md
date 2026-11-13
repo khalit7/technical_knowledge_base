@@ -283,7 +283,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
 - [x] `whats_new/papers/phi_bench` Φ-Bench: Can Large Language Models Engineer the Infrastructure That Powers Them?
 - [x] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
-- [~] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
+- [x] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
 - [~] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
 - [ ] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
 - [ ] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
@@ -576,6 +576,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/pagedattention`: stage close views small on phones with the floor behind faint.
 - `whats_new/papers/phi_bench`: categories stage step 4 the "Claude Opus 5 . leads 5 of 9" label touches the left edge and "Qwen3.7 5.4" overlaps its bar; step 6 Full column looks partly stacked.
 - `whats_new/papers/prime_agent`: stage has empty space above L3 at 1400 and is small on phones; 13_js_res.js still carries unused old Factorio caption strings; Factorio step 3 and the paragraph after the list both state the reset.
+- `whats_new/papers/proactive_memory_agent`: stage full view leaves empty space above the bars at 1400; step 3 the turn-3 error label sits near the bar tops; step 7 "20 procedural, then deleted" touches the bars; the Idea animation card is taller than the window so not sticky. Its traces quote sandbox paths like /home/git (from the released traces, pre-existing).
+- Ledger: units that only quote this knowledge base's own reading times ("About 27 and 26 min", "25 + 15 min") were relabelled fat (check_times keeps them current); 1,519 keys that began with a reading time were re-keyed to the unit's own words across two sweeps.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -704,3 +706,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - PagedAttention: the new 3D hero (waste to scale, iteration 3,000 of a ShareGPT run, seed 1) replaced the paper's Figs 3 and 7 at the top (moved into Problem); the Orca (Oracle) predict question became a plain paragraph (the stage gives the answer); the closed Fig. 6 walk-through trimmed to "What one iteration does". Keep?
 - Phi-Bench: removed the third predict question ("How many tasks is Hardware and Edge based on?"; the autoplaying categories stage would show the answer; its heatmap is now Figure 4 on the Tables tab); Figure 7 moved from Tables to beside Errors; the formats stage's repository (18 files, a bottleneck file) is illustrative (labelled). Keep?
 - Prime Agent: the clickable 2D hierarchy is gone (its content is in stage step 1 plus the Figure 2 image); the stage opens in rlm() mode and is illustrative (from sections 2.2 to 2.4 and Appendix B, labelled); the 25-game scorecard replay is a widget opening on lf52 (the one game lost). Keep?
+- Proactive Memory Agent: the 3D stage replaces the static hero and follows sqlite-with-gcov (most selective) then git-multibranch as the counter-example; its last step is the memory agent's own cost (headline task counts stay in the core sentence and charts); one step list serves all six Idea modes. Keep?

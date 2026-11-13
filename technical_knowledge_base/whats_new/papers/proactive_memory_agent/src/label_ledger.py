@@ -14,10 +14,11 @@ ES = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
 RL = 'models_and_training/topic_rl/rl_for_llms'
 FAT = {1: 'old header reading line, replaced by the measured one'}
 OWNED = {}
-KEYS = {}
+KEYS = {66: 'each percentage is turned back into whole tasks', 210: 'estimated cost per run, list prices, no caching'}  # 2026-11-13: the sentence now reads "In the chart, each percentage"
 NEW = [
  ('core', 'Core sentence: a second model beside an unchanged agent keeps a memory bank and each step reminds or stays silent; Opus 4.6 watching Sonnet 4.5: Terminal-Bench 32 to 39 of 85, tau2-Bench 153 to 172 of 278, single runs; always reminding does as well (171 against 170 and 172), so a watcher helps, not shown that silence does.', 'run a second model beside an unchanged agent'),
- ('core', 'Hero: the actor loop, the memory agent reading task, window and bank, Phase 1 bank edits, Phase 2 reminder or no-op into the next call (52 of 80 steps in the traces); task counts with and without memory and always-remind against selective.', 'a second model edits a memory bank and decides'),
+ ('core', 'Stage at the top (2026-11-13, replaced the static hero): one released run (sqlite-with-gcov) turn by turn; before turn 4 the memory agent reads task, window and bank, Phase 1 saves the gcov entry, Phase 2 injects 295 characters on a 3,871-token call; silent at 7 of 10 steps; its estimated input; git-multibranch speaks at 28 of 31, 52 of 80 over five runs.', 'the watcher reads'),
+ ('core', "Stage step 6: the memory agent's estimated input over the sqlite-with-gcov run, about 92k tokens against 126k for the actor (two phases, each sent the bank and the window).", 'about 92k tokens over the run against 126k'),
  ('core', 'New terms: behavioral state decay, action and memory agent, memory bank, Phase 1 and 2, no-op, pivot turns.', 'requirements, facts and failed attempts that are still in context'),
  ('core', 'Takeaway softened (2026-10-26): single runs, no cost reported; always remind solves as many as selective; the traces speak at 52 of 80 steps, often with fresh advice.', 'so the gain is shown for having the watcher'),
  ('owned:' + CE, 'Memory layers for agents (Mem0, Graphiti, Letta) compared and measured.', 'a twelve-session memory-layer experiment (mem0, graphiti, letta)'),
