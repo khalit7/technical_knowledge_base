@@ -13,11 +13,13 @@ const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1
 const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
 const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
 
-// makeAnim (never autoplays since 2026-10-25: it waits on its first frame until the reader presses play or steps): one input animated step by step, with modes (old method and new) sharing one scale.
+// makeAnim: a reader-driven day stepper. On this page it drives only the daily audit on the Run tab, a 15-day replay whose outcome the reader
+// steers (monitor, budget, features), so by the long-replay rule (2026-11-06) it is a widget: no autoplay and no step list; it opens on o.k0
+// and moves only when the reader steps, scrubs or presses play; its per-day caption is live. The page's 3D stages (25_js_s3.js) autoplay.
 // o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
 // Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
 function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
-  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const st={m:o.mode,k:o.k0||0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
   const steps=()=>o.modes[st.m];
   function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
     host.innerHTML=o.draw(st.m,st.k,e,w);

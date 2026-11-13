@@ -276,8 +276,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
 - [x] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
 - [~] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
-- [~] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
-- [ ] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
+- [x] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
+- [~] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
 - [ ] `whats_new/papers/olmo_2` 2 OLMo 2 Furious (OLMo 2)
 - [ ] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
 - [ ] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
@@ -568,6 +568,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/mamba`: check_forward.py not rerun (torch not in the offline uv cache; node shows identical logits on 40 sequences); stage side labels hide on phones by design.
 - `whats_new/papers/megatron_lm`: Fig. 2 at 1400 is busy (the A_i and B_i size labels sit over the plates; "Option 1: 13.13H" touches the right edge); Fig. 2 full view small on phones; Tables tab charts stay full width (table-tab exception). mk_coverage 60 of 61: the Notion Takeaway text was already missing before this pass.
 - `whats_new/papers/mixtral_of_experts`: routing stage step 4 the far rows' layer labels fade into the bars; most token labels hide on phones.
+- `whats_new/papers/mole`: the observability stage's last step (all four corpora) is small on wide screens.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -688,3 +689,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Mamba: stage headers unnumbered (numbering would clash with the paper's own Figure 2); the selection stage scales state cells per position (as the old heat map did); the paper's Figure 1 image stays the hero; Then and now links Beyond attention's Fig. 5 instead of a 3D rebuild; build.sh now finds the repo root by relative path instead of git. Keep?
 - Megatron-LM: Fig. 2 draws row block i i blocks up (so no slice hides another); defaults 8.3B on 8 GPUs at 150 GB/s; Fig. 4's step lists stay hidden until the BERT prediction is answered; "Results" nav split into "Scaling" and "GPT-2" (new section s-gpt). Keep?
 - Mixtral: the routing stage uses the toy's aux-loss variant and one hand-picked code snippet (sample 1, tokens 53 to 72, chosen for repeated tokens); the shuffled-order control is shown as the measured aggregate (a 20-token shuffle would mislead); decode animation steps slowed to 5.2 s. Keep?
+- MOLE: removed the RQ2 prediction "GPT-4.1 with reasoning or GPT-5.5 on audit events?" (the stage beside it would give the answer; markup saved outside the repo); the daily audit stays a manual widget opening on test day 3; the first stage uses 29 April 2026 (five completed harms, matches the trace viewer). Keep?

@@ -38,7 +38,10 @@ const AUD=(function(){const D=window.AUDIT,NF=20;
       s+='<rect x="'+X.toFixed(1)+'" y="'+(pt+ih-h).toFixed(1)+'" width="'+Math.max(.6,bw-.4).toFixed(2)+'" height="'+h.toFixed(1)+'" fill="'+c+'"><title>'+D.accts[x.r.a]+': score '+x.s.toFixed(3)+', rank '+x.rank+(x.r.pos?', completed '+TH[x.r.th]:'')+'</title></rect>'});
     const pos=it.filter(x=>x.r.pos);const pts=pos.map(x=>({x:pl+(x.rank-.5)*bw,y:pt+ih-(ih*(Math.min(x.s,mx)/mx))*(RM?1:e)-6,t:TH[x.r.th]+(x.rank<=st.K?' ✓':' ✗'),fs:11}));
     pos.forEach((x,i)=>{s+='<circle cx="'+pts[i].x.toFixed(1)+'" cy="'+(pts[i].y+1).toFixed(1)+'" r="3.5" fill="'+(x.rank<=st.K?'var(--good)':'var(--bad)')+'"/>'});
-    placeLabels(pts,W,H-pb+2).forEach(p=>{s+=tx(p.lx,p.ly,p.t,{fs:11,a:p.la})});
+    const LB=placeLabels(pts,W,H-pb+2).map(p=>{const tw=p.t.length*11*.58;if(p.la==='start'&&p.lx+tw>W-2){p.la='end';p.lx=W-2}else if(p.la==='end'&&p.lx-tw<2){p.la='start';p.lx=2}else if(p.la==='middle'){p.lx=Math.max(2+tw/2,Math.min(W-2-tw/2,p.lx))}
+      p.x0=p.la==='start'?p.lx:p.la==='end'?p.lx-tw:p.lx-tw/2;p.x1=p.x0+tw;return p});
+    // labels moved inside the chart may now collide: lift the later one above the earlier until they clear
+    LB.forEach((p,i)=>{for(let it=0;it<6;it++){const hit=LB.slice(0,i).some(q=>p.x0<q.x1&&q.x0<p.x1&&Math.abs(p.ly-q.ly)<13);if(!hit)break;p.ly-=13}s+=tx(p.lx,p.ly,p.t,{fs:11,a:p.la})});
     s+=tx(pl,H-pb+15,'1',{fs:11,c:'var(--mute)'})+tx(W-pr,H-pb+15,n,{fs:11,a:'end',c:'var(--mute)'})+tx(pl+iw/2,H-pb+15,'rank that day (most suspicious left)',{fs:11,a:'middle',c:'var(--mute)'});
     s+=tx(4,pt+ih/2,'score',{fs:11,c:'var(--mute)'});
     const lg=legend([['caught',"var(--good)"],['missed completed harm','var(--bad)'],['routine','var(--dim)']],pl,H-4,iw);s+=lg.s;
@@ -88,5 +91,5 @@ const AUD=(function(){const D=window.AUDIT,NF=20;
     rows.sort((a,b)=>a.x.rank-b.x.rank);
     $('msList').innerHTML=rows.map(o=>{const a=D.accts[o.x.r.a],ho=D.info[o.x.r.a][1],c=o.x.rank<=st.K;return '<button class="msr" data-d="'+o.di+'"><span class="rk" style="color:'+(c?'var(--good)':'var(--bad)')+'">'+o.x.rank+'</span><span>'+a+(ho?' ◇':'')+' · '+TH[o.x.r.th]+' ('+D.info[o.x.r.a][3].replace('s0','non-stealthy').replace('s1','stealthy')+') · '+D.days[o.di].slice(5)+'<br><span class="mute small">'+(o.top||'no deviation on the chosen features')+'</span></span></button>'}).join('');
     $('msList').querySelectorAll('.msr').forEach(b=>b.addEventListener('click',()=>{const d=+b.dataset.d;anim.st.k=d;anim.st.t=1;anim.st.play=false;anim.draw();$('aud').scrollIntoView({block:'start'})}))}
-  onTab('t-run',()=>{if(!anim){anim=makeAnim({id:'aud',modes:{z:steps,peer:steps},mode:'z',draw:(m,k,e,w)=>draw(m,k,e,w),counters,dur:2600})}refresh()});
+  onTab('t-run',()=>{if(!anim){anim=makeAnim({id:'aud',modes:{z:steps,peer:steps},mode:'z',k0:2,draw:(m,k,e,w)=>draw(m,k,e,w),counters,dur:2600})}refresh()});
 })();

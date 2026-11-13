@@ -1,33 +1,10 @@
-// ---- The paper tab: numbers from recompute.py, the evaluation diagram, the threat explorer, the trace viewer, the predict reveals ----
+// ---- The paper tab: numbers from recompute.py, the threat explorer, the trace viewer, the predict reveals ----
 const RC=PAPER.rc,TB=PAPER.tables;
 // fill <span data-rc="key.path" data-f="digits">
 document.querySelectorAll('[data-rc]').forEach(el=>{let v=RC;el.dataset.rc.split('.').forEach(k=>{v=v==null?v:v[k]});
   if(v==null){el.textContent='?';__jsErr('missing recompute value '+el.dataset.rc);return}
   if(Array.isArray(v))v=v.join('; ');
   el.textContent=typeof v==='number'?(el.dataset.f!=null?(v<0?'−':'')+fmt(Math.abs(v),+el.dataset.f):fmt(v,v%1?2:0)):v});
-
-// Figure 1, redrawn: accounts -> services -> audit log -> monitor -> daily queue
-(function(){const el=$('idSvg');fit(el,w=>{const narrow=w<560,H=narrow?330:190;let s='';
-  const box=(x,y,bw,bh,t1,t2,c)=>rc(x,y,bw,bh,'var(--soft)',{s:c||'var(--line)',r:8})+tx(x+bw/2,y+bh/2-(t2?3:-4),t1,{fs:12,a:'middle',w:600})+(t2?tx(x+bw/2,y+bh/2+13,t2,{fs:11,a:'middle',c:'var(--mute)'}):'');
-  const arr=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4" marker-end="url(#ahI)"/>';
-  const defs='<defs><marker id="ahI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
-  if(!narrow){const bw=(w-60)/5,y=40,bh=64;const xs=[0,1,2,3,4].map(i=>6+i*(bw+12));
-    s+=box(xs[0],y,bw,bh,'150 accounts','112 routine, 38 assigned');
-    s+=box(xs[1],y,bw,bh,'9 services','state persists 30 days');
-    s+=box(xs[2],y,bw,bh,'audit log','one event per call');
-    s+=box(xs[3],y,bw,bh,'monitor','scores each account-day','var(--acc)');
-    s+=box(xs[4],y,bw,bh,'top K = 10','reviewed each day','var(--acc)');
-    for(let i=0;i<4;i++)s+=arr(xs[i]+bw+1,y+bh/2,xs[i+1]-2,y+bh/2);
-    s+=tx(xs[0]+bw/2,y-12,'private objective (hidden)',{fs:11,a:'middle',c:'var(--bad)'});
-    s+=tx(xs[3]+bw/2,y-12,'sees no objective or label',{fs:11,a:'middle',c:'var(--mute)'});
-    const q=xs[4],qy=y+bh+22;for(let i=0;i<10;i++){const c=i===1||i===6?'var(--good)':'var(--dim)';s+=rc(q+i*(bw/10),qy,bw/10-2,10,c,{r:2})}
-    s+=tx(q+bw/2,qy+26,'caught = in the queue',{fs:11,a:'middle',c:'var(--good)'});
-    s+=tx(q+bw/2,qy+42,'missed = completed, not in it',{fs:11,a:'middle',c:'var(--bad)'});
-    s+=tx(xs[0],y+bh+36,'GPT-5.3 single-day test period: 15 days, 2,106 account-days, 45 completed harms',{fs:11,c:'var(--mute)'});
-  }else{const bw=w-24,bh=40;const ys=[8,64,120,176,232];const L=[['150 accounts','112 routine, 38 assigned a hidden objective'],['9 stateful services','state persists over 30 workdays'],['audit log','one event per service call'],['monitor','scores each account-day, sees no objective'],['top K = 10 reviewed each day','caught if a completed harm is in the queue']];
-    L.forEach((t,i)=>{s+=box(12,ys[i],bw,bh,t[0],t[1],i>2?'var(--acc)':null);if(i<4)s+=arr(w/2,ys[i]+bh+1,w/2,ys[i+1]-2)});
-    s+=tx(12,ys[4]+bh+24,'Test period replayed here: 15 days, 2,106',{fs:11,c:'var(--mute)'})+tx(12,ys[4]+bh+40,'account-days, 45 completed harms',{fs:11,c:'var(--mute)'})}
-  el.innerHTML=svgW(w,H,defs+s,'The MOLE evaluation pipeline')})})();
 
 // Threat explorer (Table 1, Table 4, Figure 6)
 (function(){const T1=TB.T1,T4=TB.T4,F6=TB.F6;const f6={'01':'IP theft','02':'Credential exfil.','03':'Privilege escalation','04':'Fraud','05':'Sabotage','06':'Weight exfil.','07':'Evaluation manip.','08':'Data poisoning','09':'Release manip.','10':'Safety sabotage'};
@@ -106,8 +83,6 @@ function drawObs(el,metric){fit(el,w=>{const G=['GPT-5.3','Kimi','Qwen','DeepSee
     const gw=iw/L.length,LS=['A','T','R','X','F'];L.forEach((l,li)=>{s+=tx(ox+pl+gw*(li+.5),oy+ph,gw<44?LS[li]:l,{fs:11,a:'middle',c:'var(--mute)'})});
     Mo.forEach((m,mi)=>{const bw=gw/4;L.forEach((l,li)=>{const v=t12[g][m][li][metric],X=ox+pl+gw*li+bw*(mi+.5);s+='<rect x="'+X.toFixed(1)+'" y="'+y(v).toFixed(1)+'" width="'+(bw-1).toFixed(1)+'" height="'+(oy+14+ih-y(v)).toFixed(1)+'" fill="'+MC[m]+'"><title>'+g+', '+m+', '+l+': '+v+(metric==1?' ('+Math.round(v*RC.t12_npos[g])+' of '+RC.t12_npos[g]+')':'')+'</title></rect>'})})});
   const lg=legend(Mo.map(m=>[m,MC[m]]),0,H-4,w);s+=lg.s;if(pw/5<74){s+=tx(0,H+lg.h-6,'A audit events, T + tool results, R + reasoning,',{fs:11,c:'var(--mute)'})+tx(0,H+lg.h+8,'X + threat taxonomy, F rank fusion with the z-score',{fs:11,c:'var(--mute)'})}el.innerHTML=svgW(w,H+lg.h+(pw/5<74?14:-10),s,'Table 12 as bars')})}
-PRED_REVEAL.pr3=()=>{let m=1;drawObs($('obPlot'),m);segBind('obM',v=>{m=+v;drawObs($('obPlot'),m)});
-  $('obNote').innerHTML='Table 12, every cell (hover a bar for its value and, for R@10/day, its whole-day count). On DeepSeek, GPT-4.1 with reasoning catches 21 of 31 completed harms; GPT-5.5 on audit events catches 14. Columns: audit events, + tool results, + agent reasoning, + the fixed threat taxonomy, and reciprocal-rank fusion of the audit-event ranking with the z-score.'};
 
 // RQ5 short table (Table 22) with gains over uniform GPT-4.1
 (function(){const r=TB.T22,b=r[0];let h='<tr><th>strategy (Table 22)</th><th class="num">cost ×</th><th class="num">GPT-5.3 single-day</th><th class="num">GPT-5.3 multiday</th><th class="num">Kimi single-day</th></tr>';

@@ -10,7 +10,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -51,7 +51,8 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.$eval('#tabs button[data-t=t-read]', e => e.click());
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll the animation into view, wait, count frames
+    // the daily audit is a widget under the long-replay rule (15 days, reader-steered): it never moves by itself. The 3D stages, which
+    // autoplay once in view (2026-11-06), are checked by check_stages.mjs.
     for (const id of ['aud']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
