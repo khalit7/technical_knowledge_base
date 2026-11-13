@@ -26,7 +26,7 @@
 - `recompute.py`: parameter recount from `inputs/hf_configs.json`, table sums and averages, the Table 8/Table 4 column check, Figure 1 against Table 9, gaps and size ratios, noise bounds, Figure 2 counts, LLM2Vec's budget (`inputs/llm2vec_extract.txt`), the compute line. Writes `inputs/recompute.json`.
 - `paper.json`: metadata, headline numbers, verdict, resources, connected KB pages; `mk_paper.py`: card, Further reading, `window.PAPER`.
 - Toy suite: `grammar.py` (the toy world; `parts/21_js_lang.js` mirrors it), `train.py` (`pretrain`, `cross`, `evalgen`, `finetune`, `export`), `run_all.sh` (the whole pipeline, in order, in the background), `check_forward.py` (JS against PyTorch on the shipped weights), `overlap.py` (test prompts against the training stream), `mk_results.py` (`model/*.json` into `parts/_gen_results.js`). `model/` keeps the small size's float checkpoints (`s_*.pt`, which `export` reads), the shipped quantised ones (`ship_*_q.pt`, which `check_forward.py` loads) and every JSON result and log (about 700 KB). The middle and large checkpoints (4.3 MB) are left out; `run_all.sh` regenerates them. `build.sh` needs only the JSON files.
-- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped, text at least 11 px, no NaN or errors, no sideways scroll. Since 2026-10-25 it also fails if `ox` or `gx` moves before a click, and opens every closed block. `label_ledger.py` labels `ledger.json`; `reading.json` holds the header's reading time (measured with `html_utils/audit_pages.mjs`, written by hand). `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
+- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped, text at least 11 px, no NaN or errors, no sideways scroll, every closed block opened. Since 2026-11-13 it asserts that `ox` and `gx` play when scrolled into view (the 2026-10-25 never-autoplay check is inverted). `check_stages.mjs`: the 2026-11-06 layout and motion checks (below). `label_ledger.py` labels `ledger.json`; `reading.json` holds the header's reading time (measured with `html_utils/audit_pages.mjs`, written by hand). `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
 
 ## The toy, as built (measured; numbers from `model/*.json`)
 
@@ -67,3 +67,32 @@ Why about 22 minutes is right: the paper's argument has more parts than most (th
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 348 actions, 0 problems (including no movement before a click and every closed block opened; the in-browser test of all four toy models run). `mk_coverage.py`: 49 of 49 (keys updated for the takeaway, the header format and one shortened sentence). Page 299,824 bytes.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`): The paper: In one picture (the hero stage right; core sentence, step list, You need and terms left), Idea (the `ox` animation right, its four step lists left), Recipe (the recipe chart right), Cross-objective (the conversion stage right), Results 2 (rebuilt Figure 1 right), Gender bias (Figure 2 right). Problem, The suite (a table), Evaluation, Results 1, How much to believe, What it takes, Why it matters and Connections have no visual and stay full width. Train the pairs: the generation animation `gx` (right; its new heading "Generation, two ways", its explanation and four step lists left), the toy Figure 1 (summary left, chart right) and the budget sweep (paragraph left, chart right); the training-log chart (its generated notes left, controls and chart right); the toy world, composer, browser test and trust notes stay full width (widgets or lists without a visual to pair with). Tables and Further reading: full width.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged), both driven by the page's own `PAPER.rc` (from `recompute.py`):
+  - `31_js_sc_suite.js`, the hero (replaces the paper's Figure 1 image at the top): the six pairs side by side to scale (one slab per layer, slab width the hidden size, from `rc.params`, the recount of the released configurations); one data stream into both members of every pair (fewer dots for the 1B pair's 667B); then encoder minus decoder at each size as signed bars on a plinth (one scale for all tasks) for MNLI, MS MARCO nDCG@10 and the generative average (`rc.fig1_data`, Table 9); then the 400M encoder against the 1B decoder up close (the 2.7x ratio, `rc.size_ratio`). It exports its layout and helpers as `window.ETS`.
+  - `32_js_sc_conv.js`, Cross-objective: decoders turn into encoders-from-decoders, then encoders into decoders-from-encoders, each under a 50B-token flow; outlined bars (the native model's lead before conversion) beside solid bars (after) for MNLI, MS MARCO and generation; then the 1B pair (667B pretraining, about 16.7B conversion) up close. The MNLI predict question's reveal now moves this stage to its step 2 instead of drawing its own bar chart (the same numbers).
+- **The paper's Figure 1 image** (CC BY 4.0) moved from the top into a closed block in Results 2, beside its interactive rebuild, which shows the same numbers.
+- **Kept 2D**: the objectives animation (an attention mask is a flat grid, and masks are owned by Families and objectives), the recipe chart, rebuilt Figures 1 and 2 (log axes, stacked shares), the ratio table, every toy-tab chart and widget, the Tables tab.
+- **Motion**: `11_js_ui.js` is the BERT page's copy (2026-11-12), whose `makeAnim` follows the `RD.anim` rules: plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, marks `data-playing`, binds an `ol.sx` list per mode; a mode toggle replays. The per-step captions (`oxStep`/`oxCap`, `gxStep`/`gxCap`) became the step lists: static HTML for `ox`, generated from `STEPS()` for `gx`. "New prompt" counts as a reader control. `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `seq_vs_seq-tab`). `21_js_rd_common.js` not added (nothing uses `RD.anim`).
+- **build.sh** finds the repo's `.venv` by walking up the folders instead of calling git.
+- **Prose**: the toy tab's weight-size remark now says what ships (82 KB of weights) and why the middle size does not (3.2 times the parameters), instead of "past 300 KB", which the page already was.
+
+## Length judgement (2026-11-13)
+| | Before (audit 2026-11-13, pre-pass) | After |
+|---|---|---|
+| The paper, core | 5,049 words, 22.0 min | 6,048 words, 26.3 min |
+| The paper, closed | 539 words, 2.3 min | 629 words, 2.7 min |
+| Train the pairs (toy) | 1,466 words, 6.4 min | 2,137 words, 9.3 min |
+| Tables; Further reading | 2,663; 603 | unchanged |
+| Visuals in The paper (audit) | 5 | 7 |
+
+The growth is the step lists that explain the two stages and the two step animations. The audit counts every mode's list, including the three hidden lists of each 2D animation (about 550 words in The paper and about 450 in the toy tab), so one pass reads about 24 minutes of The paper. The header says 26 min, plus 3 (`reading.json`, the audit's count). The closed block grew by the paper's Figure 1 caption, moved from the top. No knowledge was cut.
+
+Ledger: 243 units (core 221, depth 16, owned 3, volatile 2, fat 1); 5 added for the two stages and the static `ox` step lists; 2 re-keyed (61: "the conversion helps retrieval more (step 3"; 80: "figure 1 is rebuilt on the right from table 9"); `ledger.py check` problems 0.
+
+## Checks (13 November 2026)
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems (`ox` and `gx` play on view; the in-browser test of the four toy models run). `check_stages.mjs`: 12 stages and animation modes over three widths, 0 problems. `html_utils/verify_layout.mjs`: problems 0. `mk_coverage.py`: 49 of 49. Model, weights and `check_forward.py` untouched (not rerun).

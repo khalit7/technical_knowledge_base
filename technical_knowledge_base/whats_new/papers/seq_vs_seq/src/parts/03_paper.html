@@ -1,14 +1,20 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3R"><div id="stg-suite"></div></div><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> train an encoder and a decoder as an exact pair (same size, data, data order and recipe; only the attention mask and the objective differ) at six sizes from 17M to 1B, then convert each into the other with 2.5% more training; the <b>encoder wins classification and retrieval and the decoder wins generation at every size</b>, a native encoder beats decoders up to about 2.7 times its size, and the conversion does not close the classification gap at any size or the generation gap from 150M up, while on retrieval it brings a decoder to within noise of the encoder at the smallest and largest sizes.</p>
-<figure class="pfig" id="heroFig">
-<div class="t">Solid lines never cross: the encoder (blue) leads on MNLI and retrieval, the decoder (orange) on generation, at every size</div>
-<div class="sc"><img src="img/ettin_fig1_enc_vs_dec.webp" alt="Three panels against model size from 17M to 1B on a log axis. MNLI accuracy: encoders (solid blue) above decoders (solid orange) at every size, decoder-from-encoder (dotted blue) between them, encoder-from-decoder (dotted orange) on top of the decoder. Retrieval, MS MARCO dev nDCG@10: encoders on top, encoder-from-decoder just below them, decoders and decoder-from-encoder lower. Generative average: decoders on top, widening from 150M to 1B, with the encoder and both conversions below" loading="lazy" width="1600" height="1177"></div>
-<figcaption>Notice the dotted lines: on MNLI the encoder-from-decoder sits on the decoder it started as; on generation the decoder-from-encoder falls behind the decoder from 150M up; only on retrieval does MNTP lift a decoder close to the encoder. Figure 1 of the paper ({{arXiv 2507.11412v2|ax:S4.F1}}), by Weller, Ricci, Marone, Chaffin, Lawrie and Van Durme, {{CC BY 4.0|https://creativecommons.org/licenses/by/4.0/}}; rebuilt with its numbers in {{Results 2|tab:t-read:s-vs}}; swipe sideways on a phone.</figcaption>
-</figure>
+<p class="small mute">The figure: every model of the suite drawn to scale, one slab per layer, each slab as wide as the model's hidden size ({{Table 1|ax:S2.T1}}), then the paper's three headline scores as the encoder's lead over its paired decoder at each size ({{Table 9|ax:A7.T9}}, the table version of the paper's Figure 1).</p>
+<ol class="sx" id="sx-suite">
+<li><b>Six pairs, to scale.</b> Each pair side by side, the encoder (blue) on the left and the decoder (orange) on the right, from 7 layers of width 256 at 17M to 28 layers of width 1,792 at 1B. The two members of a pair have identical configurations.</li>
+<li><b>Same data, same order, same recipe.</b> One stream of about 2T tokens, in one batch order, feeds both members of every pair (the 1B pair got a third, 667B). Only the attention (both ways or left only) and the objective (MLM or CLM) differ.</li>
+<li><b>Classification: the encoder leads at every size.</b> Encoder minus decoder on MNLI accuracy: +1.9 at 17M, up to +3.6 at 150M, +1.9 at 1B.</li>
+<li><b>Retrieval: the same order.</b> On MS MARCO dev nDCG@10 the encoder leads by 1.65 to 2.31 points at every size.</li>
+<li><b>Generation: the decoder leads, more with size.</b> On the ten-task generative average the bars hang below: the decoder leads by 1.3 at 17M and 8.3 at 1B.</li>
+<li><b>About 2.7 times its size, not an order of magnitude.</b> The 400M encoder (91.3 on MNLI) beats the 1B decoder (89.9), and the 150M encoder (89.2) the 400M decoder (88.2). No pair of sizes in Table 9 supports a larger ratio.</li>
+</ol>
 <p class="small"><b>You need:</b> the model families and their masks and objectives (causal LM, masked LM, prefix LM; {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}) and what an encoder is used for in retrieval ({{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}); this page is the paper. <b>New terms:</b> <b>Ettin</b> (the suite: six encoder and decoder pairs); <b>MNTP</b> (masked next-token prediction: a masked token predicted from the previous position's hidden state, LLM2Vec's way to make a decoder bidirectional); <b>encoder-from-decoder, decoder-from-encoder</b> (a finished model trained further on the other side's objective and mask); <b>cross-objective budget</b> (50B tokens, 2.5% of pretraining).</p>
 </section>
+</div></div>
 <nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-suite">The suite</a><a href="#s-recipe">Recipe</a><a href="#s-cross">Cross-objective</a><a href="#s-eval">Evaluation</a><a href="#s-sota">Results: each side</a><a href="#s-vs">Encoders vs decoders</a><a href="#s-bias">Gender bias</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -18,42 +24,67 @@
 <p class="lead"><b>The gap:</b> a suite of encoders and decoders that share everything except the thing being compared, trained to state-of-the-art quality so the comparison means something, with all the data open.</p>
 </section>
 
-<section id="s-idea"><h2>Idea: train every model twice, changing two things</h2>
-[[S3.SS3|§3.3, Table 1 caption]]
-<p>Ettin (named for a two-headed giant of Norse myth: two language-model heads) trains each size twice from scratch, with the same architecture, the same data, in the same order, with the same hyperparameters. The only differences between the two members of a pair are ({{§3.3|ax:S3.SS3}}, {{Table 1|ax:S2.T1}}):</p>
-<ul class="lst"><li><b>the attention pattern:</b> bidirectional for the encoder, causal (each token sees only its left) for the decoder;</li>
-<li><b>the objective:</b> masked language modelling (MLM) for the encoder, masking 30% of tokens and 15% in the final decay phase (footnote 6); causal language modelling (CLM, next-token prediction) for the decoder.</li></ul>
-<p class="small">The masks and objectives in general, with their own visuals: {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}; the animation below shows only what Ettin does with them.</p>
-<p>Then each finished model is trained further on the <b>other</b> side's objective ({{§3.5|ax:S3.SS5}}): a decoder continued with MNTP (masked next-token prediction, below) becomes an <i>encoder-from-decoder</i>; an encoder continued with CLM becomes a <i>decoder-from-encoder</i>. Four kinds of model per size. The animation runs one toy sentence through all four objectives; the first two are the pair, the last two the conversions.</p>
-<div class="card" id="ox">
+<div class="s3sp"><div class="s3R"><div class="card" id="ox">
 <div class="an-top"><div class="seg" id="oxM" role="group" aria-label="Objective"><button class="on" data-m="clm" aria-pressed="true">Decoder: CLM</button><button data-m="mlm" aria-pressed="false">Encoder: MLM</button><button data-m="mntp" aria-pressed="false">Enc-from-dec: MNTP</button><button data-m="dfe" aria-pressed="false">Dec-from-enc: CLM</button></div>
 <span class="small mute">One toy document; the probabilities in the last step come from this page's trained toy models.</span></div>
 <div id="oxSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="oxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="oxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="oxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="oxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="oxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="oxStep"></div><p id="oxCap"></p></div>
 <div class="an-cnt" id="oxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">The grid is the attention mask: a filled cell means the token in that row may read the token in that column. Arrows run from the position whose output is scored to the token it must predict. Masked positions are drawn from the paper's rates (30% MLM, 15% MNTP) on this one sentence, so the counts move by a token or two from the rate. Nothing moves until you press play or step.</p>
+<p class="small mute" style="margin:6px 0 0">The grid is the attention mask: a filled cell means the token in that row may read the token in that column. Arrows run from the position whose output is scored to the token it must predict. Masked positions are drawn from the paper's rates (30% MLM, 15% MNTP) on this one sentence, so the counts move by a token or two from the rate.</p>
 </div>
+</div><div class="s3L">
+<section id="s-idea"><h2>Idea: train every model twice, changing two things</h2>
+[[S3.SS3|§3.3, Table 1 caption]]
+<p>Ettin (named for a two-headed giant of Norse myth: two language-model heads) trains each size twice from scratch, with the same architecture, the same data, in the same order, with the same hyperparameters. The only differences between the two members of a pair are ({{§3.3|ax:S3.SS3}}, {{Table 1|ax:S2.T1}}):</p>
+<ul class="lst"><li><b>the attention pattern:</b> bidirectional for the encoder, causal (each token sees only its left) for the decoder;</li>
+<li><b>the objective:</b> masked language modelling (MLM) for the encoder, masking 30% of tokens and 15% in the final decay phase (footnote 6); causal language modelling (CLM, next-token prediction) for the decoder.</li></ul>
+<p class="small">The masks and objectives in general, with their own visuals: {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}; the animation on the right shows only what Ettin does with them.</p>
+<p>Then each finished model is trained further on the <b>other</b> side's objective ({{§3.5|ax:S3.SS5}}): a decoder continued with MNTP (masked next-token prediction, below) becomes an <i>encoder-from-decoder</i>; an encoder continued with CLM becomes a <i>decoder-from-encoder</i>. Four kinds of model per size. The animation runs one toy sentence through all four objectives; the first two are the pair, the last two the conversions.</p>
+<p class="sxh">Step by step, for the objective chosen on the right</p>
+<ol class="sx" id="sx-ox-clm">
+<li><b>The document.</b> A toy document: two facts, then one restated. A decoder reads it as it is, with nothing hidden.</li>
+<li><b>The attention mask: causal.</b> Each token may read only itself and the tokens to its left: the lower triangle. Row <i>i</i> never sees column <i>j</i> &gt; <i>i</i>.</li>
+<li><b>Every position predicts the next token.</b> The output at position <i>i</i> is scored on token <i>i</i> + 1. Every one of the 14 positions gives a loss, from "ann" after [BOS] to [EOS] after the last full stop.</li>
+<li><b>Asked about "blue" in the restatement.</b> The decoder reads its prediction for "blue" at the position before it, "bob", having seen only the left context, which here contains the answer: bob blue box. Live probability from this page's small toy decoder.</li>
+</ol>
+<ol class="sx" id="sx-ox-mlm" hidden>
+<li><b>The document, with 30% of tokens masked.</b> The encoder's input: 30% of the tokens (here 4 of 13) are chosen; 80% of those become [MASK], 10% a random word, 10% stay. Ettin masks 30% for most of training and 15% in the decay phase.</li>
+<li><b>The attention mask: bidirectional.</b> Every token reads every token, left and right: the full square. Nothing leaks, because the answers at the masked positions are no longer in the input.</li>
+<li><b>Only the masked positions predict.</b> Each masked position is scored on its own original token. The other positions give no loss: a third of the signal per document compared with the decoder, the paper's explanation of why MLM needs more data.</li>
+<li><b>Asked about "blue" in the restatement.</b> The encoder reads its prediction for "blue" at the masked position itself, using both sides. Live probability from this page's small toy encoder, which had not yet learned this lookup when its 8,000 steps ran out (the decoder learned it by step 1,500): MLM's data inefficiency at toy scale, measured in the Train the pairs tab.</li>
+</ol>
+<ol class="sx" id="sx-ox-mntp" hidden>
+<li><b>A trained decoder, 15% of tokens masked.</b> Cross-objective training starts from the final decoder. MNTP masks 15% of tokens (footnote 10: "a middle ground").</li>
+<li><b>The attention mask: now bidirectional.</b> The causal mask is removed: every token reads every token, as in an encoder. The weights were trained with the triangle; this is the change they must adapt to.</li>
+<li><b>Masked token, predicted one position earlier.</b> The twist from LLM2Vec: the masked token at <i>i</i> is scored at position <i>i</i> − 1, the position that predicted it when the model was a decoder. The head keeps its old job; only the context it sees grows.</li>
+<li><b>Asked about "blue" in the restatement.</b> Read at "bob", the position before the mask, with both sides visible. Live probability from the toy encoder-from-decoder (the small toy decoder after 2.5% of its pretraining budget of MNTP, the paper's ratio).</li>
+</ol>
+<ol class="sx" id="sx-ox-dfe" hidden>
+<li><b>A trained encoder, nothing masked.</b> Cross-objective training the other way starts from the final encoder and feeds it plain documents.</li>
+<li><b>The attention mask: now causal.</b> The triangle is imposed on weights that were trained to read both ways: every head loses its right-hand context.</li>
+<li><b>Every position predicts the next token.</b> Plain CLM: position <i>i</i> is scored on token <i>i</i> + 1, a different job for the prediction head, which used to fill a mask at its own position.</li>
+<li><b>Asked about "blue" in the restatement.</b> Read at "bob" with left context only. Live probability from the small toy decoder-from-encoder (2.5% of pretraining spent on CLM), which inherits the small encoder's missing lookup.</li>
+</ol>
 <p>The counter that matters most is the share of tokens that produce a loss. A decoder learns from every token; an encoder only from the masked ones. That is the paper's own explanation (in {{§6|ax:S6}}) for why a concurrent study at a small budget reached the opposite verdict: CLM is more data-efficient per token, an advantage that fades with enough data.</p>
 </section>
+</div></div>
 
 <section id="s-suite"><h2>The suite: six sizes, two of everything</h2>
 [[S3.SS2|§3.2, Table 1, Appendices C and D]]
-<p>ModernBERT has two sizes, so Ettin designs new shapes for the others, roughly doubling at each step and matching common encoder sizes ({{§3.2|ax:S3.SS2}}). The small models follow MobileLLM's advice to go deep and thin; the 1B keeps the 400M's 28 layers and widens instead. The 150M and 400M shapes are ModernBERT-base and -large exactly (both 149.0M and 394.8M in {{Table 11|ax:A7.T11}}).</p>
+<p>ModernBERT has two sizes, so Ettin designs new shapes for the others, roughly doubling at each step and matching common encoder sizes ({{§3.2|ax:S3.SS2}}). The small models follow MobileLLM's advice to go deep and thin; the 1B keeps the 400M's 28 layers and widens instead. The six shapes are drawn to scale in the first figure. The 150M and 400M shapes are ModernBERT-base and -large exactly (both 149.0M and 394.8M in {{Table 11|ax:A7.T11}}).</p>
 <div class="tw" id="suiteT"></div>
 <p class="small mute">Recounted here from each model's released configuration on Hugging Face (<code>jhu-clsp/ettin-encoder-*</code> and <code>ettin-decoder-*</code>; vocabulary 50,368, tied embeddings, no biases, a GLU feed-forward whose input projection is 2 × the intermediate size, LayerNorms without bias, the first layer's attention norm skipped): every total, embedding and non-embedding count reproduces Table 11 to its printed 0.1M, independently, once the prediction head (dense layer, norm and output bias, 0.1M to 3.3M) is left out, as Table 11 does. The encoder and decoder configurations of each size differ only in the causal flags. Learning rate, weight decay and warmups are Table 1's.</p>
 <p>Every other choice is ModernBERT's block ({{Table 12|ax:A7.T12}}), with one change: local and global layers share one rotary base.</p>
 <details class="mist"><summary>The block in full (Table 12, Appendix C)</summary><div class="b"><p>The rest is ModernBERT's block ({{Table 12|ax:A7.T12}}, {{Appendix C|ax:A3}}): rotary positions (no position embeddings) with the base raised to 160,000, pre-norm LayerNorm, a GELU GLU feed-forward, no biases, an embedding norm, sliding-window attention of 128 tokens in two layers of every three, the ModernBERT tokenizer, and a context of 1,024 tokens growing to 7,999. The only change from ModernBERT is that local and global layers use the same rotary base.</p></div></details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-recipe"><h2>The recipe: ModernBERT's, with open data</h2>
 [[S3.SS3|§3.1, §3.3, §3.4, Table 2]]
 <p>One recipe for both sides, the three-phase schedule open-data decoders use and ModernBERT followed, with a trapezoidal learning rate ({{§3.3|ax:S3.SS3}}). Data comes from the sources open decoders train on, chiefly OLMo's: DCLM plus curated Dolma v1.7 sources at first, then the filtered DCLM and other higher-quality Dolmino sources that the {{OLMo 2|n:3c65c17b0d0d81fb9857fb956165ae1c}} paper introduced for its decay phase ({{§3.1|ax:S3.SS1}}; footnote 5: the unfiltered data ablated worse).</p>
-<div class="card"><div id="recipeC"></div>
-<div class="ctl"><label>Show <select id="recipeS"><option value="lr">learning rate and masking ratio</option><option value="mix">data mixture (Table 2)</option></select></label></div>
-<p class="small mute" style="margin:6px 0 0" id="recipeN"></p></div>
+
 <p>Three phases: <b>1.7T tokens</b> of base pretraining on a broad mix, <b>250B</b> of context extension to 8,000 tokens with the noisiest sources dropped, and a <b>50B</b> decay on long, higher-quality data.</p>
 <details class="mist"><summary>The three phases in full: data, context, schedule</summary><div class="b"><ol class="lst">
 <li><b>Base pretraining, 1.7T tokens.</b> Warmup of both learning rate and batch size, then the stable phase, on a broad mix: DCLM (49.1%), Common Crawl head, StarCoder code, Reddit, peS2o papers, arXiv, math, StackExchange, a little Wikipedia, books, news and Tulu FLAN.</li>
@@ -64,7 +95,12 @@
 <p><b>Open everything.</b> Checkpoints every 8.5B tokens, 236 per model (<span class="m">236 × 8.5B = 2,006B</span>, the whole 2T run), plus the training data and the exact batch order, so anyone can pinpoint what a model learned between two checkpoints ({{§3.3|ax:S3.SS3}}), as {{Pythia|https://arxiv.org/abs/2304.01373}} did for decoders.</p>
 <div class="co warn"><div class="t">Not quite 2T for every size</div>Only the appendix says it: there was not enough compute to train the 1B models to the full 2T tokens, so both 1B models (and their cross-objective runs) got a third of the data, 667B tokens instead of 2T ({{Appendix E|ax:A5}}). The paper notes 667B is still past Chinchilla-optimal and still beats 1B models trained longer. Each model trained on one node of 4 H100s: about 6 days of pretraining for the 17M model, about 40 days for the 1B.</div>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div id="recipeC"></div>
+<div class="ctl"><label>Show <select id="recipeS"><option value="lr">learning rate and masking ratio</option><option value="mix">data mixture (Table 2)</option></select></label></div>
+<p class="small mute" style="margin:6px 0 0" id="recipeN"></p></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-conv"></div></div><div class="s3L">
 <section id="s-cross"><h2>Cross-objective training: can you convert one into the other?</h2>
 [[S3.SS5|§3.5]]
 <p>Because large decoders are trained much longer than encoders ever were, it has become common to adapt them to encoder tasks ({{§3.5|ax:S3.SS5}}). The paired models make that testable: take the <b>final</b> model of each kind and continue pretraining it on the reverse objective.</p>
@@ -72,13 +108,23 @@
 <li><b>Encoder-from-decoder:</b> bidirectional attention and <b>MNTP</b>, following {{LLM2Vec|https://arxiv.org/abs/2404.05961}}: a token is masked, but its prediction is read from the hidden state of the <i>previous</i> position, so the decoder's habit of predicting the next token from the current position is kept. 15% masking, "a middle ground" (footnote 10).</li>
 <li><b>Decoder-from-encoder:</b> causal attention and CLM.</li>
 <li><b>Budget:</b> 50B tokens each way, on the decay phase's high-quality data (seen a second time, which earlier work found harmless for two repetitions; footnote 8), with a new trapezoidal schedule: 3B tokens of warmup, 10B of decay. For the 1B models this is scaled by a third again (footnote 9), about 16.7B tokens. Either way it is <span class="m">50B / 2T = 2.5%</span> of pretraining, which the authors call the realistic setting: adaptation always uses little data compared with pretraining.</li></ul>
+<p>The figure on the right takes the six pairs of the first figure through both conversions, with the paper's results before and after ({{Table 9|ax:A7.T9}}).</p>
+<ol class="sx" id="sx-conv">
+<li><b>A finished decoder gets the encoder's job.</b> Each decoder (orange) is trained further with bidirectional attention and MNTP on 50B tokens of the decay data, 2.5% of its pretraining: it becomes an <span style="color:var(--c3)">encoder-from-decoder</span> (green).</li>
+<li><b>Classification: the gap stays.</b> Outlined bars: the encoder's MNLI lead over the decoder, before conversion. Solid green bars: its lead over the encoder-from-decoder, after. Between +1.8 and +3.7 either way, and larger after at 400M and 1B.</li>
+<li><b>Retrieval: MNTP closes most of it.</b> On MS MARCO the encoder's lead falls from 1.65 to 2.31 points to between &minus;0.08 (17M, where the converted model is ahead) and +0.80 (400M).</li>
+<li><b>The other way: a finished encoder gets the decoder's job.</b> Each encoder (blue) is trained further with causal attention and CLM on the same budget: a <span style="color:var(--c5)">decoder-from-encoder</span> (gold).</li>
+<li><b>Generation: level up to 68M, behind from 150M.</b> Outlined: the decoder's lead over the encoder, 1.3 to 8.3. Solid gold: its lead over the decoder-from-encoder, &minus;0.3, +0.6 and &minus;0.3 up to 68M, then +2.6, +4.0 and +6.8.</li>
+<li><b>The widest gap is the least-trained pair.</b> The 1B models were pretrained on 667B tokens, not 2T, and converted on about 16.7B (below): the 6.8-point gap at 1B comes with a third of the budget.</li>
+</ol>
 <div class="co warn"><div class="t">"Far more than previous work", but not 5 times</div>The paper says LLM2Vec trained "around 10B tokens" ({{§3.5|ax:S3.SS5}}), and the old version of this page turned that into "about 5x the token budget LLM2Vec used". LLM2Vec's own paper and configuration say otherwise: its MNTP step is 1,000 steps of 32 sequences of at most 512 tokens on Wikitext-103 ({{LLM2Vec §2 and D.1.1|https://arxiv.org/html/2404.05961v2}}; {{MNTP config|https://github.com/McGill-NLP/llm2vec/blob/main/train_configs/mntp/MetaLlama3.json}}), at most <span class="m">1,000 × 32 × 512 = 16.4M</span> tokens, and even its supervised contrastive stage is 1,000 steps of 512 × 512. Ettin's 50B is roughly <b>3,000 times</b> LLM2Vec's MNTP budget, which makes the negative result stronger, not weaker.</div>
 <div class="pred" id="pr-mnli" data-ans="2"><div class="q">a decoder is given 50B tokens of bidirectional MNTP training, 2.5% of its pretraining. On MNLI, how much of its gap to the paired encoder does that close?</div>
 <div class="opts"><button>All of it</button><button>About half</button><button>None: it does not move, and at the two largest sizes it gets worse</button></div>
 <div class="fb"></div>
-<div class="reveal" hidden><div id="prMnli"></div>
-<p class="small mute">MNLI accuracy from {{Table 9|ax:A7.T9}} (the table version of Figure 1). Bars: the encoder's lead over the decoder at each size, and what is left of it after the decoder's 50B tokens of MNTP. The conversion helps retrieval more (see Encoders vs decoders).</p></div></div>
+<div class="reveal" hidden><p class="small mute">MNLI accuracy from {{Table 9|ax:A7.T9}} (the table version of Figure 1). The figure on the right is now on step 2. Bars: the encoder's lead over the decoder at each size (outlined), and what is left of it after the decoder's 50B tokens of MNTP (solid). The conversion helps retrieval more (step 3; Encoders vs decoders).</p></div></div>
+
 </section>
+</div></div>
 
 <section id="s-eval"><h2>Evaluation</h2>
 [[S4|§4, §4.2, Appendices B and F]]
@@ -97,16 +143,20 @@
 <p>So "matches or beats" is fair on both sides at every size where a peer exists, from a single recipe. It is also the first public, open-data replication of ModernBERT. The tables are sortable in {{The paper's tables, rebuilt|tab:t-tables}}.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-vs"><h2>Results 2: encoders against decoders</h2>
 [[S4.SS2|§4.2, Figure 1, Tables 5, 8 and 9]]
-<p>Three representative scores: MNLI accuracy (classification), MS MARCO dev nDCG@10 (retrieval) and the average of the ten generative tasks ({{§4.2|ax:S4.SS2}}). Figure 1 is rebuilt below from {{Table 9|ax:A7.T9}}, its table version; the figure's own vector coordinates, decoded from the arXiv HTML, agree with Table 9 to the last printed digit.</p>
-<div class="card"><div class="ctl"><label>Task <select id="f1T"><option value="mnli">MNLI accuracy (classification)</option><option value="msmarco">MS MARCO dev nDCG@10 (retrieval)</option><option value="gen">Generative average (10 tasks)</option></select></label>
-<label>Highlight <select id="f1H"><option value="all">all four kinds</option><option value="pair">the pair (encoder, decoder)</option><option value="conv">conversions against the native model</option></select></label></div>
-<div id="f1C"></div><div id="f1N" class="small"></div></div>
+<p>Three representative scores: MNLI accuracy (classification), MS MARCO dev nDCG@10 (retrieval) and the average of the ten generative tasks ({{§4.2|ax:S4.SS2}}). Figure 1 is rebuilt on the right from {{Table 9|ax:A7.T9}}, its table version; the figure's own vector coordinates, decoded from the arXiv HTML, agree with Table 9 to the last printed digit.</p>
+
 <ul class="lst">
 <li><b>Classification: encoders win at every size, and conversion does not help.</b> The 150M encoder scores 89.2 on MNLI against the 400M decoder's 88.2; the 400M encoder 91.3 against the 1B decoder's 89.9 (the abstract's example). The encoder-from-decoder stays within a point of the decoder it started from and is below it at 400M (87.6 against 88.2) and 1B (89.0 against 89.9).</li>
 <li><b>Retrieval: the same order, but conversion helps.</b> MNTP lifts the decoder by 1.5 to 1.9 nDCG@10 at every size, yet the 400M encoder still leads its encoder-from-decoder, 42.2 against 41.4. The paper calls the difference "not as pronounced as in classification"; it is 0.1 at 1B and reversed at 17M (31.01 against 30.93).</li>
 <li><b>Generation: decoders win, and converting an encoder scales badly.</b> The decoder-from-encoder is level with the decoder up to 68M (36.7 against 36.4 at 17M, 42.1 against 41.8 at 68M) and 6.8 points behind at 1B (52.2 against 59.0).</li></ul>
+<details class="mist"><summary>The paper's own Figure 1 (image)</summary><div class="b"><figure class="pfig" id="heroFig" style="margin:8px 0">
+<div class="t">Solid lines never cross: the encoder (blue) leads on MNLI and retrieval, the decoder (orange) on generation, at every size</div>
+<div class="sc"><img src="img/ettin_fig1_enc_vs_dec.webp" alt="Three panels against model size from 17M to 1B on a log axis. MNLI accuracy: encoders (solid blue) above decoders (solid orange) at every size, decoder-from-encoder (dotted blue) between them, encoder-from-decoder (dotted orange) on top of the decoder. Retrieval, MS MARCO dev nDCG@10: encoders on top, encoder-from-decoder just below them, decoders and decoder-from-encoder lower. Generative average: decoders on top, widening from 150M to 1B, with the encoder and both conversions below" loading="lazy" width="1600" height="1177"></div>
+<figcaption>Notice the dotted lines: on MNLI the encoder-from-decoder sits on the decoder it started as; on generation the decoder-from-encoder falls behind the decoder from 150M up; only on retrieval does MNTP lift a decoder close to the encoder. Figure 1 of the paper ({{arXiv 2507.11412v2|ax:S4.F1}}), by Weller, Ricci, Marone, Chaffin, Lawrie and Van Durme, {{CC BY 4.0|https://creativecommons.org/licenses/by/4.0/}}; rebuilt with its numbers in the chart beside this section.</figcaption>
+</figure></div></details>
 <div class="pred" id="pr-ratio" data-ans="0"><div class="q">the old summary said encoders beat decoders "an order of magnitude larger" on classification and retrieval. What is the largest size ratio at which a native encoder beats a native decoder in Table 9?</div>
 <div class="opts"><button>About 2.7x: the next size up</button><button>About 6x</button><button>About 10x or more</button></div>
 <div class="fb"></div>
@@ -116,14 +166,21 @@
 <div class="co warn"><div class="t">Table 8 swaps two columns for the decoder rows</div>Table 8 orders its columns "SIQA, SciQ"; Table 4 orders them "SciQ, SIQA". Every decoder and decoder-from-encoder row of Table 8 carries Table 4's values in Table 4's order (the 400M decoder: 91.8 then 45.5), so under Table 8's headers the decoder appears to score 91.8 on Social IQA, a three-way task where the encoder rows sit at 34 to 46. Read consistently, the 400M decoder scores <b>91.8 on SciQ</b> against the encoder's 65.6, and <b>45.5 on Social IQA</b> against 43.9. SciQ is one of the decoder's biggest wins, not an encoder win, and Social IQA is close. The paper's sentence matches Table 8 read naively. Toggle the reading in the {{tables tab|tab:t-tables:t8}}.</div>
 <p><b>Harder tasks at 1B</b> ({{Table 5|ax:S4.T5}}, added in v2): the decoder-from-encoder scores 37.0 against the decoder's 27.0 on "MMLU CS", but 18.9 against 32.0 on GSM8k. The paper reads this as the same split: the converted encoder wins classification and loses generation. Two cautions: the table does not define "MMLU CS" (a computer-science subset of MMLU, or MMLU as a classification task; the old page called it "MMLU classification"), and 27.0 is barely above the 25% chance level of four-way multiple choice, as the authors expect when they say most of their models are too small for signal on these tasks.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="ctl"><label>Task <select id="f1T"><option value="mnli">MNLI accuracy (classification)</option><option value="msmarco">MS MARCO dev nDCG@10 (retrieval)</option><option value="gen">Generative average (10 tasks)</option></select></label>
+<label>Highlight <select id="f1H"><option value="all">all four kinds</option><option value="pair">the pair (encoder, decoder)</option><option value="conv">conversions against the native model</option></select></label></div>
+<div id="f1C"></div><div id="f1N" class="small"></div></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-bias"><h2>Case study: gender bias with identical data</h2>
 [[S5|§5, Figures 2 and 3, Table 10]]
 <p>Because both kinds saw the same data, differences in learned bias come from the objective ({{§5|ax:S5}}). The test is the "Gotcha" split of WinoGender: 240 sentences, half with a female and half with a male stereotypical pronoun (nurse: female). Most of the small models are at chance on the real coreference task ({{Table 10|ax:A7.T10}}), so the case study uses an easier one: predict the pronoun itself, with a <code>[MASK]</code> for encoders and the lower-perplexity sentence for decoders, and count male, female and neutral answers.</p>
-<div class="card"><div id="f2C"></div>
-<p class="small mute" style="margin:6px 0 0">{{Figure 2|ax:S5.F2}} rebuilt from its vector coordinates in the arXiv HTML; every share is a whole number of the 240 sentences (shown on hover). The labels of the figure's own size axis read 66M for the 68M models.</p></div>
+
 <p>The paper's reading: encoders are "much more likely to use a gender neutral pronoun overall"; both lean male, "if slightly higher for decoders"; female pronouns become more common with size, steadily for decoders and "more stochastic" for encoders. The decoded figure supports this on average (neutral 37.0% of answers for encoders against 21.5% for decoders; male 55.9% against 67.7%) and up to 150M, but at <b>400M and 1B it reverses</b>: the decoders choose neutral pronouns more often (30.8% and 30.0% against 22.9% and 24.6%) and the encoders choose male more often (69.2% and 59.6% against 53.7% at both sizes). Each bar is one model on 240 sentences, so a share has a standard error of about 3 points.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div id="f2C"></div>
+<p class="small mute" style="margin:6px 0 0">{{Figure 2|ax:S5.F2}} rebuilt from its vector coordinates in the arXiv HTML; every share is a whole number of the 240 sentences (shown on hover). The labels of the figure's own size axis read 66M for the 68M models.</p></div></div></div></div>
 
 <section id="s-trust"><h2>How much of this to believe</h2>
 [[A7.T9|§4.2, §5, Tables 5, 8, 9; Appendix E]]

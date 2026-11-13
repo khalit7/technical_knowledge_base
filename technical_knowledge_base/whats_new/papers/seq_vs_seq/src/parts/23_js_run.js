@@ -10,8 +10,9 @@ const disp=w=>w==='[BOS]'||w===EM.vocab[EM.BOS]?'BOS':w===EM.vocab[EM.EOS]?'EOS'
 // ===== 1. Generation, two ways =====
 let rng=mulberry32(20250715),PR=LANG.prompt(rng);const GEN={};
 function gen(kind){if(GEN[kind])return GEN[kind];const M=EM.load(kind);return GEN[kind]=EM.generate(M,EM.enc(PR.words),3)}
-const STEPS=k=>{const how=k==='dec'||k==='dfe'?'causal':'mask',o=[];
-  for(let j=0;j<3;j++){o.push({t:'Token '+(j+1)+': the input',c:how==='causal'?'The decoder reads the prompt'+(j?' and the '+j+' token'+(j>1?'s':'')+' it has generated':'')+' with causal attention, and predicts the next token at the last position (outlined).':'The encoder gets the prompt'+(j?' plus its '+j+' generated token'+(j>1?'s':''):'')+', then three [MASK] tokens and [EOS], all with bidirectional attention. '+(k==='efd'?'Trained with MNTP, it reads the first mask\'s prediction one position earlier (outlined).':'It reads the first mask (outlined).')});
+// each step's explanation is written into the step list sx-gx-<mode> on the left (03_paper's pattern); the card carries no caption
+const STEPS=k=>{const how=k==='dec'||k==='dfe'?'causal':'mask',o=[],who=k==='dfe'?'The decoder-from-encoder':'The decoder';
+  for(let j=0;j<3;j++){o.push({t:'Token '+(j+1)+': the input',c:how==='causal'?who+' reads the prompt'+(j?' and the '+j+' token'+(j>1?'s':'')+' it has generated':'')+' with causal attention, and predicts the next token at the last position (outlined).':'The encoder gets the prompt'+(j?' plus its '+j+' generated token'+(j>1?'s':''):'')+', then three [MASK] tokens and [EOS], all with bidirectional attention. '+(k==='efd'?'Trained with MNTP, it reads the first mask\'s prediction one position earlier (outlined).':'It reads the first mask (outlined).')});
     o.push({t:'Token '+(j+1)+': the prediction',c:'The top three tokens and their probabilities. The most likely one is appended'+(how==='mask'?', and the masks move one place right':'')+'.'})}
   o.push({t:'Done: three tokens',c:'The answer is compared with the fact in the prompt; all three tokens must be right.'});return o};
 function drawGx(k,st,e,w){const S=gen(k),j=Math.min(2,Math.floor(st/2)),phase=st===6?2:st%2,r=S[j];
@@ -26,8 +27,9 @@ function drawGx(k,st,e,w){const S=gen(k),j=Math.min(2,Math.floor(st/2)),phase=st
 function gxCount(k,st){const S=gen(k),n=Math.min(3,Math.floor((st+1)/2)),got=S.slice(0,n).map(r=>EM.vocab[r.pick]),ok=got.every((g,i)=>g===PR.answer[i]);
   const cur=S[Math.min(2,Math.floor(st/2))];
   return stat('Forward passes',n||'0','one per generated token')+stat('Tokens in this pass',cur.input.length,k==='dec'||k==='dfe'?'prompt plus generated':'prompt, generated, 3 masks, EOS')+stat('Generated',got.length?got.join(' '):'·','right answer: '+PR.answer.join(' '))+stat('Correct so far',got.length?(ok?'yes':'no'):'·','')}
-const gxA=makeAnim({id:'gx',mode:'dec',modes:{dec:STEPS('dec'),enc:STEPS('enc'),efd:STEPS('efd'),dfe:STEPS('dfe')},draw:drawGx,counters:gxCount,dur:2200});
-$('gxNew').addEventListener('click',()=>{PR=LANG.prompt(rng);Object.keys(GEN).forEach(k=>delete GEN[k]);if(gxA){gxA.st.k=0;gxA.st.t=1;gxA.st.lk=-1;gxA.draw()}});
+['dec','enc','efd','dfe'].forEach(k=>{const L=$('sx-gx-'+k);if(L)L.innerHTML=STEPS(k).map(x=>'<li><b>'+x.t+'.</b> '+x.c+'</li>').join('')});
+const gxA=makeAnim({id:'gx',mode:'dec',modes:{dec:STEPS('dec'),enc:STEPS('enc'),efd:STEPS('efd'),dfe:STEPS('dfe')},lists:{dec:'sx-gx-dec',enc:'sx-gx-enc',efd:'sx-gx-efd',dfe:'sx-gx-dfe'},draw:drawGx,counters:gxCount,dur:3600});
+$('gxNew').addEventListener('click',()=>{PR=LANG.prompt(rng);Object.keys(GEN).forEach(k=>delete GEN[k]);if(gxA){gxA.st.user=true;gxA.st.play=false;gxA.st.k=0;gxA.st.t=1;gxA.draw()}});
 
 // ===== 2. Toy Figure 1 =====
 function score(task,s,k,f,n){if(task==='cls'){const c=TY.cls&&TY.cls[key(s,k,f)+'@'+n];return c?{v:100*c.mean,sd:100*c.sd}:null}

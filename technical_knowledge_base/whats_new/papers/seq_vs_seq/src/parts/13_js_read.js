@@ -1,4 +1,4 @@
-// ---- The paper tab: objectives animation, suite table, recipe chart, Figure 1 and 2 rebuilt, predict reveals ----
+// ---- The paper tab: objectives animation, suite table, recipe chart, Figure 1 and 2 rebuilt, predict reveals (the 3D stages are 31_js_sc_suite.js and 32_js_sc_conv.js) ----
 (function(){
 const P=window.PAPER,T=P.tables,RC=P.rc;
 const KC={enc:'var(--c1)',dec:'var(--c2)',efd:'var(--c3)',dfe:'var(--c5)'};
@@ -6,7 +6,7 @@ const KN={enc:'Encoder',dec:'Decoder',efd:'Enc-from-dec',dfe:'Dec-from-enc'};
 const SZ=['17M','32M','68M','150M','400M','1B'],SM=[17,32,68,150,400,1000];
 window.ETT={KC,KN,SZ,SM};
 
-// ===== 1. Objectives animation (four modes on one toy document) =====
+// ===== 1. Objectives animation (four modes on one toy document; each step is explained in the step lists sx-ox-<mode> of 03_paper.html) =====
 const DOC=['[BOS]','ann','red','cup','.','bob','blue','box','.','so','bob','blue','box','.','[EOS]'];
 const TGT=11; // the restated colour "blue": the position every mode is asked about in the last step
 function maskSet(rate,seed){const r=mulberry32(seed),cand=[];for(let i=1;i<DOC.length-1;i++)if(i!==TGT)cand.push(i);
@@ -14,25 +14,25 @@ function maskSet(rate,seed){const r=mulberry32(seed),cand=[];for(let i=1;i<DOC.l
 const MS={mlm:maskSet(.30,5),mntp:maskSet(.15,9)};
 const MODES={
   clm:{causal:true,label:'Decoder (CLM)',model:'dec',steps:[
-    {t:'The document',c:'A toy document: two facts, then one restated. A decoder reads it as it is, with nothing hidden.'},
-    {t:'The attention mask: causal',c:'Each token may read only itself and the tokens to its left: the lower triangle. Row <i>i</i> never sees column <i>j</i> &gt; <i>i</i>.'},
-    {t:'Every position predicts the next token',c:'The output at position <i>i</i> is scored on token <i>i</i> + 1. Every one of the 14 positions gives a loss, from "ann" after [BOS] to [EOS] after the last full stop.'},
-    {t:'Asked about "blue" in the restatement',c:'The decoder reads its prediction for "blue" at the position before it, "bob", having seen only the left context, which here contains the answer: bob blue box. Live probability from this page\'s small toy decoder.'}]},
+    {t:'The document'},
+    {t:'The attention mask: causal'},
+    {t:'Every position predicts the next token'},
+    {t:'Asked about "blue" in the restatement'}]},
   mlm:{causal:false,label:'Encoder (MLM)',model:'enc',steps:[
-    {t:'The document, with 30% of tokens masked',c:'The encoder\'s input: 30% of the tokens (here 4 of 13) are chosen; 80% of those become [MASK], 10% a random word, 10% stay. Ettin masks 30% for most of training and 15% in the decay phase.'},
-    {t:'The attention mask: bidirectional',c:'Every token reads every token, left and right: the full square. Nothing leaks, because the answers at the masked positions are no longer in the input.'},
-    {t:'Only the masked positions predict',c:'Each masked position is scored on its own original token. The other positions give no loss: a third of the signal per document compared with the decoder, the paper\'s explanation of why MLM needs more data.'},
-    {t:'Asked about "blue" in the restatement',c:'The encoder reads its prediction for "blue" at the masked position itself, using both sides. Live probability from this page\'s small toy encoder, which had not yet learned this lookup when its 8,000 steps ran out (the decoder learned it by step 1,500): MLM\'s data inefficiency at toy scale, measured in the Train the pairs tab.'}]},
+    {t:'The document, with 30% of tokens masked'},
+    {t:'The attention mask: bidirectional'},
+    {t:'Only the masked positions predict'},
+    {t:'Asked about "blue" in the restatement'}]},
   mntp:{causal:false,label:'Encoder-from-decoder (MNTP)',model:'efd',steps:[
-    {t:'A trained decoder, 15% of tokens masked',c:'Cross-objective training starts from the final decoder. MNTP masks 15% of tokens (footnote 10: "a middle ground").'},
-    {t:'The attention mask: now bidirectional',c:'The causal mask is removed: every token reads every token, as in an encoder. The weights were trained with the triangle; this is the change they must adapt to.'},
-    {t:'Masked token, predicted one position earlier',c:'The twist from LLM2Vec: the masked token at <i>i</i> is scored at position <i>i</i> − 1, the position that predicted it when the model was a decoder. The head keeps its old job; only the context it sees grows.'},
-    {t:'Asked about "blue" in the restatement',c:'Read at "bob", the position before the mask, with both sides visible. Live probability from the toy encoder-from-decoder (the small toy decoder after 2.5% of its pretraining budget of MNTP, the paper\'s ratio).'}]},
+    {t:'A trained decoder, 15% of tokens masked'},
+    {t:'The attention mask: now bidirectional'},
+    {t:'Masked token, predicted one position earlier'},
+    {t:'Asked about "blue" in the restatement'}]},
   dfe:{causal:true,label:'Decoder-from-encoder (CLM)',model:'dfe',steps:[
-    {t:'A trained encoder, nothing masked',c:'Cross-objective training the other way starts from the final encoder and feeds it plain documents.'},
-    {t:'The attention mask: now causal',c:'The triangle is imposed on weights that were trained to read both ways: every head loses its right-hand context.'},
-    {t:'Every position predicts the next token',c:'Plain CLM: position <i>i</i> is scored on token <i>i</i> + 1, a different job for the prediction head, which used to fill a mask at its own position.'},
-    {t:'Asked about "blue" in the restatement',c:'Read at "bob" with left context only. Live probability from the small toy decoder-from-encoder (2.5% of pretraining spent on CLM), which inherits the small encoder\'s missing lookup.'}]}};
+    {t:'A trained encoder, nothing masked'},
+    {t:'The attention mask: now causal'},
+    {t:'Every position predicts the next token'},
+    {t:'Asked about "blue" in the restatement'}]}};
 const live={};
 function liveProb(mode){if(live[mode]!=null)return live[mode];if(!window.EM)return null;
   const M=MODES[mode];let p=null;try{const m=EM.load(M.model),blue=EM.IDX.blue;
@@ -64,7 +64,7 @@ function oxCount(mode,k,e){const M=MODES[mode],n=DOC.length,sc=scored(mode),cell
   return stat('Tokens',n,'including BOS and EOS')+stat('Attention cells open',k>=1?fmt(cells)+' of '+fmt(n*n):'·',k>=1?(M.causal?'causal: the lower triangle':'bidirectional: all of them'):'')+
     stat('Positions with a loss',k>=2?sc.length+' of '+(n-1):'·',k>=2?Math.round(100*sc.length/(n-1))+'% of predictable tokens':'')+
     stat('P("blue") from the toy',k>=3?(p==null?'n/a':(100*p).toFixed(1)+'%'):'·',k>=3?'read at '+(mode==='mlm'?'the mask itself':'"bob", one position earlier'):'')}
-makeAnim({id:'ox',mode:'clm',modes:Object.fromEntries(Object.entries(MODES).map(([k,v])=>[k,v.steps])),draw:drawOx,counters:oxCount,dur:2600});
+makeAnim({id:'ox',mode:'clm',modes:Object.fromEntries(Object.entries(MODES).map(([k,v])=>[k,v.steps])),lists:Object.fromEntries(Object.keys(MODES).map(k=>[k,'sx-ox-'+k])),draw:drawOx,counters:oxCount,dur:4200});
 
 // ===== 2. Suite table: Table 1 with the recount =====
 (function(){const el=$('suiteT');if(!el)return;const t1=T.T1,row=n=>t1.rows.find(r=>r.name===n).v;
@@ -122,11 +122,8 @@ function drawF1(w){const t=$('f1T').value,hl=$('f1H').value,d=F1[t];
 fit($('f1C'),drawF1);['f1T','f1H'].forEach(id=>$(id).addEventListener('change',()=>refit($('f1C'))));
 
 // ===== 5. Predict reveals =====
-function gapBars(el,rows,unit){fit(el,w=>{const W=w,bh=16,gap=8,pl=48,H=rows.length*(2*bh+gap)+30,mx=Math.max(...rows.flatMap(r=>[Math.abs(r.a),Math.abs(r.b)]))*1.15,x0=pl+(W-pl-60)*0.08,sx=v=>(W-pl-60)*v/mx;
-  let s='';rows.forEach((r,i)=>{const y=6+i*(2*bh+gap);s+=tx(pl-6,y+bh+4,r.n,{fs:11,a:'end'});
-    [[r.a,r.ca,r.la],[r.b,r.cb,r.lb]].forEach(([v,c,l],j)=>{const yy=y+j*bh;const x=v>=0?x0:x0+sx(v);s+=rc(x,yy+2,Math.abs(sx(v)),bh-4,c,{r:2})+tx(Math.max(x0,x0+sx(v))+4,yy+bh-4,(v>0?'+':'')+v.toFixed(1)+(j===0?'':''),{fs:11,c:'var(--mute)'})})});
-  s+=ln2(x0,0,x0,H-26,'var(--mute)');const L=legend([[rows[0].la,rows[0].ca],[rows[0].lb,rows[0].cb]],pl,H-8,W-pl);el.innerHTML=svgW(W,H+4,s+L.s,'gaps')})}
-PRED_REVEAL['pr-mnli']=()=>{const d=F1.mnli;gapBars($('prMnli'),SZ.map((n,i)=>({n,a:+(d.enc[i]-d.dec[i]).toFixed(1),b:+(d.enc[i]-d.efd[i]).toFixed(1),ca:KC.dec,cb:KC.efd,la:'encoder lead over the decoder',lb:'lead left after 50B tokens of MNTP'})))};
+// the MNLI question's answer is step 2 of the conversion stage (32_js_sc_conv.js): the reveal moves it there, which counts as a reader control
+PRED_REVEAL['pr-mnli']=()=>{const c=window.ETT_CONV;if(c){c.st.user=true;c.pause();c.go(1,true)}};
 PRED_REVEAL['pr-ratio']=()=>{const r=RC.size_ratio,row=(t,x,w)=>x?'<tr><td>'+t+'</td><td class="num"><b>'+x.ratio+'x</b></td><td>'+x.small+' '+w+' over '+x.big+' '+KN[x.loser].toLowerCase()+'</td><td class="num">'+x.v_small+' against '+x.v_big+'</td></tr>':'<tr><td>'+t+'</td><td class="num">none</td><td colspan="2">no smaller native model wins</td></tr>';
   $('prRatio').innerHTML='<div class="tw"><table><thead><tr><th>Task</th><th class="num">Largest ratio</th><th>Which models</th><th class="num">Scores</th></tr></thead><tbody>'+
    row('MNLI, encoder against decoder',r.mnli_enc_vs_dec,'encoder')+row('MNLI, encoder against enc-from-dec',r.mnli_enc_vs_efd,'encoder')+row('MS MARCO, encoder against decoder',r.msmarco_enc_vs_dec,'encoder')+row('MS MARCO, encoder against enc-from-dec',r.msmarco_enc_vs_efd,'encoder')+row('Generative, decoder against encoder',r.gen_dec_vs_enc,'decoder')+row('Generative, decoder against dec-from-enc',r.gen_dec_vs_dfe,'decoder')+'</tbody></table></div>'};

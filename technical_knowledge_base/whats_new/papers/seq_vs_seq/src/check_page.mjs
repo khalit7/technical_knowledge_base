@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations playing on view and stepping end to end (the 3D stages: check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/seq_vs_seq/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,11 +42,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open'); if (process.env.DBG) console.log('open', t);
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
+    // autoplay on view (2026-11-06, replacing the 2026-10-25 never-autoplay rule): each step animation, scrolled into view, plays by itself;
+    // the 3D stages, the step lists and reduced motion are checked by check_stages.mjs
     for (const id of ['ox', 'gx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!(fr > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
       actions++;
     }
     // open every closed block and audit what it shows
