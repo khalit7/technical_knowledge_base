@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card with verdict; the idea in one screen (core sentence, hero graph from the lab's engine, new terms); Problem; Same-size students (setup, Figure 1 rebuilt, ablations, what the teacher brings); Closing the gap (Figure 2b, simple BT, chain-of-thought length with a predict question and Figure 3b); The theorem (STCON, AC0 lookup, complexity ladder, Lemma 1 on numbers, Theorem 1 and BFS, why depth, what it does not say); Branching on math (predict question and Figure 5a, noise, recipes, capacity, QED-Nano with Figure 13c intervals); How much to believe; What it takes; Why it matters; Connections. |
+| The paper | `t-read` | Card with verdict; the idea in one screen (core sentence, 3D hero stage driven by the lab's engine, new terms); Problem; Same-size students (setup, Figure 1 rebuilt, ablations, what the teacher brings); Closing the gap (Figure 2b, simple BT, chain-of-thought length with a predict question and Figure 3b); The theorem (STCON, AC0 lookup, complexity ladder, Lemma 1 on numbers, Theorem 1 and BFS; why depth, with the squaring stage; what it does not say); Branching on math (the tree stage, predict question and Figure 5a, noise, recipes, capacity, QED-Nano with Figure 13c intervals); How much to believe; What it takes; Why it matters; Connections. |
 | Run the harness | `t-run` | Live ingredient: the BFS harness of Theorem 1 (i) stepped round by round on a graph you choose, against a reader that squares the Boolean adjacency matrix once per layer (2^k hops for k layers); then reader accuracy over 200 graphs per size, N = 8 to 256, two families, plus the harness's rounds and lookups. |
 | The paper's figures, rebuilt | `t-tables` | Every decoded chart and Tables 1 to 3 (select), and every check of `recompute.py` as cards. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -16,7 +16,7 @@
 - **The live ingredient is a simulation of the theorem's mechanism, not a trained model.** The paper is theory plus distillation experiments that need its traces and models (none released). The theorem is the part that can be run exactly: its harness is plain breadth-first search over an edge-lookup oracle. The fixed-depth "reader" is one standard constant-depth strategy (repeated Boolean squaring), labelled as such; it illustrates why depth matters and cannot show that every constant-depth circuit fails (that is the open NL vs TC0 question). A tiny transformer student trained on BFS traces was considered and rejected (`viz_ideas.md` row 11).
 - **Figures decoded, not tables transcribed.** The paper prints nearly every result as a chart. `decode_figs.py` reads the e-print's vector PDFs (bars, tick marks, error bars, dashed reference lines) with PyMuPDF; the 91 bars that carry a printed label agree with it to the label's precision. Values without labels (Figures 2b and 9, Figure 13c intervals, the teacher lines) are marked decoded. Figures 6 to 8 and 10 (line and scatter panels of ablations, no printed values) are summarised in words only.
 - **No "Then and now"**: the paper is a week old.
-- **Reading time** 20 minutes plus 1 in closed details (counted by the build, predict reveals included). The page owns every detail of the paper; the knowledge the topic pages own (chain of thought as computation on Test-time compute and reasoning, distillation recipes, scaffold sensitivity) is linked, not retaught.
+- **Reading time** 23 minutes plus 1 in closed details since the 2026-11-13 rollout (20 before) (counted by the build, predict reveals included). The page owns every detail of the paper; the knowledge the topic pages own (chain of thought as computation on Test-time compute and reasoning, distillation recipes, scaffold sensitivity) is linked, not retaught.
 
 ## Corrections and findings (against the paper's text and the brief's summary)
 
@@ -48,3 +48,30 @@
 ## Checks (26 October 2026)
 
 `checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs (rerun after the contract pass). `check_page.mjs`: 0 problems. `mk_coverage.py`: 49 of 49. Everything here is deterministic CPU work on a Linux cloud container; nothing was trained.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`; `99_js_tabs.js` from the template with the storage key `sc-tab` (it keeps `data-to` scrolling). `21_js_rd_common.js` is not used (no 2D animation on the page). `build.sh` finds the repository root by path instead of asking git. `22_js_graph.js` gained `GR.layers(g,k)` (every layer of the squaring reader); `sweep.cjs` still reproduces `inputs/sweep.json` (3,000 of 3,000, max calls / N^2 0.4775).
+
+- **Three 3D stages**, one scene file each, all driven by the page's own engine or data:
+  - `31_js_sc_hero.js`, the top (replaces the static hero SVG and its caption): the 10-vertex long-paths graph (seed 13) on the floor; the BFS harness in two explained stretches (rounds 1 to 3, then 4 to 7: 9, 8, 7, ... lookups, 43 in all), each vertex rising as a column as tall as its round; the visited bits as a strip and the base model as a lookup box with dots for queries; the 2-layer reader as an orange glass ceiling at 4 hops, pierced by t at 7; the ceiling raised to 8 hops by a third layer; then a 16-vertex graph (seed 3, the first seed with t reachable beyond 8 hops: 10 hops, 115 lookups) piercing it again. Sets `window.HERO` (used by `check_page.mjs`) and `window.__hero`.
+  - `32_js_sc_sq.js`, new, "Why depth is the limit, on a picture" (now its own sub-section `s-depth`): the reader's 4 layers as 10 x 10 Boolean plates (`GR.layers`), row s orange, dots streaming from the rows row s already reaches into the next plate's row s; the (s, t) cell ringed red until it lights at layer 3. `window.__sq`.
+  - `33_js_sc_tree.js`, new, Branching (section `s-agent`): the five matched trees of Figure 5a with a student, (2,1), (2,2), (3,2), (4,2), (3,3), as 3D call trees (level 1 along x, level 2 in depth, level 3 along x), dots flowing up, the same calls flattened into the student's one rollout in front, teacher and student bars on plinths against the base 28.0. (4,3) is left out because it has no student (the predict question is about it). `window.__tree`.
+- **Split layout**: The idea (hero stage), Same-size students (Figure 1), Closing the gap (Figure 2b), The theorem (the class ladder), Why depth is the limit (squaring stage), Branching (tree stage), A strong prover (`s-qed`, Figure 13c). Run tab: notes and limits beside the single-graph lab, the predict question and sweep provenance beside the sweep card. Tables tab: intro beside the figure selector. Full width: Problem, What the theorem does not say (`s-thm-not`), How much to believe, Use it, Why it matters, Connections, the checks list, Further reading.
+- **Kept 2D**: Figures 1, 2b, 3b, 5a, 13c and the tables tab (numbers on an axis), the class ladder (a line of inclusions), the sweep and cost charts (curves over N). The Run tab's single-graph stepper stays a reader-driven widget with its live per-round caption and no autoplay or step list: its step count changes with every graph (long-replay rule, option b); the hero stage plays the same mechanism with explained steps.
+- **Anchors**: every old section id kept; new `s-depth`, `s-thm-not`, `s-qed`.
+
+### Length judgement (2026-11-13)
+| | Before (audit) | After |
+|---|---|---|
+| The paper, core | 20.2 min (4,646 words) | 22.8 min (5,247) |
+| The paper, closed | 1.1 (249) | unchanged |
+| Run the harness | 2.6 (607) | 2.8 (650) |
+| Figures, rebuilt | 6.8 (1,564) | unchanged |
+| Visuals in Reading (audit) | 5 | 7 |
+
+The growth is the three step lists (about 600 words); they replace the hero caption and add two mechanisms the page asserted in a sentence (what one layer of the reader computes; what the student must write for a tree). Nothing was cut but the hero caption, now carried by its step list. Header: "Reading: 23 min, plus 1 in closed details."
+
+Ledger: 231 units (core 222, depth 7, owned 2); 7 added for the step lists and the lab note; keys re-pointed on units 9, 10, 11, 12 and 85 (each marked `rekeyed`). `ledger.py check`: problems 0.
+
+Checks (2026-11-13): `checkpage.sh` 4 tabs, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` (now also 1400 light, opens closed blocks) 0 problems; `check_stages.mjs` (new: the three stages at 1400 and 920 light and 390 dark, autoplay, list lengths, off-screen and reduced motion, step-list numbers against the engine and tables.json) problems 0; `verify_layout.mjs` problems 0; `mk_coverage.py` 49 of 49.

@@ -1,7 +1,8 @@
 // node technical_knowledge_base/whats_new/papers/scaffold_computational_separations/src/check_page.mjs   (from the repo root; set CHROME_PATH if needed)
 // Every control of every tab at 390 px dark and 920 px light: no page errors, no visible #jsErr, no NaN/undefined/Infinity,
 // no sideways scroll, no SVG or HTML text under 11 px. Also: the live sweep equals inputs/sweep.json, the hero numbers equal
-// the engine's, every prose number listed below is in tables.json or recompute.json, and nothing animates by itself.
+// the engine's, every prose number listed below is in tables.json or recompute.json; closed blocks are opened; under reduced motion
+// nothing animates by itself (the stages autoplay otherwise: check_stages.mjs asserts that). Now also at 1400 px light.
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const here = path.dirname(new URL(import.meta.url).pathname);
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
@@ -10,7 +11,7 @@ const SW = JSON.parse(fs.readFileSync(path.join(here, 'inputs', 'sweep.json')));
 const T = JSON.parse(fs.readFileSync(path.join(here, 'tables.json')));
 const problems = [];
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox'] });
-for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], ['light', 920, true]]) {
+for (const [scheme, width, rm] of [['light', 1400, false], ['dark', 390, false], ['light', 920, false], ['light', 920, true]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 });
@@ -21,6 +22,7 @@ for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], 
   for (const t of tabs) {
     await p.evaluate(t => document.querySelector('button[data-t=' + t + ']').click(), t);
     await new Promise(r => setTimeout(r, 150));
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => { d.open = true }), t);
     // click every button in the tab (predict options, segments, steppers), move every range, try every select option
     await p.evaluate(async t => {
       const root = document.getElementById(t), sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -43,7 +45,7 @@ for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], 
   }
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) problems.push(tag + ' jsErr: ' + box);
   errs.forEach(e => problems.push(tag + ' error: ' + e));
-  if (scheme === 'light' && !rm) {
+  if (scheme === 'light' && width === 920 && !rm) {
     // the live sweep against the node run
     const live = await p.evaluate(() => ({ local: window.RUN_SWEEP('local'), random: window.RUN_SWEEP('random') }));
     for (const fam of ['local', 'random']) for (const k of ['acc', 'calls', 'rounds', 'reach', 'dist']) {

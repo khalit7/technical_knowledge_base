@@ -1,11 +1,7 @@
-// ---- The paper tab: hero graph, the complexity ladder and the rebuilt figures beside the text ----
+// ---- The paper tab: the complexity ladder and the rebuilt figures beside the text ----
 (function(){if(!$('t-read')||!window.PAPER)return;const T=PAPER.tables;
   const ID='var(--c1)',OOD='var(--c4)',TE='var(--c2)',ST='var(--c1)',BA='var(--mute)';
-  // hero: the lab's engine on a fixed graph, every BFS round shown, reader with 2 layers
-  const hg=GR.graph(10,'local',13),hb=GR.bfs(hg),hr=GR.reader(hg,2);
-  $('hero-r').textContent=hb.dist;$('hero-c').textContent=hb.calls;$('hero-d').textContent=hb.dist;
-  window.HERO={dist:hb.dist,calls:hb.calls,rounds:hb.rounds.length,reader2:hr.yes,reader3:GR.reader(hg,3).yes};
-  fit($('heroSvg'),w=>{$('heroSvg').innerHTML=drawGraph(w,hg,{round:hb.rounds.length,bfs:hb,seen:hr.seen},'hero')});
+  // the hero is the 3D stage in 31_js_sc_hero.js (it sets window.HERO for the checks)
   // Figure 1, one setting at a time
   let f1=0;
   function drawF1(w){const S=T.fig1.settings[f1],cats=S.rows.map(r=>r.arm);

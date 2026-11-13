@@ -30,6 +30,10 @@
   function reader(g,k){const {N,A,s,t}=g;let R=[];for(let i=0;i<N;i++){const row=new Uint8Array(N);for(let j=0;j<N;j++)row[j]=(i===j||A[i][j])?1:0;R.push(row)}
     for(let l=0;l<k;l++){const S=[];for(let i=0;i<N;i++){const row=new Uint8Array(N);for(let m=0;m<N;m++)if(R[i][m]){const Rm=R[m];for(let j=0;j<N;j++)if(Rm[j])row[j]=1}S.push(row)}R=S}
     return {yes:!!R[s][t],seen:[...R[s]],horizon:2**k,gates:k*N*N*N}}
+  // Every layer of the reader at once (layer 0 = I or A, layer l = layer l-1 squared), for the squaring stage on The paper tab.
+  function layers(g,k){const {N,A}=g;let R=[];for(let i=0;i<N;i++){const row=new Uint8Array(N);for(let j=0;j<N;j++)row[j]=(i===j||A[i][j])?1:0;R.push(row)}const out=[R];
+    for(let l=0;l<k;l++){const S=[];for(let i=0;i<N;i++){const row=new Uint8Array(N);for(let m=0;m<N;m++)if(R[i][m]){const Rm=R[m];for(let j=0;j<N;j++)if(Rm[j])row[j]=1}S.push(row)}R=S;out.push(R)}
+    return out}
   // The sweep uses the exact equivalence: the reader with k layers is right iff t is unreachable or dist(s,t) <= 2^k.
   function sweep(fam,Ns,Ks,G){const out={fam,Ns,Ks,G,acc:{},calls:[],rounds:[],reach:[],dist:[]};Ks.forEach(k=>out.acc[k]=[]);
     Ns.forEach(N=>{let c=0,ro=0,re=0,ds=0;const ok={};Ks.forEach(k=>ok[k]=0);
@@ -37,6 +41,6 @@
         Ks.forEach(k=>{const yes=b.reach&&b.dist<=2**k;if(yes===b.reach)ok[k]++})}
       Ks.forEach(k=>out.acc[k].push(ok[k]/G));out.calls.push(c/G);out.rounds.push(ro/G);out.reach.push(re/G);out.dist.push(re?ds/re:0)});
     return out}
-  const GR={rng,graph,bfs,reader,sweep};
+  const GR={rng,graph,bfs,reader,layers,sweep};
   if(typeof module!=='undefined'&&module.exports)module.exports=GR;else root.GR=GR;
 })(typeof window!=='undefined'?window:globalThis);
