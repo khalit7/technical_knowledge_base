@@ -1,5 +1,5 @@
 // ---- The paper tab: schedules (Figure 1), the merge-weight calculator (Theorem 3.1, Figure 2), the river-valley
-// animation (§4.4), Figure 3 and Figure 5(a) rebuilt from the paper's vector figures, the duration chart ----
+// stage (§4.4, 32_js_sc_rv.js), Figure 3 and Figure 5(a) rebuilt from the paper's vector figures, the duration chart ----
 const P_ = window.PAPER, RC = P_.rc, FG = P_.figs;
 const COL = { wsd: 'var(--c2)', wsm: 'var(--c1)', raw: 'var(--mute)', m8: 'var(--c6)', m12: 'var(--c1)', m16: 'var(--c4)', m20: 'var(--c3)' };
 // linear frame: returns svg so far and scales
@@ -90,58 +90,7 @@ const WC = { set: null };
   PRED_REVEAL.pq2 = () => WC.set('ema', 10);
 })();
 
-// ---- 3. River valley: the same noise through a WSD branch and a WSM branch (illustrative SGD toy) ----
-(function () {
-  const A = 1, B = .02, XS = 4, ETA = .3, SX = .1, SY = 2, N1 = 60, N2 = 80, CK = 10, NM = 8;
-  const L = (x, y) => .5 * (A * y * y + B * (x - XS) * (x - XS));
-  let noise;
-  function draws(seed) { const r = mulberry32(seed), gs = () => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()) };
-    noise = []; for (let i = 0; i < N1 + N2; i++) noise.push([gs() * SX, gs() * SY]) }
-  function sim(mode) { let x = -4, y = 1.5; const path = [[x, y]], lr = [];
-    for (let s = 0; s < N1 + N2; s++) { const e = s < N1 ? ETA : mode === 'wsd' ? ETA * (1 - Math.sqrt((s - N1 + 1) / N2)) : ETA; lr.push(e);
-      x -= e * (B * (x - XS) + noise[s][0]); y -= e * (A * y + noise[s][1]); path.push([x, y]) }
-    const ck = []; for (let b = CK; b <= N2; b += CK) ck.push(path[N1 + b]);
-    return { path, lr, ck } }
-  // 200 noise draws for the averages quoted in the last step, then the draw shown (seed 170, a typical one)
-  const avg = [0, 0, 0]; let mWins = 0;
-  for (let sd = 1; sd <= 200; sd++) { draws(sd); const a = sim('wsd'), b = sim('wsm'), cs = b.ck.slice(-NM), m = [cs.reduce((x, p) => x + p[0], 0) / cs.length, cs.reduce((x, p) => x + p[1], 0) / cs.length], v = [L(...a.path[N1 + N2]), L(...m), L(...b.path[N1 + N2])]; v.forEach((x, i) => avg[i] += x / 200); if (v[1] < v[0]) mWins++ }
-  draws(170);
-  const S = { wsd: sim('wsd'), wsm: sim('wsm') };
-  const merged = upto => { const cs = S.wsm.ck.slice(0, Math.floor(upto / CK)).slice(-NM); if (!cs.length) return null; return [cs.reduce((a, p) => a + p[0], 0) / cs.length, cs.reduce((a, p) => a + p[1], 0) / cs.length, cs.length] };
-  const fin = { wsd: S.wsd.path[N1 + N2], wsm: merged(N2) };
-  // steps: [title, caption, from step, to step]
-  const ST = m => [
-    ['Stable phase: constant LR', 'Sixty steps at a constant LR of 0.3. The run drifts down the long valley (the river) while bouncing between its steep walls (the canyon): the noise keeps it off the floor.', 0, N1],
-    ['Branch point', 'Both branches start here, from the same weights, and will see the same noise. ' + (m === 'wsd' ? 'WSD now decays the LR to zero over 80 steps (1-sqrt).' : 'WSM keeps the LR at 0.3 and saves a checkpoint every 10 steps.'), N1, N1],
-    ['Branch, steps 1 to 20', m === 'wsd' ? 'The LR is falling fast (1-sqrt drops early): the bounce shrinks, and so does the progress down the river.' : 'Still bouncing. The star is the mean of the checkpoints saved so far: it already sits near the floor.', N1, N1 + 20],
-    ['Steps 21 to 40', m === 'wsd' ? 'Smaller steps settle toward the floor of the canyon.' : 'Four checkpoints: the star averages out the bounce but lags the live run along the river.', N1 + 20, N1 + 40],
-    ['Steps 41 to 60', m === 'wsd' ? 'Close to the floor; progress along the valley has nearly stopped.' : 'Six checkpoints. The live weights are as noisy as ever; nothing in training changed.', N1 + 40, N1 + 60],
-    ['Steps 61 to 80', m === 'wsd' ? 'The LR reaches zero: the decayed model is the last point.' : 'Eight checkpoints, the merge window is full: the star is the model you would ship.', N1 + 60, N1 + N2],
-    ['Compare', 'Both end products, same noise: the decayed point (red) and the merged point (blue star). Loss ' + L(...fin.wsd).toFixed(3) + ' against ' + L(fin.wsm[0], fin.wsm[1]).toFixed(3) + ' in this noise draw; the live WSM weights end at ' + L(...S.wsm.path[N1 + N2]).toFixed(3) + '. Over 200 draws: decayed ' + avg[0].toFixed(3) + ', merged ' + avg[1].toFixed(3) + ' (lower in ' + mWins + ' of 200), live constant-LR weights ' + avg[2].toFixed(3) + '.', N1 + N2, N1 + N2]];
-  const MODES = { wsd: ST('wsd').map(([t, c]) => ({ t, c })), wsm: ST('wsm').map(([t, c]) => ({ t, c })) };
-  const at = (m, k, e) => { const s = ST(m)[k]; return Math.round(s[2] + (s[3] - s[2]) * e) };
-  makeAnim({ id: 'rv', modes: MODES, mode: 'wsd', dur: 2600,
-    draw(m, k, e, w) {
-      const H = Math.max(220, Math.min(320, Math.round(w * .5))), X = v => 10 + (w - 20) * (v + 4.6) / 9.4, Y = v => H / 2 - (H - 30) / 2 * v / 3;
-      let s = '';
-      [.05, .2, .5, 1, 2].forEach(lv => { const ry = Math.sqrt(2 * lv / A), rx = Math.sqrt(2 * lv / B); s += '<ellipse cx="' + X(XS).toFixed(1) + '" cy="' + Y(0).toFixed(1) + '" rx="' + (X(XS + rx) - X(XS)).toFixed(1) + '" ry="' + (Y(0) - Y(ry)).toFixed(1) + '" fill="none" stroke="var(--line)" stroke-width="1.2"/>' });
-      s += ln2(X(-4.6), Y(0), X(4.6), Y(0), 'var(--c3)', { sw: 1, da: '5 4', op: .7 }) + tx(X(4.5), Y(0) - 6, 'river (floor)', { fs: 11, a: 'end', c: 'var(--c3)' }) + tx(X(4), Y(0) + 16, 'minimum', { fs: 11, a: 'middle', c: 'var(--mute)' }) + dot(X(4), Y(0), 3, 'var(--c3)');
-      const t = at(m, k, e), P = S[m].path, upto = Math.min(t, N1), pre = P.slice(0, upto + 1).map(p => [X(p[0]), Y(p[1])]);
-      s += poly(pre, 'var(--mute)', { sw: 1.3 });
-      if (t > N1) s += poly(P.slice(N1, t + 1).map(p => [X(p[0]), Y(p[1])]), m === 'wsd' ? 'var(--c2)' : 'var(--c1)', { sw: 1.6 });
-      s += dot(X(P[N1][0]), Y(P[N1][1]), 4, 'var(--ink)', { t: 'branch point' });
-      if (m === 'wsm') { S.wsm.ck.forEach((p, i) => { if ((i + 1) * CK <= t - N1) s += dot(X(p[0]), Y(p[1]), 3.5, 'var(--bg)', { s: 'var(--c1)' }) });
-        const mg = merged(t - N1); if (mg) s += star(X(mg[0]), Y(mg[1]), 11, 'var(--c1)', 'merged model') }
-      s += dot(X(P[t][0]), Y(P[t][1]), 5, m === 'wsd' ? 'var(--c2)' : 'var(--c1)', { s: 'var(--bg)' });
-      if (k === 6) { s += dot(X(fin.wsd[0]), Y(fin.wsd[1]), 6, 'var(--c2)', { s: 'var(--bg)' }) + star(X(fin.wsm[0]), Y(fin.wsm[1]), 10, 'var(--c1)');
-        s += tx(X(fin.wsd[0]), Y(fin.wsd[1]) - 10, 'decayed', { fs: 11, a: 'middle', c: 'var(--c2)' }) + tx(X(fin.wsm[0]), Y(fin.wsm[1]) + 20, 'merged', { fs: 11, a: 'middle', c: 'var(--c1)' }) }
-      return svgW(w, H, s, 'River valley: constant LR, then decay or merge');
-    },
-    counters(m, k, e) { const t = at(m, k, e), P = S[m].path, lr = t === 0 ? ETA : S[m].lr[Math.max(0, t - 1)], mg = m === 'wsm' ? merged(t - N1) : null;
-      const out = m === 'wsd' ? L(...P[t]) : mg ? L(mg[0], mg[1]) : L(...P[t]);
-      return stat('step', t + ' of ' + (N1 + N2)) + stat('learning rate', lr.toFixed(2)) + stat('loss, live weights', L(...P[t]).toFixed(3)) + stat(m === 'wsd' ? 'loss, model you ship' : 'loss, merged model', out.toFixed(3), m === 'wsm' ? (mg ? mg[2] + ' checkpoints merged' : 'no checkpoint yet') : 'the live weights') }
-  });
-})();
+// ---- 3. River valley: now a 3D stage, 32_js_sc_rv.js ----
 
 // ---- 4. Figure 3 rebuilt ----
 (function () {

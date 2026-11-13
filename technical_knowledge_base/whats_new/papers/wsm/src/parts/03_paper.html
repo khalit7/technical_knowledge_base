@@ -1,16 +1,25 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3R"><div id="stg-merge"></div></div><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> averaging the last stretch of checkpoints is the same as applying a decay schedule to the updates between them, so you can keep the learning rate flat forever and get the effect of a decay (any non-increasing shape you choose) by merging, with no decay to plan and nothing to roll back when you train longer.</p>
-<div class="card" id="hero2">
-<div class="t" style="font-weight:600;margin-bottom:4px">The merge weights are a decay schedule in disguise, and on a 16B MoE the merge scored about a point above the decay</div>
-<div id="heroSvg"></div>
-<p class="small mute" style="margin:6px 0 0"><b>Left:</b> {{Eq. 3 and 4|ax:S3.E3}}: an update made after checkpoint <i>i</i> appears in every later checkpoint, so its weight in the merge is the sum of their weights; ten equal weights give 0.9, 0.8, ..., 0.1, a linear decay (the calculator in Idea draws any shape). <b>Right:</b> the 41-benchmark average on Ling-mini's 400B-token branch, all three at 400B: WSD's best ({{Table 1|ax:S4.T2}}), the 16-checkpoint mean merge and the raw flat-LR checkpoint read from {{Figure 3|ax:S4.F3}}'s vector figure (matched-token points derived on this page).</p>
-</div>
+<p id="hero-fig"><b>The merge weights are a decay schedule in disguise, and on a 16B MoE the merge scored about a point above the decay.</b> Fig. 1 builds the identity on this page's toy, then shows what it bought on the paper's model; drag it to turn it.</p>
+<p class="sxh">Fig. 1, step by step</p>
+<ol class="sx" id="sx-merge">
+<li><b>A flat rate, a checkpoint every interval.</b> The toy's branch after its 8,000 shared steps: the learning rate stays at its peak, 0.005, for 1,600 steps, and a checkpoint (a glass plate) is saved every 100 steps, as the paper saves one every 25B tokens. Sixteen checkpoints; nothing in the training loop changes.</li>
+<li><b>Average them: sixteen weights of 1/16.</b> A mean merge gives every checkpoint the same weight <i>c<sub>j</sub></i> = 0.0625 (the bars); the dots carry each checkpoint into the merged model, as many as its weight. The merged model is the one you evaluate or ship.</li>
+<li><b>Read the same merge as a schedule.</b> Each checkpoint is the oldest plus the updates since ({{Eq. 2 and 3|ax:S3.E2}}), so an update made after checkpoint <i>i</i> sits inside every later checkpoint and the merged model keeps it with weight <i>w<sub>i</sub></i> = Σ<sub><i>j</i>≥<i>i</i></sub> <i>c<sub>j</sub></i>, the sum of their bars: update 3 is inside checkpoints 3 to 15 and keeps 13/16 of its rate. The blue staircase is that weight for every interval, 15/16 down to 1/16 of the rate actually used: a linear decay (ten checkpoints give 0.9 down to 0.1, the paper's {{Figure 2|ax:S3.F2}}).</li>
+<li><b>Against a run that really decayed.</b> Behind it, the toy's {{equivalence test|tab:t-run:runEq}}: from the oldest checkpoint, a real run with the rate set to 0.005 × <i>w<sub>i</sub></i>, on the same batches. It ends near the merge but not on it, 20% to 23% of the distance the weights moved away, because a real decay computes its later gradients at different points. Excess held-out loss, mean of 8 seeds, lower is better: the flat-rate weights 0.0758, the decayed run 0.0568, the merge 0.0550 (WSD's own 1-sqrt branch reaches 0.0567; the merge is lower in 8 of 8 seeds).</li>
+<li><b>Any decay shape, inverted ({{Theorem 3.1|ax:S3.E5}}).</b> Run it backwards: choose the curve, here 1-sqrt, and the weights follow, <i>c<sub>k</sub></i> = <i>w<sub>k</sub></i>, <i>c<sub>j</sub></i> = <i>w<sub>j</sub></i> − <i>w</i><sub><i>j</i>+1</sub>, <i>c</i><sub>0</sub> = 1 − <i>w</i><sub>1</sub>: the oldest checkpoint now carries 0.250 and the newest 0.032, and the staircase bends into 1 − √<i>t</i>. The calculator in {{Idea|tab:t-read:wc}} does any shape.</li>
+<li><b>What it bought on Ling-mini.</b> The paper's 16B MoE at 400B tokens, average of 41 benchmarks, all three at the same token count: the raw flat-LR checkpoint 60.32, WSD's decay 62.67 ({{Table 1|ax:S4.T2}}), the 16-checkpoint mean merge 63.85, a lead of +1.18. The best merged point, 63.95 at 425B, gives the paper's +1.28. One run per arm.</li>
+</ol>
+<p class="small mute">Toy: the page's 608-parameter network and its eight precomputed seeds ({{Merge instead of decay|tab:t-run}}); the 1-sqrt weights are Theorem 3.1's for 16 checkpoints. Ling-mini: Table 1, with the merge and the raw flat-LR checkpoint read from {{Figure 3|ax:S4.F3}}'s vector figure (matched-token points derived on this page).</p>
 <p class="small"><b>You need:</b> cosine, WSD (warmup, stable, decay), cooldown shapes and schedule-free training, compared on one run: {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}. This page is the paper. <b>New terms:</b> <b>WSM</b> (warmup, stable, merge); <b>merge duration</b> (how much training the merged checkpoints span); <b>1-sqrt</b> (the decay shape 1 − √t, Hägele et al.); <b>Ling-mini</b> (the paper's 16.3B-total, 1.4B-active MoE).</p>
 </section>
+</div></div>
 <nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-method">Method</a><a href="#s-why-works">Why averaging works</a><a href="#s-res">Results</a><a href="#s-abl">What matters</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1, §2, Figure 1]]
 <p>Every mainstream learning-rate (LR) schedule ends in a decay phase, and the decay phase is where the scheduling pain lives ({{§1|ax:S1}}, {{§2|ax:S2}}):</p>
@@ -18,15 +27,17 @@
 <li><b>Cosine</b> is fixed to a step count <i>T</i><sub>max</sub> chosen in advance: extending a run means restarting to recalibrate the curve.</li>
 <li><b>WSD</b> (Warmup-Stable-Decay, {{Hu et al. 2024, MiniCPM|https://arxiv.org/abs/2404.06395}}; DeepSeek-V3 and ERNIE 4.5 adopted it) can start its decay whenever you like, but you must still pick the decay start, length and function, and once decay has begun, training longer means rolling back to the pre-decay state and redesigning the anneal.</li>
 </ul>
-<p class="small">Both schedules, their cost per extra run length and the evidence for each shape are on {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}; this page keeps what WSM changes.</p>
+<p class="small">Both schedules, their cost per extra run length (Fig. 6 there: each cosine endpoint is a separate run, WSD branches its cooldowns off one trunk) and the evidence for each shape are on {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09#s-sched}}; this page keeps what WSM changes.</p>
 <p>So even WSD is not a fully autonomous, continuously extendable training process. Prior decay-free work (schedule-free optimisers, EWA-style weight averaging) mostly aimed to <i>match</i> WSD, and each averaging scheme hard-codes one annealing path ({{Li et al. 2025|https://arxiv.org/abs/2505.12082}} showed constant LR plus averaging can be competitive with WSD). The chart redraws the paper's {{Figure 1|ax:S0.F1}}; switch to "train longer" to see what each schedule does when you decide, at the end, to train half as long again.</p>
-<div class="card" id="sch">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="sch">
+<div class="t" style="font-weight:600;margin-bottom:4px">Only WSM never has to plan, or undo, a decay</div>
 <div class="an-top"><div class="seg" id="schM" role="group" aria-label="Plan"><button class="on" data-m="plan" aria-pressed="true">The planned run</button><button data-m="ext" aria-pressed="false">Then: train 50% longer</button></div></div>
 <div id="schSvg"></div>
 <p class="small mute" id="schCap" style="margin:4px 0 0"></p>
-</div>
-</section>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-idea"><h2>Idea: a merge is a decay schedule in disguise</h2>
 [[S3.SS1|§3.1, Eq. 1 to 5, Theorem 3.1, Appendix B]]
 <p>Take an ordered run of checkpoints θ<sub><i>n</i></sub>, θ<sub><i>n</i>+1</sub>, ..., θ<sub><i>n</i>+<i>k</i></sub> and average them with non-negative weights that sum to one ({{Eq. 1|ax:S3.E1}}). Now expand each checkpoint into the base plus the updates applied since, θ<sub><i>n</i>+<i>j</i></sub> = θ<sub><i>n</i></sub> − Σ<sub><i>l</i>≤<i>j</i></sub> <i>g</i><sub><i>n</i>+<i>l</i>−1</sub>, where <i>g</i> is the whole update including the learning rate ({{Eq. 2|ax:S3.E2}}). Swapping the order of the double sum ({{Eq. 3|ax:S3.E3}}) gives:</p>
@@ -35,14 +46,8 @@
 <p>So merging is <i>identical</i> to applying a synthetic decay schedule <i>w<sub>i</sub></i> to the updates since the base. <b>Theorem 3.1</b> inverts the map ({{Eq. 5|ax:S3.E5}}, proof in {{Appendix B|ax:A2.SS1}}): for any monotonically non-increasing target curve 1 ≥ <i>w</i><sub>1</sub> ≥ ... ≥ <i>w<sub>k</sub></i> ≥ 0, the checkpoint weights are uniquely <i>c<sub>k</sub></i> = <i>w<sub>k</sub></i>, <i>c<sub>j</sub></i> = <i>w<sub>j</sub></i> − <i>w</i><sub><i>j</i>+1</sub>, <i>c</i><sub>0</sub> = 1 − <i>w</i><sub>1</sub>. Non-negative weights exist exactly when the curve never rises and starts at most at 1.</p>
 <div class="pred" id="pq1" data-ans="1"><div class="q">You average the last 10 checkpoints with equal weights (0.1 each). Which decay schedule is that the same as?</div>
 <div class="opts"><button>No decay: an average is not a schedule</button><button>Linear decay</button><button>Cosine decay</button><button>Exponential decay</button></div><div class="fb"></div>
-<div class="reveal" hidden><p>Equal weights give <i>w<sub>i</sub></i> = (10 − <i>i</i>)/10: the update right after the oldest checkpoint keeps 90% of its LR, the last one 10%. A straight line down. The calculator below is set to it.</p></div></div>
-<p>Pick a shape and a number of checkpoints: the bars are the merge weights the theorem prescribes, the staircase is the decay they apply. With 10 checkpoints the four shapes reproduce every one of the 40 weights printed in the paper's {{Figure 2|ax:S3.F2}}.</p>
-<div class="card" id="wc">
-<div class="ctl"><label>Decay shape to emulate <select id="wcShape"><option value="mean">Linear (equal weights: mean)</option><option value="1-sqrt">1-sqrt (Hägele et al.)</option><option value="cosine">Cosine</option><option value="ema">EMA, as Figure 2(a): w(t) = 1 − 0.1^(1−t)</option></select></label>
-<label>Checkpoints merged: <b id="wcNv">10</b><input type="range" id="wcN" min="2" max="20" value="10" step="1" aria-label="Checkpoints merged"></label></div>
-<div id="wcSvg"></div>
-<div class="res small" id="wcOut"></div>
-</div>
+<div class="reveal" hidden><p>Equal weights give <i>w<sub>i</sub></i> = (10 − <i>i</i>)/10: the update right after the oldest checkpoint keeps 90% of its LR, the last one 10%. A straight line down. The calculator is set to it.</p></div></div>
+<p>In the calculator, pick a shape and a number of checkpoints: the bars are the merge weights the theorem prescribes, the staircase is the decay they apply. With 10 checkpoints the four shapes reproduce every one of the 40 weights printed in the paper's {{Figure 2|ax:S3.F2}}.</p>
 <div class="pred" id="pq2" data-ans="2"><div class="q">An exponential moving average (EMA) puts the most weight on the newest checkpoint. Using the EMA of Figure 2(a), what fraction of the peak LR does the equivalent schedule end at?</div>
 <div class="opts"><button>0%: like any anneal to zero</button><button>About 5%</button><button>About 21%</button><button>About 50%</button></div><div class="fb"></div>
 <div class="reveal" hidden><p>The last gradient coefficient equals the newest checkpoint's weight, <i>w<sub>k</sub></i> = <i>c<sub>k</sub></i> = 0.206. An EMA never anneals far: its equivalent curve stays high and then drops, ending at a fifth of the peak. The calculator is now set to it.</p></div></div>
@@ -50,50 +55,63 @@
 <p>It calls EMA's decay convex and 1-sqrt concave ({{Figure 2|ax:S3.F2}}, {{§4.3.2|ax:S4.SS3.SSS2}}). In the usual sense it is the reverse: 1 − √t bends upward (midpoint test w(¼) + w(¾) − 2w(½) = +0.048), Figure 2(a)'s EMA curve 1 − 0.1<sup>1−t</sup> bends downward (−0.108). What separates them is that 1-sqrt drops early and ends near zero, while EMA ends at 21% of the peak.</p></div></details>
 <p><b>Exact, or approximate?</b> The algebra is exact for any optimiser if <i>g</i> is the update actually applied, so the method is optimiser-agnostic: nothing in the training loop changes, and it composes with SGD, Adam or anything else. What is approximate is "equals a run that decayed": a real decay computes its later gradients at different points, which the paper sets aside ("we assume the updates ... are independent and ignore optimizer states", {{§3.1|ax:S3.SS1}}). This page's toy measures the gap: the merge lands 17% to 36% of the weights' movement away from its decay run, and usually scores better ({{the equivalence test|tab:t-run:runEq}}). So mean averaging is (approximately) <b>linear decay</b>, EMA an early-high, late-drop curve ending well above zero, and cosine and 1-sqrt curves can be constructed explicitly.</p>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="wc">
+<div class="t" style="font-weight:600;margin-bottom:4px">Choose a decay; Theorem 3.1 gives the merge weights</div>
+<div class="ctl"><label>Decay shape to emulate <select id="wcShape"><option value="mean">Linear (equal weights: mean)</option><option value="1-sqrt">1-sqrt (Hägele et al.)</option><option value="cosine">Cosine</option><option value="ema">EMA, as Figure 2(a): w(t) = 1 − 0.1^(1−t)</option></select></label>
+<label>Checkpoints merged: <b id="wcNv">10</b><input type="range" id="wcN" min="2" max="20" value="10" step="1" aria-label="Checkpoints merged"></label></div>
+<div id="wcSvg"></div>
+<div class="res small" id="wcOut"></div>
+</div>
+</div></div></div>
 
 <section id="s-method"><h2>Method: WSM, Warmup-Stable and Merge</h2>
 [[S3.SS2|§3.2, Algorithm 1, §3.3]]
 <p>Warm up linearly to <i>lr</i><sub>peak</sub>, then hold the LR constant indefinitely. No decay, ever ({{§3.2|ax:S3.SS2}}, Algorithm 1):</p>
 <ol>
 <li><b>Stable training.</b> Save a checkpoint every <i>T</i><sub>cpt</sub> steps. Training itself never pauses.</li>
-<li><b>Asynchronous merge.</b> A separate process fetches the most recent <i>n</i> checkpoints and merges them into <i>W</i><sub>merged</sub>, with weights from Theorem 3.1 for whichever decay shape (and minimum LR) you want to emulate. <i>W</i><sub>merged</sub> is the model you evaluate or ship.</li>
+<li><b>Asynchronous merge.</b> A separate process (Fig. 1, step 2) fetches the most recent <i>n</i> checkpoints and merges them into <i>W</i><sub>merged</sub>, with weights from Theorem 3.1 for whichever decay shape (and minimum LR) you want to emulate. <i>W</i><sub>merged</sub> is the model you evaluate or ship.</li>
 <li><b>Optional data anneal.</b> After a switch step <i>T</i><sub>switch</sub>, training moves to a curated high-quality mixture <i>D</i><sub>anneal</sub>, with the LR still flat.</li>
 </ol>
 <p><b>Offline, then online</b> ({{§3.3|ax:S3.SS3}}). Keeping the checkpoint history is the exploration mode: one training run, many simulated anneals of different shapes and durations, which an online EMA cannot give since it hard-codes one annealing path from step one. Once a winner is found ("an average of the last 4 checkpoints") it runs online as a fixed sliding window. The cost is storage (total tokens over the checkpoint interval; "a minor fraction of a typical pre-training budget"), and a window of <i>n</i> = 12 was enough. For a 16.3B model one bf16 checkpoint is 32.5 GB (derived): 520 GB for the 16 checkpoints of the 400B branch, 390 GB for 12.</p>
 <details class="mist"><summary><b>Against the concurrent work</b></summary><div class="b"><p>({{§3.3|ax:S3.SS3}}): Li et al. (2025) study heuristic WMA, SMA and EMA merges empirically and find merging matches an annealed model; WSM derives the weights from a schedule and claims to beat WSD.</p></div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-rv"></div><div class="an-cnt" id="rvCnt" style="margin-top:6px"></div></div><div class="s3L">
 <section id="s-why-works"><h2>Why averaging stands in for decay</h2>
 [[S4.SS4|§4.4, Figure 6]]
-<p>The paper's own picture ({{§4.4|ax:S4.SS4}}, after {{Wen et al. 2024|https://arxiv.org/abs/2410.05192}}): constant-LR training traverses a canyon with oscillating steps, merging finds the river at the canyon floor; its t-SNE map of one layer ({{Figure 6|ax:S4.F6}}) shows decay-phase checkpoints converging toward the merged model. The animation runs that picture, with the same noise in both branches.</p>
-<div class="card" id="rv">
-<div class="an-top"><div class="seg" id="rvM" role="group" aria-label="Branch"><button class="on" data-m="wsd" aria-pressed="true">WSD: decay the LR</button><button data-m="wsm" aria-pressed="false">WSM: keep the LR, merge</button></div></div>
-<div id="rvSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="rvBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rvPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rvFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="rvScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="rvSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rvStep"></div><p id="rvCap"></p></div>
-<div class="an-cnt" id="rvCnt"></div>
-<p class="small mute" style="margin:6px 0 0"><span class="ill">illustrative</span> Plain SGD on L(x, y) = ½(y² + 0.02·(x − 4)²), gradient noise of standard deviation 2 across the valley and 0.1 along it, LR 0.3, 60 shared steps then an 80-step branch, a checkpoint every 10 steps, merge of the last 8 (mean). Same noise in both branches. Only the mechanism is the paper's; the numbers come from this toy, not from Ling-mini. The trained toy on the next tab measures the same comparison on a real (small) network.</p>
-</div>
+<p>The paper's own picture ({{§4.4|ax:S4.SS4}}, after {{Wen et al. 2024|https://arxiv.org/abs/2410.05192}}): constant-LR training traverses a canyon with oscillating steps, merging finds the river at the canyon floor; its t-SNE map of one layer ({{Figure 6|ax:S4.F6}}) shows decay-phase checkpoints converging toward the merged model. Fig. 2 runs that picture, with the same noise in both branches. Why a constant rate hovers above the floor in the first place, and how cosine and WSD settle it, is Fig. 5 on {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09#s-sched}}; this figure adds the merge.</p>
+<p class="sxh">Fig. 2, step by step</p>
+<ol class="sx" id="sx-rv">
+<li><b>Stable phase: a flat rate.</b> Sixty steps of plain SGD at rate 0.3. The run drifts down the long valley (the river, dashed) while the noise bounces it up the steep walls (the canyon): it never reaches the floor.</li>
+<li><b>WSD: decay the rate.</b> From the branch point the rate falls to zero over 80 steps (1-sqrt, which drops early). The bounce shrinks and the path settles toward the floor, while its progress down the river slows too.</li>
+<li><b>WSM: the same noise, the rate kept.</b> The same 80 steps from the same point with the same noise, the rate still 0.3: the live weights bounce as before. A checkpoint is saved every 10 steps (the white balls); nothing in training changed.</li>
+<li><b>Merge the last 8.</b> The dots carry the eight checkpoints into their mean, the blue ball near the floor, behind where the live weights reached.</li>
+<li><b>Compare.</b> In this noise draw the decayed point's loss is <span data-rv="dw">0.239</span> and the merged point's <span data-rv="dm">0.215</span>; the live constant-rate weights end at <span data-rv="dl">0.462</span>. Over 200 draws: decayed <span data-rv="aw">0.262</span>, merged <span data-rv="am">0.227</span> (lower in <span data-rv="n">154</span> of 200), live weights <span data-rv="al">0.454</span>.</li>
+</ol>
 <p>Averaging cancels the bounce across the canyon, as a decay does, but the merged point sits about halfway back along the window, giving up some progress down the river (a decay gives up progress too: its late steps are small). A longer window averages more noise and costs more lag, so <b>merge duration</b> is the knob that matters, with diminishing returns.</p>
+<p class="small mute"><span class="ill">illustrative</span> Plain SGD on L(x, y) = ½(y² + 0.02·(x − 4)²), gradient noise of standard deviation 2 across the valley and 0.1 along it, LR 0.3, 60 shared steps then an 80-step branch, a checkpoint every 10 steps, merge of the last 8 (mean); height is √L. Same noise in both branches (noise draw 170 shown). Only the mechanism is the paper's; the numbers come from this toy, not from Ling-mini. The trained toy on the next tab measures the same comparison on a real (small) network.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Results</h2>
 [[S4.SS1|§4.1, §4.2, Figure 3, Tables 1 and 2]]
 <p><b>Setup</b>: one Ling-mini checkpoint pretrained on 10.2T tokens at a constant LR, switched to a high-quality anneal set and branched for 400B tokens two ways, a WSD decay (1-sqrt shape) against constant LR plus mean merging, a checkpoint every 25B tokens.</p>
 <details class="mist"><summary><b>The model and training settings</b></summary><div class="b"><p>({{§4.1|ax:S4.SS1}}, {{Appendix A|ax:A1}}). Ling-mini, a 16.3B-total, 1.4B-active MoE: 20 layers (1 dense, 19 MoE), hidden size 2,048, 256 experts with top-8 routing plus one shared expert, GQA, RoPE, 8K context ({{Table 6|ax:A1.T6}}). Its shape matches the later open {{Ling-mini-2.0|https://huggingface.co/inclusionAI/Ling-mini-2.0}}, whose config recounts to exactly these sizes ({{recount|tab:t-tables:tbP}}). AdamW (β 0.9, 0.95, weight decay 0.1), peak LR 4.78e-4, batch 2,048 sequences of up to 8K tokens (16.8M tokens, derived). Start from one checkpoint pretrained on 10.2T tokens at constant LR (10T at 4,096-token sequences plus 200B long-context), switch to a high-quality annealing set, and branch 400B tokens two ways: a conventional WSD decay (baseline, 1-sqrt shape per {{Table 3|ax:S4.T3}}) against constant LR plus merging (WSM). Checkpoint every 25B tokens; mean averaging unless stated.</p></div></details>
-<p><b>WSM beats WSD</b>, comparing the best checkpoint of each: <b>+1.28 points</b> on the average of 41 base-model benchmarks (62.67 to 63.95), ahead in all five categories, most in professional knowledge (+4.83% relative) ({{Table 1|ax:S4.T2}}). The body text quotes gains of up to 2.7 points on MATH, 2.4 on HumanEval and 2.1 on MMLU-Pro ({{§4.2|ax:S4.SS2}}); the abstract's +3.5%, +2.9% and +5.5% are relative figures from mixed sources (see {{How much to believe|tab:t-read:s-trust}}). Below, Figure 3 rebuilt from the paper's vector figure (exact marker positions, calibrated on its gridlines):</p>
-<div class="card" id="f3">
+<p><b>WSM beats WSD</b>, comparing the best checkpoint of each: <b>+1.28 points</b> on the average of 41 base-model benchmarks (62.67 to 63.95), ahead in all five categories, most in professional knowledge (+4.83% relative) ({{Table 1|ax:S4.T2}}). The body text quotes gains of up to 2.7 points on MATH, 2.4 on HumanEval and 2.1 on MMLU-Pro ({{§4.2|ax:S4.SS2}}); the abstract's +3.5%, +2.9% and +5.5% are relative figures from mixed sources (see {{How much to believe|tab:t-read:s-trust}}). Figure 3 is rebuilt from the paper's vector figure (exact marker positions, calibrated on its gridlines); tick the box to stop both runs at WSD's 400B tokens.</p>
+<p><b>The gain survives post-training.</b> After identical supervised fine-tuning for 5 epochs, the WSM-derived instruct model leads 64.07 to 62.90 on the average of 60 benchmarks, winning on language, knowledge, math, reasoning and agent, and losing narrowly on code (−0.48% relative) ({{Table 2|ax:S4.T2}}, Tables 8 and 9).</p>
+<details class="mist"><summary><b>MoE load balancing and weight spectra</b></summary><div class="b"><p>({{Table 5|ax:S4.T5}}). The merged model routes more evenly (per layer, |max(L) − μ|/μ falls from 0.601 to 0.545 and |min(L) − μ|/μ from 0.322 to 0.201, averaged over layers), at a higher language-modelling loss, 0.697 against 0.675; the authors read that as better generalisation, which the table alone cannot show. Appendix D adds that decay worsens weight-matrix condition numbers and lowers FFN SVD entropy while merging keeps both ({{Figures 8 and 9|ax:A4}}).</p></div></details>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="f3">
+<div class="t" style="font-weight:600;margin-bottom:4px">The merges pass WSD's best, partly on tokens WSD never saw</div>
 <div class="ctl"><label>Category <select id="f3Cat"><option>Overall Average</option><option>General Knowledge/ Reasoning</option><option>Language Understanding</option><option>Professional Knowledge</option><option>Math</option><option>Code</option></select></label>
 <label><input type="checkbox" id="f3Cut"> Stop both at 400B tokens (WSD's budget)</label></div>
 <div id="f3Svg"></div>
 <div class="res small" id="f3Out"></div>
 </div>
-<p><b>The gain survives post-training.</b> After identical supervised fine-tuning for 5 epochs, the WSM-derived instruct model leads 64.07 to 62.90 on the average of 60 benchmarks, winning on language, knowledge, math, reasoning and agent, and losing narrowly on code (−0.48% relative) ({{Table 2|ax:S4.T2}}, Tables 8 and 9).</p>
-<details class="mist"><summary><b>MoE load balancing and weight spectra</b></summary><div class="b"><p>({{Table 5|ax:S4.T5}}). The merged model routes more evenly (per layer, |max(L) − μ|/μ falls from 0.601 to 0.545 and |min(L) − μ|/μ from 0.322 to 0.201, averaged over layers), at a higher language-modelling loss, 0.697 against 0.675; the authors read that as better generalisation, which the table alone cannot show. Appendix D adds that decay worsens weight-matrix condition numbers and lowers FFN SVD entropy while merging keeps both ({{Figures 8 and 9|ax:A4}}).</p></div></details>
-</section>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-abl"><h2>What matters: duration, shape, granularity, and the hybrids</h2>
 [[S4.SS3|§4.3, Figures 4 and 5, Tables 3 and 4]]
 <div class="pred" id="pq3" data-ans="2"><div class="q">Three knobs: how often you save a checkpoint, how many checkpoints you merge, and how much training the merged checkpoints span. Which one moves the result most?</div>
@@ -106,12 +124,14 @@
 <li><b>Robust mid-run</b> ({{Figure 5(a)|ax:S4.F5}}). Merging four checkpoints across a 100B-token window at the 2T, 4T, 6T, 8T and 10T milestones closely tracks what a real 100B-token decay run would have produced: the gaps are +0.16, −0.22, −0.56, +0.24 and −0.05 points, 0.25 on average (derived from the figure). The gains over WSD are smaller here than when switching to high-quality data, but the fidelity is the point.</li>
 <li><b>Merge and decay do not stack</b> ({{Figures 5(b), 5(c)|ax:S4.F5}}). Decay-then-Merge (merging checkpoints from inside a decay) and Merge-then-Decay (decaying from a merged model) both fail to add anything; the second starts higher (59.77 against 56.80) and ends lower (62.12 against 62.42). The authors conclude the two are alternative pathways to the same place.</li>
 </ul>
-<div class="card" id="f5">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="f5">
+<div class="t" style="font-weight:600;margin-bottom:4px">Mid-run, a 4-checkpoint merge lands where a real 100B decay does</div>
 <div id="f5Svg"></div>
 <p class="small mute" style="margin:4px 0 0">Figure 5(a) rebuilt from the vector figure: the constant-LR run (grey, 200 evaluations), 100B-token decays started at five milestones (red), and the 4-checkpoint mean merge every 500B tokens (blue stars). Tap or hover a milestone for the numbers.</p>
 <div class="res small" id="f5Out"></div>
 </div>
-</section>
+</div></div></div>
 
 <section id="s-trust"><h2>How much of this to believe</h2>
 [[S4.SS2|§4.2, §4.3, Tables 1 to 9, Figures 3 to 5, 10]]

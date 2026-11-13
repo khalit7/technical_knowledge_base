@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots'); (await import('node:fs')).mkdirSync(shots, { recursive: true });
-const b = await puppeteer.launch({ headless: true });
+const b = await puppeteer.launch({ headless: 'shell' });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
@@ -42,9 +42,9 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll the animation into view and wait
-    for (const id of ['rv']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // since 2026-11-13 (the layout rollout) every 3D stage plays by itself once scrolled into view (check_stages.mjs checks the rest of the motion rules)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // closed details hold text and charts too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(400); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
@@ -94,23 +94,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     }
     if (t === 't-read') { for (const id of ['wc', 'f3', 'f5', 'sch', 'pq3']) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(150); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}-${scheme}-${width}.png` }) } }
     if (t === 't-tables') { for (const id of ['tbF4Svg', 'tbF5Svg', 'tb4']) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(150); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}-${scheme}-${width}.png` }) } }
-    // step the animations through every step and screenshot the middle
-    for (const id of ['rv']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
-      for (const m of (modes.length ? modes : [null])) {
-        if (m) await clk(`#${id}M button[data-m=${m}]`);
-        await clk(`#${id}Play`); await clk(`#${id}Play`);
-        await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-        const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
-        await audit(`${t} ${id} ${m} stepped`);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
-      }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
+    // step every stage to its end and back, with a screenshot of the middle step
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      const n = await p.$eval(`#${id}-r`, e => +e.max + 1); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
+      for (let k = 1; k < n; k++) { await clk(`#${id}-f`); actions++; if (k === Math.floor(n / 2)) { await wait(1800); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}-${scheme}-${width}.png` }) } }
+      await audit(`${t} ${id} stepped`);
+      for (let k = 1; k < n; k++) { await clk(`#${id}-b`); actions++ }
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);

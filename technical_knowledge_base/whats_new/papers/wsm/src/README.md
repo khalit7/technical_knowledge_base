@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with verdict; the core sentence and hero (ten equal merge weights as the linear decay they apply; the matched-token result), You need and new terms; Problem (schedules chart, planned against extended); Idea (Eq. 1 to 5, Theorem 3.1, the merge-weight calculator reproducing Figure 2, two predict questions, the convex/concave correction); Method (Algorithm 1, offline and online, storage); Why averaging works (river-valley animation, WSD against WSM on the same noise); Results (setup, Figure 3 rebuilt with a matched-token toggle, SFT, MoE balance); What matters (predict question with the duration chart, ablations, Figure 5a rebuilt); How much of this to believe; What it takes to use this; Why it matters; Connections. |
+| The paper | `t-read` | Headline card with verdict; the core sentence beside Fig. 1 (since 2026-11-13 a 3D stage: a merge is a decay schedule, on the toy, then Ling-mini's matched-token result), You need and new terms; Problem (schedules chart, planned against extended); Idea (Eq. 1 to 5, Theorem 3.1, the merge-weight calculator reproducing Figure 2, two predict questions, the convex/concave correction); Method (Algorithm 1, offline and online, storage); Why averaging works (Fig. 2, a 3D stage of the river valley, WSD against WSM on the same noise); Results (setup, Figure 3 rebuilt with a matched-token toggle, SFT, MoE balance); What matters (predict question with the duration chart, ablations, Figure 5a rebuilt); How much of this to believe; What it takes to use this; Why it matters; Connections. |
 | Merge instead of decay: train it | `t-run` | The toy experiment: eight precomputed seeds and a live run in the browser (Figure 3, Figure 4 and Table 4 analogues, the equivalence test, what reproduces). |
 | The paper's tables and figures, rebuilt | `t-tables` | Tables 1 to 9 with every derived number recomputed, Figures 4 and 5 rebuilt, Table 7 against Figure 10's labels, the parameter recount, and all 90 checks. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -21,6 +21,7 @@
 - `recompute.py`: Figure 2 from Theorem 3.1 (40 of 40), Table 1 and 2 improvements, Table 7 to Tables 1 and 3, Table 8/9 group averages, Table 2 from the groups, Figure 3 and 4 best points (at the paper's points and at 400B), Figure 5 comparisons, Table 4 consistency, the Ling-mini parameter recount from `inputs/ling_mini_2_0_config.json`, storage. Writes `inputs/recompute.json`; 83 of 90 checks pass and the 7 that fail are findings on the page.
 - `mk_paper.py`: card, Further reading, `parts/_gen_data.js` (`window.PAPER`, including the figure points).
 - Toy: `parts/22_js_toy.js` is the engine (runs in the page and in node). `toy_sweep.mjs` runs eight seeds (about 20 s) and writes `model/toy_results.json`, `model/toy_summary.json` and `parts/_gen_toydata.js`. `check_engine.mjs` then `uv run --with torch python check_engine.py` replays 60 Adam steps in PyTorch from the engine's own weights and batches (`model/check_engine.json`: losses within 7e-16, weights within 1.2e-16, a merge within 1.2e-16; PASS).
+- `check_stages.mjs` (since 2026-11-13, after OLMo 2's; from the repo root): splits two columns at 1400; both stages at 1400 light, 920 light and 390 dark (play on view, one list item per step, last step, a control stops autoplay, flows stop off screen); reduced motion; 32 step-list numbers against the data the stages draw (`window.WSM_MERGE`, `window.WSM_RV`) and the static Fig. 2 numbers against the script's.
 - `check_page.mjs` (run from the repo root with node): every control in light 920 and dark 390, the animation stepped in both modes, the default live run reproducing the stored seed, text at least 11 px, no NaN or errors. `mk_coverage.py`: 49 facts of `live.md`, all verified in the built page. `save_live.py` copied the Notion fetch verbatim from the session transcript.
 - `inputs/external_extracts.txt`: the lines quoted from the Ling 2.0 report, Hägele et al., DeepSeek-V3 and Llama 3, and the code search.
 
@@ -54,3 +55,30 @@ Why about 17 minutes is right: the page owns one short paper's whole argument (t
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 4, 251 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 235 actions, 0 problems; the default run reproduces seed 1 below 1e-5; no frame before a click. `mk_coverage.py`: 49 of 49. The toy engine is unchanged, so `check_engine.py` was not rerun.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged). The paper tab: the core sentence, Fig. 1's step list and You need beside Fig. 1 (stage); Problem beside the schedules chart; Idea beside the merge-weight calculator (the predict questions and the convex/concave block stay in the text column); Why averaging works beside Fig. 2 (stage) and its live counters; Results beside Figure 3; What matters beside Figure 5(a) (the duration chart stays in the predict reveal). Full width (no visual): Method, How much to believe, Use it, Why it matters, Connections. Train it: the intro and toy box beside the run card; "Which knob matters" with its two result notes left of the window and Table 4 charts; the equivalence table and verdict full width. Tables and Further reading unchanged (full width: tables and figure rebuilds to read off). Cards got titles that say what to notice. Every old anchor is kept.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged):
+  - `31_js_sc_merge.js`, Fig. 1, replaces the static 2D hero (`14b_js_hero.js`, deleted). The toy's branch: the flat rate (0.005) as a wall over 1,600 steps, its 16 checkpoints as glass plates; the mean merge's weights (1/16) as bars on plinths with flows into the merged plate; the staircase w_i (15/16 to 1/16) as a wall, with update 3's flows into checkpoints 3 to 15; the equivalence test's real decayed run trained along that staircase, ending 20% to 23% of the weights' movement from the merge, with the 8-seed losses (0.0758 flat, 0.0568 decayed, 0.0550 merged); Theorem 3.1's 1-sqrt weights (0.250 to 0.032) and staircase; Ling-mini's 60.32, 62.67 and 63.85 at 400B. Data: `window.TOYDATA`, `thm31()`, `window.PAPER.rc.fig3`.
+  - `32_js_sc_rv.js`, Fig. 2, replaces the 2D `makeAnim` river-valley animation and its WSD/WSM toggle: the same SGD toy (moved from `13_js_read.js` unchanged) on a √L canyon, both branches on one surface in five explained stretches (the long-replay rule), checkpoints as balls, the merge's flows into their mean; its step 5 numbers are written by the script into spans whose static text matches (`check_stages.mjs`).
+- **Kept 2D**: the schedules chart, the calculator (a parameter widget), Figure 3, Figure 5(a), the duration chart, every run-tab chart and every table: curves, bars to read off and widgets read best flat.
+- **Motion**: `makeAnim` removed from `11_js_ui.js` (no 2D animation is left); `05z_errbox.js.html` and `99_js_tabs.js` are the templates (storage key `wsm-tab`). `check_page.mjs` now asserts each stage plays once in view instead of forbidding motion.
+- **Owner links**: Problem names the owner's Fig. 6 (cosine endpoints as separate runs, WSD cooldowns off one trunk) and Why averaging its Fig. 5 (why a constant rate hovers), both `#s-sched`; this page draws only what WSM adds.
+- `build.sh` finds the repo root by walking up to `html_utils` (no git).
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 17.2 min (3,959 words) | 20.4 min (4,684) |
+| The paper, closed | 2.2 min (512) | 2.2 min (512) |
+| Train it | 4.4 min | 4.5 min |
+| Tables; Further reading | 12.3; 2.6 min | unchanged |
+
+The growth is the two step lists (Fig. 1 carries what the hero drew in script plus the equivalence and Theorem 3.1 steps, about 450 words; Fig. 2's steps replace a script caption carousel the audit did not count) and card titles; nothing was cut. Header: "Reading: 20 min, plus 2 in closed details." Three pages quote the old 17 minutes (Pretraining, Optimisers and learning-rate schedulers, Data mixing); the lead runs `check_times.py --fix`.
+
+Ledger: 204 units (core 186, depth 15, owned 2, volatile 1). Nine added for the step lists and the owner links; keys re-pointed on units 32 (calculator sentence), 50 (Algorithm 1's merge step), 62 and 63 (the river figure), 77 (Figure 3 sentence); 188 re-described. Owned units 190 and 191 unchanged and passing. `ledger.py check`: problems 0.
+
+## Checks (13 November 2026)
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 229 actions, 0 problems (default run reproduces seed 1 below 1e-5). `check_stages.mjs`: 6 stage runs, 32 step-list numbers, 0 problems. `mk_coverage.py`: 49 of 49. `verify_layout.mjs`: only "visuals outside a split" on the tables tab (kept full width on purpose).
