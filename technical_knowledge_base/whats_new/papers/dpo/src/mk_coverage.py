@@ -66,7 +66,7 @@ C = [
  ('DeepSeek-R1 (2025-01): RLVR at scale, the other pole', 'Connections; Further reading', ['3c65c17b0d0d813faca4f7a51eaa0c65', 'the other pole of the debate']),
  ('Llama 3 (2024-07) and OLMo 2 (2025-01): production pipelines with DPO stages', 'Connections; Further reading', ['3c65c17b0d0d81aca58ccb9d720b474e', '3c65c17b0d0d81fb9857fb956165ae1c', 'production pipelines with DPO stages']),
  ('Topics: llm-training-and-post-training, rl', 'Connections; Further reading, Topics', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d8195a6c6c11ad093c16e']),
- ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['reparameterising the reward as the policy/reference log-ratio, matching or beating PPO at 2023 scales']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['reparameterising the reward as the policy/reference log-ratio, which the paper reports as matching or beating PPO on its three tasks at 2023 scales']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

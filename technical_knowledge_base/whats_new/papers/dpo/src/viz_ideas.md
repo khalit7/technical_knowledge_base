@@ -29,3 +29,10 @@ Methodology gap noted: for a training-objective paper the most useful "known ans
 | P-dpo.17 | **Hero: the paper's own Figure 1** (CC BY 4.0), RLHF against DPO, split into its two panels for phone width, with the bridge equation (Eq. 5 into Eq. 1, Z cancels) under it | Reading, top | built |
 | P-dpo.18 | Likelihood-displacement chart and toy-sweep chart moved out of their predict reveals into their own inline cards, each with a title saying what to notice | Reading | built |
 | P-dpo.19 | A hand-built SVG hero of the change of variables | | rejected: the paper's own figure is CC BY and is the one people cite; the equation line under it carries the change of variables, and the pipeline animation in Idea already redraws Figure 1 on the toy's counts |
+
+## 2026-11-13 layout rollout
+| id | Idea | Placement | Status |
+|---|---|---|---|
+| P-dpo.19 | **RLHF against DPO as a 3D stage** (renderer v2): models as glass plates, flows for every data movement, pair 3's reward-model scores against its implicit reward β log π/π_ref as signed bars on a plinth | Reading, Idea (Fig. 1) | built (replaces P-dpo.3) |
+| P-dpo.20 | **Four pairs through DPO and Unlikelihood as a 3D stage**: signed log-ratio bars per pair, the weight as a glass trough with flows proportional to it, nine checkpoints in five explained stretches | Reading, The loss (Fig. 2) | built (replaces P-dpo.4) |
+| P-dpo.21 | The exact optimum as a surface over the policy's parameters, with DPO and PPO paths | | rejected: the toy's policy has 444 logits; no two-parameter surface exists without inventing one |
