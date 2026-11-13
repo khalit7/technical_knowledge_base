@@ -1,6 +1,27 @@
+<!--RFIRST-->
+<!--R-->
+<div class="s3side">
 <div class="viz" id="v-round">
 <h3>Before and after: what the sampler serves when a tiny update meets bf16</h3>
-<p class="lede">One weight of 0.03 in an RL run. The trainer keeps it in fp32 and adds a small update every step; the sampler that generates rollouts gets a bf16 copy, and bf16 can only hold the values on the grey lines, 0.000122 apart near 0.03. Step through round-to-nearest export first, then switch to stochastic rounding. The update size (0.000001 a step) is chosen so that, as in the paper, it is far below half the grid spacing.</p>
-<div id="rdAnim"></div>
+<div class="an-top"><div class="seg" id="rdM"><button class="on" data-m="rtn" aria-pressed="true">Before: round to nearest</button><button data-m="sr" aria-pressed="false">After: stochastic rounding</button></div></div>
+<div class="an-svg" id="rdSvg"></div>
+<div class="an-ctl" id="rdCtl"></div>
+<div class="an-cnt" id="rdCnt"></div>
 <p class="small mute">An illustration of the mechanism in {{Fair Cast, arXiv 2610.41073|https://arxiv.org/abs/2610.41073}} with magnitudes of the kind the paper reports (on Qwen3-1.7B only 0.4 to 0.5% of served weights changed per step, and the sampler lagged the optimiser by about 50 to 150 steps); it is not the paper's data. bf16 spacing near 0.03 is 2<sup>-13</sup>; the stochastic rounding draws come from a fixed seed. The paper's fix also computes the loss on the served copy, which this picture does not show; the {{paper page|n:40c5c17b0d0d81c39641d49880e39f73}} has the evidence.</p>
 </div>
+</div>
+<!--L-->
+<p class="vz-l">One weight of 0.03 in an RL run. The trainer keeps it in fp32 and adds a small update every step; the sampler that generates rollouts gets a bf16 copy, and bf16 can only hold the values on the dashed lines, 0.000122 apart near 0.03. The update size (0.000001 a step) is chosen so that, as in the paper, it is far below half the grid spacing. The chart plays round-to-nearest export by itself once in view, then switch to stochastic rounding (the buttons above the chart): the weight and the updates stay the same, and only the export changes.</p>
+<p class="sxh">Step by step</p>
+<ol class="sx" id="sx-rd-rtn">
+<li><b>Same start.</b> At step 0 the fp32 master and its bf16 copy hold the same value, which sits on the bf16 grid.</li>
+<li><b>The master moves, the served copy does not.</b> Each step adds 0.000001 to the master. Rounded to the nearest grid value, the copy the sampler receives does not change: every one of these updates is lost to the sampler.</li>
+<li><b>The sampler is serving an old policy.</b> By step 61 the master has moved 61 updates, and the sampler still serves the step-0 weight. Importance ratios computed between two copies that were both rounded the same way cannot see this gap.</li>
+<li><b>One jump, then frozen again.</b> At step 62 the master crosses the midpoint and the copy jumps a whole grid step at once; then it freezes again. The served weight is a staircase that trails the master.</li>
+</ol>
+<ol class="sx" id="sx-rd-sr" hidden>
+<li><b>Same start.</b> Same weight, same updates. Now each export rounds up with a probability equal to how far the master has moved toward the next grid value.</li>
+<li><b>Small updates show up as more frequent jumps.</b> Early on the master is close to the lower value, so the copy rarely rounds up; as the master climbs, up-rounds become more frequent. No single export is exact.</li>
+<li><b>On average the copy equals the master.</b> The expected value of each export is exactly the master: the further the master has climbed between two grid values, the more often the copy rounds up. The sampler sees the policy the optimiser has, plus noise, not one that is 61 steps old.</li>
+<li><b>Unbiased, so nothing is silently dropped.</b> Over 150 steps every update reaches the sampler in expectation. Fair Cast pairs this with computing the loss on the served copy; in the paper, unbiased export alone was not enough.</li>
+</ol>

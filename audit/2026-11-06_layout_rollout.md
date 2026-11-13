@@ -315,7 +315,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
 - [x] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
 - [x] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
-- [~] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
+- [x] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
 
 ## Polish notes (cosmetic, for a pass at the end)
 - `topic_rl/rl_for_llms`: Fig. 3 close-up steps crop the inference engine labels at the left edge; Fig. 2 step 5 critic plate large in front.
@@ -609,6 +609,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/tech_news/2026_10_19_tech_news`: on phones the ARC step list sits well below the chart (card first, then item, then list); the 09-28 issue quotes this issue as "(~35 min)" (now 37; fix after 09-28's rebuild).
 - `whats_new/tech_news/2026_09_28_tech_news`: Fusion stage row labels crowd the left edge at 1400 and the scene fills only the middle of its card; JitMem SVG labels are 11 px. Issue "Further reading" tabs also quote topic roots as "(~N min)" (agentic-harnesses ~26, inference ~43, hardware ~37, benchmarks ~20, llm-landscape ~20), invisible to check_times and now stale; inter-issue quotes fixed by hand (09-21, 09-28, 10-19).
 - `whats_new/tech_news/2026_10_26_tech_news`: GRAFT card sits low in its column at 1400 (empty space above it beside the long item text).
+- `whats_new/tech_news/2026_11_02_tech_news`: the rounding card shows empty space above the lines at 1400 (original y-range); unused .an-cap CSS left in 01_css.html.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -769,3 +770,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Tech news 2026-10-19: no 3D stage (the three visuals are a timeline, a log scatter and paired bars; nothing spatial); the ARC card is not sticky on phones (about 400 px). Keep?
 - Tech news 2026-09-28: the illustrative Fusion session keeps an inherited inconsistency (the switching row's turn-10 full re-read assumes a cache expiry after 3 idle turns while Fusion's lead keeps its cache over 6; now stated); its illustrative 77% cache hit is below one model's 87%, opposite to the measured runs (stated). Make turn 10 a partial re-read instead?
 - Tech news 2026-10-26: no 3D stage (the GRAFT mechanism is drawn in 3D on the paper page, linked as Fig. 1 and Fig. 2); GRAFT step titles now carry each step's figure; steps hold 5.2 s. Keep?
+- Tech news 2026-11-02: no 3D stage (the one candidate, the Models section's hybrid layer stacks for LFM3 and Ling-3.1-flash, would need invented layer order and per-layer cache sizes; left as a proposal). Build it anyway?

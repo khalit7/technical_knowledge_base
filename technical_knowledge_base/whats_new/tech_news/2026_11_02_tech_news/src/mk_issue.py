@@ -3,7 +3,14 @@
 plus data/annotations.json (dates, tags, numbers, checks, corrections, follow-ups, where each visual goes).
 Writes parts/03_issue.html (the issue, readable without JavaScript) and parts/11_data.js (the same data for
 the week strip). Reusable for every weekly issue: the visual parts named in "viz_after" are included from
-parts/v_<name>.html when present. Run from src/."""
+parts/v_<name>.html when present. Run from src/.
+
+The split layout (2026-11-06 rule, added 2026-11-13 after the 2026-08-24 issue): an item with a visual becomes
+<div class="s3sp"> with the item's text in .s3L and the visual in .s3R. A visual part is cut by markers: <!--L--> extra text
+for the left column (the visual's explanation, a step list), <!--R--> the right column, <!--A--> anything after the split
+(a second split, written out); <!--RFIRST--> puts the right column first in the DOM (an animation or stage, so on a phone
+it sits at the top of its item). A part without markers is included whole after the item, full width, as before.
+"viz_with": [n, ...] on the item that names the visual puts those earlier items of the same section in the left column too."""
 import json, html, re, datetime, os
 
 I = json.load(open('data/items.json'))
@@ -37,6 +44,18 @@ def TL(x):  # [[text|tab|target]] -> in-page tab link
         t, tab, to = (m.group(1).split('|') + [''])[:3]
         return f'<a href="#" data-tab="{tab}"' + (f' data-to="{to}"' if to else '') + f'>{t}</a>'
     return re.sub(r'\[\[([^\]]+)\]\]', r, x)
+def vsplit(name, left):
+    """The split for visual parts/v_<name>.html, with left (the item cards) in the left column."""
+    src = TL(open(f'parts/v_{name}.html').read())
+    if '<!--R-->' not in src:
+        return left + src
+    rfirst = '<!--RFIRST-->' in src
+    seg = dict(re.findall(r'<!--(L|R|A)-->(.*?)(?=<!--(?:L|R|A)-->|\Z)', src.replace('<!--RFIRST-->', ''), flags=re.S))
+    L = '<div class="s3L">\n' + left + seg.get('L', '') + '</div>'
+    R = '<div class="s3R">' + seg['R'] + '</div>'
+    return f'<div class="s3sp" id="sp-{name}">\n' + (R + L if rfirst else L + R) + '</div>' + seg.get('A', '')
+WITH = {m: int(n) for n, an in A['items'].items() for m in an.get('viz_with', [])}  # item -> the item whose visual it shares
+held = []
 G = A['glance']
 out, data = [], []
 # tab bar: At a glance, one tab per section, Further reading
@@ -46,8 +65,9 @@ out.append('<div class="tabs" role="tablist" id="tabs">' + f'<button role="tab" 
 TABOF = {q['name']: q for q in SEC}
 fu_sorted = sorted(A['followups'], key=lambda f: f['d'])
 # At a glance
-g = [f'<div class="tab" id="{G["tab"]}" role="tabpanel">', f'<p class="lead">{TL(G["lead"])}</p>', f'<p>{TL(G["theme"])}</p>']
-if os.path.exists('parts/v_strip.html'): g.append(open('parts/v_strip.html').read())
+g = [f'<div class="tab" id="{G["tab"]}" role="tabpanel">']
+top = f'<p class="lead">{TL(G["lead"])}</p>\n<p>{TL(G["theme"])}</p>\n'
+g.append(vsplit('strip', top) if os.path.exists('parts/v_strip.html') else top)
 g.append('<h2>This week, tab by tab</h2><div class="secrows">')
 for q in SEC:
     cnt = sum(1 for x in I['items'] if x['section'] == q['name'])
@@ -97,10 +117,13 @@ for it in I['items']:
     if an.get('feeds'):
         h.append('<div class="fd">Feeds ' + ', '.join(L(esc(FEEDS[k][0]), 'n:' + FEEDS[k][1]) for k in an['feeds']) + '</div>')
     h.append('</article>')
-    out.append('\n'.join(h))
     v = an.get('viz_after')
-    if v and os.path.exists(f'parts/v_{v}.html'):
-        out.append(TL(open(f'parts/v_{v}.html').read()))
+    if n in WITH:
+        held.append('\n'.join(h))
+    elif v and os.path.exists(f'parts/v_{v}.html'):
+        out.append(vsplit(v, '\n'.join(held + h) + '\n')); held = []
+    else:
+        out.append('\n'.join(h))
     data.append({'n': n, 'id': an['id'], 'd': an.get('d'), 'dnote': an.get('dnote'), 'also': an.get('also', []), 'sec': s['id'],
                  't': title, 'x': re.split(r'(?<=[.:;])\s', plain(it['text']).lstrip(' (').strip(), 1)[0][:150], 'hn': {k: v for k, v in hn.items() if k != 'url'},
                  'fu': an.get('follow')})
