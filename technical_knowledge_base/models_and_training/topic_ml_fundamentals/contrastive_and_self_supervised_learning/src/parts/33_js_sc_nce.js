@@ -51,7 +51,7 @@
     R.label([x(FN),k>=2?YG-.04-g[FN]*HG:top(FN),zl],fl2,{fs:12.5,b:1,dy:k>=2?14:-12,dx:14,al:'left',c:fnC});
   }
   const full={cam:[.08,.74],bounds:[[-5.1,-.2,-3.4],[5.1,2.9,3.2]]};
-  S3.stage({id:'stg-nce',list:'sx-nce',fig:'Fig. 2 · one anchor, 48 real candidates',cam:full.cam,bounds:full.bounds,aspect:.68,dur:1600,hold:4600,draw,
+  S3.stage({id:'stg-nce',list:'sx-nce',fig:'Fig. 2 · one anchor, 48 real candidates',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1600,hold:4600,draw,
     margin:w=>w<520?[22,8,12,8]:[26,16,12,190],
     view:k=>k===0?{cam:[.08,.42],bounds:[[-5.1,0,-3.4],[5.1,2.9,-2.6]]}:k===1?{cam:[.08,.7],bounds:[[-5.1,0,-3.4],[5.1,2.9,.4]]}:full});
 })();

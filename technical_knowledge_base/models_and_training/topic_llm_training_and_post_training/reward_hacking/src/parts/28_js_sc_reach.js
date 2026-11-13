@@ -33,5 +33,5 @@
   // the camera pulls back one ring at a time, so each step's ring fills the card
   const B=i=>{const h=hs(Math.min(N-1,i+1))+.15;return [[-h,0,-h],[h,1.5,h]]};
   S3.stage({id:'stg-reach',list:'sx-reach',fig:'Fig. 3 · what the policy can reach',cam:[.3,.68],bounds:B(N-1),aspect:.5,dur:1500,hold:5200,draw,
-    view:k=>({cam:[.3,.68],bounds:B(k)}),margin:w=>w<520?[14,10,14,10]:[18,18,30,18]});
+    view:k=>k===0&&document.getElementById('stg-reach').clientWidth<520?{cam:[.3,.85],bounds:[[-.95,0,-.95],[.95,1,.95]]}:{cam:[.3,.68],bounds:B(k)},margin:w=>w<520?[14,10,14,10]:[18,18,30,18]});
 })();

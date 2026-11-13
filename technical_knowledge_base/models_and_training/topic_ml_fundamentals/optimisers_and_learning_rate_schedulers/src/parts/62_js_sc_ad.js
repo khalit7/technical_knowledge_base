@@ -24,7 +24,7 @@
     const v=k===0?gA:k===1?gA.map((x,i)=>lerp(x,one[i],e)):k===2?one:k===3?one.map((x,i)=>lerp(x,gB[i],e)):gB;
     const grad=k===0||(k===1&&e<.5)||(k===3&&e>=.5)||k>=4,show=k<=1?gA:gB,lab=grad?'|gradient|':'|step| ÷ η';
     ['x','y'].forEach((n,i)=>{const z=i?-.45:.45,hh=Math.max(.02,v[i]/mx*hc);R.box([XC,0,z],[.42,hh,.42],{fill:i?P.c2:P.c3,a});
-      R.label([XC,hh,z],n+': '+(grad?Math.round(show[i]):'1'),{mono:true,fs:12.5,b:1,c:i?P.c2:P.c3,dy:-12,a})});
+      R.label([XC,hh,z],n+': '+(grad?Math.round(show[i]):'1'),{mono:true,fs:12.5,b:1,c:i?P.c2:P.c3,dy:-12,al:i?'center':'left',dx:i?0:-4,a})});
     R.label([XC,0,.9],lab,{mono:true,fs:12,c:P.mute,dy:14,a,wide:1})}
   function draw(R,k,e){const P=R.P,rot=k>=3;R.grid(-5,4,-3.4,3.4,.5);
     const aA=k<=2?(k===0?Math.min(1,e*1.5):1):k===3?1-e:0,aB=k===3?e:k>3?1:0;
@@ -46,7 +46,7 @@
       const c0=[1,.6],L=2.2;[[u1,m1],[u2,m2]].forEach(([u,m],i)=>{const l=L*Math.max(.18,m/m1);R.line([B.pt(c0[0]-l*u[0],c0[1]-l*u[1],.05),B.pt(c0[0]+l*u[0],c0[1]+l*u[1],.05)],{c:C.shampoo,w:3,a:e,top:1})});
       R.label(B.pt(c0[0]+L*u1[0],c0[1]+L*u1[1],.05),'H^(−1/2): long along the floor',{fs:12,b:1,c:C.shampoo,dy:-12,a:e,wide:1})}
   }
-  const vA={cam:[-.75,.88],bounds:[[-4.8,0,-2.25],[3.7,1.8,2.25]]},vB={cam:[-.9,.85],bounds:[[-4.8,0,-2.9],[2.9,1.8,2.9]]};
+  const vA={cam:[-.75,.88],bounds:[[-4.8,0,-2.25],[3.7,1.8,2.25]]},vB={cam:[-.72,.68],bounds:[[-4.8,0,-2.9],[2.9,1.8,2.9]]};
   S3.stage({id:'stg-ad',list:'sx-ad',fig:'Fig. 2 · per-coordinate steps, and a valley they cannot see',cam:vA.cam,bounds:vA.bounds,aspect:.58,dur:2400,hold:4800,draw,
     margin:w=>w<520?[16,10,16,10]:[24,20,22,20],view:k=>k>=3?vB:vA});
   writeList();

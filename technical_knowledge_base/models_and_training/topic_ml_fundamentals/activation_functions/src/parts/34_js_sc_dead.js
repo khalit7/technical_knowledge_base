@@ -18,14 +18,14 @@
   const ux=u=>((u%NX)-(NX-1)/2)*CS,uz=(b,u)=>ZL[b]+(Math.floor(u/NX)-(NY-1)/2)*CS;
   function frameAt(k,e){const s=STR[run][Math.min(k,STR[run].length-1)];return Math.min(FR[run].f.length-1,Math.round(lerp(s[0],s[1],e)))}
   function draw(R,k,e){const P=R.P,narrow=R.W<520;R.grid(-4,4,-5,5,.5);
-    const close=run===1&&(k===3||k===4),la=b=>close&&b===0?.12:1;
+    const close=run===1&&(k===3||k===4),la=b=>close&&b===0?0:1;
     const fi=frameAt(k,e),f=FR[run].f[fi],m=f[3],nan=f[4],pl=perLayer(m);
     // the input (8 x 8 pixel digits) and the output (10 classes) as glass plates
     R.glass([-.5,.06,ZI],[1,0,0],[0,.8,0],{c:P.c1,nu:8,nv:8,a:close?0:.9});R.label([XS,.3,ZI],'1,797 digits in',{fs:12.5,b:1,al:'right',dx:-6,c:P.ink,a:close?0:1,grp:'side'});
     const dark=!nan&&pl[2]===128;
     R.glass([-.5,.06,ZO],[1,0,0],[0,.8,0],{c:nan?P.mute:dark?P.bad:P.c3,nu:10,nv:1,a:.9});R.label([XS,.3,ZO],dark?'10 classes: one answer for all':'10 classes out',{fs:12.5,b:1,al:'right',dx:-6,c:dark?P.bad:P.ink,grp:'side'});
     // the hidden units: a column per unit, as tall as the share of images it is on for; dead ones flat and red
-    for(let b=0;b<3;b++){for(let u=0;u<128;u++){const ch=m?m[b*128+u]:null,c=[ux(u),0,uz(b,u)];
+    for(let b=0;b<3;b++){if(la(b)>.05)for(let u=0;u<128;u++){const ch=m?m[b*128+u]:null,c=[ux(u),0,uz(b,u)];
         if(nan)R.box(c,[CS*.8,.03,CS*.8],{fill:mix(P.paper,P.mute,.5),shadow:false,lw:.4,ea:.4,a:la(b)});
         else if(ch==='x')R.box(c,[CS*.84,.035,CS*.84],{fill:P.bad,shadow:false,lw:.4,ea:.5,a:la(b)});
         else{const sh=(+ch+.5)/10;R.box(c,[CS*.7,.05+.55*sh,CS*.7],{fill:mix(P.paper,P.c1,.2+.65*sh),shadow:false,lw:.4,ea:.45,a:la(b)})}}

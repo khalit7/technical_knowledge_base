@@ -19,11 +19,11 @@
     // 2. one shared base: the whole batch goes through one matmul
     const ba=k===0?0:k===1?e:1;
     if(ba>.01){R.glass([BX-BW/2,.08,0],[BW,0,0],[0,BH,0],{c:P.mute,a:ba,nu:6,nv:5});R.label([BX,BH+.08,0],'W₀ · one shared copy',{mono:true,fs:12.5,b:1,c:P.ink,a:k===1?Math.max(0,(e-.6)/.4):ba,dy:-12});
-      cols.forEach((c,i)=>{const fb=ba*(k>=2?.4:1);R.flowArc([RX+.15,RY(i),.5],[BX,.35+i*.3,.02],.22,{c,a:fb,r:.05,speed:1.2,n:5});R.flowArc([BX,.35+i*.3,.02],[OX,RY(i),.5],.22,{c,a:fb,r:.05,speed:1.2,n:7});R.ball([OX,RY(i),.5],.09,{c,a:ba})})}
+      cols.forEach((c,i)=>{const fb=ba*(k>=2?.22:1),fn=k>=2?.5:1;R.flowArc([RX+.15,RY(i),.5],[BX,.35+i*.3,.02],.22,{c,a:fb,r:.05,speed:1.2,n:Math.round(5*fn)});R.flowArc([BX,.35+i*.3,.02],[OX,RY(i),.5],.22,{c,a:fb,r:.05,speed:1.2,n:Math.round(7*fn)});R.ball([OX,RY(i),.5],.09,{c,a:ba})})}
     // 3. each request's own small product x · A_i · B_i, in front of the base
     const sa=k<2?0:k===2?e:1;
     if(sa>.01){cols.forEach((c,i)=>{R.glass([SX(i)-.15,.1,SZ],[.3,0,0],[0,.3,0],{c,a:sa,nu:2,nv:2,th:.03});
-        R.flowArc([RX+.15,RY(i),.5],[SX(i),.25,SZ],.15,{c,a:sa*.9,r:.04,speed:1.2,n:5});R.flowArc([SX(i),.25,SZ],[OX,RY(i),.5],.25,{c,a:sa*.9,r:.04,speed:1.2,n:7})});
+        R.flowArc([RX+.15,RY(i),.5],[SX(i),.25,SZ],.15,{c,a:sa*.9,r:.04,speed:1.2,n:4});R.flowArc([SX(i),.25,SZ],[OX,RY(i),.5],.25,{c,a:sa*.9,r:.04,speed:1.2,n:5})});
       R.label([SX(0)-.2,.1,SZ+.1],'x · Aᵢ · Bᵢ per request',{mono:true,fs:12.5,b:1,al:'right',dx:-6,dy:12,c:P.acc,a:sa})}
     // 4. the adapter pool in host memory (right, behind); the running ones are paged onto the GPU, into one pool with the KV cache pages
     const pa=k<3?0:k===3?e:1;
@@ -36,6 +36,6 @@
     if(k===4){R.label([OX+.3,.05,SZ+.3],'2,000 adapters · '+t2k.sl.toFixed(2)+' req/s',{mono:true,fs:13,b:1,c:P.acc,a:e,al:'right',dy:-14});
       R.label([OX+.3,.05,SZ+.3],'5 adapters · '+t5.sl.toFixed(2)+' req/s',{mono:true,fs:12.5,c:P.ink,a:e,al:'right',dy:4})}
   }
-  S3.stage({id:'stg-serve',list:'sx-serve',fig:'Fig. 8 · five requests, five adapters, one batch (illustrative)',cam:[.2,.62],bounds:[[-4.3,0,-2.8],[4.1,.6,2.0]],aspect:.44,dur:1500,hold:4800,draw,view:k=>k===0?{cam:[.25,.45],bounds:[[-4.3,0,-2.6],[1.2,2.2,1]]}:null,
+  S3.stage({id:'stg-serve',list:'sx-serve',fig:'Fig. 8 · five requests, five adapters, one batch (illustrative)',cam:[.2,.7],bounds:[[-4.3,0,-2.8],[4.1,.6,2.0]],aspect:.5,dur:1500,hold:4800,draw,view:k=>k===0?{cam:[.25,.45],bounds:[[-4.3,0,-2.6],[1.2,2.2,1]]}:null,
     margin:w=>w<520?[16,10,14,10]:[24,26,18,110]});
 })();

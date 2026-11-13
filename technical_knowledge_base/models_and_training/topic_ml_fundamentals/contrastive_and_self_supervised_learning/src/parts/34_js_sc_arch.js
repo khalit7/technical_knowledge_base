@@ -56,7 +56,7 @@
     if(sga>.01){R.box([XR,0,ZL+1.05],[1.5,.7,.07],{fill:mix(P.ink,P.bad,.25),a:sga*.85,shadow:false});R.label([XR+.85,.1,ZL+1.05],'stop-gradient',{fs:12.5,b:1,al:'left',c:P.bad,a:sga,wide:1})}
     // the EMA copy: purple dots carrying the trained encoder's weights into its slow copy
     const ea=(C.ema?1:0)*(same||O.ema?1:fin(e))+(!same&&O.ema&&!C.ema?fout(e):0);
-    if(ea>.01){R.flowArc([XL+.4,1.15,ZE],[XR-.4,1.15,ZE],.45,{c:P.c4,a:ea,r:.08,speed:.7,n:7});lab(O.ema?'EMA · '+O.ema:'',C.ema?'EMA · '+C.ema:'',[0,1.6,ZE],{fs:12.5,b:1,c:P.c4,dy:-4})}
+    if(ea>.01){R.flowArc([XL+.4,1.15,ZE],[XR-.4,1.15,ZE],.45,{c:P.c4,a:ea,r:.08,speed:.7,n:7});lab(O.ema?(narrow?'EMA':'EMA · '+O.ema):'',C.ema?(narrow?'EMA':'EMA · '+C.ema):'',[0,1.6,ZE],{fs:12.5,b:1,c:P.c4,dy:-4})}
     // where the negatives come from: the rest of the batch, or a queue of past keys
     const qa=(C.neg==='queue'?1:0)*(same||O.neg==='queue'?1:fin(e))+(!same&&O.neg==='queue'&&C.neg!=='queue'?fout(e):0);
     if(qa>.01){for(let i=0;i<7;i++)R.glass([3.05,.12,ZE+.6-i*.2],[.8,0,0],[0,.62,0],{c:P.c6,a:qa*(.95-i*.09),nu:3,nv:3});R.label([3.45,.8,ZE+.6],'queue of past keys',{fs:12.5,b:1,c:P.c6,a:qa,dy:-8});
@@ -65,5 +65,6 @@
     if(ba>.01){for(let i=0;i<6;i++)R.box([2.75+(i%3)*.34,0,ZL+.2-Math.floor(i/3)*.38],[.24,.24,.24],{fill:mix(P.paper,P.c2,.5),a:ba});R.label([3.1,.3,ZL-.2],'other views = negatives',{fs:12.5,b:1,dy:-18,c:P.c2,a:ba})}
   }
   S3.stage({id:'stg-ar',list:'sx-ar',fig:'Fig. 3 · two branches, six designs',cam:[.14,.66],bounds:[[-3.1,0,-3.7],[3.9,1.7,3.4]],aspect:.82,dur:1500,hold:5200,draw,
+    view:()=>$('stg-ar').clientWidth<520?{cam:[.1,.95],bounds:[[-3.1,0,-3.7],[3.9,1.7,3.4]]}:null,
     margin:w=>w<520?[18,8,12,8]:[22,16,14,16]});
 })();

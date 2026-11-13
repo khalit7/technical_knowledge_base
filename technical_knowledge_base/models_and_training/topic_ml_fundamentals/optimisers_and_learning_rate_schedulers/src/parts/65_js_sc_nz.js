@@ -18,12 +18,12 @@
     ['nes','adam'].forEach(o=>{const run=S.run(o,sch),end=S.trail(R,run,t,C[o],{w:k===0?2:1.6,flow:8,a:o==='adam'?1:.8});
       R.label(end,SURF.NAME[o],{fs:12.5,b:1,c:C[o],dy:o==='adam'?-16:18,grp:'nz'});if(k>=1&&(k===1||e>.98))cloud(R,run,C[o],k===1?Math.min(1,e*1.5):1)});
     // the rate schedule on a strip along the back of the surface: height = the rate's share of its peak, a dot at the current step
-    const nr=k>0,bz=nr?1.15:S.Z(S.b[2])+.35,bx0=nr?1.1:S.X(S.b[0]),bx1=nr?2.9:S.X(S.b[1]),y0=nr?.04:.15,hh=nr?.22:.6,mul=i=>E.sched(sch,i,T),pts=[];
+    const nr=k>0,bz=nr?.62:S.Z(S.b[2])+.35,bx0=nr?1.5:S.X(S.b[0]),bx1=nr?2.75:S.X(S.b[1]),y0=nr?.04:.15,hh=nr?.16:.6,mul=i=>E.sched(sch,i,T),pts=[];
     for(let i=0;i<=60;i++){const s=i*T/60;pts.push([bx0+(bx1-bx0)*s/T,y0+hh*mul(Math.min(T-1,s)),bz])}
     R.line(pts,{c:P.c2,w:2.2,a:.9,top:1});const s=Math.min(T-1,t);R.ball([bx0+(bx1-bx0)*s/T,y0+hh*mul(s),bz],nr?.04:.06,{c:P.c2,top:1});
     R.label([bx0,y0+hh,bz],sch==='const'?'rate: constant':sch==='cosine'?'rate: cosine to 0':'rate: constant, then 1−sqrt over the last 20%',{fs:12.5,b:1,c:P.c2,al:'left',dy:-12});
   }
-  const full={cam:[-.75,.88],bounds:[[-3.7,0,-2.25],[3.7,1.7,2.6]]},near={cam:[-.75,.95],bounds:[[.95,0,-.75],[3.05,.3,1.25]]};
+  const full={cam:[-.75,.88],bounds:[[-3.7,0,-2.25],[3.7,1.7,2.6]]},near={cam:[-.75,.95],bounds:[[1.4,0,-.4],[2.85,.25,.78]]};
   S3.stage({id:'stg-nz',list:'sx-nz',fig:'Fig. 5 · noisy gradients: the floor a constant rate cannot go below',cam:full.cam,bounds:full.bounds,aspect:.56,dur:2600,hold:4800,draw,
     margin:w=>w<520?[16,10,16,10]:[24,20,22,20],view:k=>k===0?full:near});
   writeList();

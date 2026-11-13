@@ -80,7 +80,7 @@
   const fig='Fig. 1 · one real step of the toy, seven moments, four threads';
   const stg=S3.stage({id:'stg-step',list:'sx-st-modern',fig,cam:full.cam,bounds:full.bounds,aspect:.36,dur:1500,hold:5600,draw,
     margin:w=>w<520?[22,8,14,8]:[26,16,16,16],
-    view:k=>{const v=k===0?full:k===7?fullT:pair(k);return innerWidth<520&&(k===0||k===7)?{cam:[.12,.8],bounds:v.bounds}:v}});
+    view:k=>{const v=k===0?full:k===7?fullT:pair(k);return innerWidth<520&&(k===0||k===7)?{cam:[.85,.5],bounds:v.bounds}:v}});
   // the recipe toggle swaps the step list and replays
   const seg=document.getElementById('rd-stR');
   if(seg&&stg)seg.addEventListener('click',ev=>{const b=ev.target.closest('button[data-r]');if(!b||b.dataset.r===rec)return;rec=b.dataset.r;

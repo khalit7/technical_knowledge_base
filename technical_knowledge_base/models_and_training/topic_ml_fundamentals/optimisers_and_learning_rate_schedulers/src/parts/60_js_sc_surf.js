@@ -20,7 +20,7 @@ window.SURF=(function(){
     function run(ok,sched,seed){const k=ok+'|'+(sched||'const')+'|'+(seed||1);if(!runs[k]){const r=E.run(sk,ok,LR[sk][ok],{sched:sched||'const',seed:seed||1});let f=null;for(let s=0;s<=r.T;s++)if(r.ls[s]<1e-3){f=s;break}r.first=f;r.lr=LR[sk][ok];runs[k]=r}return runs[k]}
     const S={sf,b,X,Z,h,pt,HT,run,
       // the mesh; a recedes it, so the paths a step is about stand out
-      mesh(R,a){const P=R.P;cells.forEach(c=>R.quad(c.q,{fill:mix(P.paper,mix(P.c1,P.c6,Math.pow(c.t,.7)),.16+.42*c.t),fa:.94,ea:.16,lw:.5,a}))},
+      mesh(R,a,f){const P=R.P;cells.forEach(c=>R.quad(c.q,{fill:mix(P.paper,mix(P.c1,P.c6,Math.pow(c.t,.7)),.16+.42*c.t),fa:.94,ea:.16,lw:.5,a:f?a*f(c):a}))}, // f: optional per-cell alpha factor (a close-up fades what lies outside it)
       // the start (a ring of ink) and the minimum (a dark ball)
       marks(R,a,mins,sc){const P=R.P,s=pt(sf.start[0],sf.start[1],.03),z=sc||1;R.ball(s,.08*z,{c:P.paper,a,top:1});R.ball(s,.045*z,{c:P.ink,a,top:1});
         (mins||[[1,.6]]).forEach(m=>R.ball(pt(m[0],m[1],.02),.07*z,{c:P.ink,a,top:1}))},

@@ -40,9 +40,9 @@
     // 5. Shampoo: a factor per side, each as large as that side squared; gradients go in, the preconditioned step comes back
     const aS=k>=4?(k===4?e:1):0;
     if(aS>.01){const cR=[x0,Y0,z0-.25],cL=[x0+LX+.25,Y0,z0];
-      R.glass(cR,[LX,0,0],[0,LX,0],{c:cF,a:aS*(k===5?.7:1),nu:14,nv:14,th:.03});R.glass(cL,[0,0,LZ],[0,LZ,0],{c:cF,a:aS*(k===5?.7:1),nu:4,nv:4,th:.03});
+      R.glass(cR,[LX,0,0],[0,LX,0],{c:cF,a:aS*(k===5?lerp(1,.3,e):1),nu:14,nv:14,th:.03});R.glass(cL,[0,0,LZ],[0,LZ,0],{c:cF,a:aS*(k===5?lerp(1,.3,e):1),nu:4,nv:4,th:.03});
       R.label([x0,Y0+LX,z0-.25],(k===5?'R and its eigenbasis Q, each ':'R = Σ GᵀG · ')+fmt(n)+' × '+fmt(n),{mono:true,fs:12.5,b:1,c:cF,al:'left',dy:-12,a:aS,wide:1});
-      R.label([x0+LX+.25,Y0+LZ,z0+LZ/2],(k===5?'L and its Q, each ':'L = Σ GGᵀ · ')+fmt(m)+' × '+fmt(m),{mono:true,fs:12.5,b:1,c:cF,al:'left',dx:10,dy:-8,a:aS,wide:1});
+      R.label([x0+LX+.45,Y0+LZ*.5,z0+LZ/2],(k===5?'L and its Q · ':'L = Σ GGᵀ · ')+fmt(m)+' × '+fmt(m),{mono:true,fs:12.5,b:1,c:cF,al:'left',dx:14,a:aS,wide:1});
       R.flowArc([0,Y0+.05,0],[0,Y0+LX*.5,z0-.25],.4,{c:cF,a:aS*.85,r:.06,speed:1.2,n:7});R.flowArc([x0+LX*.8,Y0+.05,0],[x0+LX+.25,Y0+LZ*.5,0],.35,{c:cF,a:aS*.85,r:.06,speed:1.2,n:5});
       if(k===4)R.label([x0+LX,0,z0+LZ],'Shampoo: '+per.sham.toFixed(2)+' values per weight',{fs:12.5,b:1,c:P.ink,al:'left',dx:14,dy:24,a:e})}
     // 6. SOAP: each factor's eigenbasis as well, and Adam's m and v run in that basis
@@ -51,7 +51,7 @@
       slab(R,Y0+DY,cM,e);slab(R,Y0+2*DY,cV,e);R.label([x0+LX,Y0+DY,z0+LZ],'m',{mono:true,fs:13,b:1,c:cM,al:'left',dx:8,a:e});R.label([x0+LX,Y0+2*DY,z0+LZ],'v',{mono:true,fs:13,b:1,c:cV,al:'left',dx:8,a:e});
       R.label([x0+LX,0,z0+LZ],'SOAP: '+per.soap.toFixed(2)+' values per weight',{fs:12.5,b:1,c:P.ink,al:'left',dx:14,dy:24,a:e})}
   }
-  const near={cam:[.5,.55],bounds:[[x0-.9,0,z0-.3],[x0+LX+.6,1.5,z0+LZ+.3]]},far={cam:[.55,.42],bounds:[[x0-.4,0,z0-.6],[x0+LX+.9,Y0+LX+.2,z0+LZ+.3]]};
+  const near={cam:[.5,.55],bounds:[[x0-.9,0,z0-.3],[x0+LX+.6,1.5,z0+LZ+.3]]},far={cam:[.55,.42],bounds:[[x0-.4,0,z0-.6],[x0+LX+2.8,Y0+LX+.2,z0+LZ+.3]]};
   S3.stage({id:'stg-pre',list:'sx-pre',fig:'Fig. 3 · optimiser state beside one Kimi K2 expert matrix, to scale',cam:near.cam,bounds:near.bounds,aspect:.6,dur:1600,hold:4800,draw,
     margin:w=>w<520?[18,10,18,10]:[26,24,26,170],view:k=>k>=4?far:near});
   writeList();

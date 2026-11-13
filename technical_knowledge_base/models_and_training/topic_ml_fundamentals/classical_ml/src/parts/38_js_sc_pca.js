@@ -33,7 +33,7 @@
     const arrows=[[0,1,'PC1'],[1,2,'PC2'],[2,3,'PC3']];
     arrows.forEach(([j,s0,nm])=>{if(k<s0)return;const a=k===s0?e:1,L=3*Math.sqrt(pc.vals[j]),c=[P.acc,P.c4,P.c5][j],dir=C[j],r=v=>rot(v,t5),flat=j===2&&k>=5?1-e:1;
       if(flat<=.01)return;const p0=at(dir.map(v=>-v*L*a)),p1=at(dir.map(v=>v*L*a));
-      R.line([p0,p1],{c,w:3,a:a*flat,head:9,top:1});R.label(p1,nm+' · '+pct(pc.ratio[j]),{mono:true,fs:12.5,b:1,c:mix(P.ink,c,.7),a:a*flat,al:'left',dx:8,dy:-4,grp:'ax'})});
+      R.line([p0,p1],{c,w:3,a:a*flat,head:9,top:1});const up=j===2&&R.W>=520,q=up?[p1[0],p1[1]+1.5,p1[2]]:p1;if(up)R.line([p1,q],{c,w:1,a:.7*a*flat,dash:[3,3],top:1});R.label(q,nm+' · '+pct(pc.ratio[j]),{mono:true,fs:12.5,b:1,c:mix(P.ink,c,.7),a:a*flat,al:'left',dx:8,dy:-4,grp:'ax'})});
     // the best-fitting plane, spanned by PC1 and PC2 through the centre (steps 3 onwards); it turns with the cloud and ends on the floor of the PC frame
     if(k>=2){const a=k===2?e:1,L1=2.2*Math.sqrt(pc.vals[0])*1.05,L2=2.2*Math.sqrt(pc.vals[1])*1.25,u=C[0].map(v=>v*2*L1),v=C[1].map(v=>v*2*L2),o=C[0].map((x,i)=>-x*L1-C[1][i]*L2);
       const ow=at(o),uw=at(o.map((x,i)=>x+u[i])),vw=at(o.map((x,i)=>x+v[i]));

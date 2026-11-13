@@ -37,7 +37,7 @@
     if(k===0)return;
     // the lit set's numbers stream into one mean and one spread, written above it
     let cx=0,cy=0,cz=0,m=0;const cells=[];for(let n=0;n<N;n++)for(let c=0;c<C;c++)if(lit(n,c))for(let q=0;q<HW;q++){const p=pos(n,c,q);cells.push(p);cx+=p[0];cz+=p[2];cy=Math.max(cy,p[1]);m++}
-    cx/=m;cz/=m;const top=[cx,cy+CS+1.05,cz],flowA=chg?0:Math.min(1,e/.2)*(1-Math.max(0,(e-.75)/.25));
+    cx/=m;cz/=m;const top=[cx,cy+CS+1.5,cz],flowA=chg?0:Math.min(1,e/.2)*(1-Math.max(0,(e-.75)/.25));
     if(!chg){cells.forEach(p=>R.flowArc([p[0],p[1]+CS,p[2]],top,.25,{c:P.c4,a:flowA*.8,r:.04,n:2,speed:1.5}));
       R.glow(top,.3,{c:P.c4,a:Math.min(1,e*3)});R.ball(top,.1,{c:P.c4,a:Math.min(1,e*3)});
       const g=R0[kind].gid[sel0[kind]],st=kind==='rms'?'rms = '+Math.sqrt(R0[kind].v[g]).toFixed(2)+' · no mean':'μ = '+R0[kind].mu[g].toFixed(2)+' · σ = '+Math.sqrt(R0[kind].v[g]).toFixed(2);
@@ -49,7 +49,7 @@
       R.label(lp,changed('bn')+' other outputs change',{mono:true,fs:12,al:'right',dx:-8,dy:-8,c:P.ink,wide:1});
       R.label(lp,'the other four norms: '+(changed('ln')+changed('in')+changed('gn')+changed('rms')),{mono:true,fs:12,al:'right',dx:-8,dy:10,c:P.mute,wide:1})}
   }
-  const full={cam:[.62,.5],bounds:[[-1.6,0,-2],[1.6,3.6,2.2]]};
+  const full={cam:[.62,.5],bounds:[[-1.6,0,-2],[1.6,4.0,2.2]]};
   S3.stage({id:'stg-ax',list:'sx-ax',fig:'Fig. 5 · one tensor, five choices of axes',cam:full.cam,bounds:full.bounds,aspect:.78,dur:3200,hold:4800,draw,
     margin:w=>w<520?[16,10,14,10]:[26,16,16,200]});
 })();

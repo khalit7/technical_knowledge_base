@@ -26,8 +26,8 @@
   const TAB=['#4e79a7','#f28e2b','#59a14f','#b07aa1','#d4a72c','#76b7b2','#e15759','#9c755f','#2f4b7c','#8cd17d'];
   const RAD=1.55,CY=1.85,CX=[-2.15,2.15];
   function sphere(R,c,a){const P=R.P,ring=(f)=>{const p=[];for(let i=0;i<=48;i++){const t=i/48*2*Math.PI;p.push(f(t))}return p};
-    [-.5,0,.5].forEach(h=>{const r=RAD*Math.sqrt(1-h*h);R.line(ring(t=>[c[0]+r*Math.cos(t),c[1]+h*RAD,c[2]+r*Math.sin(t)]),{c:P.line,w:h?0.8:1.1,a:a*(h?.55:.8)})});
-    [0,Math.PI/3,2*Math.PI/3].forEach(ph=>R.line(ring(t=>[c[0]+RAD*Math.cos(t)*Math.cos(ph),c[1]+RAD*Math.sin(t),c[2]+RAD*Math.cos(t)*Math.sin(ph)]),{c:P.line,w:.8,a:a*.5}));
+    [-.5,0,.5].forEach(h=>{const r=RAD*Math.sqrt(1-h*h);R.line(ring(t=>[c[0]+r*Math.cos(t),c[1]+h*RAD,c[2]+r*Math.sin(t)]),{c:mix(P.line,P.mute,.5),w:h?0.9:1.2,a:a*(h?.6:.85)})});
+    [0,Math.PI/3,2*Math.PI/3].forEach(ph=>R.line(ring(t=>[c[0]+RAD*Math.cos(t)*Math.cos(ph),c[1]+RAD*Math.sin(t),c[2]+RAD*Math.cos(t)*Math.sin(ph)]),{c:mix(P.line,P.mute,.5),w:.9,a:a*.55}));
     R.box([c[0],0,c[2]],[.5,.04,.5],{a:a*.6,shadow:true});R.box([c[0],0,c[2]],[.04,c[1]-RAD,.04],{a:a*.5,shadow:false})}
   function draw(R,k,e){const P=R.P,narrow=R.W<520;R.grid(-4.6,4.6,-2.6,2.6,.5);
     const s=STR[Math.min(k,STR.length-1)],f=lerp(s[0],s[1],k===0?1:e);
@@ -46,7 +46,7 @@
       R.label([c[0],0,1.1],narrow?'uniform '+f2(m.unif):'align '+f2(m.align)+' · uniform '+f2(m.unif)+' · 5-NN '+Math.round(100*m.knn)+'%',{mono:true,fs:12,c:P.ink,dy:6})});
     R.label([0,0,1.9],'training step '+met(run,f).step.toLocaleString('en-US')+' of '+T.steps.toLocaleString('en-US')+(narrow?'':' · even sphere: uniform '+U_IDEAL.toFixed(2)),{mono:true,fs:12,c:P.mute,dy:8});
   }
-  const st=S3.stage({id:'stg-sp',list:'sx-sp',fig:'Fig. 4 · 200 held-out digits on the unit sphere',cam:[0,.3],bounds:[[-3.9,0,-1.7],[3.9,3.5,2.1]],aspect:.6,dur:3600,hold:3600,draw,
+  const st=S3.stage({id:'stg-sp',list:'sx-sp',fig:'Fig. 4 · 200 held-out digits on the unit sphere',cam:[0,.3],bounds:[[-3.9,0,-1.7],[3.9,3.5,2.1]],aspect:.54,dur:3600,hold:3600,draw,
     margin:w=>w<520?[22,8,12,8]:[26,14,12,14]});
   const M=$('spM');if(st&&M)M.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;run=b.dataset.k;
     M.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});spans();st.list('sx-sp')});

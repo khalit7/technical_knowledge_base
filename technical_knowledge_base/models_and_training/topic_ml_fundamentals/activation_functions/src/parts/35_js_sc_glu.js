@@ -38,7 +38,7 @@
   function draw(R,k,e){const P=R.P;R.grid(-3,3,-2.4,3.6,.5);
     const CX=P.ink,CG=P.c2,CU=P.c1,CH=P.c4;
     const xs=mode==='plain'?Pl.x:Sg.x,ys=mode==='plain'?Pl.y:Sg.y,d=mode==='plain'?dP:dS,h=mode==='plain'?hP:hS,last=mode==='plain'?3:5;
-    const rec=i=>k===i||k===last?1:.45;                       // what this step is about at full strength; earlier parts recede
+    const rec=i=>k===i||(k===last&&mode==='plain')?1:.45;                       // what this step is about at full strength; earlier parts recede
     const sideL=(z,t,c,a)=>R.label([-HW()-.1,YP,z],t,{mono:true,fs:12,al:'right',dx:-6,c,a,grp:'side'});
     const X=xs.slice(0,NX),xw=PW(h/d)*.75;comb(R,[0,YP,ZX],X,mx(X),mix(P.paper,CX,.12),k===0?Math.max(.2,e):rec(0),.42,xw);sideL(ZX,'x · '+d+' numbers',P.mute,1);
     if(mode==='plain'){const pw=PW(h/d),pre=Pl.pre.slice(0,NH),hh=Pl.h.slice(0,NH),m=mx(pre);
@@ -57,8 +57,8 @@
       if(k>=2){plate(R,xu,ZP,pw,CU,k===2?e:rec(2)*.9,'W_up · '+dS+' × '+hS.toLocaleString('en-US'));
         if(k===2)[-1,0,1].forEach(o=>R.flow([[o*xw/3,YP+.3,ZX],[xu+o*pw/3,.25,ZP],[xu+o*pw/3,YP+.3,ZH]],{c:CU,a:e,r:.065,speed:1.2,n:7}))}
       const vg=k<3?G:G.map((v,i)=>lerp(v,Gt[i],k===3?e:1));
-      if(k>=1)comb(R,[xg,YP,ZH],vg,mg,CG,k===1?e:k===3||k===4||k===last?1:.5,.55,pw);
-      if(k>=2)comb(R,[xu,YP,ZH],U,mu,CU,k===2?e:k===4||k===last?1:.5,.55,pw);
+      if(k>=1)comb(R,[xg,YP,ZH],vg,mg,CG,k===1?e:k===3||k===4?1:k===last?.35:.5,.55,pw);
+      if(k>=2)comb(R,[xu,YP,ZH],U,mu,CU,k===2?e:k===4?1:k===last?.35:.5,.55,pw);
       if(k>=1)sideL(ZH,(k>=3?GN[gate]+'(g)':'g')+(k>=2?', u':'')+' · 32 of 1,536',k>=3?mix(P.ink,CG,.6):P.mute,1);
       if(k>=4){const a4=k===4?e:k===last?1:.6;
         if(k===4){[-1,1].forEach(o=>{R.flowArc([xg+o*pw/3,YP+.35,ZH],[o*pw/6,YP+.35,ZM],.25,{c:CG,a:e,r:.06,speed:1.1,n:6});R.flowArc([xu+o*pw/3,YP+.35,ZH],[o*pw/6,YP+.35,ZM],.25,{c:CU,a:e,r:.06,speed:1.1,n:6})})}

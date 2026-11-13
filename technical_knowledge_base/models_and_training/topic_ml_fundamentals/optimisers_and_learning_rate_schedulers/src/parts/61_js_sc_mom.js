@@ -10,7 +10,7 @@
     set('v12',Math.abs(vx(12)).toFixed(1));set('g12',Math.abs(gx(12)).toFixed(2));set('r12',(vx(12)/gx(12)).toFixed(1));
     set('ml',mo.ls[mo.T].toExponential(1));set('nl',ne.ls[ne.T].toExponential(1))}
   function draw(R,k,e){const P=R.P;R.grid(-4.4,4.4,-2.4,2.4,.5);
-    S.mesh(R,k===0?Math.min(1,e*1.5):.85);S.marks(R,1);
+    const far=k===2?e:k===3?1-e:0;S.mesh(R,k===0?Math.min(1,e*1.5):.85,far>0?c=>(c.q[0][0]+c.q[2][0])/2>-.2?1-.85*far:1:null);S.marks(R,1);
     // 1. the shape: the floor runs along x, the walls rise across it
     if(k===0){const fl=[],ac=[];for(let i=0;i<=30;i++){const x=-4+5*i/30;fl.push(S.pt(x,.6,.04))}for(let i=0;i<=30;i++){const y=1.75-1.6*i/30;ac.push(S.pt(-2.2,y,.04))}
       R.line(fl,{c:P.c3,w:2.6,head:8,a:e,top:1});R.line(ac,{c:P.c2,w:2.6,a:e,top:1});

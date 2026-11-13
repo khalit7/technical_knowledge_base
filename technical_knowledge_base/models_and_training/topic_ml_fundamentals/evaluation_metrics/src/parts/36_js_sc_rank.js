@@ -26,7 +26,7 @@
     R.label([xr(0)-.55,.1,ZL],'rank',{al:'right',fs:12,c:P.mute,dx:-4,dy:18,grp:'side'});
     // the relevant item the system never returned
     {const h=M[0]*HU*lerp(1,disc(4),0),a=k===5?1-.6*ideal:1;R.box([XM,0,ZL],[CW,h,.6],{fill:mix(P.paper,P.good,.35),fa:.35,ea:.6,a:a*(k>=4&&k<5?.5:1),shadow:false});
-      R.label([XM,h,ZL],'never returned',{fs:12,c:P.mute,dy:-11,a:k>=4?.5:1})}
+      R.label([XM,h,ZL],'never returned',{fs:12,c:P.mute,dy:-11,a:k>=4?(narrow?0:.5):1})}
     // the cut at k = 5: a glass plane between rank 5 and 6
     if(cutA>0){const xp=(xr(K-1)+xr(K))/2;R.glass([xp,0,ZL-.6],[0,0,1.2],[0,1.45,0],{c:P.acc,nu:1,nv:4,a:cutA*(k>=4?.5:1)});
       R.label([xp,0,ZL+.6],'k = 5',{mono:true,fs:13,b:1,c:P.acc,dy:12,a:cutA})}

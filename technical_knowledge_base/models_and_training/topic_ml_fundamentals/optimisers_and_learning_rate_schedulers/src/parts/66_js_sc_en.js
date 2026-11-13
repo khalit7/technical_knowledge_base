@@ -38,8 +38,8 @@
       rows.forEach(([nm,L,c,z])=>{L.forEach((v,i)=>{const h=Math.max(.02,v*sc*e),last=i===TS.length-1;R.box([X(TS[i]),0,z],[.36,h,.36],{fill:mix(P.paper,c,.75),a:last?1:.5});if(last)R.label([X(TS[i]),h,z],v.toFixed(4),{mono:true,fs:12.5,b:1,c,al:'left',dx:14,a:e,grp:'L'})});
         R.label([X(0)-.2,0,z],nm,{fs:12.5,b:1,c,al:'right',dx:-6,a:e})})}
   }
-  const full={cam:[.4,.5],bounds:[[-4.4,0,-2.1],[4.3,1.3,2.1]]},cols={cam:[.3,.42],bounds:[[-4.8,0,-1.7],[4.9,1.6,1.7]]};
+  const full={cam:[.4,.5],bounds:[[-4.4,0,-2.1],[4.3,1.3,2.1]]},cols={cam:[.3,.42],bounds:[[-5.2,0,-1.7],[5.6,1.6,1.7]]},colsN={cam:[.3,.42],bounds:[[-4.8,0,-1.7],[4.9,1.6,1.7]]};
   S3.stage({id:'stg-en',list:'sx-en',fig:'Fig. 6 · three endpoints, three ways (noisy quadratic toy)',cam:full.cam,bounds:full.bounds,aspect:.56,dur:2200,hold:5000,draw,
-    margin:w=>w<520?[18,10,26,10]:[26,24,30,24],view:k=>k===3?cols:full});
+    margin:w=>w<520?[18,10,26,10]:[26,24,30,24],view:k=>k===3?($('stg-en').clientWidth<520?colsN:cols):full});
   writeList();
 })();
