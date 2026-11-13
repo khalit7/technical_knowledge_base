@@ -1,18 +1,11 @@
-// ---- GRAFT: a reward penalty on flagged rollouts against routing flagged updates into a deletable adapter ----
+// ---- GRAFT: a reward penalty on flagged rollouts against routing flagged updates into a deletable adapter (RD.anim; steps explained in sx-gr-pen and sx-gr-graft) ----
 (function(){
   const card=$('v-graft');if(!card)return;
-  $('grAnim').innerHTML=animCtl('gr',[['pen','Reward penalty'],['graft','GRAFT']]);
-  const PEN=[{t:'The monitor flags a hack',c:'A rollout uses hack 1, the only kind the monitor recognises, and is flagged. Hacks 2 and 3 pass unflagged.'},
-    {t:'The flag lowers the reward',c:'The usual fix: a flagged rollout gets a lower reward, and the update goes into the same weights as every other rollout. The policy is now rewarded for not being caught, which is not the same as not cheating.'},
-    {t:'The model learns the hack the monitor misses',c:'Hack 1 fades, and an undetected hack takes its place on <b>25.9%</b> of trajectories. The monitor reports almost nothing; in the paper\'s words a practitioner "might incorrectly conclude that this policy is hack-free".'},
-    {t:'Deploy',c:'What ships still hacks on 25.9% of trajectories, all of it in a form the monitor cannot see. The penalty made the monitor an optimisation target.'}];
-  const GR=[{t:'The monitor flags a hack',c:'Same rollout, same monitor, same flag on hack 1.'},
-    {t:'The flag decides where the gradient goes',c:'GRAFT adds small extra neurons to every MLP, split into a RETAIN and a FORGET adapter. A flagged rollout updates <b>only FORGET</b>; unflagged rollouts update both. The reward is untouched, so nothing pays the model for evading the monitor.'},
-    {t:'Hacking collects in FORGET',c:'During training the model with FORGET switched on still hacks, on <b>38.5%</b> of trajectories, but what it learned from flagged rollouts sits in FORGET, and deleting FORGET also removes the hacks the monitor never flagged (next step).'},
-    {t:'Delete FORGET, then deploy',c:'Ablating FORGET leaves hacking at <b>1.6%</b>, and the task score is 79.2 against the base model\'s 60.2 (<b>+19.0</b>), though its solve rate (74.8%) is slightly below the penalty\'s (77.2%). Limits: heuristic monitors, single-turn tasks, models up to 8B.'}];
-  const MODES={pen:{name:'Reward penalty',steps:PEN},graft:{name:'GRAFT',steps:GR}};
+  // the per-step explanations are the step lists sx-gr-pen and sx-gr-graft (static HTML in v_graft.html, left column)
+  const MODES={pen:{name:'Reward penalty'},graft:{name:'GRAFT'}},NS=4;
+  const st={m:'pen',k:0,t:1,raf:0};
   const cl=v=>Math.max(0,Math.min(1,v));
-  function draw(st){
+  function draw(){
     const box=$('grSvg'),W=Math.max(300,Math.round(box.clientWidth||340)),narrow=W<560,g=st.m==='graft';
     const fs=narrow?11:12,H=narrow?318:268;
     const op=k=>k<st.k?1:(k===st.k?cl(st.t*1.6):0);
@@ -55,5 +48,16 @@
     $('grCnt').innerHTML=g?stat('Reward changed by the flag','No','the flag picks the parameters')+stat('After deleting FORGET','1.6%','of trajectories hack')+stat('Task score','+19.0 points','79.2 against the base 60.2'):
       stat('Reward changed by the flag','Yes','flagged rollouts score lower')+stat('Undetected hacking','25.9%','of trajectories')+stat('What the monitor reports','almost nothing','it cannot see hacks 2 and 3');
   }
-  makeAnim({card,pre:'gr',modes:MODES,start:'pen',dur:1800,draw});
+  // the controller: RD.anim (template 21_js_rd_common.js), four steps per mode, the step list on the left (one list per mode);
+  // a step reached by moving forward fades and grows its marks over about 1.4 s, any other move draws it whole
+  function tween(){const t0=performance.now();cancelAnimationFrame(st.raf);
+    const f=now=>{st.t=Math.min(1,(now-t0)/1400);card.dataset.frames=(+card.dataset.frames||0)+1;draw();st.raf=st.t<1?requestAnimationFrame(f):0};st.raf=requestAnimationFrame(f)}
+  const anim=RD.anim({card:'v-graft',ctl:'grCtl',n:NS,list:'sx-gr-pen',ms:5200,label:'Step',
+    draw:i=>{st.k=i;if(card.classList.contains('rd-fwd')&&!RD.RM){st.t=0;draw();tween()}else{cancelAnimationFrame(st.raf);st.raf=0;st.t=1;draw()}}});
+  // switching mode swaps the step list and replays from the first step (the one exception to "stops for good")
+  const seg=$('grM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
+    st.m=b.dataset.m;document.querySelectorAll('ol[id^="sx-gr-"]').forEach(o=>o.hidden=o.id!=='sx-gr-'+st.m);anim.reset(NS,'sx-gr-'+st.m)}));
+  let rw=0;addEventListener('resize',()=>{const w=card.clientWidth;if(w&&w!==rw){rw=w;draw()}});
+  onTab(card.closest('.tab').id,()=>anim.redraw());
 })();
