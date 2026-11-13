@@ -36,7 +36,7 @@
 ## Parts
 
 HTML: `00_top`, `01_css` (the Switch page's CSS plus token chips, samples grid, stage boxes, verdict tags, responsive check tables), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`.
-JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers), `12_js_charts` (bars, frames, wrapped titles), `20_js_toy_core`, `20b_sweep_data`, `20c_js_toyrun` (stage-by-stage training without freezing the page, cached PPO runs), `13_js_read`, `21_js_run`, `24_js_tables`, `25_js_then`, `99_js_tabs` (the skill template, storage key `instructgpt-tab`; replaced `90_js_tabs` on 2026-10-25).
+HTML also `02_split` (template, the split layout). JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference helpers, predict widget; `makeAnim` removed 2026-11-13), `12_js_charts` (bars, frames, wrapped titles), `21_js_rd_common` (template, `RD.anim` for Then and now), `20_js_toy_core`, `20b_sweep_data`, `20c_js_toyrun` (stage-by-stage training without freezing the page, cached PPO runs), `_gen_stage` (written by `mk_stage_data.cjs`), `25_js_s3` (template, renderer v2), `13_js_read`, `31_js_sc_hero`, `32_js_sc_ep`, `21_js_run`, `24_js_tables`, `25_js_then`, `99_js_tabs` (the template, storage key `instructgpt-tab`).
 
 ## Checks (3 October 2026)
 
@@ -70,3 +70,29 @@ Why about 23 minutes is right: the top (core sentence, hero caption, You need, n
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 5, 262 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 282 actions, 0 problems (no frame before a click, every closed block opened). `mk_coverage.py`: 67 of 67. The toy (`20_js_toy_core.js`) is unchanged, so `check_grad.py` was not rerun.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged). The paper tab: the top (core sentence, the hero's step list, You need, New terms) beside the hero stage; Data and labelers beside Table 1; Step 2 beside the live K-ranking widget; Step 3 beside the episode stage; the no-KL prediction (new section `s-ppo2`) beside its chart; Results (`s-res`) beside Figure 1; "More concrete axes" (`s-res2`) beside Figure 4; truthfulness (`s-pub1`) beside Figure 6; the alignment tax beside its sweep chart. Full width (no visual): Problem, The recipe, Step 1, Baselines, FLAN and T0 (`s-res3`), toxicity (`s-pub2`), Qualitative, Discussion, How much to believe, What it takes, Why it matters, Connections. Run the three steps: the intro and the toy's notes beside the pipeline card; samples, what the RM learned, the trainer, the three sweep charts and the SFT epoch chart each beside their note (the static captions moved out of the scripts into the left column; `rmcOut`, `trnQ`, `trnCnt` and `trnOut` moved left, the controls stay with the charts); the reproduces table full width. The paper's numbers: the six figure tools beside their notes; the checks table, Table 14 and the closed tables full width. Then and now: the step list beside the recipe card; the fate table full width.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged):
+  - `31_js_sc_hero.js`, Fig. 1, the paper's Figure 2 at its own scale (replaces the static 2D hero): Table 6's training prompts as slabs of 2,000 (12,725, 33,207, 31,144; labeler-written green, 89% and 20%, customer blue), GPT-3 becoming the SFT model, K = 4 to 9 ranked answers into the 6B reward model, the policy's loop with the RM and the KL arc to SFT (β = 0.02), the pretraining stack (8 per episode, γ = 27.8, 2,048,000 examples), and Figure 1's 52.7% against 24.0% on a plinth. Data: `PAPER.rc` (sizes, labeler shares, kl_default, gamma_default, ptx_examples, fig1). The answer blocks and the pretraining stack are schematic (said under the list). Six steps, the camera moving to each step's column.
+  - `32_js_sc_ep.js`, Fig. 3, one toy episode through PPO or PPO-ptx (replaces the 2D `makeAnim` episode, which was one frame per word, 9 to 10 steps: now 5 or 6 explained steps under the long-replay rule): "count to three" answered "sure one two three <end>", each word on a plinth with π, π<sub>SFT</sub> and a signed bar (KL penalty -0.26 on "sure", then the whitened advantages), the RM score +1.25 and total reward, the pretraining loss on the episode's 40 windows (SFT 1.57; PPO 4.44; PPO-ptx 1.99, then 1.80 with the ptx gradient), the pretraining stack flowing into the policy in PPO-ptx mode. Data: `parts/_gen_stage.js`, written by `node mk_stage_data.cjs` (about 5 s) with exactly the code of the old animation (seed, episode 0, one plain step of 0.5); `check_stages.mjs` recomputes it from the live toy in the page. Two lists (`sx-ep-ppo`, `sx-ep-ptx`). "Another prompt" was dropped: the episode is fixed so the step lists can state its numbers.
+- **Owned elsewhere, linked**: one ranking taken into its pairs and an RM fitted to them (Alignment, section 3, `stg-rm`) and one PPO step model by model (Alignment, section 4, `stg-rl`); not rebuilt.
+- **Kept 2D**: Table 1, Figures 1, 4, 6, 33/34, the no-KL curve, the K-ranking widget (a reader-driven widget), the Run tab's charts and samples, the Tables tab's tools and tables, Then and now (a card of seven text lines changing per source): each is a number on an axis, a table or text.
+- **Motion**: `makeAnim` removed from `11_js_ui.js`; Then and now's own stepper replaced by `RD.anim` (template `21_js_rd_common.js`, unchanged), its script-written captions now the static list `sx-thn`. `05z_errbox.js.html` and `99_js_tabs.js` are the templates (storage key `instructgpt-tab`). `check_page.mjs`: the never-autoplay assertion on `#epi` is inverted (both stages and Then and now must play when scrolled into view); it steps both stages, both modes. `check_stages.mjs` (after GRAFT's): splits two columns at 1400, both stages in both modes at 1400 light, 920 light and 390 dark, flows stopping off screen, reduced motion, Then and now, 68 step-list numbers against `PAPER.rc` and `IG_EP`, and `IG_EP` against the live toy.
+- On phones (under 600 px) both scenes look down more steeply so the wide scene is not a thin band; faded plate labels hide there.
+
+## Length judgement (2026-11-13)
+| | Before (2026-11-13, audit) | After |
+|---|---|---|
+| The paper, core | 23.6 min (5,431 words) | 27.2 min (6,261) |
+| The paper, closed | 7.6 min | 7.6 min |
+| Run the three steps | 3.5, plus 2.4 closed | 3.8, plus 2.4 (captions moved out of scripts) |
+| The paper's numbers, rebuilt | 8.0, plus 2.3 closed | unchanged |
+| Then and now | 1.8 min | 2.7 min (the nine source captions, script-written before, now the step list) |
+| Visuals drawn in Reading (audit) | 11 | 12 |
+
+The growth is the step lists (17 items, including the hidden PPO-ptx list the audit counts): text the old animations showed one caption at a time, now written out beside the stages. The recipe's three-item list became the hero's step list. Nothing was cut. A reader following one mode of Fig. 3 reads about a minute less. Header: "Reading: 27 min, plus 8 in closed details." Pages quoting 23 minutes need `check_times.py --fix` by the lead.
+
+Ledger: 322 units (core 254, depth 63, owned 2, volatile 1, fat 2); 22 added (the step-list items of Fig. 1, Fig. 3 and Then and now, and two owner-link sentences); keys re-pointed on units 21, 22, 23 (the removed recipe list, now the hero's steps), 26, 27 (the hero caption), 82 (the episode caption) and 269 (Then and now's old controls). `ledger.py check`: problems 0.

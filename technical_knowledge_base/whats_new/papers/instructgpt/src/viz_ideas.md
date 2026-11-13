@@ -49,3 +49,8 @@ Scores follow the Methodology (.claude/skills/explainer-page/visuals/choosing.md
 - P-instructgpt.h1 (built): the hero, Figure 2 redrawn with Table 6 sizes plus who labels and what each step produces; static, stacked at phone width.
 - Moved, not new: Figure 1, the no-KL toy curve and Figures 33/34 from predict reveals to inline cards.
 - Rejected: embedding the paper's own Figure 2 (arXiv non-exclusive licence); a photo (nothing physical to show).
+
+## 2026-11-13 layout rollout (split layout, renderer v2 stages)
+- P-instructgpt.s1 (built): the hero as a 3D stage, `31_js_sc_hero.js`: Table 6's three training sets as stacks of 2,000-prompt slabs (labeler-written green, customer blue), the models as glass plates, flows for demonstrations, answers, rankings, scores, the KL pull and the pretraining mix, Figure 1's two win rates on a plinth; replaces the static 2D Figure 2.
+- P-instructgpt.s2 (built): the PPO episode as a 3D stage, `32_js_sc_ep.js`, two modes (PPO, PPO-ptx): each word on a plinth with the policy's and the SFT model's probability and a signed bar (the KL penalty, then the advantage), the reward column, the pretraining-loss plinth; data precomputed by `mk_stage_data.cjs` from the toy; replaces the 2D `makeAnim` episode (9 or 10 steps, one per word, now grouped into 5 or 6 explained steps).
+- Rejected: a 3D stage for the reward model's K-ranking (one ranking into C(K,2) pairs in one batch element): the Alignment page's `stg-rm` draws exactly that; linked, and the live 2D widget kept. A stage for one general PPO step: the Alignment page's `stg-rl`; linked. 3D for Figures 1, 4, 6, 33, 34 and the sweeps: numbers on axes, kept 2D. Then and now in 3D: a recipe card of seven text lines; kept a 2D card with its step list.

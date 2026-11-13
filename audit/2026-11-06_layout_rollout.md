@@ -263,10 +263,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/gpt_3` Language Models are Few-Shot Learners (GPT-3)
 - [x] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
 - [x] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
-- [~] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
+- [x] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
 - [x] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
 - [~] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
-- [ ] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
+- [~] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
 - [ ] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
 - [ ] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
 - [ ] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
@@ -557,6 +557,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/graft`: Figs 1 and 2 small in tall cards on phones (Fig. 2 is wide and shallow); Fig. 3 step 3 the "87.9%" label sits on the h1 bar.
 - `whats_new/papers/harnessdev`: both stages leave empty space above the scene on phones.
 - `whats_new/papers/jit_agent`: Evo-GDPO stage step 4 the JIT-Agent column's three value labels stack and overlap; stages small on phones; Figure 6 nine-panel grid stays full width (table-tab exception).
+- `whats_new/papers/instructgpt`: Fig. 1 step 4 the "starts as a copy of SFT" and "one sampled answer" labels overlap at the policy box. Notion Takeaway property may still say "Defined..." while paper.json says "Took the 3-stage RLHF recipe..." (sync on next publish).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -666,3 +667,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - GRAFT: Fig. 2's group is the first sampler seed (seed 4) whose group has a right and a wrong solution, every hack and 6 to 10 flags (rule in toy_sweep.mjs, labelled illustrative); Fig. 3 sits after predict 3 and shows one seed (40.9% hacking) while the predict quotes five-seed numbers; new h3 "Result 1, inside the run". Keep?
 - HarnessDev: the hero stays the 2D chart and the protocol stage sits beside Idea and Method (EnvHarness precedent); the protocol stage follows Opus 4.8 throughout (best average); held-out orange and visible blue to match the replay tab. Keep?
 - JIT-Agent: the Evo-GDPO stage treats Table 3's six harnesses as one group with tokens for latency, lambda_evo 0.5 and weights 0.6/0.2/0.2 (the Score tab's defaults, labelled illustrative); the three-stage card keeps its Stage III mode, which overlaps the new stage. Keep?
+- InstructGPT: Fig. 3 shows one fixed episode ("count to three"; the "Another prompt" button is gone so the step list quotes exact numbers); the K-ranking and one-PPO-step pictures are linked to the Alignment page's stages instead of rebuilt; Fig. 1 answer blocks and pretraining stack are schematic (stated). Keep?

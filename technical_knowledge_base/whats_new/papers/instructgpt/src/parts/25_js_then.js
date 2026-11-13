@@ -23,16 +23,13 @@ const S=[
   c:'For reasoning, the learned reward model is replaced by checking the answer.'}];
 let k=0;
 function cur(i){const v={},from={};for(let j=0;j<=i;j++)Object.keys(S[j].set).forEach(l=>{v[l]=S[j].set[l];from[l]=j});return {v,from}}
-function draw(){const st=S[k],c=cur(k);$('thnT').innerHTML=st.y+': <a href="'+st.u+'" target="_blank" rel="noopener noreferrer">'+escH(st.n)+'</a>';
-  $('thnC').innerHTML=escH(st.c).replace('&lt;&lt;§3.5 and Appendix C&gt;&gt;','<a href="'+ax+'#S3.SS5" target="_blank" rel="noopener noreferrer">§3.5 and Appendix C</a>');
+function draw(){const st=S[k],c=cur(k);
   let h='';L.forEach((n,l)=>{const ch=k>0&&c.from[l]===k;h+='<div class="k">'+n+'</div><div>'+(ch?'<span class="chg">changed here</span> ':'')+escH(c.v[l])+(c.from[l]<k&&k>0?' <span class="small mute">('+(c.from[l]===0?'InstructGPT':'from '+escH(S[c.from[l]].n))+', not mentioned here)</span>':'')+'</div>'});
   $('thnCard').innerHTML=h;
   const kept=L.filter((_,l)=>c.from[l]===0).length;
-  $('thnCnt').innerHTML=stat('step',(k+1)+' of '+S.length,st.y)+stat('lines this source changes',Object.keys(st.set).length+(k===0?' (all set)':''),'of 7')+stat('lines still as in InstructGPT',kept+' of 7','unchanged or not mentioned since');
-  $('thnScrub').value=k;$('thnBack').disabled=k===0;$('thnFwd').disabled=k===S.length-1}
-$('thnBack').addEventListener('click',()=>{k=Math.max(0,k-1);draw()});$('thnFwd').addEventListener('click',()=>{k=Math.min(S.length-1,k+1);draw()});
-$('thnScrub').addEventListener('input',e=>{k=+e.target.value;draw()});$('thnScrub').max=S.length-1;
-draw();
+  $('thnCnt').innerHTML=stat('step '+(k+1)+' of '+S.length,escH(st.n),st.y)+stat('lines this source changes',Object.keys(st.set).length+(k===0?' (all set)':''),'of 7')+stat('lines still as in InstructGPT',kept+' of 7','unchanged or not mentioned since')}
+// the step list on the left (06_then.html, one item per source) explains each step; RD.anim plays it once in view (2026-11-13)
+RD.anim({card:'thn',ctl:'thnCtl',n:S.length,ms:5600,label:'Source',list:'sx-thn',draw:i=>{k=i;draw()}});
 const fate=[['Demonstrations (SFT first)','survived as the first stage in most pipelines (ChatGPT, Llama 2, Tülu 3); skipped by Bai et al. and R1-Zero'],
  ['Human comparisons','survived; often pairs rather than rankings (Llama 2), and partly replaced by AI feedback (Constitutional AI)'],
  ['A learned reward model','survived for open-ended quality (Llama 2, R1\'s general data); removed by DPO; replaced by checks for verifiable tasks (Tülu 3, R1)'],

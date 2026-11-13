@@ -26,7 +26,7 @@ C = [
  ('Prior RLHF (Christiano 2017, Ziegler 2019, Stiennon 2020) only narrow tasks like summarisation', R + ', Problem', ['Christiano et al. (2017)', 'Ziegler et al. (2019)', 'Stiennon et al. (2020)', 'Those were narrow tasks']),
  ('Applies RLHF to the full distribution of real API instructions; asks whether preference fine-tuning makes preferred models without giving up capabilities', R + ', Problem', ['open-ended distribution of instructions that real customers sent', 'without losing what the pretrained model could do']),
  # method
- ('Three-stage pipeline on GPT-3 at 1.3B, 6B, 175B', R + ', The recipe; Figure 2 redrawn', ['1.3B, 6B and 175B parameters', 'Supervised fine-tuning (SFT)', 'Reward model (RM)', 'Reinforcement learning (PPO)']),
+ ('Three-stage pipeline on GPT-3 at 1.3B, 6B, 175B', R + ', The recipe; Fig. 1 (Figure 2 as a 3D stage) and its step list', ['1.3B, 6B and 175B parameters', 'Step 1: imitate demonstrations (SFT)', 'Step 2: rank answers, fit a reward model', 'Step 3: PPO against the reward model']),
  ('SFT: ~13k prompts, mostly API Playground prompts', R + ', Data; Figure 2 with Table 6 counts', ['about 13k training prompts', 'API Playground', 'with demonstrations for SFT']),
  ('Prompts deduplicated, capped at 200 per user, PII-filtered, split by user ID', R + ', Data (with the appendix discrepancy)', ['deduplicated heuristically by long common prefix, capped at 200 per user ID', 'personally identifiable information', 'split into train, validation and test by user ID', 'roughly 200 per organization']),
  ('Labeler-written bootstrap prompts: plain, few-shot, API waitlist use cases', R + ', Data, details', ['<b>plain</b>', '<b>few-shot</b>', '<b>user-based</b>', 'waitlist']),
@@ -82,7 +82,7 @@ C = [
  ('DeepSeekMath/GRPO (2024-02), DeepSeek-R1 (2025-01): GRPO removes value function; RLVR replaces learned RM', R + ', Connections; Further reading', ['3c65c17b0d0d817f9fc5cb9a9fbcbee5', '3c65c17b0d0d813faca4f7a51eaa0c65', 'RLVR replaces the learned RM with verifiable rewards']),
  ('Llama 3 (2024-07), OLMo 2 (2025-01): open pipelines on SFT + preference tuning + RL', R + ', Connections; Further reading', ['3c65c17b0d0d81aca58ccb9d720b474e', '3c65c17b0d0d81fb9857fb956165ae1c']),
  ('Topics: llm-training-and-post-training, rl', R + ', Connections; Further reading', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d8195a6c6c11ad093c16e']),
- ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Defined the 3-stage RLHF recipe']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card (the scoped wording of paper.json)', ['Took the 3-stage RLHF recipe']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)
 out, miss = [], []

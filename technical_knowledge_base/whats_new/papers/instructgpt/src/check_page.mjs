@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the stages and the Then and now animation stepping end to end.
+// Since 2026-11-13 (the split-layout rollout) they play by themselves once scrolled into view: asserted here; check_stages.mjs checks the rest.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/instructgpt/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -43,15 +44,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
     if (t === 't-read') {
-      // the RM widget and the episode animation train the toy on first view: scroll them in and wait
-      for (const id of ['rmw', 'epi']) await p.$eval('#' + id, e => e.scrollIntoView());
+      // the RM widget trains the toy on first view: scroll it in and wait
+      await p.$eval('#rmw', e => e.scrollIntoView());
       const t0 = Date.now();
-      await p.waitForFunction(() => !/Preparing/.test(document.getElementById('rmwOut').textContent) && !/Training the toy/.test(document.getElementById('epiSvg').innerHTML), { timeout: 120000 });
+      await p.waitForFunction(() => !/Preparing/.test(document.getElementById('rmwOut').textContent), { timeout: 120000 });
       console.log(scheme, width, 'toy ready for the paper tab in ms', Date.now() - t0); await audit('t-read toy ready');
-      // nothing may move before the reader acts (2026-10-25): the episode animation is in view and ready; wait and count frames
-      await p.$eval('#epi', e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#epi', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: epi moved before any click (${fr} frames)`);
+      // the two 3D stages play by themselves once scrolled into view (2026-11-06 rule; inverted from the 2026-10-25 never-autoplay check)
+      for (const id of ['stg-hero', 'stg-ep']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+        const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     }
+    if (t === 't-then') { await p.$eval('#thn', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      if (!/Pause/.test(await p.$eval('#thnCtl-p', e => e.textContent))) problems.push(`${scheme} ${width}: Then and now did not play when scrolled into view`) }
     if (t === 't-run') {
       await p.waitForFunction(() => /are trained/.test(document.getElementById('stgMsg').textContent) && document.querySelectorAll('#smpOut .tok').length > 20, { timeout: 120000 });
       await audit('t-run pipeline ready');
@@ -78,7 +81,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const ids = await p.$$eval(`#${t} button`, bs => bs.map((b, i) => { if (!b.id && !b.dataset.m) b.id = 'xb' + i + Math.random().toString(36).slice(2, 6); return b.id || null }).filter(Boolean));
     for (const id of ids) {
       const ok = await p.$('#' + id); if (!ok) continue;
-      const info = await p.$eval('#' + id, b => ({ vis: b.offsetParent !== null, chip: false, pred: !!b.closest('.pred'), go: false, skip: ['trnRun', 'stgRun', 'epiPlay', 'epiFwd', 'epiBack'].includes(b.id) }));
+      const info = await p.$eval('#' + id, b => ({ vis: b.offsetParent !== null, chip: false, pred: !!b.closest('.pred'), go: false, skip: ['trnRun', 'stgRun'].includes(b.id) }));
       if (!info.vis || info.chip || info.pred || info.skip) continue;
       await clk('#' + id).catch(() => {}); actions++;
       if (info.go) { await p.waitForFunction(() => !document.getElementById('tstGo').disabled, { timeout: 120000 }); }
@@ -102,23 +105,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await p.$eval('#trnB', e => { e.value = '1'; e.dispatchEvent(new Event('change')) }); await p.$eval('#trnG', e => { e.value = '0.3'; e.dispatchEvent(new Event('change')) });
       await clk('#trnRun'); await p.waitForFunction(() => /^done/.test(document.getElementById('trnStep').textContent), { timeout: 120000 }); actions++; await audit('t-run off-sweep setting');
     }
-    // step the animations through every step and screenshot the middle
-    for (const id of ['epi']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
-      for (const m of (modes.length ? modes : [null])) {
-        if (m) await clk(`#${id}M button[data-m=${m}]`);
-        await clk(`#${id}Play`); await clk(`#${id}Play`);
-        await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-        const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
-        await audit(`${t} ${id} ${m} stepped`);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
+    // step the 3D stages through every step (both modes of the episode) and screenshot the middle
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      const modes = id === 'stg-ep' ? ['ppo', 'ptx'] : [null];
+      for (const m of modes) {
+        if (m) await clk(`#epM button[data-m=${m}]`);
+        await p.evaluate(id => { const e = document.getElementById(id + '-r'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
+        const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+        for (let k = 1; k < n; k++) { await clk(`#${id}-f`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1700); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
+        await wait(1700); await audit(`${t} ${id} ${m} stepped`);
+        const shown = await p.$eval(`#${id} .stg-st`, e => e.textContent); if (shown !== `step ${n} of ${n}`) problems.push(`${scheme} ${width}: ${id} ${m} ended on ${shown}`);
       }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
