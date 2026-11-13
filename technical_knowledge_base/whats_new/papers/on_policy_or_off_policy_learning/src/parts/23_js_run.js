@@ -1,9 +1,9 @@
-// ---- Move the rollout policy: the lambda slider with exact update sensitivity, the recorded sweep, the before/after ----
+// ---- Move the rollout policy: the lambda slider with exact update sensitivity and the recorded sweep (the before/after is Fig. 1 on The paper tab) ----
 (function(){
   if(!window.OPD||!window.TOYD||!$('t-run'))return;
   const W=OPD.world(TOYD.world_seed),V=window.OPDV,CF=V.CF,CR=V.CR,P=OPD.P,K=OPD.K;
   const opts=sel=>{const el=$(sel);for(let p=0;p<P;p++){const o=document.createElement('option');o.value=p;o.textContent='prompt '+(p+1);el.appendChild(o)}};
-  opts('slP');opts('baP');
+  opts('slP');
 
   // 1. the lambda slider
   (function(){const el=$('slSvg');let M='table',cache={};
@@ -56,27 +56,7 @@
         catch(e){__jsErr(e.message)}b.disabled=false},30)});
     onTab('t-run',()=>fit(el,draw))})();
 
-  // 3. one prompt before and after, four ways
-  (function(){if(!$('ba'))return;const T={},CK=[];for(let s=0;s<=150;s+=10)CK.push(s);
-    function traj(mode){if(T[mode])return T[mode];const kind=mode[0],lam=+mode.slice(1),snaps=[OPD.initTheta(W,'mlp')];
-      OPD.train(W,{model:'mlp',kind,lam,lr:0.1,seed:42,onStep:(s,th)=>{if(s%10===0)snaps.push(th.slice())}});
-      return T[mode]=snaps.map(th=>({th,ev:OPD.evaluate(W,'mlp',th,1)}))}
-    const modes={};['f-1','f1','r-1','r1'].forEach(m=>{modes[m]=CK.map((s,i)=>({t:s===0?'the student before training':'after '+s+' steps',c:''}))});
-    const name={'f-1':'forward KL on teacher-written rollouts','f1':'forward KL on the student\'s own rollouts','r-1':'reverse KL on teacher-written rollouts','r1':'reverse KL on the student\'s own rollouts'};
-    const pT=p=>OPD.logT1(W,p).map(Math.exp);
-    const A=makeAnim({id:'ba',mode:'f-1',modes,dur:900,
-      draw:(m,k,e,w)=>{const p=+$('baP').value,S=traj(m),cur=S[k].ev.routes[p],prev=S[Math.max(0,k-1)].ev.routes[p],tp=pT(p);
-        const H=170,pl=8,gw=(w-pl*2)/K,bw=Math.min(46,gw*.55),hh=120;let s='';
-        for(let r=0;r<K;r++){const x=pl+gw*r+gw/2-bw/2,ro=prev.route[r]+(cur.route[r]-prev.route[r])*e,ok=ro*(prev.right[r]+(cur.right[r]-prev.right[r])*e);
-          s+=rc(x,14+hh-ro*hh,bw,Math.max(1,ro*hh),V.col(m[0]),{r:2,op:.35})+rc(x,14+hh-ok*hh,bw,Math.max(0,ok*hh),V.col(m[0]),{r:2});
-          s+=rc(x-3,14+hh-tp[r]*hh,bw+6,Math.max(1,tp[r]*hh),'none',{s:'var(--c3)',sw:1.6,r:2});
-          s+=tx(x+bw/2,14+hh-Math.max(ro,tp[r])*hh-4,(100*ro).toFixed(0)+'%',{fs:11,a:'middle'});
-          s+=tx(x+bw/2,H-16,'route '+(r+1),{fs:11,a:'middle',w:'700'})+tx(x+bw/2,H-3,W.troutes[p].includes(r)?'teacher\'s':r===W.habit[p]?'habit':'',{fs:11,a:'middle',c:'var(--mute)'})}
-        return svgW(w,H,s,'route probabilities for one prompt')},
-      counters:(m,k)=>{const S=traj(m),p=+$('baP').value,ev=S[k].ev,pp=ev.routes[p].route.reduce((a,v,r)=>a+v*ev.routes[p].right[r],0);
-        $('baCap').innerHTML='<b>'+name[m]+'</b>, shared network. '+(k===0?'Every mode starts from the same student, which mostly takes its habit route.':k===CK.length-1?'Final state: compare with the other three modes on the same prompt. Forward KL spreads over the teacher\'s routes; reverse KL settles on fewer.':'');
-        return stat('this prompt, pass@1',(100*pp).toFixed(1)+'%','')+stat('all prompts, pass@1',(100*ev.pass1).toFixed(1)+'%','teacher '+(100*TOYD.teacher.pass1).toFixed(1)+'%')+stat('distinct correct routes in 10',ev.distinct10.toFixed(2),'teacher '+TOYD.teacher.distinct10.toFixed(2))}});
-    $('baP').addEventListener('change',()=>A&&A.draw())})();
+  // 3. one prompt before and after, four ways: since 2026-11-13 the 3D stage Fig. 1 on The paper tab (parts/31_js_sc_knobs.js)
 
   // 4. the engine check
   (function(){const el=$('chkOut');if(!el||!window.TOYCHECK)return;const c=TOYCHECK;
