@@ -33,6 +33,9 @@ Existing visuals on the old page: none. Outbound links: arXiv, the OpenAI API po
 | P-gpt_3.18 | Training-bill or cost tab | A pattern Khalid removed; the paper gives no cost |
 | P-gpt_3.19 | Hero (2026-10-24): Figure 1.3 recomputed from Table H.1, three lines with the few-minus-zero gap bracketed at 125M and 175B | Built: it was the reveal of the few-minus-zero predict question; promoted to the top, the question removed |
 | P-gpt_3.20 | The paper's own Figure 1.3 or 2.1 as an image | Rejected: arXiv non-exclusive licence, not CC BY; redrawn instead |
+| P-gpt_3.21 | 2026-11-13 rollout: the eight sizes as a 3D row of stacks (layers by d_model to scale, volume proportional to non-embedding parameters) with zero- and few-shot mean accuracy as bars in front, the gap highlighted | Built: the hero, Fig. 1 (`31_js_sc_hero.js`); the Figure 1.3 curve moved beside The scaling pattern |
+| P-gpt_3.22 | 2026-11-13 rollout: in-context against fine-tuning as a 3D stage, the frozen model as glass plates and the 2,048-token window as a 64 by 32 tray filling with Figure 2.1's tokens | Built: Fig. 2 (`32_js_sc_icl.js`), replaces the 2D before/after (`makeAnim` removed) |
+| P-gpt_3.23 | 2026-11-13 rollout: 3D for the data mix, compute bars, tokens per parameter, the refit and the loss law | Rejected: a share bar, log-scale bars and curves read best flat |
 
 ## Inspiration
 
