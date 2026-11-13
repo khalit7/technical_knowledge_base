@@ -67,16 +67,11 @@ function memGPU(r,t,b){b=b||8;const s=1024,P=gptParams(r.h,r.l);const st=16*P/t,
     $('lgO').innerHTML=stat('All-gather of logits',fmtBytes(b*s*v*2),fmt(b*s*v)+' elements')+stat('Fused, paper\'s count',fmtBytes(b*s*4),fmt(b*s)+' scalar losses')+stat('Reduction in elements',fmt(v)+'×','v; or '+fmt(v/3,0)+'× against the code\'s three tensors')}
   $('lgB').addEventListener('input',draw);$('lgS').addEventListener('change',draw);$('lgV').addEventListener('change',draw);onTab('t-read',draw)})();
 
-// ---- GPU groups of Figure 8 ----
+// ---- GPU groups of Figure 8: the slider picks the GPU that Fig. 3 (32_js_sc_gg.js) lights ----
 (function(){if(!$('ggx'))return;
-  function draw(){const n=+$('ggN').value;$('ggNv').textContent=n;const g=Math.floor((n-1)/8),p=(n-1)%8;
-    fit($('ggSvg'),w=>{const c=w>700?11:w>480?10:9,bw=8*c,gap=12,per=Math.max(1,Math.floor((w+gap)/(bw+gap))),bh=2*c+16,rows=Math.ceil(32/per),H=rows*(bh+6)+4;let q='';
-      for(let i=0;i<512;i++){const sv=Math.floor(i/16),k=i%16,bx=(sv%per)*(bw+gap),by=Math.floor(sv/per)*(bh+6)+14,x=bx+(k%8)*c,y=by+Math.floor(k/8)*c,me=i===n-1,tp=Math.floor(i/8)===g,dp=i%8===p;
-        if(k===0)q+=tx(bx,by-3,'server '+(sv+1),{fs:11,c:'var(--mute)'});
-        q+=rc(x,y,c-1.5,c-1.5,me?'var(--c2)':tp?'var(--c1)':dp?'var(--c3)':'var(--soft)',{r:1.5,s:me||tp||dp?null:'var(--line)',op:me?1:tp||dp?.85:1})}
-      $('ggSvg').innerHTML=svgW(w,H,q,'512 GPUs in model-parallel and data-parallel groups')});
+  function draw(){const n=+$('ggN').value;$('ggNv').textContent=n;const g=Math.floor((n-1)/8),p=(n-1)%8;window.GG_GPU=n;if(window.GG_STAGE)GG_STAGE.draw();
     $('ggO').innerHTML='<b>GPU '+n+'</b> is in server '+(Math.floor((n-1)/16)+1)+'. Its <span style="color:var(--c1)">model-parallel group</span> is GPUs '+(g*8+1)+' to '+(g*8+8)+' (group '+(g+1)+' of 64), all in that server; its <span style="color:var(--c3)">data-parallel group</span> is GPUs '+(p+1)+', '+(p+9)+', '+(p+17)+', ..., '+(p+505)+' (64 GPUs, one in each model-parallel group, spread over all 32 servers).'}
-  $('ggN').addEventListener('input',draw);onTab('t-read',draw)})();
+  $('ggN').addEventListener('input',draw);draw()})();
 
 // ---- Figure 5 bars, drawn when the scaling question is answered ----
 function drawF5(host){if(!host)return;const f=T.f5,B=f.mp.map(x=>['mp'].concat(x)).concat(f.mpdp.map(x=>['mpdp'].concat(x)));
@@ -91,17 +86,8 @@ PRED_REVEAL['pr-scale']=()=>drawF5($('f5Svg'));
 
 // ---- LayerNorm placement, (a) original against (b) rearranged ----
 (function(){if(!$('lnx'))return;
-  const caps={b:[['The input','A token\'s vector enters a stack of four sub-blocks (two layers of attention then MLP), arranged as Figure 7(b).'],
-      ['Sub-block 1: self-attention','LayerNorm, then attention. The residual branches off <b>before</b> the LayerNorm, so the input itself is added back untouched: x + Attention(LN(x)).'],
-      ['Sub-block 2: MLP','The same pattern. The coloured path from the input to here passes through no LayerNorm at all: it is a plain sum.'],
-      ['Sub-blocks 3 and 4','Stack as many as you like: the residual path stays a clean identity, which is what the pre-LN (GPT-2) arrangement gives.'],
-      ['Result in the paper','With (b), the 752M BERT trains stably to a lower loss than (a), and the 1.3B and 3.9B models train with monotonic gains (%F7%). GPT-2 adds one more LayerNorm after the last block.']],
-    a:[['The input','The same vector, arranged as Figure 7(a): LayerNorm still at the start of each sub-block.'],
-      ['Sub-block 1: self-attention','The residual branches off <b>after</b> the LayerNorm: LN(x) + Attention(LN(x)). The input is not carried forward; its normalised version is.'],
-      ['Sub-block 2: MLP','Again: the next LayerNorm sits on the residual path itself. Unrolled, this is the original post-LN BERT, where every sub-block\'s output is renormalised (the first LayerNorm plays the role of BERT\'s embedding LayerNorm).'],
-      ['Sub-blocks 3 and 4','Every sub-block adds one more LayerNorm to the path from input to output.'],
-      ['Result in the paper','At 336M this trains fine; at 752M its loss jumps partway through and does not recover (Figure 7), which is the degradation ALBERT had reported above BERT-large.']]};
-  const modes={};['a','b'].forEach(m=>modes[m]=caps[m].map(([t,c])=>({t,c:c.replace('%F7%','<a href="'+PAPER.meta.ax+'#S5.F7" target="_blank" rel="noopener noreferrer">Figure 7</a>')})));
+  // the step explanations are the lists #sx-lnx-b and #sx-lnx-a in 03_paper.html; the controller needs only the step count
+  const modes={};['a','b'].forEach(m=>modes[m]=[...$('sx-lnx-'+m).children].map(li=>({t:li.querySelector('b').textContent})));
   const NS=[0,1,2,4,4];
   function drawLN(m,k,e,w){const blocks=['Self-attention','MLP','Self-attention','MLP'],bh=78,H=36+4*bh+30,bw=Math.min(150,w-120),cx=Math.max(bw/2+70,Math.min(w/2+20,w-bw/2-8)),rx=cx-bw/2-26;let q='';
     const y0=H-26,n=NS[k],n0=k?NS[k-1]:0,C='var(--c2)';
@@ -119,6 +105,6 @@ PRED_REVEAL['pr-scale']=()=>drawF5($('f5Svg'));
       q+=G(op,g)}
     if(n===4)q+=G(k===3?e:1,tx(cx,y0-4*bh-6,'output',{fs:12,a:'middle'}));
     return svgW(w,H,q,'LayerNorm and residual placement')}
-  const an=makeAnim({id:'lnx',modes,mode:'b',dur:2600,draw:drawLN,counters:(m,k)=>{const n=NS[k];
+  const an=makeAnim({id:'lnx',modes,mode:'b',lists:{a:'sx-lnx-a',b:'sx-lnx-b'},draw:drawLN,counters:(m,k)=>{const n=NS[k];
     return stat('Sub-blocks stacked',n,'')+stat('LayerNorms on the residual path',m==='a'?n:0,m==='a'?'one per sub-block':'none: x passes straight through')+stat('Equivalent to',m==='a'?'post-LN':'pre-LN',m==='a'?'original BERT':'GPT-2')}});
-  PRED_REVEAL['pr-ln']=()=>{if(an){refit($('lnxSvg'));an.draw();an.kick()}}})();
+  PRED_REVEAL['pr-ln']=()=>{$('lnx-steps').hidden=false;if(an){an.bindList();refit($('lnxSvg'));an.draw();an.kick()}}})();

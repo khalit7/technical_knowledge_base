@@ -1,16 +1,26 @@
 <section class="tab" id="t-then" role="tabpanel" hidden>
 <h2>Then and now: tensor parallelism from 2019 to 2026</h2>
-<p>Each step is one later training run or system, with the parallel layout its paper reports. The box is one server (its GPUs coloured by the axis that lives inside it); the bars are the degree of each axis across the whole run, on a log scale. A degree the paper does not state is drawn dashed and marked "not stated".</p>
-<div class="card" id="thx">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="thx">
 <div class="an-top"><span class="small mute">How runs combine tensor (TP), pipeline (PP), data (DP), context (CP) and expert (EP) parallelism.</span></div>
 <div id="thxSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="thxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="thxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="thxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="thxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="thxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="thxStep"></div><p id="thxCap"></p></div>
 <div class="an-cnt" id="thxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Degrees and GPU counts are as each paper states them; the captions quote or link the line. Nothing moves until you press play or step; it pauses off screen.</p>
-</div>
+<p class="small mute" style="margin:6px 0 0">Degrees and GPU counts are as each paper states them; the captions quote or link the line.</p>
+</div></div></div><div class="s3L">
+<p>Each step is one later training run or system, with the parallel layout its paper reports. The box is one server (its GPUs coloured by the axis that lives inside it); the bars are the degree of each axis across the whole run, on a log scale. A degree the paper does not state is drawn dashed and marked "not stated".</p>
+<ol class="sx" id="sx-thx">
+<li><b>2019: Megatron-LM, 8.3B.</b> This paper: 8-way tensor parallelism inside each 16-GPU DGX-2H server (two groups per server), 64-way data parallelism across all 32 servers ({{Appendix B.1|ax:A2.SS1}}). No pipeline.</li>
+<li><b>2020: GPT-3, 175B.</b> "We use a mixture of model parallelism within each matrix multiply and model parallelism across the layers of the network" ({{GPT-3 §2.3|https://arxiv.org/abs/2005.14165}}, {{KB page|n:3c65c17b0d0d8193ac92c7648cfaca12}}): tensor plus pipeline parallelism, degrees not published.</li>
+<li><b>2021: PTD-P, 1T parameters.</b> Tensor parallelism inside each 8-GPU DGX A100, pipeline parallelism across servers, data parallelism on top: "For large enough models, we use a tensor-model-parallel size of 8", and peak performance came when "the tensor-parallel size is equal to the number of GPUs in a single node" ({{Narayanan et al. 2021|https://arxiv.org/abs/2104.04473}}).</li>
+<li><b>2022: MT-NLG, 530B.</b> "Each 530 billion parameter model replica spans 280 NVIDIA A100 GPUs, with 8-way tensor-slicing within a node and 35-way pipeline parallelism across nodes", then data parallelism "to thousands of GPUs" ({{MT-NLG §2.2|https://arxiv.org/abs/2201.11990}}): DeepSpeed and Megatron together, the "3D" layout.</li>
+<li><b>2022: sequence parallelism.</b> The same TP groups, but LayerNorm and dropout now run on a slice of the sequence instead of being duplicated: <i>g</i> becomes an all-gather and its conjugate a reduce-scatter, which together move what one all-reduce did. With selective recomputation, activation memory falls 5× ({{Korthikanti et al. 2022|https://arxiv.org/abs/2205.05198}}).</li>
+<li><b>2024: Llama 3, 405B.</b> "4D parallelism": TP 8, CP 16, PP 16 and FSDP-style DP 8 for the 131,072-token stage (at 8,192 tokens: TP 8, PP 16, DP 128). "Within each machine, the high NVLink bandwidth enables the use of tensor parallelism (Shoeybi et al., 2019)" ({{Llama 3 §3.3.2, Table 4|https://arxiv.org/abs/2407.21783}}, {{KB page|n:3c65c17b0d0d81aca58ccb9d720b474e}}).</li>
+<li><b>2024: DeepSeek-V3, 671B MoE.</b> "16-way Pipeline Parallelism, 64-way Expert Parallelism spanning 8 nodes, and ZeRO-1 Data Parallelism", and "without using costly Tensor Parallelism" ({{DeepSeek-V3 §3.2|https://arxiv.org/abs/2412.19437}}, {{KB page|n:3c65c17b0d0d815fb8dac9ba1e35ab81}}). For MoE models the expert axis takes the room TP had; serving still uses TP 4 with sequence parallelism for attention (§3.4.1).</li>
+<li><b>2026: serving.</b> Inference has no backward pass, so a TP layer costs 2 all-reduces per token step. It is the default way to serve a model that does not fit one GPU: {{vLLM|https://docs.vllm.ai/en/latest/serving/parallelism_scaling.html}} and {{TensorRT-LLM|https://nvidia.github.io/TensorRT-LLM/features/parallel-strategy.html}} call it tensor_parallel_size, SGLang tp_size. See {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</li>
+</ol>
+</div></div>
 <h3>What changed</h3>
 <div class="tw"><table><thead><tr><th>Change</th><th>2019</th><th>Later</th><th>Source</th></tr></thead><tbody>
 <tr><td>TP plus pipeline</td><td>TP inside a server, DP across</td><td>TP inside a server, PP across servers, DP on top (PTD-P, "3D")</td><td>{{Narayanan et al. 2021|https://arxiv.org/abs/2104.04473}}; {{MT-NLG|https://arxiv.org/abs/2201.11990}} (8-way TP, 35-way PP per 280-GPU replica)</td></tr>

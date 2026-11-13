@@ -273,9 +273,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
 - [x] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
 - [x] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
-- [~] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
+- [x] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
 - [~] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
-- [ ] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
+- [~] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
 - [ ] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
 - [ ] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
 - [ ] `whats_new/papers/olmo_2` 2 OLMo 2 Furious (OLMo 2)
@@ -566,6 +566,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/llm_modules`: Run tab widgets stay full width (tool-tab exception); Fig. 2 at 1400 the "frozen-model states" label sits close to the "bos" column label.
 - `whats_new/papers/lora`: Fig. 4 close-up steps cut the neighbouring phi grids at the card edges; Train tab's two small sweep charts and the Tables tab stay full width (tool and table exceptions).
 - `whats_new/papers/mamba`: check_forward.py not rerun (torch not in the offline uv cache; node shows identical logits on 40 sequences); stage side labels hide on phones by design.
+- `whats_new/papers/megatron_lm`: Fig. 2 at 1400 is busy (the A_i and B_i size labels sit over the plates; "Option 1: 13.13H" touches the right edge); Fig. 2 full view small on phones; Tables tab charts stay full width (table-tab exception). mk_coverage 60 of 61: the Notion Takeaway text was already missing before this pass.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -684,3 +685,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - LLM Modules: corrected the leak animation's last step, which showed the released model right at "=" on the true prefix; it now shows the first position where free-running output departs from the trace ("T": 16 instead of 2), both traces quoted and checked. Keep?
 - LoRA: links the PEFT page's Fig. 2 (LoRA on a real SmolLM2 matrix) and builds only a LoRA trained against a known true update on the toy; Fig. 4 shows the default task and matrix only (the Train tab keeps every task); the Figure 2 chart now sits beside the Results bullets after its predict question. Keep?
 - Mamba: stage headers unnumbered (numbering would clash with the paper's own Figure 2); the selection stage scales state cells per position (as the old heat map did); the paper's Figure 1 image stays the hero; Then and now links Beyond attention's Fig. 5 instead of a 3D rebuild; build.sh now finds the repo root by relative path instead of git. Keep?
+- Megatron-LM: Fig. 2 draws row block i i blocks up (so no slice hides another); defaults 8.3B on 8 GPUs at 150 GB/s; Fig. 4's step lists stay hidden until the BERT prediction is answered; "Results" nav split into "Scaling" and "GPT-2" (new section s-gpt). Keep?
