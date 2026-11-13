@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-base"></div></div><div class="s3L">
 <section id="s-method"><h2>Method: Algorithm 1, line by line</h2>
 [[S3|§3, Algorithm 1, Appendices B and G]]
 <p><b>Architecture</b> ({{§3|ax:S3}}, {{Appendix G|ax:A7}}). Each block computes MLP(<i>x</i>) + <i>g</i><sub>R</sub>(<i>x</i>) + <i>g</i><sub>F</sub>(<i>x</i>), each adapter a bias-free SwiGLU branch <i>g</i>(<i>x</i>) = <i>W</i><sub>down</sub>(SiLU(<i>W</i><sub>gate</sub><i>x</i>) ⊙ <i>W</i><sub>up</sub><i>x</i>), the same as widening the MLP's hidden layer. <i>W</i><sub>down</sub> starts at zero, so training starts from the base model exactly. Each adapter has 3<i>dnL</i> parameters (hidden size <i>d</i>, width <i>n</i>, layers <i>L</i>): 28.3M per adapter for Qwen3-8B (<i>d</i> = 4096, <i>n</i> = 64, <i>L</i> = 36), the two together 0.7% of the model; 0.83M for SmolLM2-135M, 62.9M for Qwen3-32B (all three recomputed in {{the checks|tab:t-tables:gfChecks}}).</p>
@@ -10,6 +11,14 @@
 <div class="fm"><div class="eq">â<sub>τ</sub> = ( r<sub>τ</sub> − mean{ r<sub>τ′</sub> : τ′ ∈ G<sub>τ</sub> \ B<sub>F</sub> } ) / ( std{ r<sub>τ′</sub> : τ′ ∈ G<sub>τ</sub> } + ε )</div>
 <div class="eq"><span class="kr">g<sub>R</sub></span> = (1/N) ∇<sub>θR</sub>[ ℓ(π<sub>R+F</sub>, B<sub>U</sub>) + <b>0</b> · ℓ(π<sub>R+F</sub>, B<sub>F</sub>) + ℓ(π<sub>R</sub>, B<sub>A</sub>) ]</div>
 <div class="eq"><span class="kf">g<sub>F</sub></span> = (1/N) ∇<sub>θF</sub>[ ℓ(π<sub>R+F</sub>, B<sub>U</sub>) + <b>2</b> · ℓ(π<sub>R+F</sub>, B<sub>F</sub>) ]</div></div>
+<p class="sxh">Fig. 2, step by step: the routed baseline on one group of the toy</p>
+<ol class="sx" id="sx-base">
+<li><b>A group of 16 answers.</b> Sampled from π<sub>R+F</sub> at step 15 of the toy's default GRAFT run ({{Train the toy|tab:t-toy}}; an illustrative group from the real engine): one right and one wrong real solution, four hack 2, one hack 3 and nine hack 1. Bar height is the reward; every hack earns 1, like a right answer.</li>
+<li><b>The monitor flags hack 1.</b> Nine answers are flagged. Their rewards stay at 1: GRAFT never changes the reward.</li>
+<li><b>Plain GRPO's baseline.</b> The mean of all 16 rewards, 0.94 (the glass plane). The advantage is (reward − baseline) / the group's standard deviation, the bars behind (up positive, down negative). The seven unflagged answers, the only ones that reach θ<sub>R</sub>, sum to −2.25: on average they push it down.</li>
+<li><b>GRAFT's baseline skips the flagged.</b> The mean over the seven unflagged rewards, 0.86; the standard deviation still uses all 16. Each reward-1 answer now gets +0.57 and the wrong solution −3.43; the unflagged advantages sum to 0.</li>
+<li><b>Where each gradient goes.</b> Unflagged answers update both adapters; flagged ones only θ<sub>F</sub>, with the ×2 (twice the dots). The four hack 2 answers, unflagged and rewarded, push θ<sub>R</sub> towards hack 2 exactly as hard as the right solution pushes it towards solving; Fig. 3 (<a href="#s-inside">below</a>) follows where that leads.</li>
+</ol>
 <p>Why each piece is there:</p>
 <ul>
 <li><b>The baseline skips flagged samples</b> ({{Appendix B|ax:A2}}). Flagged hacks usually have high reward. With the ordinary group mean, the samples that do update θ<sub>R</sub> would carry negative advantages on average, which the authors found destabilised π<sub>R</sub>. Excluding them makes the retain adapter's advantages sum to zero in every group. The cost, stated in the appendix: a lone unflagged sample in a group gets zero advantage.</li>
@@ -22,3 +31,4 @@
 <details class="mist"><summary>The same for supervised fine-tuning, and the variants</summary><div class="b">
 <p>For SFT ({{§3, Variants|ax:S3}}, {{§5|ax:S5}}) the loss is cross-entropy and there are no advantages: <i>B</i><sub>F</sub> comes from the labelled hacks <i>D</i><sub>L</sub>, anchors from a random 1% of the unlabelled data <i>D</i><sub>U</sub> (forward pass through π<sub>R</sub>, retain update only), and the rest of <i>D</i><sub>U</sub> updates both adapters. Anchors may contain some hacks in SFT, the authors argue, because the training distribution is fixed; in RL a hack reinforced in an anchor update could grow. With minibatches, lines 6 to 8 run once per minibatch. Hyperparameters for Qwen3-8B ({{Appendix G.3|ax:A7.SS3}}): rollout batch 1,024 target plus 64 anchor samples, groups of 16, cosine learning rate 1.67e-4 over 200 steps, no KL term, DAPO's asymmetric clip (0.2, 0.28). The learning rate was tuned per method on what a practitioner can see (proxy reward and flagged rate): 1.67e-4 for GRAFT, 5e-4 for the penalty and steering.</p></div></details>
 </section>
+</div></div>

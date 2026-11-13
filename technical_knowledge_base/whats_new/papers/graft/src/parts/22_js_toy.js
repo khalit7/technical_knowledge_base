@@ -69,7 +69,7 @@
     var nA = (graft && method !== 'noanchor') ? c.anchorGroups : 0, N = (c.groups + nA) * c.G;
     var raw = function (s) { return s.r; }, pen = function (s) { return s.r - c.penalty * s.fl; };
     function snap(t) {
-      var o = { t: t, dep: metrics(plus(th0, uR), c) };
+      var o = { t: t, uR: uR.slice(), uF: uF.slice(), dep: metrics(plus(th0, uR), c) };   // the adapters themselves (logit shifts), for the stage on The paper
       if (graft) { o.pre = metrics(plus(plus(th0, uR), uF), c); o.fo = metrics(plus(th0, uF), c); }
       hist.push(o);
     }

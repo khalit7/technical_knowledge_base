@@ -26,8 +26,8 @@ python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '03d_paper.html', '04_toy.html', '06_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '_gen_figs.js', '_gen_toydata.js', '11_js_ui.js', '14_js_charts.js', '22_js_toy.js', '13_js_read.js', '23_js_toy.js', '24_js_tables.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '03d_paper.html', '04_toy.html', '06_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '_gen_figs.js', '_gen_toydata.js', '11_js_ui.js', '14_js_charts.js', '22_js_toy.js', '13_js_read.js', '23_js_toy.js', '24_js_tables.js', '25_js_s3.js', '31_js_sc_hero.js', '32_js_sc_base.js', '33_js_sc_toy.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 ANCH = set(open('inputs/anchors.txt').read().split())
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))

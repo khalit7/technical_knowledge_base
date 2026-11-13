@@ -1,7 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen, no NaN/undefined/Infinity in visible text, no errors, no sideways scroll,
 // overlapping SVG labels, the live toy run against src/inputs/toy.json (the sweep), prose numbers against the
-// data, and reduced motion. Writes element screenshots (light 920, dark 390) to <page>/.shots/.
+// data, and reduced motion (the stages' autoplay is checked by check_stages.mjs). Writes element screenshots (light 920, dark 390) to <page>/.shots/.
 // usage (from the repo root, after . html_utils/cloud_setup.sh): node technical_knowledge_base/whats_new/papers/graft/src/check_page.mjs
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -51,7 +51,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const shot = async (id, name) => { const el = await p.$('#' + id); if (el) await el.screenshot({ path: path.join(shots, `${name}-${scheme}-${width}.png`) }) };
   // The paper tab
   await audit('read open');
-  for (const k of [0, 1, 2, 3]) { await clk(`#gfHeroBtns button[data-k="${k}"]`); await audit('hero ' + k); if (k === 1 || k === 3) await shot('gfHero', 'hero' + k) }
+  // the three 3D stages (Fig. 1 to 3) are exercised by src/check_stages.mjs
   for (const id of ['gfPr1', 'gfPr2', 'gfPr3']) { const bs = await p.$$(`#${id} .opts button`); await bs[bs.length - 1].evaluate(x => x.click()); await bs[0].evaluate(x => x.click()); actions += 2; await wait(80) }
   await audit('predicts revealed');
   for (const [seg, name] of [['gfCdM', 'cd'], ['gfCurveM', 'curve'], ['gfSftM', 'sft']]) {
@@ -89,9 +89,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (errs.length) problems.push(`${scheme} ${width}: ${errs.join(' | ')}`);
   await p.close();
 }
-// reduced motion: nothing animates by itself (the page has no autoplaying element)
-{ const p = await b.newPage(); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file); await wait(500);
-  const raf = await p.evaluate(() => new Promise(res => { let n = 0; const t0 = performance.now(); (function f() { n++; if (performance.now() - t0 < 300) requestAnimationFrame(f); else res(n) })() }));
+// reduced motion: the three stages play by themselves when scrolled into view (2026-11-06 rule), except under reduced motion, where nothing moves
+{ const p = await b.newPage(); await p.setViewport({ width: 1400, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file); await wait(500);
+  for (const id of ['stg-hero', 'stg-base', 'stg-toy']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500); actions++;
+    const f = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (f > 0) problems.push(`reduced motion: ${id} moved by itself (${f} frames)`) }
   await p.close(); }
 await b.close();
 console.log('check_page:', actions, 'actions;', problems.length ? problems.length + ' problems:\n' + problems.join('\n') : '0 problems');

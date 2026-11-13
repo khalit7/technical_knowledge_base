@@ -261,9 +261,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
 - [x] `whats_new/papers/flashattention` FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
 - [x] `whats_new/papers/gpt_3` Language Models are Few-Shot Learners (GPT-3)
-- [~] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
+- [x] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
 - [~] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
-- [ ] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
+- [~] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
 - [ ] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
 - [ ] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
 - [ ] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
@@ -554,6 +554,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/envharness`: components stage small on phones with "[blocked]" over the Chain plate; run-tab episode card about 1,350 px on phones; EnvRigger stage step 4 the round-1 label overlaps the "1" rollout label.
 - `whats_new/papers/flashattention`: Fig. 2 at 1400 is busy and the "standard: 4,608" label touches the right edge; at 390 px Fig. 2 is small and "l, m" sits close to "O"; the Theorem 2 chart's bottom "10^5" tick looks partly cut (clipcheck passes).
 - `whats_new/papers/gpt_3`: Tables 3.11/3.12 chart stays full width (table-tab exception); Fig. 1 labels 4 of 8 sizes on phones.
+- `whats_new/papers/graft`: Figs 1 and 2 small in tall cards on phones (Fig. 2 is wide and shallow); Fig. 3 step 3 the "87.9%" label sits on the h1 bar.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -660,3 +661,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - EnvHarness: components stage uses seed 3 with every component on; EnvRigger stage shows the first-press run (seeds 1000 to 1004; verdicts could swap on other seeds, stated); the household is illustrative (labelled). Keep?
 - FlashAttention: Fig. 2's block-size select replaced by a static table of whole-run counts at blocks of 4, 8, 16 (so step lists quote exact counts; could return as a mode); all mode lists count toward 29 min (default mode alone about 26); links Writing kernels' Fig. 6 for online softmax instead of redrawing it. Keep?
 - GPT-3: the 3D eight-sizes stage replaced the Figure 1.3 curve at the top (the curve moved beside "The scaling pattern"); Fig. 2 draws the 96 layers as 8 plates (labelled illustrative). Keep?
+- GRAFT: Fig. 2's group is the first sampler seed (seed 4) whose group has a right and a wrong solution, every hack and 6 to 10 flags (rule in toy_sweep.mjs, labelled illustrative); Fig. 3 sits after predict 3 and shows one seed (40.9% hacking) while the predict quotes five-seed numbers; new h3 "Result 1, inside the run". Keep?

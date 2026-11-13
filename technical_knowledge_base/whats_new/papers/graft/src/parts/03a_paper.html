@@ -1,19 +1,24 @@
 <section class="tab" id="t-read" role="tabpanel">
 <style>#t-read .kr,.kr{color:var(--c1);font-weight:600}.kf,#t-read .kf{color:var(--c4);font-weight:600}.kd{color:var(--c5);font-weight:600}.ku{color:var(--c2);font-weight:600}
-.gf-step{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.gf-step button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600;opacity:1}
-.gf-cap{min-height:4.6em}.gf-terms{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr);gap:2px 12px;font-size:14px}.gf-terms dt{font-weight:600}.gf-terms dd{margin:0}
+.gf-terms{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr);gap:2px 12px;font-size:14px}.gf-terms dt{font-weight:600}.gf-terms dd{margin:0}
 @media (max-width:520px){.gf-terms{grid-template-columns:minmax(0,1fr)}.gf-terms dd{margin-bottom:6px}}
 table.gf-t1 td,table.gf-t1 th{padding:3px 8px}</style>
 @@CARD@@
 <nav class="nav" id="nav"><a href="#s-core">Core idea</a><a href="#s-prob">Problem</a><a href="#s-method">Method</a><a href="#s-cd">Countdown-Code</a><a href="#s-toyenv">Six toy environments</a><a href="#s-sft">32B SFT</a><a href="#s-mech">Why it works</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-core"><h2>The idea in one sentence</h2>
 [[S0.F1|Figure 1, §1]]
 <p class="lead">Use the monitor to decide <b>where</b> a sample's update lands, not <b>what</b> it is rewarded: updates from samples the monitor flags go only into a spare <span class="kf">forget adapter</span>, which is deleted after training, so the model is never paid for slipping past the monitor ({{§1|ax:S1}}).</p>
-<div class="card" id="gfHero"><div class="t">One RL step under GRAFT: which adapter each kind of sample trains</div>
-<div class="gf-step" id="gfHeroBtns"><button data-k="0" class="on">1. Unflagged sample</button><button data-k="1">2. Flagged sample</button><button data-k="2">3. Anchor sample</button><button data-k="3">4. Deploy</button></div>
-<div id="gfHeroSvg"></div><p class="small gf-cap" id="gfHeroCap"></p>
-<p class="small mute" style="margin:0">Redrawn from {{Figure 1|ax:S0.F1}}. Every Transformer block's MLP gets two extra SwiGLU branches, the <span class="kr">retain adapter</span> θ<sub>R</sub> and the <span class="kf">forget adapter</span> θ<sub>F</sub>; the base model stays frozen. Grey lines: the branch takes part in the forward pass; coloured arrows: the gradient that updates it, thicker for ×2; dashed: masked.</p></div>
+<p class="sxh">Fig. 1, step by step: which adapter each kind of sample trains</p>
+<ol class="sx" id="sx-hero">
+<li><b>The block.</b> Every Transformer block's MLP gets two extra SwiGLU branches, the <span class="kr">retain adapter</span> θ<sub>R</sub> and the <span class="kf">forget adapter</span> θ<sub>F</sub> (the coloured glass plates); the base MLP stays frozen. Grey dots are one sample's forward pass, through all three branches, whose outputs add.</li>
+<li><b>An unflagged sample.</b> Rolled out with both adapters on (π<sub>R+F</sub>). The monitor says nothing, so its gradient reaches <span class="kr">both adapters</span>, weight 1 each. Real solutions, and hacks the monitor misses, train the retain adapter this way.</li>
+<li><b>A flagged sample.</b> Same forward pass, same reward: the monitor never changes it. The gradient to the <span class="kr">retain adapter</span> is zeroed and the <span class="kf">forget adapter</span>'s is doubled (twice the dots), so the flagged behaviour is learned, but only in θ<sub>F</sub>.</li>
+<li><b>An anchor sample.</b> From a separate hack-free task, rolled out with the <span class="kf">forget adapter</span> switched off (π<sub>R</sub>); only the <span class="kr">retain adapter</span> learns. This trains the model in the configuration it will be deployed in.</li>
+<li><b>Deploy.</b> The <span class="kf">forget adapter</span> is deleted. Whatever it learned, the detected hack and anything that rode along with it, goes too; the <span class="kr">retain adapter</span> keeps the task. On Countdown-Code hacking fell from 38.5% (both adapters on, step 192) to 1.6% (deployed; the two bars).</li>
+</ol>
+<p class="small mute">Redrawn from {{Figure 1|ax:S0.F1}} as a 3D stage: one block, one sample at a time. Grey dots: the forward pass; coloured dots: the gradient that updates an adapter, twice as dense for ×2; a red bar: masked. The two hack rates are the paper's (Figure 2: the pre-ablation peak read from its right panel, the deployed mean of eight seeds replayed from the released data).</p>
 <p><b>You need</b>: GRPO and the verifiable-reward RL loop ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}), and why a reward hacker that is penalised by a monitor learns to hide ({{Reward Hacking, sections 6 and 7|n:3c65c17b0d0d8196a6f1f29a817aa974}}).</p>
 <details class="mist" open><summary>New terms on this page</summary><div class="b"><dl class="gf-terms">
 <dt>Monitor <i>M</i></dt><dd>a classifier that flags a trajectory as containing unintended behaviour. Here a keyword or code check with a known blind spot; <i>M</i> = 0 does not mean clean ({{§3|ax:S3}}).</dd>
@@ -25,6 +30,7 @@ table.gf-t1 td,table.gf-t1 th{padding:3px 8px}</style>
 <dt>Anchor environment</dt><dd>a hack-free task trained concurrently on π<sub>R</sub>, so the model still works with the forget adapter switched off.</dd>
 </dl></div></details>
 </section>
+</div></div>
 
 <section id="s-prob"><h2>Problem: a penalty teaches the model to hide</h2>
 [[S1|§1, §2]]

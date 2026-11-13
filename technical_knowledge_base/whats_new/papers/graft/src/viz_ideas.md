@@ -4,7 +4,7 @@ Scored 0 to 2 per criterion of `visuals/choosing.md` (quantity that moves, defau
 
 | id | Visual | Score | Status |
 |---|---|---|---|
-| P-graft.1 | Hero stepper: one RL step, which adapter each kind of sample trains (unflagged, flagged, anchor, deploy), gradient arrows x0 / x1 / x2 | 11 | built (Reading, top) |
+| P-graft.1 | Hero stepper: one RL step, which adapter each kind of sample trains (unflagged, flagged, anchor, deploy), gradient arrows x0 / x1 / x2 | 11 | built (Reading, top); rebuilt 2026-11-13 as Fig. 1, a 3D stage with flows |
 | P-graft.2 | Figure 2 (left) replayed per seed with a toggle "the truth" (all hacks, clean solve) against "what the developer sees" (proxy reward, flagged rate): the same runs, two views | 16 | built (Reading) |
 | P-graft.3 | Figure 2 (right): adapter decomposition over training, decoded from the vector figure | 11 | built (Reading) |
 | P-graft.4 | Figure 3 replayed: detectable against undetectable hack bars per environment and method, task score beside | 14 | built (Reading) |
@@ -15,3 +15,6 @@ Scored 0 to 2 per criterion of `visuals/choosing.md` (quantity that moves, defau
 | P-graft.9 | Expected-gradient (infinite group) version of the toy | - | rejected after a prototype: with almost every sample rewarded 1 the group standard deviation goes to zero and the advantages blow up, which GRPO with finite groups does not do; replaced by sampled groups of 16 |
 | P-graft.10 | Monitor-recall sweep (Figure 10) rebuilt | 8 | rejected: the recall-suite runs are in the bundle but the Reading already carries the claim; the toy's recall slider shows the mechanism |
 | P-graft.11 | Banana example (Table 1) as a picture | - | rejected: a four-row table says it completely |
+| P-graft.12 | Fig. 2: the routed baseline on one sampled toy group (rewards, flags, the two baselines as glass planes, signed advantages, flows into the adapters) | 12 | built 2026-11-13 (Reading, Method, 3D stage) |
+| P-graft.13 | Fig. 3: the toy's two adapters as signed bars over the default run, in four stretches, then deletion | 13 | built 2026-11-13 (Reading, Inside the toy, 3D stage) |
+| P-graft.14 | Figure 3 (six environments) as a 3D bar field | - | rejected 2026-11-13: 30 stacked bars read value by value; depth would hide the numbers |

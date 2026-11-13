@@ -1,4 +1,4 @@
-// ---- The paper tab: hero stepper, predict reveals, and the charts built from the released data ----
+// ---- The paper tab: predict reveals, and the charts built from the released data ----
 const MC={'GRAFT (ours)':'var(--c3)','GRAFT: pre-ablation':'var(--c1)','Reward penalty':'var(--c2)','No intervention':'var(--mute)','Inoculation prompting':'var(--c5)','Preventative steering':'var(--c6)','Anchor environment only':'var(--ink)','GRAFT w/o routing':'var(--c4)','Base model':'var(--ink)','Filtering':'var(--c6)','Oracle filtering':'var(--c1)','No training':'var(--ink)','Monitor filtering':'var(--c6)','Gradient ascent':'var(--c5)','Inoculation adapter':'var(--c4)','IP (elicitation paraphrase)':'var(--c5)','IP (EM prompt)':'var(--c5)'};
 const HOLLOW={'GRAFT w/o routing':1,'Base model':1,'Anchor environment only':1,'No training':1};
 const pc=v=>v.toFixed(1)+'%';
@@ -19,36 +19,6 @@ function scat(w,pts,o){const H=w<520?300:340,pl=46,pr=12,pt=10,pb=36;
   pts.forEach((p,i)=>{s+=dotS(F.X(p.x),F.Y(p.y),p.n==='GRAFT (ours)'?6.5:5.5,MC[p.n]||'var(--ink)',{hollow:HOLLOW[p.n],sw:HOLLOW[p.n]?2:1,t:(p.lab||p.n)+': '+p.x.toFixed(1)+', '+p.y.toFixed(1)});
     const k=key.indexOf(i);if(k>=0)s+=tx(F.X(p.x),F.Y(p.y)+3.5,String(k+1),{fs:11,a:'middle',c:HOLLOW[p.n]?'var(--ink)':'var(--bg)',w:'700'})});
   return svgW(w,H,s+lab,o.label||'scatter')+(key.length?'<p class="small" style="margin:2px 0">'+key.map((i,k)=>'<b>'+(k+1)+'</b> '+(pts[i].lab||pts[i].n)+' ('+pts[i].x.toFixed(1)+', '+pts[i].y.toFixed(1)+')').join(' · ')+'</p>':'')}
-(function(){if(!window.GD||!$('gfHero'))return;
-  // Hero: one RL step, four steps through Figure 1.
-  const ST=[
-    {cap:'<b>An unflagged sample.</b> Rolled out with both adapters on (π<sub>R+F</sub>). The monitor says nothing, so its update reaches <span class="kr">both adapters</span>, weight 1 each. Real solutions, and hacks the monitor misses, train the retain adapter this way.',f:[1,1],g:[1,1],tag:'target environment, M(τ) = 0'},
-    {cap:'<b>A flagged sample.</b> Same forward pass with both adapters, same reward (the monitor never changes it). The gradient to the <span class="kr">retain adapter</span> is zeroed and the <span class="kf">forget adapter</span>\'s is doubled, so the flagged behaviour is learned, but only in θ<sub>F</sub>.',f:[1,1],g:[0,2],tag:'target environment, M(τ) = 1'},
-    {cap:'<b>An anchor sample.</b> From a separate hack-free task, rolled out with the <span class="kf">forget adapter</span> switched off (π<sub>R</sub>), and only the <span class="kr">retain adapter</span> learns. This trains the model in the configuration it will be deployed in.',f:[1,0],g:[1,0],tag:'anchor environment'},
-    {cap:'<b>Deploy.</b> The <span class="kf">forget adapter</span> is deleted. Whatever it learned, the detected hack and anything that rode along with it, goes too; the <span class="kr">retain adapter</span> keeps the task. On Countdown-Code hacking fell from 38.5% (both adapters, late in training) to 1.6%.',f:[1,0],g:[0,0],tag:'the deployment configuration (retain only)',del:1}];
-  let K=0;const host=$('gfHeroSvg');
-  function draw(w){const S=ST[K],c=w<520,H=c?250:236,bw=c?(w-28)/3:170,gap=c?7:(w-3*bw)/4,y0=46,bh=c?54:50;let s='';
-    s+='<defs>'+[1,2].map(i=>'<marker id="gfAh'+i+'" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="'+(i===1?'var(--c1)':'var(--c4)')+'"/></marker>').join('')+'</defs>';
-    const X=[gap,2*gap+bw,3*gap+2*bw],nm=c?[['Base MLP','frozen'],['Retain θR','new neurons'],['Forget θF','new neurons']]:[['Frozen base MLP','unchanged'],['Retain adapter θR','new neurons'],['Forget adapter θF','new neurons']],col=['var(--mute)','var(--c1)','var(--c4)'];
-    s+=tx(w/2,14,S.tag,{fs:12,a:'middle',c:'var(--mute)'});
-    s+=rc(X[0],22,X[2]+bw-X[0],16,'var(--soft)',{r:3})+tx(w/2,34,c?'input x (every block)':'input x (one sample, in every Transformer block)',{fs:11,a:'middle',c:'var(--mute)'});
-    const yS=y0+bh+22,yL=yS+46;
-    for(let i=0;i<3;i++){const on=i===0||S.f[i-1],gone=S.del&&i===2,cx=X[i]+bw/2;
-      s+=rc(X[i],y0,bw,bh,on?'var(--soft)':'var(--bg)',{s:col[i],sw:i?2:1,da:on?null:'4 3',op:gone?.45:1});
-      s+=tx(cx,y0+22,nm[i][0],{fs:c?11:12,a:'middle',w:'600',c:on?col[i]:'var(--mute)'});
-      s+=tx(cx,y0+40,gone?'deleted':on?nm[i][1]:'switched off',{fs:11,a:'middle',c:'var(--mute)'});
-      if(gone)s+=ln2(X[i]+6,y0+6,X[i]+bw-6,y0+bh-6,'var(--c4)',{sw:2})+ln2(X[i]+bw-6,y0+6,X[i]+6,y0+bh-6,'var(--c4)',{sw:2});
-      if(on)s+=ln2(cx,38,cx,y0,'var(--mute)',{sw:1.2})+ln2(cx,y0+bh,cx,yS-8,'var(--mute)',{sw:1.2});}
-    s+=rc(X[0],yS-8,X[2]+bw-X[0],16,'var(--soft)',{r:3})+tx(X[0]+8,yS+4,S.del?'output = MLP(x) + gR(x)':'output = MLP(x) + gR(x) + gF(x)',{fs:11,c:'var(--mute)'});
-    if(!S.del){s+=rc(X[0],yL,X[2]+bw-X[0],22,'var(--bg)',{s:'var(--line)',r:4})+tx(w/2,yL+15,c?'loss × advantage (reward unchanged)':'GRPO loss of this sample × its advantage (the reward is never changed)',{fs:11,a:'middle'});
-      for(let i=1;i<3;i++){const g=S.g[i-1],cx=X[i]+bw-(c?30:40);
-        if(g)s+='<line x1="'+cx+'" y1="'+(yL-1)+'" x2="'+cx+'" y2="'+(y0+bh+3)+'" stroke="'+col[i]+'" stroke-width="'+(g*2.2)+'" marker-end="url(#gfAh'+i+')"/>'+tx(cx+6,yL-10,'∇ ×'+g,{fs:12,w:'700',c:col[i]});
-        else s+=ln2(cx,yL-1,cx,y0+bh+3,'var(--mute)',{sw:1.2,da:'3 3'})+tx(cx+6,yL-10,'∇ ×0',{fs:12,c:'var(--mute)'});}}
-    else s+=tx(w/2,yL+15,c?'deployed: base + retain adapter':'deployed model: frozen base + retain adapter only',{fs:12,a:'middle',w:'600',c:'var(--c1)'});
-    host.innerHTML=svgW(w,H,s,'GRAFT routing, step '+(K+1));$('gfHeroCap').innerHTML=S.cap}
-  $('gfHeroBtns').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{K=+b.dataset.k;$('gfHeroBtns').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));refit(host)}));
-  fit(host,draw);
-})();
 (function(){if(!window.GD)return;const E=GD.env;
   PRED_REVEAL.gfPr1=()=>{const o=E.object_qa;$('gfPr1Out').innerHTML='with the penalty, <span class="ku">undetectable</span> hacking on '+pc(o['Reward penalty'].undetected)+' of colour answers and <span class="kd">detectable</span> on '+pc(o['Reward penalty'].detected)+'; with no intervention '+pc(o['No intervention'].undetected)+' and '+pc(o['No intervention'].detected)+'; deployed GRAFT '+pc(o['GRAFT (ours)'].hack)+' in all.'};
   PRED_REVEAL.gfPr3=()=>{const v=TOYREF.variants.default;$('gfPr3Out').innerHTML='Deployed GRAFT hacks <b>'+pc(100*v.graft.hack)+'</b> (seed mean, 5 seeds, '+pc(100*v.graft.hack_min)+' to '+pc(100*v.graft.hack_max)+'): '+pc(100*v.graft.undetected)+' undetected and '+pc(100*v.graft.detected)+' hack 1, up from '+pc(100*TOYREF.base.hack)+' at the start. π<sub>R+F</sub> sampled undetected hacks '+pc(100*v.graft_pre.undetected)+' of the time; the reward penalty learned them on '+pc(100*v.penalty.undetected)+'; GRAFT without routing hacks '+pc(100*v.noroute.hack)+'.'};
