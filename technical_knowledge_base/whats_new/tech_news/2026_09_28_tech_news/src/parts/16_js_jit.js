@@ -2,6 +2,7 @@
 (function(){
   const card=$('v-jit');if(!card)return;
   $('jtAnim').innerHTML=animCtl('jt',[['write','Write time (distil each run once)'],['read','Read time (JitMem)']]);
+  // The step explanations are the step lists on the left (sx-jt-write, sx-jt-read in parts/v_jit.html), one item per step.
   // Four past runs (illustrative ALFWorld-style tasks); the fourth failed.
   const RUNS=[{n:'clean a mug, put it in the coffee machine',s:'clean a mug',ok:1,len:.9,ref:'Rinse items at the sink first'},
     {n:'heat an egg, put it in the fridge',s:'heat an egg',ok:1,len:1,ref:'Heat things in the microwave'},
@@ -11,19 +12,19 @@
   // Measured on ALFWorld with a GPT-5.4 executor (JitMem paper, efficiency table): input tokens per episode and steps.
   const BASE=9.0,MEAS={write:{tok:19.7,steps:16.2,nm:'ReasoningBank'},read:{tok:9.8,steps:11.6,nm:'JitMem'}};
   const W_STEPS=[
-    {t:'A finished run is distilled once',c:'The first run ends. A write-time method turns it straight away into one fixed artefact (a reflection, an insight, a skill) and keeps only that. It has to decide what will matter <b>before any future task is known</b>; the raw trace is not kept.',dur:1.3},
-    {t:'Every run, the same way',c:'The other three runs are distilled the same way, the failed one included (it becomes an "avoid" lesson). The bank now holds four short, general lessons, each written for the task it came from.',dur:1.3},
-    {t:'A new task arrives',c:'"Heat a potato and put it on the counter." Nothing in the bank was written with this task in mind.',dur:.8},
-    {t:'Retrieve the closest lessons',c:'The lessons nearest the task by similarity are pulled into the prompt. They are generic ("heat things in the microwave"); the details that would help here (where the microwave was, what had to be opened first) were dropped at write time.',dur:1},
-    {t:'Execute with the lessons in the prompt',c:'The executor runs with the retrieved lessons prepended. Measured on ALFWorld with a GPT-5.4 executor, ReasoningBank (a write-time method) used <b>19.7K input tokens and 16.2 steps</b> per episode against 9.0K and 17.8 with no memory at all.',dur:1.2}];
+    {t:'A finished run is distilled once',dur:1.3},
+    {t:'Every run, the same way',dur:1.3},
+    {t:'A new task arrives',dur:.8},
+    {t:'Retrieve the closest lessons',dur:1},
+    {t:'Execute with the lessons in the prompt',dur:1.2}];
   const R_STEPS=[
-    {t:'A finished run is stored whole',c:'The first run ends. JitMem keeps the <b>raw trajectory</b>, the task description and every observation and action, with no summary at all. An executor-as-judge decides whether it succeeded.',dur:1.3},
-    {t:'Only successes go in, raw',c:'The other runs are stored the same way, except the failed one: only trajectories the judge marks successful are appended. Nothing is decided yet about what will matter.',dur:1.3},
-    {t:'A new task arrives',c:'"Heat a potato and put it on the counter." This time the task is known before anything is curated.',dur:.8},
-    {t:'Retrieve: BM25 over task descriptions',c:'The top raw trajectories are fetched by keyword match on their task descriptions only (BM25), here the egg run and the mug run.',dur:1},
-    {t:'Curate now that the task is known',c:'A curator (Qwen3-8B, trained with GRPO on whether the executor then succeeds) reads the task and the retrieved traces and writes a <b>compact payload for this task</b>: the relevant past experience, what worked, specific guidance. The payload is used once and not stored.',dur:1.4},
-    {t:'Execute with the payload only',c:'The frozen executor never sees the raw traces, only the payload. Measured on ALFWorld with a GPT-5.4 executor: <b>9.8K input tokens and 11.6 steps</b> per episode, barely more prompt than no memory (9.0K) and six fewer steps.',dur:1.2},
-    {t:'Update: the new success is appended raw',c:'If the judge marks the run successful, its raw trajectory joins the bank, ready to be curated again for whatever task comes next.',dur:1}];
+    {t:'A finished run is stored whole',dur:1.3},
+    {t:'Only successes go in, raw',dur:1.3},
+    {t:'A new task arrives',dur:.8},
+    {t:'Retrieve: BM25 over task descriptions',dur:1},
+    {t:'Curate now that the task is known',dur:1.4},
+    {t:'Execute with the payload only',dur:1.2},
+    {t:'Update: the new success is appended raw',dur:1}];
   const MODES={write:{name:'Write time',steps:W_STEPS},read:{name:'Read time (JitMem)',steps:R_STEPS}};
   const cl=v=>Math.max(0,Math.min(1,v)),e=t=>t<.5?2*t*t:1-2*(1-t)**2;
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -90,10 +91,10 @@
     // counters
     const done=m==='write'?ex>=1:ex>=1;
     const runsIn=m==='write'?Math.round(RUNS.length*cl(p(0)*.25+p(1)*.75)):Math.round(3*cl(p(0)/3+p(1)*2/3));
-    $('jtCnt').innerHTML=stat('Kept in the bank',runsIn+(m==='write'?' lessons':' raw traces'),m==='write'?'one per finished run':'successes only')+
+    $('jtCnt').innerHTML=stat('Kept in the bank',runsIn+(m==='write'?' lesson':' raw trace')+(runsIn===1?'':'s'),m==='write'?'one per finished run':'successes only')+
       stat('Curation done',m==='write'?runsIn+' times, task unknown':(p(4)>=1?'1 time, task known':'not yet'),m==='write'?'at write time':'at read time')+
       stat('Executor input tokens',done?M.tok.toFixed(1)+'K':'..','measured, ALFWorld, GPT-5.4 ('+M.nm+')')+
       stat('Steps per episode',done?M.steps.toFixed(1):'..','no memory: 17.8');
   }
-  makeAnim({card,pre:'jt',modes:MODES,start:'write',dur:2600,draw});
+  makeAnim({card,pre:'jt',modes:MODES,start:'write',dur:2600,draw,lists:{write:'sx-jt-write',read:'sx-jt-read'}});
 })();

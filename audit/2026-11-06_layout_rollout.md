@@ -312,10 +312,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
 - [x] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
 - [x] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
-- [~] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
+- [x] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
 - [x] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
 - [~] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
-- [ ] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
+- [~] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
 
 ## Polish notes (cosmetic, for a pass at the end)
 - `topic_rl/rl_for_llms`: Fig. 3 close-up steps crop the inference engine labels at the left edge; Fig. 2 step 5 critic plate large in front.
@@ -607,6 +607,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/tech_news/2026_09_14_tech_news`: the CED stage's "decoder: not run on the prompt" label is pushed in at the canvas edge at 1400; the V4-Flash tower is cut at the top left in close-up steps.
 - `whats_new/tech_news/2026_09_21_tech_news`: KV stage has empty space above the scene at 1400; step 2 flow dots read as scattered rather than arcs; "Checked" boxes still say "below". Issues quote each other's times as "(~N min)" in 07_more.html, which check_times does not see ("no header"); fixed 09-14's quote of 09-21 by hand (70 to 74).
 - `whats_new/tech_news/2026_10_19_tech_news`: on phones the ARC step list sits well below the chart (card first, then item, then list); the 09-28 issue quotes this issue as "(~35 min)" (now 37; fix after 09-28's rebuild).
+- `whats_new/tech_news/2026_09_28_tech_news`: Fusion stage row labels crowd the left edge at 1400 and the scene fills only the middle of its card; JitMem SVG labels are 11 px. Issue "Further reading" tabs also quote topic roots as "(~N min)" (agentic-harnesses ~26, inference ~43, hardware ~37, benchmarks ~20, llm-landscape ~20), invisible to check_times and now stale; inter-issue quotes fixed by hand (09-21, 09-28, 10-19).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -765,3 +766,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Tech news 2026-09-14: the V4-Flash / V4.1-Flash toggle merged into one 3D stage showing both models in one eight-step list; the SSD blocks use the report's "nearly half" and "about 1/8" (not recomputed, stated); the stage has its own colours (grey sliding-window, orange cache writers, teal reuse, purple replay, blue new token). Keep?
 - Tech news 2026-09-21: the KV stage uses an illustrative 16-token window and draws each V4.1 layer reading the nearest source layer before it (sources name the four source layers, not the map); the phone camera looks down more steeply. Keep?
 - Tech news 2026-10-19: no 3D stage (the three visuals are a timeline, a log scatter and paired bars; nothing spatial); the ARC card is not sticky on phones (about 400 px). Keep?
+- Tech news 2026-09-28: the illustrative Fusion session keeps an inherited inconsistency (the switching row's turn-10 full re-read assumes a cache expiry after 3 idle turns while Fusion's lead keeps its cache over 6; now stated); its illustrative 77% cache hit is below one model's 87%, opposite to the measured runs (stated). Make turn 10 a partial re-read instead?
