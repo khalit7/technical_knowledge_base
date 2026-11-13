@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page skill template, 2026-10-25; storage key samrpo-tab; links may carry data-to, the element to scroll to)
+// ---- Tabs ---- (replace samrpo-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

@@ -67,7 +67,7 @@ TOY.METHODS={
   fw25:{n:'GDPO, w_len = 0.25',agg:'dec',w:[1,0.25],gamma:0},
   fw10:{n:'GDPO, w_len = 0.1',agg:'dec',w:[1,0.1],gamma:0},
   conly:{n:'Correctness only',only:'c'}};
-// one training run. o: {setting, method (key or cfg), seed, steps, B, G, lr, every}
+// one training run. o: {setting, method (key or cfg), seed, steps, B, G, lr, every, onBatch(t, batch)}
 TOY.train=function(o){const S=TOY.SET[o.setting],cfg=typeof o.method==='string'?TOY.METHODS[o.method]:o.method,r=rng(o.seed||1);
   const T=o.steps||150,Bq=o.B||32,Gs=o.G||8,lr=o.lr||0.03,every=o.every||10,B=TOY.bank;
   const P=TOY.init(o.setting);const mo={th:P.th.map(z=>z.map(()=>0)),phi:P.phi.map(()=>0),chi:P.chi.map(()=>0)},ve={th:P.th.map(z=>z.map(()=>0)),phi:P.phi.map(()=>0),chi:P.chi.map(()=>0)};
@@ -80,6 +80,7 @@ TOY.train=function(o){const S=TOY.SET[o.setting],cfg=typeof o.method==='string'?
       for(let j=0;j<Gs;j++){const a=sample(pa),b=sample(pb);ai.push([a,b]);const ok=a===B.star[q]&&r()<TOY.pok(TOY.L[b],B.need[q]);rc.push(ok?1:0);rl.push(S.len(TOY.L[b]))}
       acts.push(ai);Rc.push(rc);Rl.push(rl)}
     const ad=TOY.advantages([Rc,Rl],cfg),g=TOY.grad(P,qs,acts,ad.A);
+    if(o.onBatch)o.onBatch(t,{qs,Rc,Rl,ad});                     // read-only hook (the stage data on The paper tab); changes nothing
     for(let q=0;q<TOY.Q;q++)adam(P.th[q],g.th[q],mo.th[q],ve.th[q],t);
     adam(P.phi,g.phi,mo.phi,ve.phi,t);adam(P.chi,g.chi,mo.chi,ve.chi,t);
     log.step.push(t);log.bc.push(mean([].concat(...Rc)));log.bl.push(mean([].concat(...Rl)));log.s0.push(ad.s[0]);log.s1.push(ad.s[1]);

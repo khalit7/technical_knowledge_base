@@ -7,50 +7,7 @@ const CF='var(--c2)',CC='var(--c3)',CA='var(--c1)';
 const F1={f:[97,99,100,98],c:[0,1,0,5],s:[0.98,0.02]};
 F1.Af=zs(F1.f);F1.Ac=zs(F1.c);
 function saAdv(g,norm){const wf=Math.pow(1-F1.s[0],g),wc=Math.pow(1-F1.s[1],g),a=F1.Af.map((x,j)=>wf*x+wc*F1.Ac[j]);return norm?zs(a):a}
-(function(){
-  const gEl=$('advG'),nEl=$('advN');
-  const ST={
-    grpo:[{t:'The rewards',c:'Four answers to one question. Format is nearly solved (97 to 100 out of 100); correctness is nearly unsolved (0 to 5).'},
-      {t:'Sum the rewards',c:'GRPO with several objectives first adds them with fixed weights (here equal). Answers 2 and 3 both sum to 100: their different profiles are now invisible.'},
-      {t:'Standardise the sum within the group',c:'Subtract the group mean (100) and divide by the group standard deviation (2.12). Answers 2 and 3 both get exactly 0: the resolution loss of §4.'}],
-    gdpo:[{t:'The rewards',c:'The same four answers.'},
-      {t:'Standardise format within the group',c:'Format spreads only from 97 to 100, but standardising stretches it to unit spread: answer 3 (100) gets +1.34, answer 1 (97) gets −1.34. A nearly solved objective speaks as loudly as an unsolved one.'},
-      {t:'Standardise correctness within the group',c:'Correctness 0, 1, 0, 5 becomes −0.73, −0.24, −0.73, +1.70.'},
-      {t:'Add them with the fixed weights',c:'GDPO sums the standardised terms. Answers 2 and 3 now differ, but answer 3, with zero correctness, ranks above answer 2: the format term decides it.'}],
-    sa:[{t:'The rewards',c:'The same four answers.'},
-      {t:'Standardise each objective (as GDPO)',c:'The same per-objective terms as GDPO: format ±1.34 and ±0.45, correctness −0.73 to +1.70.'},
-      {t:'Discount by saturation',c:'Each weight becomes w(1 − s)<sup>γ</sup>. Format at s = 0.98 keeps a factor of 0.02<sup>γ</sup>; correctness at s = 0.02 keeps 0.98<sup>γ</sup>. The format bars shrink.'},
-      {t:'Add them',c:'Now correctness decides: answer 3 turns negative (a sign reversal, not just a smaller step) and answer 4, the most correct, gets the largest advantage.'}]};
-  const finalOf=m=>{const n=nEl.checked;if(m==='grpo')return zs(F1.f.map((v,j)=>v+F1.c[j]));if(m==='gdpo'){const a=F1.Af.map((x,j)=>x+F1.Ac[j]);return n?zs(a):a}return saAdv(+gEl.value,n)};
-  function state(m,k){const g=+gEl.value,wf=Math.pow(1-F1.s[0],g),wc=Math.pow(1-F1.s[1],g);
-    if(m==='grpo')return {f:null,c:null,a:k>=2?finalOf(m):null,sum:k>=1};
-    if(m==='gdpo')return {f:k>=1&&k<3?F1.Af:null,c:k>=2&&k<3?F1.Ac:null,a:k>=3?finalOf(m):null};
-    return {f:k>=1&&k<3?F1.Af.map(v=>k>=2?v*wf:v):null,c:k>=1&&k<3?F1.Ac.map(v=>k>=2?v*wc:v):null,a:k>=3?finalOf(m):null}}
-  const lerp=(a,b,e)=>a==null&&b==null?null:(a||[0,0,0,0]).map((v,i)=>v+((b||[0,0,0,0])[i]-v)*e);
-  function draw(m,k,e,W){const H=W<460?300:280,top=86,base=top+(H-top-26)/2,sc=(H-top-26)/2/2.3,cw=(W-58)/4,x0=50;
-    const prev=state(m,Math.max(0,k-1)),cur=state(m,k),ee=k===0?1:e;
-    const f=lerp(prev.f,cur.f,ee),c=lerp(prev.c,cur.c,ee),a=lerp(prev.a,cur.a,ee);
-    let s='';
-    s+=tx(4,30,'format',{fs:11.5,c:CF,w:'700'})+tx(4,50,'correct',{fs:11.5,c:CC,w:'700'});
-    for(let j=0;j<4;j++){const cx=x0+cw*j+cw/2;s+=tx(cx,13,'answer '+(j+1),{fs:11.5,a:'middle',c:'var(--mute)'});
-      s+=tx(cx,30,F1.f[j]+'/100',{fs:12,a:'middle'})+tx(cx,50,F1.c[j]+'/100',{fs:12,a:'middle'});
-      if(m==='grpo'&&cur.sum)s+=tx(cx,70,'sum '+(F1.f[j]+F1.c[j]),{fs:11.5,a:'middle',c:'var(--mute)',op:k===1?ee:1})}
-    // axis
-    [-2,-1,0,1,2].forEach(v=>{const y=base-v*sc;s+=ln2(x0-4,y,W-6,y,v?'var(--line)':'var(--mute)',{sw:v?1:1.2})+tx(x0-8,y+4,(v>0?'+':v<0?'−':'')+Math.abs(v),{fs:11,a:'end',c:'var(--mute)'})});
-    const bar=(cx,v,w,col,op)=>{if(v==null)return '';const y=v>=0?base-v*sc:base;return rc(cx-w/2,y,w,Math.abs(v)*sc,col,{r:2,op})};
-    for(let j=0;j<4;j++){const cx=x0+cw*j+cw/2,bw=Math.min(22,cw/4.2);
-      if(f)s+=bar(cx-bw*0.6,f[j],bw,CF,0.9);if(c)s+=bar(cx+bw*0.6,c[j],bw,CC,0.9);
-      if(a){s+=bar(cx,a[j],bw*1.8,CA,0.95);const y=a[j]>=0?base-a[j]*sc-5:base-a[j]*sc+14;s+=tx(cx,y,sgn(a[j]),{fs:12,a:'middle',w:'700'})}}
-    s+=tx(W-6,H-6,'advantage, one scale for all recipes',{fs:11,a:'end',c:'var(--mute)'});
-    return svgW(W,H,s,'Advantages of four answers under '+m)}
-  function counters(m,k){const g=+gEl.value,fa=finalOf(m),pr={grpo:[-1.41,0,0,1.41],gdpo:[-2.07,0.20,0.61,1.25],sa:[-0.74,-0.23,-0.69,1.65]}[m];
-    let h='';if(m==='sa'){const fw=v=>v<0.01&&v>0?v.toExponential(1):v.toFixed(3);h+=stat('weights now','format '+fw(Math.pow(0.02,g))+' · correctness '+fw(Math.pow(0.98,g)),'ratio (0.02/0.98)<sup>γ</sup> = '+fw(Math.pow(0.02/0.98,g)))}
-    h+=stat('final advantages',fa.map(sgn).join(', '),'printed in Figure 1: '+pr.map(sgn).join(', '));
-    const rk=[0,1,2,3].sort((x,y)=>fa[y]-fa[x]).map(j=>j+1);h+=stat('ranking',rk.join(' > '),fa[1]===fa[2]?'answers 2 and 3 tie':'');return h}
-  const an=makeAnim({id:'adv',mode:'sa',modes:ST,draw,counters,dur:2600});
-  const lab=()=>{$('advGv').textContent=(+gEl.value).toFixed(2)};lab();
-  gEl.addEventListener('input',()=>{lab();an&&an.draw()});nEl.addEventListener('change',()=>an&&an.draw());
-})();
+// Figure 1's group through the three recipes is Stage 1, a 3D scene: parts/31_js_sc_fig1.js.
 // predict: the sign flip against gamma
 $('flipG').textContent=RCX.fig1.flip_gamma_r3.toFixed(2);
 PRED_REVEAL['pr-flip']=function(){fit($('flipSvg'),W=>{const H=220,F=linFrame({W,H,pl:44,pr:74,pt:10,pb:32,x:[0,2],y:[-2.2,2],xl:'γ',yl:'advantage (before Eq. 1)',fy:v=>v>0?'+'+v:String(v).replace('-','−')});

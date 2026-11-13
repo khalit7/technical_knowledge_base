@@ -13,7 +13,9 @@ PAGE = 'whats_new/papers/learn_whats_left_not_whats_mastered'
 RL = 'models_and_training/topic_rl/rl_for_llms'
 EV = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
 FAT = {33: 'wind-up ("Three things to see."); the hero caption and the one paragraph after the animation carry the three points'}
-KEYS = {161: '2026 produced a family of ways to combine several rewards'}
+KEYS = {161: '2026 produced a family of ways to combine several rewards',
+        # re-pointed in the 2026-11-13 layout rollout (the Figure 1 animation became Stage 1, the method's steps Stage 2's list)
+        28: 'stage 1 sends the same group through each recipe', 29: 'bars are drawn to one scale across all three recipes', 44: 'four steps ( §4.1 , algorithm 1 ), run in stage 2', 190: 'all methods, 8 seeds each final accuracy and length reward of every method'}
 NEW = [
  ('core', 'Core sentence: standardise each reward within its group, then multiply each weight by (1 - s)^γ, so the update stops polishing nearly solved objectives and goes to those with headroom left.', 'so the update stops polishing objectives that are nearly solved'),
  ('core', "Hero: the paper's own Figure 1 (CC BY 4.0), rollouts 2 and 3 boxed: GRPO ties them, GDPO ranks the zero-correctness answer higher (+0.61 against +0.20), SA-MRPO turns it negative.", 'only sa-mrpo stops rewarding an answer for perfect format'),
@@ -21,6 +23,12 @@ NEW = [
  ('owned:' + RL, 'GRPO standardises each reward against its group of answers (mean and standard deviation), worked through by hand on the owner page.', 'correct response gets 0.75 / 0.433 = +1.732'),
  ('owned:' + EV, 'Training-seed noise is invisible to the item standard error of a benchmark; seed variance in general.', 'noise the item standard error does not see'),
  ('core', 'Tables tab: 13 claims checked; 7 hold, 4 in part, 2 do not (the γ the main table used, the epoch count).', '13 claims: 7 hold, 4 hold only in part, 2 do not'),
+ ('core', 'Stage 2 (method on one toy batch): the graded-length toy, SA-MRPO γ = 0.5, seed 1, step 80, 32 questions × 8 answers; four groups drawn, the first of each kind (only correctness varies, both, only length, neither).', 'the first in which only correctness varies, both vary'),
+ ('core', 'Stage 2: a reward with no spread in a group is silent there; one long answer among seven short ones gets a large negative length advantage.', 'one answer that ran long among seven short ones'),
+ ('core', 'Stage 2: the batch saturations, correctness s = 0.40 and length s = 0.95, over all 256 answers.', 'correctness s = 0.40, length s = 0.95'),
+ ('core', 'Stage 2: weights at γ = 0.5 are 0.77 (correctness) and 0.22 (length); at step 1 the saturations were 0.30 and 0.36 and the weights 0.84 and 0.80.', 'the gauges read 0.30 and 0.36'),
+ ('core', "Stage 2: the correct answer that ran long ends at +0.27 under SA-MRPO against −1.49 under GDPO on the same batch; length's share of the update falls from 40.0% to 5.2%.", 'falls from 40.0% under gdpo to 5.2%'),
+ ('core', 'Stage 1 SA-MRPO list: the saturation gauges at s = 0.98 (format) and 0.02 (correctness), the two values Figure 1 states.', 'fills its glass gauge: format at s = 0.98'),
 ]
 F = HERE / 'ledger.json'
 u = json.loads(F.read_text())

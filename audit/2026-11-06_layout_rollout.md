@@ -268,9 +268,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
 - [x] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
 - [x] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
-- [~] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
+- [x] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
 - [~] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
-- [ ] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
+- [~] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
 - [ ] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
 - [ ] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 - [ ] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
@@ -561,6 +561,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - check_times misses combined quotes ("About 25 and 16 min" on topic_agentic_frameworks for Proactive Memory Agent and Just-in-Time Memory; fixed by hand and its ledger key re-pointed off the minutes).
 - `whats_new/papers/latent_context_language_models`: stage opening step leaves empty space at 1400; on phones the last step's time label sits close to the FastKVzip tower.
 - `whats_new/papers/ldm_stable_diffusion`: Fig. 1 step 4 the pixel-image planes are cut off at the left edge of the card at 1400.
+- `whats_new/papers/learn_whats_left_not_whats_mastered`: on phones Stage 1 step 4 "s = 0.98" touches the plinth end; long formula boxes in Stage 2's list scroll sideways.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -674,3 +675,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Just-in-Time Memory: static hero retired (its gain split is the stage's last step); the stage follows seed 7 and hand-picked task 32 (200-ordering figures given alongside); the replay widget opens on batch 5 and the inspector on task 32. Keep?
 - Latent Context LMs: static hero replaced by the 3D stage (same summary in its last step); KV cache drawn as a tower of 4,096-position slabs (height = memory to scale); which segments FastKVzip keeps is illustrative (labelled); Simulate steps slowed to 3.6 s. Keep?
 - LDM: hero prompt "red circle, top left" run through the shipped toy (seeds stated); the f-sweep's batch columns stand in an even row behind the tensors (labels collided); the two-chain animation runs in four stretches of five DDIM steps; the SD 1.5 latent, U-Net and 77-token stages are linked to Latent diffusion and DiTs instead of rebuilt. Keep?
+- Learn What's Left (SA-MRPO): Stage 2 uses step 80 of the gamma = 0.5 toy run with "first group of each kind"; the four method steps with their equations now live in Stage 2's step list; Stage 1 toggle labels shortened. Keep?

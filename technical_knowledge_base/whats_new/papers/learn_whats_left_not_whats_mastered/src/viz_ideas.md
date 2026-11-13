@@ -20,6 +20,8 @@ Scores 0 to 2 on the methodology's questions (parameter to move, reproduces a pu
 | P-learn_whats_left_not_whats_mastered.10 | Share table: groups where each objective varies, and the length objective's share of the advantage, start and end | Measures the "gradient budget" claim directly: under 4% at the start, under 0.3% at the end in the binary-budget setting | toy | Train tab | 9 |
 | P-learn_whats_left_not_whats_mastered.11 | Tables tab: Tables 1 to 4 with differences from GDPO, Figure 1 recomputed in six variants, 13 claims checked | Exceed up in 10 of 15, bug rates equal or higher on all four, Table 4 equals Table 1 cell for cell, the epoch mismatch | tables.json, recompute.py | Own tab | 9 |
 | P-learn_whats_left_not_whats_mastered.12 | **Hero (2026-10-25): the paper's own Figure 1** (CC BY 4.0), credited, at the top | The four rollouts with rollouts 2 and 3 boxed; the caption says what to notice and links to the animation that rebuilds it | The paper's canonical figure and its key idea in one picture; the licence allows reuse with credit | `img/fig1_rollout.webp` (24 KB), `img/CREDITS.md` | Reading, top | built (light pass) |
+| P-learn_whats_left_not_whats_mastered.13 | **Stage 1 (2026-11-13): Figure 1's group in 3D**, replacing the 2D animation | Rewards on the floor, per-objective advantages side by side on a plinth, saturation gauges as glass filled to s, the final advantage in blue at the back; three recipes with three step lists; γ slider and Eq. 1 box redraw it | One group, two objectives, three layers of computation: depth separates the layers a flat bar chart stacked on one axis | `parts/31_js_sc_fig1.js` | Reading, One group | built (layout rollout) |
+| P-learn_whats_left_not_whats_mastered.14 | **Stage 2 (2026-11-13): the four steps on one real toy batch** | Four groups of 8 (the first of each kind) on white plinths; rewards give way to per-objective advantages, the batch flows into two gauges (s = 0.40, 0.95), weights flow back (0.77, 0.22), final advantages with GDPO's as outlines | The method section had no visual; the batch makes "silent in most groups, loud in a few" and the sign reversal (+0.27 against GDPO's -1.49) concrete with the page's own engine | `stage_batch.mjs`, `parts/_gen_stage.js`, `parts/32_js_sc_batch.js` | Reading, Method | built (layout rollout) |
 
 ## Rejected
 
@@ -29,6 +31,7 @@ Scores 0 to 2 on the methodology's questions (parameter to move, reproduces a pu
 | A small LLM trained with SA-MRPO | Far beyond a CPU budget, and the toy answers the like-for-like question more cleanly. |
 | Then and now tab | The paper is six weeks old; there is no later work to morph into. The concurrent methods are linked instead. |
 | DVAO and GD2PO in the toy | Their exact rules would have to be reconstructed from other papers; out of scope for this page, noted as a gap in the evidence instead. |
+| A 3D stage for Table 1, Table 2, Table 4 or the toy's curves (2026-11-13) | Differences on an axis, paired bars against a reference line, and curves read best flat; depth would hide the values. |
 | Eq. 2 gradient-conflict demo on a 2-D quadratic | Generic multi-objective geometry; it would illustrate the paper's caveat but not test anything the paper claims. |
 
 ## What the methodology lacked for this page
