@@ -298,8 +298,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
 - [x] `whats_new/papers/seq_vs_seq` Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
 - [x] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
-- [ ] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
-- [ ] `whats_new/papers/statem` StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
+- [~] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
+- [~] `whats_new/papers/statem` StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
 - [ ] `whats_new/papers/switch_transformers` Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
 - [ ] `whats_new/papers/t5` Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
 - [ ] `whats_new/papers/terminal_universe` Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments
