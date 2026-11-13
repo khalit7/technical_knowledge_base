@@ -18,12 +18,8 @@
   const P=()=>PV[+$('cdxP').value],Aq=()=>AV[+$('cdxA').value];
   function cost(m,p,a){const M=MOD[m];const pre=(2*M.enc*p+2*(M.crossKV||0)*p)/FL*1e3;const tok=M.dec*BY/BW*1e3;
     return {pre,tok,total:pre+tok*a,bytesTok:M.dec*BY,flPre:2*M.enc*p}}
-  const STEPS=m=>{const M=MOD[m],ed=!M.dec_only;return [
-    {t:'Read the prompt',c:ed?'The encoder reads all prompt tokens at once, in parallel, with bidirectional attention. This pass is limited by compute, not memory: '+M.n.split(' ')[1].split('-')[0]+' encoder parameters × 2 FLOPs × prompt tokens. The cross-attention keys and values are computed here too, once.':'The decoder-only model also reads the prompt in one parallel pass (prefill), caching keys and values for every layer. Same cost formula: 2 FLOPs per parameter per prompt token.'},
-    {t:'Generate token 1',c:ed?'Now only the decoder runs: its weights, its cross-attention and the softmax are streamed from memory to produce one token. The '+(m==='ed92'?'9B':'2B')+' encoder is not touched again.':'Every weight of the model is streamed from memory to produce one token. At batch size 1 this, not arithmetic, sets the speed.'},
-    {t:'Generate token 2',c:'Same again: one full pass of the '+(ed?'decoder':'model')+' per token. Cost grows with the answer\'s length times the '+(ed?'decoder':'model')+' size.'},
-    {t:'Generate token 3',c:ed?'The decoder keeps attending to the same encoder output through cross-attention; the prompt is never re-read.':'The model attends to the cached prompt through its own self-attention.'},
-    {t:'Every token, to the end of the answer',c:'Total = prompt pass + answer tokens × per-token time. Compare the four models on the bars below: what you pay per token is the decoder\'s size, so the 9B-2B runs close to a 2B and far from a 9B.'}]};
+  // the five steps are explained in the step lists beside the card (sx-cd-ed for the encoder-decoders, sx-cd-d for the decoder-only models)
+  const STEPS=()=>[0,1,2,3,4].map(i=>({t:'step '+(i+1)}));
   const modes={};Object.keys(MOD).forEach(m=>modes[m]=STEPS(m));
   const fms=v=>v>=1000?(v/1000).toFixed(2)+' s':v.toFixed(v<10?2:v<100?1:0)+' ms';
   function draw(m,k,e,w){const p=P(),a=Aq(),c=cost(m,p,a),M=MOD[m];
@@ -58,7 +54,7 @@
       host.innerHTML=svgW(w,22+rows.length*34+4,s,'Modelled against measured latency')})}
   function lab(){$('cdxPv').textContent=fmt(P());$('cdxAv').textContent=fmt(Aq())}
   lab();
-  const an=makeAnim({id:'cdx',modes,mode:'ed92',draw,counters,dur:2600});
+  const an=makeAnim({id:'cdx',modes,mode:'ed92',lists:{ed92:'sx-cd-ed',ed22:'sx-cd-ed',d2:'sx-cd-d',d9:'sx-cd-d'},draw,counters,dur:4200});
   ['cdxP','cdxA'].forEach(id=>$(id).addEventListener('input',()=>{lab();an&&an.draw();cmp()}));
   cmp();
   window.CDX={cost,MOD};

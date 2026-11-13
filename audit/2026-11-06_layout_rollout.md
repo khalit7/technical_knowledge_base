@@ -255,8 +255,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
 - [x] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
 - [x] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
-- [~] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
-- [~] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
+- [x] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
+- [x] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
 - [ ] `whats_new/papers/envharness` EnvHarness: Awakening Static Worlds for Agent Learning
 - [ ] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
 - [ ] `whats_new/papers/flashattention` FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
@@ -548,6 +548,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/dpo`: both stages small on phones with labels hidden; Fig. 1 step 4 is sparse (three plates and the pair stack). Figures tab charts stay full width (verify_layout flags them; table-tab exception). check_times misses quotes under a shortened title (Alignment quoted DPO as "Direct Preference Optimization"; fixed by hand).
 - `whats_new/papers/dream_rsi`: Fig. 1 step 4 the "coding agent + evaluator" label runs off the right edge and world 2 crowds the right side; replay and race cards sit above their step lists on phones.
 - `whats_new/papers/dsec`: Fig. 1 small in its card at 1400 in the full view (empty space at the top); the hero SVG scrolls sideways inside its column between 1100 and about 1350 px (645 px minimum width kept for 11 px text); Place a burst left column is long beside the sticky stage. Figures tab stays full width (table-tab exception).
+- `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2`: Tables tab charts stay full width (table-tab exception).
+- `whats_new/papers/emergence_world`: Fig. 3 small on phones (host labels hidden under 520 px).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -648,3 +650,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - DPO: no optimum surface (the toy policy has 444 logits, no honest two-parameter surface); RLHF reward-model bars centred on their mean under pi_ref (stated); the Figures tab stays full width (could be split caption-left, chart-right); the Train tab's two big tables moved to full width. Keep?
 - Dream-RSI: the brief's "worlds get harder" reading was wrong; the page's version (worlds are recorded discovery trees, dreaming replays rewritten policy code over them, no weights trained) drives the stage. Two of the four policy versions in the stage are the agent's picks from the toy policy family (labelled); the static hero is replaced by the 3D loop; the Lasso table moved full width. Keep?
 - DSec: the hero stays the static SVG (a 3D fleet would put placement in front, which the paper does not measure); Fig. 1 node loads, k and the three engine instances are illustrative (labelled); Place a burst autoplays the DSec policy first and a slider change stops autoplay. Keep?
+- T5Gemma: embedding tables and the vision encoder drawn at a fixed size, not to scale (labelled with counts); the merged-attention stage defaults to row 3 (very peaked, 92% on one key) to match the predict question. Keep?
+- Emergence World: the hero replays the Gemini world (sharpest gap between noticing and stopping); bar heights are square roots in Figs 1 and 2 (stated); Fig. 2 and 3 step lists repeat parts of the closed world-by-world blocks (kept for the quotes); Mistral shows 0 warnings in Fig. 1 because the keyword rules miss them (stated). Keep?

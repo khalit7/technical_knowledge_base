@@ -14,7 +14,7 @@
     const out=(ws,V)=>V[0].map((_,j)=>ws.reduce((t,w,i)=>t+w*V[i][j],0));
     const om=out(pm,W.Vx.slice(0,row).concat(W.Vh)),os_=out(ps,W.Vx.slice(0,row)).map((v,j)=>v+out(pc,W.Vh)[j]);
     const nrm=a=>Math.sqrt(dot(a,a));
-    return {pm,ps,pc,enc:pm.slice(row).reduce((t,v)=>t+v,0),cos:dot(om,os_)/(nrm(om)*nrm(os_)),nm:nrm(om),ns:nrm(os_)}}
+    return {pm,ps,pc,om,os:os_,enc:pm.slice(row).reduce((t,v)=>t+v,0),cos:dot(om,os_)/(nrm(om)*nrm(os_)),nm:nrm(om),ns:nrm(os_)}}
   function render(){const host=$('mgx');if(!host||!W)return;const row=+$('mgR').value,bias=+$('mgB').value;
     $('mgRv').textContent=row;$('mgBv').textContent=(bias>0?'+':'')+bias;
     const r=compute(row,bias);
@@ -39,7 +39,10 @@
       stat('Encoder share, separate','100% + 100%','two softmaxes, each summing to 1, added through two branches')+
       stat('Output agreement','cos '+r.cos.toFixed(3),'merged against separate, same weights; norms '+r.nm.toFixed(2)+' and '+r.ns.toFixed(2))}
   function go(){if(!W)init();render()}
+  // the merged-attention stage (32_js_sc_merged.js) draws the same numbers: the current row, relevance and weights
+  window.MG={m,n,dh,seed:()=>seed,state(){if(!W)init();const row=+$('mgR').value,bias=+$('mgB').value;return {row,bias,W,r:compute(row,bias)}},compute(row,bias){if(!W)init();return compute(row,bias)},onChange:null};
+  const changed=()=>{if(MG.onChange)try{MG.onChange()}catch(e){}};
   PRED_REVEAL['pr-merge']=go;
-  ['mgR','mgB'].forEach(id=>$(id).addEventListener('input',()=>{if(W)render()}));
-  $('mgNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;init();render()});
+  ['mgR','mgB'].forEach(id=>$(id).addEventListener('input',()=>{if(W)render();changed()}));
+  $('mgNew').addEventListener('click',()=>{seed=(seed*7919+13)%100003;init();render();changed()});
 })();

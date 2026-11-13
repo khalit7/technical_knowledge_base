@@ -1,16 +1,17 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the cost animation stepping end to end (it plays by itself once in view, 2026-11-06).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/encoder_decoder_gemma_and_t5gemma_2/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
+const shots = process.argv[2] || path.resolve(here, '../.shots'); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -40,13 +41,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
-  // no autoplay (2026-10-25): scroll each animation into view, wait, and it must not have drawn a frame; nor after a mode switch
-  for (const id of ['adx', 'cdx']) {
-    await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-    let fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} played before the reader acted (${fr} frames)`);
-    await clk(`#${id}M button:not(.on)`); await wait(1000);
-    fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} played after a mode switch (${fr} frames)`);
-    await clk(`#${id}M button`);
+  // autoplay (2026-11-06): scrolled into view, the cost animation plays by itself (the 3D stages are checked by check_stages.mjs)
+  await clk('#tabs button[data-t=t-read]'); await wait(300); // the last tab is remembered across pages of one browser
+  for (const id of ['cdx']) {
+    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+    const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
   }
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250);
@@ -88,7 +87,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const lines = await p.$eval('#toyChart', e => e.querySelectorAll('polyline').length); if (lines !== n) problems.push(`toy chart shows ${lines} lines for ${n} runs`);
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['adx', 'cdx']) {
+    for (const id of ['cdx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

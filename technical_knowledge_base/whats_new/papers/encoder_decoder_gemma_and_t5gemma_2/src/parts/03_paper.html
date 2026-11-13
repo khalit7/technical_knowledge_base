@@ -1,6 +1,16 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L">
 <p class="core1"><b>The idea in one sentence:</b> turn a pretrained decoder-only LLM into an encoder-decoder by copying its weights into both halves (the encoder only switches its attention mask from causal to bidirectional, and cross-attention is the one new part), then keep pretraining for up to 2T tokens: at about the same inference FLOPs, the adapted model is level with its source after pretraining and ahead after instruction tuning (2B-2B: 46.1 against Gemma 2 2B's 39.0), and a 9B encoder with a 2B decoder answers at the 2B model's latency.</p>
+<p class="small"><b>You need:</b> encoder-decoder, prefix LM and UL2 as families and objectives, from {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}; logit distillation from {{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}.</p>
+<ul class="terms">
+<li><b>Adaptation</b>: initialising an encoder-decoder from a decoder-only checkpoint and continuing pretraining, instead of pretraining from scratch.</li>
+<li><b>Balanced, unbalanced</b>: encoder size, then decoder size; 2B-2B has both halves from Gemma 2 2B, 9B-2B a 9B encoder and a 2B decoder.</li>
+<li><b>PT score, IT score</b>: the papers' averages over 22 benchmarks for pretrained models and 10 for instruction-tuned ones.</li>
+<li><b>Merged attention</b>: T5Gemma 2's single decoder attention over its own tokens and the encoder output, with one softmax.</li>
+</ul>
+</div>
+<div class="s3R"><div class="s3side">
 <div id="hx" role="figure" aria-label="The adaptation recipe in one picture">
 <p class="hxt">One decoder-only checkpoint fills both halves; only cross-attention is new</p>
 <div class="flow">
@@ -18,15 +28,9 @@
 </div></div>
 <p class="nxt">Then: continue training on Gemma 2's data, up to 2T tokens, with <b>PrefixLM</b> plus distillation from the source model (or <b>UL2</b>); then the usual SFT and RLHF. T5Gemma 2 runs the same recipe on Gemma 3, with images fed to the encoder and the decoder's two attentions merged into one.</p>
 </div>
-<p class="small mute" style="margin:2px 0 10px">Redrawn from {{Figure 1|ax:S1.F1}} and {{§3|ax:S3}} of the first paper (both papers are under arXiv's non-exclusive licence, so their figures are not reproduced). Mask icons: lower triangle causal, full square bidirectional. The same recipe, weight group by weight group and to scale, is the {{animation in Idea|tab:t-read:s-idea}}.</p>
-<p class="small"><b>You need:</b> encoder-decoder, prefix LM and UL2 as families and objectives, from {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}; logit distillation from {{Distillation and small language models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}.</p>
-<ul class="terms">
-<li><b>Adaptation</b>: initialising an encoder-decoder from a decoder-only checkpoint and continuing pretraining, instead of pretraining from scratch.</li>
-<li><b>Balanced, unbalanced</b>: encoder size, then decoder size; 2B-2B has both halves from Gemma 2 2B, 9B-2B a 9B encoder and a 2B decoder.</li>
-<li><b>PT score, IT score</b>: the papers' averages over 22 benchmarks for pretrained models and 10 for instruction-tuned ones.</li>
-<li><b>Merged attention</b>: T5Gemma 2's single decoder attention over its own tokens and the encoder output, with one softmax.</li>
-</ul>
-<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-obj">Objectives and setup</a><a href="#s-res">Results</a><a href="#s-abl">Ablations</a><a href="#s-t2">T5Gemma 2</a><a href="#s-t2res">Long context</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a></nav>
+<p class="small mute" style="margin:2px 0 10px">Redrawn from {{Figure 1|ax:S1.F1}} and {{§3|ax:S3}} of the first paper (both papers are under arXiv's non-exclusive licence, so their figures are not reproduced). Mask icons: lower triangle causal, full square bidirectional. The same recipe, layer by layer on the real configurations, is {{Fig. 1 in Idea|tab:t-read:s-idea}}.</p>
+</div></div></div>
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-obj">Objectives and setup</a><a href="#s-res">Results</a><a href="#s-lat">Latency</a><a href="#s-abl">Ablations</a><a href="#s-t2">T5Gemma 2</a><a href="#s-merge">Merged attention</a><a href="#s-t2res">Long context</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1 Introduction]]
@@ -35,6 +39,7 @@
 <p class="lead"><b>The question:</b> can you <b>adapt</b> an existing decoder-only checkpoint into an encoder-decoder, cheaply, and end up ahead ({{§1|ax:S1}})?</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-ad"></div></div><div class="s3L">
 <section id="s-idea"><h2>Idea: copy the decoder into both halves</h2>
 [[S3|§3, Figure 1, Table 1]]
 <p><b>Architecture</b> ({{§3.1|ax:S3.SS1}}). As close to the source model as possible, so initialisation is mostly a copy. The encoder is the decoder-only model with self-attention switched from causal to bidirectional. Each decoder block keeps its feed-forward network and self-attention and adds a cross-attention with the same heads and head size, attending to the whole encoder output. Testbed: Gemma 2 2B and 9B, plus four small decoder-only models pretrained in mT5 sizes, S, B, L and XL ({{Table 1|ax:S3.T1}}).</p>
@@ -43,20 +48,36 @@
 <li><b>Balanced</b> (encoder and decoder share a configuration, 2B-2B): cross-attention is initialised from the self-attention weights.</li>
 <li><b>Unbalanced</b> (9B encoder, 2B decoder): the shapes differ, so cross-attention starts random and trains alone for a <b>warmup of <i>K</i> = 1,000 steps</b> with everything else frozen ({{§4|ax:S4}}). The warmup is sensitive: none costs 0.7 points and 5,000 steps cost 2.3 ({{§6|ax:S6}}).</li>
 </ul>
-<p>The animation runs the recipe on the real checkpoints, one weight group at a time, to scale; the T5Gemma 2 mode adds the two parameter-saving changes described further down.</p>
-<div class="card" id="adx">
-<div class="an-top"><div class="seg" id="adxM" role="group" aria-label="Which adaptation"><button class="on" data-m="bal" aria-pressed="true">2B-2B (balanced)</button><button data-m="unb" aria-pressed="false">9B-2B (unbalanced)</button><button data-m="t2" aria-pressed="false">T5Gemma 2 270M-270M</button></div>
-<span class="small mute">Blocks drawn to scale by parameter count.</span></div>
-<div id="adxSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="adxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="adxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="adxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="adxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="adxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="adxStep"></div><p id="adxCap"></p></div>
-<div class="an-cnt" id="adxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Counts recomputed from the configs; they match Hugging Face's counts of the released T5Gemma checkpoints to 0.01%, and of T5Gemma 2 to 0.1% (its vision encoder taken as the paper's 417M) ({{the recount|tab:t-tables:tb-par}}). Mask insets: lower triangle causal, full square bidirectional. Stops off screen; paused under reduced motion.</p>
-</div>
+<p>Fig. 1 runs the recipe on the real checkpoints' configurations: one slab per layer (26 in Gemma 2 2B, 42 in 9B, 18 in Gemma 3 270M), each split into self-attention (blue), cross-attention (purple; orange while random) and feed-forward (green), widths to scale by the layer's parameters within each mode; embedding tables are the yellow bases. The mask plate on each stack is its attention mask: lower triangle causal, full square bidirectional. The T5Gemma 2 mode adds the two parameter-saving changes described further down.</p>
+<div class="seg" id="adM" role="group" aria-label="Which adaptation"><button class="on" data-m="bal" aria-pressed="true">2B-2B (balanced)</button><button data-m="unb" aria-pressed="false">9B-2B (unbalanced)</button><button data-m="t2" aria-pressed="false">T5Gemma 2 270M-270M</button></div>
+<ol class="sx" id="sx-ad-bal">
+<li><b>The checkpoint.</b> Gemma 2 2B, a decoder-only model: one causal stack of 26 blocks and an embedding table that is also its softmax. Its 2.61B parameters (2.02B outside the embedding) are all the knowledge the encoder-decoder will start from.</li>
+<li><b>Encoder: a full copy, with the mask opened.</b> Every encoder weight is copied from the checkpoint, so the encoder adds no new weights. The only change is the attention mask: causal (each token sees the ones before it) becomes bidirectional (every token sees every token). Nothing is retrained yet.</li>
+<li><b>Decoder: self-attention and feed-forward copied.</b> The decoder is the checkpoint again, layer for layer, still causal. Its embedding stays tied to its softmax, as in Gemma 2; the encoder has its own copy of the table, so the model now holds two.</li>
+<li><b>Cross-attention: initialised from self-attention.</b> Each decoder block gains a cross-attention with the same heads and head size, reading the whole encoder output. In a balanced model the shapes match, so it starts as a copy of that block's self-attention: 368M parameters, 26 × 14.2M. This is the part the paper's Table 1 leaves out of its 4.0B.</li>
+<li><b>Adapt: train everything.</b> All 5.60B parameters are trained on up to 2T tokens of the Gemma 2 mixture, with PrefixLM plus distillation (or UL2), then instruction-tuned with the Gemma 2 recipe; the encoder's output now flows into every decoder block. The released 2B-2B has 5,596.9M parameters; the recount gives 5,596.7M.</li>
+</ol>
+<ol class="sx" id="sx-ad-unb" hidden>
+<li><b>Two checkpoints.</b> The unbalanced model pairs two decoder-only models of different sizes: Gemma 2 9B (9.24B parameters, 42 layers) will become the encoder, Gemma 2 2B (2.61B, 26 layers) the decoder. The same recipe could pair two families, the paper notes, such as LLaMA with Qwen.</li>
+<li><b>Encoder: Gemma 2 9B, copied, mask opened.</b> The whole 9B is copied into the encoder and its attention made bidirectional. It will read the input once, in parallel, so its size costs little at generation time (see the latency animation in Results).</li>
+<li><b>Decoder: Gemma 2 2B, copied.</b> Self-attention, feed-forward and the tied embedding come from the 2B, layer for layer.</li>
+<li><b>Cross-attention: random, because the shapes differ.</b> The 2B decoder works in 2,304 dimensions, the 9B encoder in 3,584, so no self-attention weight fits. Cross-attention (436M parameters: 26 layers × 16.8M) starts random.</li>
+<li><b>Warmup: train only the cross-attention for <i>K</i> = 1,000 steps.</b> Everything copied is frozen while the random cross-attention learns to read the encoder. In the paper's preliminary test (UL2, 800B tokens, BoolQ and GSM8K) no warmup scored 61.8 and 5,000 steps 60.2, against 62.5 at 1,000.</li>
+<li><b>Adapt: unfreeze and train everything.</b> All 12.29B parameters (10.78B outside the embeddings, against the 10.4B the paper prints) train on up to 2T tokens. It converges more slowly than the balanced models, since its cross-attention started from nothing, but keeps climbing past Gemma 2 2B (Figure 2).</li>
+</ol>
+<ol class="sx" id="sx-ad-t2" hidden>
+<li><b>The checkpoint.</b> Gemma 3 270M: 268M parameters, most of them (168M) in the embedding table of its 262K-token vocabulary. Text-only, with a 32K context window.</li>
+<li><b>Encoder: copied, mask opened, an image encoder in front.</b> As before, the encoder is a full copy with bidirectional attention. In front of it sits Gemma 3's 400M SigLIP vision encoder (417M with its projection), frozen, turning each image into 256 tokens the encoder reads alongside the text.</li>
+<li><b>Decoder: copied.</b> Self-attention and feed-forward come from the same checkpoint.</li>
+<li><b>Merged attention: no cross-attention weights at all.</b> Instead of a separate cross-attention (the faint slabs, 29.5M here, fading out), the decoder's self-attention reads its own tokens and the encoder output together, with one softmax and the same weights: its mask plate gains the encoder's columns, all open. The decoder is a Gemma 3 decoder again; on the 2B-2B ablation this saved 6.5% of parameters for about 0.3 points (Fig. 2 below takes it apart).</li>
+<li><b>Tied embeddings: one table for everything.</b> Encoder input, decoder input and decoder softmax share one embedding (as in T5), instead of the first T5Gemma's separate encoder and decoder tables: 168M saved here, almost a third of what the untied text model would weigh (536M). On the 2B-2B ablation it cost 0.1 points.</li>
+<li><b>Adapt with UL2: about 2T tokens, up to 16K long.</b> The whole model (vision encoder frozen) trains with UL2 on Gemma 3's mixture. Total: 786M parameters (417M vision, 168M embedding, 100M encoder, 100M decoder), matching Hugging Face's count of the released 270M-270M.</li>
+</ol>
+<div class="an-cnt" id="adCnt"></div>
+<p class="small mute" style="margin:8px 0 0">Counts recomputed from the configs; they match Hugging Face's counts of the released T5Gemma checkpoints to 0.01%, and of T5Gemma 2 to 0.1% (its vision encoder taken as the paper's 417M) ({{the recount|tab:t-tables:tb-par}}). The embedding tables and the vision encoder are drawn at a fixed size, not to scale.</p>
 <div class="co warn"><div class="t">One thing the paper's own size table leaves out</div>{{Table 1|ax:S3.T1}} gives 4.0B (2B-2B), 16.7B (9B-9B) and 10.4B (9B-2B) non-embedding parameters: encoder plus decoder <i>without</i> cross-attention. With it, the released checkpoints have <b>4.42B, 18.50B and 10.78B</b>; cross-attention adds 0.37B, <b>1.85B</b> and 0.44B. T5Gemma 2's Table 1 uses the full count (4,417M for 2B-2B, {{T5Gemma 2 Table 1|bx:S1.T1}}).</div>
 </section>
+</div></div>
 
 <section id="s-obj"><h2>Objectives and setup</h2>
 [[S3.SS3|§3.3, §4]]
@@ -82,25 +103,45 @@
 <p class="small mute">IT compares RLHF models (the adapted SFT models lead by 3.3 and 7.4). Below 2B the adapted models trail on PT by 0.2 to 0.7 (S-S, L-L, XL-XL; B-B is +0.2) while still gaining on IT ({{§5|ax:S5}}).</p>
 <p><b>Not every task moves the same way.</b> After pretraining Gemma 2 9B wins 8 of 17 tasks against 9B-9B, mostly knowledge recall (ARC-C by 4.1, while losing Winogrande by 4.4); after RLHF the encoder-decoder wins 10 of 11, trailing only on WMT23, by 0.9 ({{Table 3|ax:S5.T3}}, {{per task|tab:t-tables:tb-t3}}).</p>
 <p><b>Encoder-decoder wins SuperGLUE everywhere</b>: all 24 comparisons in {{Table 2(b)|ax:S5.T2}} (six sizes, both objectives, pretrained and tuned), by at least 1.2 points, which the paper attributes, "likely", to bidirectional self-attention.</p>
-<p><b>The asymmetric result is the one to remember.</b> At matched inference FLOPs the encoder-decoders sit on the quality-efficiency frontier ({{Figure 3|ax:S5.F3}}); since FLOPs are not latency, the paper also timed GSM8K queries at batch size 1 ({{Figure 4|ax:S5.F4}}).</p>
-<div class="pred" id="pr-lat" data-ans="1"><div class="q">the 9B-2B has a 9B encoder in front of a 2B decoder. Answering a GSM8K question, how does its latency compare with Gemma 2 2B's?</div>
-<div class="opts"><button>About 3 to 4 times slower: it carries a 9B model</button><button>About the same, within 10%</button><button>Faster: the encoder shortens the answer</button></div>
-<div class="fb"></div>
-<div class="reveal" hidden><p>About the same: <b><span class="js" data-rc="fig4.9B-2B.ms"></span> ms against <span class="js" data-rc="fig4.2B.ms"></span> ms</b> (1.05×), with GSM8K accuracy <b>73.8 against 58.0</b>, decoded from the figure's vector data. The 9B encoder reads the question once, in parallel; every one of the answer's tokens then costs only the 2B decoder plus its cross-attention. Run it below.</p></div></div>
-<div class="card" id="cdx">
+</section>
+
+<div class="s3sp"><div class="s3R"><div class="card" id="cdx">
 <div class="an-top"><div class="seg" id="cdxM" role="group" aria-label="Which model"><button class="on" data-m="ed92" aria-pressed="true">T5Gemma 9B-2B</button><button data-m="d2" aria-pressed="false">Gemma 2 2B</button><button data-m="d9" aria-pressed="false">Gemma 2 9B</button><button data-m="ed22" aria-pressed="false">T5Gemma 2B-2B</button></div></div>
 <div class="ctl"><label>Prompt <b id="cdxPv"></b> tokens<input type="range" id="cdxP" min="0" max="5" step="1" value="2"></label><label>Answer <b id="cdxAv"></b> tokens<input type="range" id="cdxA" min="0" max="5" step="1" value="3"></label></div>
 <div id="cdxSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="cdxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="cdxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="cdxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="cdxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="cdxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="cdxStep"></div><p id="cdxCap"></p></div>
 <div class="an-cnt" id="cdxCnt"></div>
 <div id="cdxCmp"></div>
 <p class="small mute" style="margin:6px 0 0">Our cost model, illustrative: at batch size 1 each generated token streams the decoder's weights (with cross-attention and softmax) from memory once, <i>bytes</i> / <i>bandwidth</i>; reading the prompt costs 2 × <i>parameters</i> × <i>tokens</i> FLOPs at peak. Hardware: one TPU v5e, 819 GB/s and 197 bf16 TFLOP/s ({{Google Cloud|https://cloud.google.com/tpu/docs/v5e}}); the paper does not name its hardware, and KV-cache reads and overheads are left out, so compare ratios. Measured points: {{Figure 4|ax:S5.F4}}, decoded.</p>
 </div>
+</div><div class="s3L">
+<section id="s-lat"><h2>Latency: a 9B encoder at 2B speed</h2>
+[[S5.F3|§5, Figures 3 and 4]]
+<p><b>The asymmetric result is the one to remember.</b> At matched inference FLOPs the encoder-decoders sit on the quality-efficiency frontier ({{Figure 3|ax:S5.F3}}); since FLOPs are not latency, the paper also timed GSM8K queries at batch size 1 ({{Figure 4|ax:S5.F4}}).</p>
+<div class="pred" id="pr-lat" data-ans="1"><div class="q">the 9B-2B has a 9B encoder in front of a 2B decoder. Answering a GSM8K question, how does its latency compare with Gemma 2 2B's?</div>
+<div class="opts"><button>About 3 to 4 times slower: it carries a 9B model</button><button>About the same, within 10%</button><button>Faster: the encoder shortens the answer</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>About the same: <b><span class="js" data-rc="fig4.9B-2B.ms"></span> ms against <span class="js" data-rc="fig4.2B.ms"></span> ms</b> (1.05×), with GSM8K accuracy <b>73.8 against 58.0</b>, decoded from the figure's vector data. The 9B encoder reads the question once, in parallel; every one of the answer's tokens then costs only the 2B decoder plus its cross-attention. The animation beside this section runs it.</p></div></div>
+<p>The animation answers one question with each model, step by step; the sliders set the prompt and answer lengths, and the bars under it compare all four models with the paper's measured latencies.</p>
+<ol class="sx" id="sx-cd-ed">
+<li><b>Read the prompt.</b> The encoder reads all prompt tokens at once, in parallel, with bidirectional attention. This pass is limited by compute, not memory: encoder parameters × 2 FLOPs × prompt tokens. The cross-attention keys and values are computed here too, once.</li>
+<li><b>Generate token 1.</b> Now only the decoder runs: its weights, its cross-attention and the softmax are streamed from memory to produce one token. The encoder (9B in the 9B-2B) is not touched again.</li>
+<li><b>Generate token 2.</b> Same again: one full pass of the decoder per token. Cost grows with the answer's length times the decoder size.</li>
+<li><b>Generate token 3.</b> The decoder keeps attending to the same encoder output through cross-attention; the prompt is never re-read.</li>
+<li><b>Every token, to the end of the answer.</b> Total = prompt pass + answer tokens × per-token time. What you pay per token is the decoder's size, so the 9B-2B runs close to a 2B and far from a 9B (the bars under the animation).</li>
+</ol>
+<ol class="sx" id="sx-cd-d" hidden>
+<li><b>Read the prompt.</b> The decoder-only model also reads the prompt in one parallel pass (prefill), caching keys and values for every layer. Same cost formula: 2 FLOPs per parameter per prompt token.</li>
+<li><b>Generate token 1.</b> Every weight of the model is streamed from memory to produce one token. At batch size 1 this, not arithmetic, sets the speed.</li>
+<li><b>Generate token 2.</b> Same again: one full pass of the model per token. Cost grows with the answer's length times the model size.</li>
+<li><b>Generate token 3.</b> The model attends to the cached prompt through its own self-attention.</li>
+<li><b>Every token, to the end of the answer.</b> Total = prompt pass + answer tokens × per-token time; a decoder-only model pays its whole size for every token (compare the bars under the animation).</li>
+</ol>
 <p>The model gets the shape (9B-2B near 2B, far from 9B) but not every detail: measured, 2B-2B is <i>faster</i> than Gemma 2 2B (<span class="js" data-rc="fig4.2B-2B.ms"></span> against <span class="js" data-rc="fig4.2B.ms"></span> ms), which a per-token cost cannot explain; answer lengths, which the paper does not report, may differ.</p>
 </section>
+</div></div>
 
 <section id="s-abl"><h2>Ablations: the likely objections</h2>
 [[S6|§6 Discussion, Table 4]]
@@ -120,22 +161,12 @@
 
 <section id="s-t2"><h2>T5Gemma 2: the recipe on Gemma 3, with images and 128K</h2>
 [[B:S2|§1, §2, Table 1]]
-<p><b>T5Gemma 2</b> repeats the adaptation on Gemma 3 (270M, 1B, 4B) with UL2 and drops distillation: UL2 with and without it were within 0.4 points, not worth the data-loading overhead ({{§1|bx:S1}}, {{Table 3|bx:S3.T3}}). The block is Gemma 3's (GQA with QK-norm, RMSNorm, RoPE, local and global layers 5:1). It adds three things and tests a fourth ({{§2|bx:S2}}):</p>
+<p><b>T5Gemma 2</b> repeats the adaptation on Gemma 3 (270M, 1B, 4B) with UL2 and drops distillation: UL2 with and without it were within 0.4 points, not worth the data-loading overhead ({{§1|bx:S1}}, {{Table 3|bx:S3.T3}}). The block is Gemma 3's (GQA with QK-norm, RMSNorm, RoPE, local and global layers 5:1). It adds three things and tests a fourth, merged attention, which ships and has its own section below ({{§2|bx:S2}}):</p>
 <ul class="lst">
 <li><b>Images.</b> Gemma 3's frozen 400M SigLIP encoder turns an image into <b>256 tokens</b>, always fed to the encoder, so vision inherits bidirectional visibility for free ({{Figure 2|bx:S1.F2}}).</li>
 <li><b>Long context</b> by positional interpolation: pretrained at most <b>16K</b> long, evaluated to <b>128K</b>.</li>
 <li><b>Tied word embeddings</b> across encoder input, decoder input and decoder softmax, a return to T5's choice (the first T5Gemma had separate tables). On the 2B-2B ablation: "nearly no quality change" (47.8 to 47.7) for <b>10.5%</b> fewer parameters ({{Table 1|bx:S1.T1}}; recount 10.54%).</li>
-<li><b>Merged attention</b>: one module with shared weights does the decoder's self- and cross-attention at once, over the encoder output concatenated onto the decoder's input, with one softmax. It saves <b>6.5%</b> of parameters for about <b>0.3</b> points (recount: 368.1M, 6.58%) and makes the decoder a Gemma 3 decoder again, which eases initialisation.</li>
 </ul>
-<div class="fm"><div class="eq"><i>Q</i> = <i>X W<sub>q</sub></i> &nbsp; <i>K</i> = [<i>X</i>; <i>H</i>] <i>W<sub>k</sub></i> &nbsp; <i>V</i> = [<i>X</i>; <i>H</i>] <i>W<sub>v</sub></i> &nbsp; <i>A</i> = softmax(<i>QK</i><sup>⊤</sup>/√<i>d<sub>h</sub></i> ⊙ <i>M</i>) <i>V</i> &nbsp; <i>O</i> = <i>A W<sub>o</sub></i></div><div class="wh">Equations 1 to 5 ({{T5Gemma 2 §2|bx:S2.E1}}): <i>X</i> is the decoder's input, <i>H</i> the encoder's output, and the mask <i>M</i> is causal over decoder tokens and open over encoder tokens; "attention logits are also normalized jointly". In the Transformers code the cross part of the mask is never windowed and encoder keys get no rotary position ({{modeling_t5gemma2.py|https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5gemma2/modeling_t5gemma2.py}}).</div></div>
-<div class="pred" id="pr-merge" data-ans="1"><div class="q">in merged attention, decoder token 3 can see its 3 decoder tokens and 6 encoder tokens. How much attention weight, in total, can the encoder tokens receive?</div>
-<div class="opts"><button>Exactly 1, as in a separate cross-attention</button><button>Anything between 0 and 1: they share one softmax with the decoder tokens</button><button>Exactly 6/9, one share per visible token</button></div>
-<div class="fb"></div>
-<div class="reveal" hidden><p class="try"><b>Try:</b> real arithmetic on small random weights (seeded). The left grid is the mask <i>M</i>; pick a decoder row and compare the merged softmax with the two separate softmaxes of a standard decoder block. Change the temperature of the encoder side to see the shared mass move.</p>
-<div class="ctl"><label>Decoder row <b id="mgRv">3</b><input type="range" id="mgR" min="1" max="4" step="1" value="3"></label><label>Encoder relevance <b id="mgBv">0</b><input type="range" id="mgB" min="-3" max="3" step="0.5" value="0"></label><div><button id="mgNew">New random weights</button></div></div>
-<div id="mgx"></div>
-<div class="out" id="mgO"></div>
-<p class="small mute">Single head, <i>d</i> = 8, <i>d<sub>h</sub></i> = 4, <i>m</i> = 4 decoder tokens, <i>n</i> = 6 encoder tokens, entries drawn from a standard normal (Box-Muller, seeded). "Encoder relevance" adds a constant to every encoder logit, standing in for how well the query matches the input. Separate attention here reuses the same weights for its cross-attention (as the balanced T5Gemma recipe initialises it), normalises each softmax to 1 and adds the two outputs through two residual branches; merged attention has one distribution over all 9 visible tokens. Illustrative inputs; the equations are the paper's.</p></div></div>
 <p>One rejected variant: cross-attention only on global-attention layers cost <b>1.3 points</b> ({{Table 1|bx:S1.T1}}).</p>
 <details class="more"><summary>The rejected global-layers variant, recounted</summary><p>The paper describes it as "one cross-attention sub-layer every six decoder layers", an obvious saving. The recount says it was not one in six: its 4,233M parameters are exactly the baseline minus cross-attention on 13 of Gemma 2 2B's 26 layers, Gemma 2's one-in-two pattern (one in six would be 4,106M). All four ablations ran on Gemma 2 2B with PrefixLM and distillation for 400B tokens, not on the shipped Gemma 3 and UL2 setup.</p></details>
 <details class="more"><summary>Sizes, training setup, and why distillation was dropped</summary><p><b>Sizes</b> ({{Table 2|bx:S2.T2}}). With merged attention the decoder has exactly the encoder's weights, so each model is two copies of a Gemma 3 stack, one shared embedding and the vision encoder: 270M-270M is 417M + 168M + 100M + 100M, 1B-1B is 417M + 302M + 2 × 698M, 4B-4B is 417M + 675M + 2 × 3,209M. Recounted from Gemma 3's configs and checked against the released weights (786.0M, 2,116.0M and 7,508.9M parameters on Hugging Face).</p>
@@ -144,6 +175,32 @@
 </details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-mg"></div></div><div class="s3L">
+<section id="s-merge"><h2>Merged attention: one softmax over both</h2>
+[[B:S2|§2, Equations 1 to 5]]
+<p><b>Merged attention</b>: one module with shared weights does the decoder's self- and cross-attention at once, over the encoder output concatenated onto the decoder's input, with one softmax. It saves <b>6.5%</b> of parameters for about <b>0.3</b> points (recount: 368.1M, 6.58%) and makes the decoder a Gemma 3 decoder again, which eases initialisation.</p>
+<div class="fm"><div class="eq"><i>Q</i> = <i>X W<sub>q</sub></i> &nbsp; <i>K</i> = [<i>X</i>; <i>H</i>] <i>W<sub>k</sub></i> &nbsp; <i>V</i> = [<i>X</i>; <i>H</i>] <i>W<sub>v</sub></i><br><i>A</i> = softmax(<i>QK</i><sup>⊤</sup>/√<i>d<sub>h</sub></i> ⊙ <i>M</i>) <i>V</i> &nbsp; <i>O</i> = <i>A W<sub>o</sub></i></div><div class="wh">Equations 1 to 5 ({{T5Gemma 2 §2|bx:S2.E1}}): <i>X</i> is the decoder's input, <i>H</i> the encoder's output, and the mask <i>M</i> is causal over decoder tokens and open over encoder tokens; "attention logits are also normalized jointly". In the Transformers code the cross part of the mask is never windowed and encoder keys get no rotary position ({{modeling_t5gemma2.py|https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5gemma2/modeling_t5gemma2.py}}).</div></div>
+<div class="pred" id="pr-merge" data-ans="1"><div class="q">in merged attention, decoder token 3 can see its 3 decoder tokens and 6 encoder tokens. How much attention weight, in total, can the encoder tokens receive?</div>
+<div class="opts"><button>Exactly 1, as in a separate cross-attention</button><button>Anything between 0 and 1: they share one softmax with the decoder tokens</button><button>Exactly 6/9, one share per visible token</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p class="try"><b>Try:</b> real arithmetic on small random weights (seeded). The left grid is the mask <i>M</i>; pick a decoder row and compare the merged softmax with the two separate softmaxes of a standard decoder block. Change the temperature of the encoder side to see the shared mass move.</p>
+<div class="ctl"><label>Decoder row <b id="mgRv">3</b><input type="range" id="mgR" min="1" max="4" step="1" value="3"></label><label>Encoder relevance <b id="mgBv">0</b><input type="range" id="mgB" min="-3" max="3" step="0.5" value="0"></label><div><button id="mgNew">New random weights</button></div></div>
+<div id="mgx"></div>
+<div class="out" id="mgO"></div>
+<p class="small mute">Single head, <i>d</i> = 8, <i>d<sub>h</sub></i> = 4, <i>m</i> = 4 decoder tokens, <i>n</i> = 6 encoder tokens, entries drawn from a standard normal (Box-Muller, seeded). "Encoder relevance" adds a constant to every encoder logit, standing in for how well the query matches the input. Separate attention here reuses the same weights for its cross-attention (as the balanced T5Gemma recipe initialises it), normalises each softmax to 1 and adds the two outputs through two residual branches; merged attention has one distribution over all 9 visible tokens. Illustrative inputs; the equations are the paper's.</p></div></div>
+<ol class="sx" id="sx-mg">
+<li><b>Two kinds of input.</b> The decoder's own tokens <i>X</i> (4 here, each with a query and a key) and the encoder's output <i>H</i> (6 tokens: keys and values). Each vector is drawn as signed bars on a plinth; the plate on the floor is the mask, one row per decoder query, one column per key.</li>
+<li><b>Separate, first: self-attention.</b> In a standard decoder block (the first T5Gemma), decoder token 3's query scores only the decoder keys up to its own position (causal: the dark cells are masked) and normalises them with its own softmax, which sums to 1.</li>
+<li><b>Separate: cross-attention, a second softmax.</b> A second sub-layer scores the same query against all 6 encoder keys with its own softmax, which also sums to 1. The two outputs are added through two residual branches, so the encoder always gets a full share.</li>
+<li><b>Merge: one key set [<i>X</i>; <i>H</i>] and one mask.</b> T5Gemma 2 concatenates the encoder output onto the decoder's input and runs one module with shared weights: the two plates close into one mask <i>M</i>, causal over the decoder keys and open over the encoder keys.</li>
+<li><b>One softmax over all 9 visible keys.</b> The bars rescale into a single distribution: decoder and encoder keys now compete, and the encoder's total can be anything between 0 and 1. With this page's seeded weights, row 3 and relevance 0, it is 7.7%, against a full 1 in the separate block.</li>
+<li><b>One output.</b> Every visible value streams into the output <i>z</i> in proportion to its weight: one attention instead of two, with no cross-attention weights. The cosine compares it with the separate block's output on the same weights.</li>
+</ol>
+<p class="small mute">Fig. 2 follows the widget in the answer above: change its row, the encoder relevance or the weights and the stage redraws with them. Illustrative inputs; the equations are the paper's.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 <section id="s-t2res"><h2>T5Gemma 2 results: long context, images, tuning</h2>
 [[B:S4|§4, Tables 4 and 5]]
 <p><b>Long context is the strongest single result in the line</b> ({{Table 4|bx:S4.T4}}). Pretrained, T5Gemma 2 4B-4B scores <b>81.7</b> on RULER 32K against Gemma 3 4B's <b>66.8</b>, and 57.6 against 51.7 at 128K; 270M-270M scores <b>57.3</b> against Gemma 3 270M's 21.3, though pretrained only at 16K. The first T5Gemma (Gemma 2, 8K context) scores about 0.</p>
@@ -153,11 +210,14 @@
 <div class="reveal" hidden><div id="prLongChart"></div><p>Smaller: <b>+5.9</b> at 128K (MRCR: +2.9 at 32K, +2.0 at 128K). After post-training the 4B-4B is <b>behind</b> at RULER 128K (39.5 against 46.9) and the 1B-1B falls from 35.1 to 6.4 ({{Table 5|bx:S4.T5}}). The paper claims "consistently improved long-context performance (up to 128K)", true for pretrained models; the old summary's "advantage grows with context length" is not. And Gemma 3 270M and 1B have 32K windows ({{config|https://huggingface.co/unsloth/gemma-3-1b-pt/blob/main/config.json}}), so 128K is beyond them.</p></div></div>
 <p>The authors' explanation: encoder parameters are spent only on reading the input, bidirectionally, and cross-attention attends to "high-level representations of the input" ({{§4|bx:S4}}).</p>
 <p><b>Text-only models become multimodal.</b> Gemma 3 270M and 1B are text-only, yet with SigLIP in front of the encoder they score 35.1 and 49.8 on the multimodal average; the 1B-1B trails Gemma 3 4B by only <b>8.7</b> points (6.9 on long context) "despite being much smaller" ({{§4|bx:S4}}). Much smaller means about half, 2.12B parameters against 4.30B, not the old summary's "a quarter".</p>
-<p><b>Pretrained, comparable; post-trained, ahead.</b> Per capability, T5Gemma 2 minus Gemma 3 at the same size:</p>
-<div id="capChart" class="plot"></div>
-<p class="small mute">Category averages from {{Table 4|bx:S4.T4}} and {{Table 5|bx:S4.T5}}; Gemma 3 has multimodal scores only at 4B. Each T5Gemma 2 holds two copies of its source plus the vision encoder: <span class="js" data-rc="params.ratio_range_all"></span> times the parameters (text weights alone <span class="js" data-rc="params.ratio_range_text"></span>).</p>
+<p><b>Pretrained, comparable; post-trained, ahead.</b> Per capability, T5Gemma 2 minus Gemma 3 at the same size, in the chart beside this section.</p>
 <p>Pretrained, the two small models clearly beat their sources and 4B-4B is on par (−1.6 on reasoning, +0.4 to +6.4 elsewhere); after the light post-training T5Gemma 2 leads in every category ({{§4|bx:S4}}). EmbeddingGemma comes from this line: its paper adapts a 300M Gemma 3 with the T5Gemma recipe and UL2 and initialises from that encoder ({{EmbeddingGemma §2|https://arxiv.org/abs/2509.20354}}); the T5Gemma 2 paper calls it a user of its checkpoints ({{§5|bx:S5}}).</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="small" style="margin:0 0 6px"><b>Post-trained, T5Gemma 2 leads in every category; pretrained, the 4B-4B is on par</b></p>
+<div id="capChart" class="plot"></div>
+<p class="small mute">Category averages from {{Table 4|bx:S4.T4}} and {{Table 5|bx:S4.T5}}; Gemma 3 has multimodal scores only at 4B. Each T5Gemma 2 holds two copies of its source plus the vision encoder: <span class="js" data-rc="params.ratio_range_all"></span> times the parameters (text weights alone <span class="js" data-rc="params.ratio_range_text"></span>).</p>
+</div></div></div></div>
 
 <section id="s-believe"><h2>How much of this to believe</h2>
 <p><b>What holds up.</b></p>

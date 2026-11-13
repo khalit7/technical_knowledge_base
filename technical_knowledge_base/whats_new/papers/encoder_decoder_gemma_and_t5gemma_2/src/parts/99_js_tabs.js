@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page template; storage key t5g-tab; a data-to link scrolls to its target and opens the closed block that holds it)
+// ---- Tabs ---- (the explainer-page template; storage key t5g-tab; a data-to link scrolls to its target and also opens the closed block that holds it, a page addition)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
