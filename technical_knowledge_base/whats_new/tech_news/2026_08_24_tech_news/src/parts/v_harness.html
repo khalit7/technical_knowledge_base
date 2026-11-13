@@ -1,14 +1,55 @@
-<div class="viz" id="v-harness">
-<h3>The harness, two ways: one task, the same model, three wrappers</h3>
-<p class="lede">The same long task run three times, one square per agent turn, drawn to the same scale. <b>Model alone</b> keeps its plan only in its context. <b>StateM</b> puts a runbook (a state machine of phases) and a durable record outside the model, and checks every transition. <b>AVO</b> keeps a persistent memory outside the model and adds a supervisor that watches for stalls. Play one, then switch and watch where the runs part.</p>
-<p class="ill">Illustrative scenario: the task, the turn counts and the moment of each event are invented to show the mechanisms. The mechanisms (and the four failure modes the "model alone" run hits) are the ones the StateM paper and Nvidia's AVO post describe; the real scores are in the panel below.</p>
-<div class="an-top"><div class="seg" id="hsM"><button class="on" data-m="alone" aria-pressed="true">Model alone</button><button data-m="statem" aria-pressed="false">StateM runbook</button><button data-m="avo" aria-pressed="false">AVO: memory + supervisor</button></div></div>
-<div class="an-svg" id="hsSvg"></div>
-<div class="an-ctl"><button id="hsPlay" class="an-play">▶ Play</button><button id="hsBack" aria-label="Previous step">◀ Step</button><button id="hsFwd" aria-label="Next step">Step ▶</button><input type="range" id="hsScrub" min="0" max="700" value="0" aria-label="Scrub"><select id="hsSpd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
-<div class="an-cap"><div class="t" id="hsStep"></div><p id="hsCap"></p></div>
-<div class="an-cnt hs-cnt" id="hsCnt"></div>
-<h3 style="margin-top:16px">What the real runs measured</h3>
+<!--L-->
+<!--R-->
+<div class="s3side">
+<div class="viz" id="v-hs-real">
+<h3>What the real runs measured</h3>
 <p class="lede">Each panel is one benchmark, so bars are only compared within a panel. Grey is the model without the harness (the reference the authors compare against), blue is with it.</p>
 <div class="pairs" id="hsPairs"></div>
 <p class="small mute">Sources: {{StateM, arXiv 2608.15089|https://arxiv.org/abs/2608.15089}} (abstract and pp. 1, 4: Terminal-Bench 2.1 means over 5 trials, 89 tasks); {{Nvidia's AVO post|https://developer.nvidia.com/blog/nvidia-avo-reaches-100-on-arc-agi-3-demonstrating-a-frontier-level-general-purpose-architecture-for-long-horizon-autonomous-agents/}} and {{TechCrunch|https://techcrunch.com/2026/08/21/nvidia-just-showed-that-the-harness-not-the-ai-model-is-now-the-real-hero/}}. The defaults reproduce the papers' own figures by construction (they are read, not recomputed); the ratios (38.9x, 12%) are recomputed in <code>src/recompute.py</code>.</p>
+</div>
+</div>
+<!--A-->
+<div class="s3sp" id="sp-harness-run">
+<div class="s3R"><div class="s3side">
+<div class="viz" id="v-harness">
+<h3>The harness, two ways: one task, the same model, three wrappers</h3>
+<div class="an-top"><div class="seg" id="hsM"><button class="on" data-m="alone" aria-pressed="true">Model alone</button><button data-m="statem" aria-pressed="false">StateM runbook</button><button data-m="avo" aria-pressed="false">AVO: memory + supervisor</button></div></div>
+<div class="an-svg" id="hsSvg"></div>
+<div class="an-ctl" id="hsCtl"></div>
+<div class="an-cnt hs-cnt" id="hsCnt"></div>
+</div>
+</div></div>
+<div class="s3L">
+<h3 class="vz-h">The mechanism: one task, the same model, three wrappers</h3>
+<p class="vz-l">The same long task run three times, one square per agent turn, drawn to the same scale. <b>Model alone</b> keeps its plan only in its context. <b>StateM</b> puts a runbook (a state machine of phases) and a durable record outside the model, and checks every transition. <b>AVO</b> keeps a persistent memory outside the model and adds a supervisor that watches for stalls. It plays by itself once in view; the steps below say what each stretch of turns shows. Then switch wrapper (the buttons above the chart) and watch where the runs part.</p>
+<p class="ill">Illustrative scenario: the task, the turn counts and the moment of each event are invented to show the mechanisms. The mechanisms (and the four failure modes the "model alone" run hits) are the ones the StateM paper and Nvidia's AVO post describe; the real scores are in "What the real runs measured", beside the item above.</p>
+<p class="sxh">Step by step</p>
+<ol class="sx" id="sx-hs-alone">
+<li><b>Turns 1 to 2: the plan goes into the context.</b> The agent reads the task and writes a plan. With no control layer, that plan is text near the top of its context window, and that is the only place it exists.</li>
+<li><b>Turns 3 to 6: work.</b> The agent edits files and runs commands. Every turn appends tool output to the context.</li>
+<li><b>Turns 7 to 8: the plan recedes.</b> The plan is now a small, old part of a long context. The StateM paper names this pressure: "the control signal carried by a plan can weaken as the trace grows".</li>
+<li><b>Turns 9 to 11: the context is compacted.</b> To stay inside the window, the history is summarised. Which files had already been changed was in the dropped detail, so the agent spends three turns rediscovering its own progress. Failure mode 1: losing track of mutable state.</li>
+<li><b>Turns 12 to 14: a dead end, again.</b> The agent tries an approach that failed in an earlier run. Nothing carried that lesson across runs, so it is repeated. Failure mode 2: failing to reactivate lessons from earlier executions (the paper's "procedural-memory gap").</li>
+<li><b>Turn 15: "done".</b> The agent declares the task complete without running the project's tests. Failure modes 3 and 4: skipping a known procedure and stopping prematurely. Its own declaration is the only check, and "an agent's declaration of completion does not constitute independent verification".</li>
+<li><b>Result: the hidden test fails.</b> 15 turns, 6 of them redone or repeated, and nothing other than the model ever checked the work. Same model in the other two runs; switch to StateM or AVO.</li>
+</ol>
+<ol class="sx" id="sx-hs-statem" hidden>
+<li><b>Enter Plan: the in_hook loads the phase.</b> The runtime, not the model, holds the current state. Entering Plan injects that phase's instructions and the durable progress record. The agent plans, then asks for <code>goto Execute</code>: the runtime checks the edge exists, runs the before_transfer checks, persists the plan (out_hook), logs the transition, then runs Execute's in_hook.</li>
+<li><b>Inside Execute: free to work.</b> Within a state the agent keeps its full autonomy: it reasons, calls tools, edits files and iterates. StateM controls the phases, not the micro-actions.</li>
+<li><b>The phase stays recent.</b> The context grows as before, but the current phase and its obligations were injected when the state was entered, so they are recent rather than buried at the top.</li>
+<li><b>Compaction: ask the runtime where we are.</b> After the same compaction, the agent queries StateM for its current state, prior transitions and recorded evidence, and resumes in one turn. Recovery restores the recorded control state; it cannot restore hidden model context or work that was never persisted.</li>
+<li><b>A lesson from an earlier run activates.</b> A finding from an earlier run's postmortem was promoted into the runbook as a versioned practice, so it fires at this phase as a precondition, and the dead end is skipped. (The specific practice here is illustrative.)</li>
+<li><b>goto Verify: a test fails, the run goes to Repair.</b> Verify runs the tests as a command check, evaluated by the host and reproducible. They fail, so the move to Handoff is blocked; the runbook's edge routes the run to Repair, and Verify passes on the second try. The failure stays visible in the history instead of propagating.</li>
+<li><b>goto Handoff: completion recorded at a terminal state.</b> The before_transfer checks pass and completion is recorded only now, at the terminal state. 20 turns: more than the model alone used, but none redone, 4 host checks, 1 problem caught before handoff.</li>
+</ol>
+<ol class="sx" id="sx-hs-avo" hidden>
+<li><b>Plan, with a memory outside the context.</b> The main agent inspects the task and plans. Beside it sits a persistent memory, outside the model's context, and a supervisor that watches the whole trajectory.</li>
+<li><b>Implement, then evaluate by running it.</b> Like other coding agents it edits code, runs commands and validates its work through execution: the feedback comes from tests, compilers and profilers, not from the model's opinion.</li>
+<li><b>Every result is kept.</b> Persistent memory carries prior implementations, evaluation results, compiler and profiler outputs and accumulated reasoning forward (Nvidia's list).</li>
+<li><b>Compaction: resume from memory.</b> After the same compaction the agent reads its memory and resumes "from the current state rather than repeatedly reconstructing the search".</li>
+<li><b>Going round in circles: the supervisor steps in.</b> The agent starts re-exploring a path it already tried. The supervisor "monitors the broader trajectory for stagnation or repeated unproductive cycles and can redirect the main agent toward alternative strategies". Nvidia's El Hallak: it nudges the agent when it "starts exploring a path that it might lead to a dead end, or re-explore a path that it had previously trod".</li>
+<li><b>Evaluation catches a regression.</b> An evaluation fails and the agent revises; the result goes to memory like every other.</li>
+<li><b>Result: passes.</b> 19 turns, 2 of them a repeated path that the supervisor cut short, 4 evaluations run by executing the work. Nvidia stresses that its own experiment "does not isolate" the memory's contribution: this is the mechanism, not a measured effect.</li>
+</ol>
+</div>
 </div>

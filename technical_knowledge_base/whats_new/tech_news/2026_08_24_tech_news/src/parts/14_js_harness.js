@@ -1,7 +1,6 @@
 // ---- The harness, two ways: one illustrative long task run as model alone, inside StateM, inside AVO ----
 (function(){
   const card=$('v-harness');if(!card)return;
-  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const T=(k,node)=>({k,node});
   // Turn kinds. Counted: waste = lost + repeat; checks = chk + chkf (run by the host, not the model); caught = chkf
   const KIND={plan:['var(--c1)','plan written'],work:['var(--c3)','work (edit, run, read)'],lost:['var(--bad)','redone after losing track'],repeat:['var(--c7)','a known dead end, repeated'],
@@ -9,32 +8,32 @@
     repair:['var(--c4)','repair'],sup:['var(--c2)','supervisor redirects'],stop:['var(--bad)','declares "done" with no check'],done:['var(--ink)','handoff or result recorded']};
   const M={
    alone:{name:'Model alone',nodes:null,steps:[
-    {t:'Turns 1 to 2: the plan goes into the context',c:'The agent reads the task and writes a plan. With no control layer, that plan is text near the top of its context window, and that is the only place it exists.',turns:[T('plan'),T('plan')]},
-    {t:'Turns 3 to 6: work',c:'The agent edits files and runs commands. Every turn appends tool output to the context.',turns:[T('work'),T('work'),T('work'),T('work')]},
-    {t:'Turns 7 to 8: the plan recedes',c:'The plan is now a small, old part of a long context. The StateM paper names this pressure: "the control signal carried by a plan can weaken as the trace grows".',turns:[T('work'),T('work')]},
-    {t:'Turns 9 to 11: the context is compacted',c:'To stay inside the window, the history is summarised. Which files had already been changed was in the dropped detail, so the agent spends three turns rediscovering its own progress. Failure mode 1: losing track of mutable state.',turns:[T('lost'),T('lost'),T('lost')],compact:true},
-    {t:'Turns 12 to 14: a dead end, again',c:'The agent tries an approach that failed in an earlier run. Nothing carried that lesson across runs, so it is repeated. Failure mode 2: failing to reactivate lessons from earlier executions (the paper\'s "procedural-memory gap").',turns:[T('repeat'),T('repeat'),T('repeat')]},
-    {t:'Turn 15: "done"',c:'The agent declares the task complete without running the project\'s tests. Failure modes 3 and 4: skipping a known procedure and stopping prematurely. Its own declaration is the only check, and "an agent\'s declaration of completion does not constitute independent verification".',turns:[T('stop')]},
-    {t:'Result: the hidden test fails',c:'15 turns, 6 of them redone or repeated, and nothing other than the model ever checked the work. Same model in the other two runs; switch to StateM or AVO.',turns:[]}]},
+    {turns:[T('plan'),T('plan')]},
+    {turns:[T('work'),T('work'),T('work'),T('work')]},
+    {turns:[T('work'),T('work')]},
+    {turns:[T('lost'),T('lost'),T('lost')],compact:true},
+    {turns:[T('repeat'),T('repeat'),T('repeat')]},
+    {turns:[T('stop')]},
+    {turns:[]}]},
    statem:{name:'StateM runbook',nodes:['Plan','Execute','Verify','Handoff','Repair'],steps:[
-    {t:'Enter Plan: the in_hook loads the phase',c:'The runtime, not the model, holds the current state. Entering Plan injects that phase\'s instructions and the durable progress record. The agent plans, then asks for <code>goto Execute</code>: the runtime checks the edge exists, runs the before_transfer checks, persists the plan (out_hook), logs the transition, then runs Execute\'s in_hook.',turns:[T('hook','Plan'),T('plan','Plan'),T('plan','Plan'),T('chk','Plan')],store:['record: state Plan, entry 1','receipt: plan.md saved','logged: Plan to Execute']},
-    {t:'Inside Execute: free to work',c:'Within a state the agent keeps its full autonomy: it reasons, calls tools, edits files and iterates. StateM controls the phases, not the micro-actions.',turns:[T('hook','Execute'),T('work','Execute'),T('work','Execute'),T('work','Execute'),T('work','Execute')],store:['record: state Execute, entry 2']},
-    {t:'The phase stays recent',c:'The context grows as before, but the current phase and its obligations were injected when the state was entered, so they are recent rather than buried at the top.',turns:[T('work','Execute'),T('work','Execute')],store:['receipt: files changed']},
-    {t:'Compaction: ask the runtime where we are',c:'After the same compaction, the agent queries StateM for its current state, prior transitions and recorded evidence, and resumes in one turn. Recovery restores the recorded control state; it cannot restore hidden model context or work that was never persisted.',turns:[T('hook','Execute')],compact:true,store:['query: Execute, 3 files done']},
-    {t:'A lesson from an earlier run activates',c:'A finding from an earlier run\'s postmortem was promoted into the runbook as a versioned practice, so it fires at this phase as a precondition, and the dead end is skipped. (The specific practice here is illustrative.)',turns:[T('hook','Execute'),T('work','Execute')],store:['practice v3: skip approach B']},
-    {t:'goto Verify: a test fails, the run goes to Repair',c:'Verify runs the tests as a command check, evaluated by the host and reproducible. They fail, so the move to Handoff is blocked; the runbook\'s edge routes the run to Repair, and Verify passes on the second try. The failure stays visible in the history instead of propagating.',turns:[T('chkf','Verify'),T('repair','Repair'),T('repair','Repair'),T('chk','Verify')],store:['check: tests failed (logged)','transition Verify to Repair','check: tests passed']},
-    {t:'goto Handoff: completion recorded at a terminal state',c:'The before_transfer checks pass and completion is recorded only now, at the terminal state. 20 turns: more than the model alone used, but none redone, 4 host checks, 1 problem caught before handoff.',turns:[T('chk','Handoff'),T('done','Handoff')],store:['terminal: Handoff, complete']}]},
+    {turns:[T('hook','Plan'),T('plan','Plan'),T('plan','Plan'),T('chk','Plan')],store:['record: state Plan, entry 1','receipt: plan.md saved','logged: Plan to Execute']},
+    {turns:[T('hook','Execute'),T('work','Execute'),T('work','Execute'),T('work','Execute'),T('work','Execute')],store:['record: state Execute, entry 2']},
+    {turns:[T('work','Execute'),T('work','Execute')],store:['receipt: files changed']},
+    {turns:[T('hook','Execute')],compact:true,store:['query: Execute, 3 files done']},
+    {turns:[T('hook','Execute'),T('work','Execute')],store:['practice v3: skip approach B']},
+    {turns:[T('chkf','Verify'),T('repair','Repair'),T('repair','Repair'),T('chk','Verify')],store:['check: tests failed (logged)','transition Verify to Repair','check: tests passed']},
+    {turns:[T('chk','Handoff'),T('done','Handoff')],store:['terminal: Handoff, complete']}]},
    avo:{name:'AVO: memory + supervisor',nodes:['Inspect','Plan','Implement','Evaluate','Supervisor'],steps:[
-    {t:'Plan, with a memory outside the context',c:'The main agent inspects the task and plans. Beside it sits a persistent memory, outside the model\'s context, and a supervisor that watches the whole trajectory.',turns:[T('plan','Plan'),T('hook','Inspect')],store:['memory: (empty)']},
-    {t:'Implement, then evaluate by running it',c:'Like other coding agents it edits code, runs commands and validates its work through execution: the feedback comes from tests, compilers and profilers, not from the model\'s opinion.',turns:[T('work','Implement'),T('work','Implement'),T('work','Implement'),T('chk','Evaluate')],store:['memory: try 1 + test output']},
-    {t:'Every result is kept',c:'Persistent memory carries prior implementations, evaluation results, compiler and profiler outputs and accumulated reasoning forward (Nvidia\'s list).',turns:[T('work','Implement'),T('work','Implement'),T('chk','Evaluate')],store:['memory: try 2 + profiler']},
-    {t:'Compaction: resume from memory',c:'After the same compaction the agent reads its memory and resumes "from the current state rather than repeatedly reconstructing the search".',turns:[T('hook','Inspect')],compact:true,store:['read: tries 1 to 2, results']},
-    {t:'Going round in circles: the supervisor steps in',c:'The agent starts re-exploring a path it already tried. The supervisor "monitors the broader trajectory for stagnation or repeated unproductive cycles and can redirect the main agent toward alternative strategies". Nvidia\'s El Hallak: it nudges the agent when it "starts exploring a path that it might lead to a dead end, or re-explore a path that it had previously trod".',turns:[T('repeat','Implement'),T('repeat','Implement'),T('sup','Supervisor'),T('work','Implement'),T('work','Implement')],store:['supervisor: loop, redirect']},
-    {t:'Evaluation catches a regression',c:'An evaluation fails and the agent revises; the result goes to memory like every other.',turns:[T('chkf','Evaluate'),T('work','Implement')],store:['memory: try 3 failed tests']},
-    {t:'Result: passes',c:'19 turns, 2 of them a repeated path that the supervisor cut short, 4 evaluations run by executing the work. Nvidia stresses that its own experiment "does not isolate" the memory\'s contribution: this is the mechanism, not a measured effect.',turns:[T('chk','Evaluate'),T('done','Evaluate')],store:['result recorded']}]}
+    {turns:[T('plan','Plan'),T('hook','Inspect')],store:['memory: (empty)']},
+    {turns:[T('work','Implement'),T('work','Implement'),T('work','Implement'),T('chk','Evaluate')],store:['memory: try 1 + test output']},
+    {turns:[T('work','Implement'),T('work','Implement'),T('chk','Evaluate')],store:['memory: try 2 + profiler']},
+    {turns:[T('hook','Inspect')],compact:true,store:['read: tries 1 to 2, results']},
+    {turns:[T('repeat','Implement'),T('repeat','Implement'),T('sup','Supervisor'),T('work','Implement'),T('work','Implement')],store:['supervisor: loop, redirect']},
+    {turns:[T('chkf','Evaluate'),T('work','Implement')],store:['memory: try 3 failed tests']},
+    {turns:[T('chk','Evaluate'),T('done','Evaluate')],store:['result recorded']}]}
   };
-  const st={m:'alone',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
-  const DURT=650; // ms per turn at 1x
+  const st={m:'alone',k:0,t:1,raf:0};
+  const DURT=650; // ms per turn at 1x: the turns of a step appear one by one while it plays
   const cl=v=>v<0?0:v>1?1:v;
   const nT=s=>Math.max(2,s.turns.length);
   function shown(){ // turns visible so far, and store lines so far
@@ -95,31 +94,21 @@
       else{const L=store.slice(-6);L.forEach((l,i)=>{s+='<text x="'+(x0+10)+'" y="'+(y0+38+i*17)+'" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="'+(i===L.length-1?'var(--ink)':'var(--mute)')+'">'+l.replace(/&/g,'&amp;')+'</text>'})}}
     const H=narrow?py(2)+ph+6:y+ph+6;
     $('hsSvg').innerHTML=svgEl(W,H,s,'Agent run, '+mode.name);
-    if(st.lk!==st.k||st.lm!==st.m){$('hsStep').textContent=mode.name+', step '+(st.k+1)+' of '+S.length+': '+S[st.k].t;$('hsCap').innerHTML=S[st.k].c;st.lk=st.k;st.lm=st.m}
     const waste=out.filter(u=>u.k==='lost'||u.k==='repeat').length,checks=out.filter(u=>u.k==='chk'||u.k==='chkf').length,caught=out.filter(u=>u.k==='chkf').length;
     const end=st.k===S.length-1&&st.t>=1;const outcome=end?(st.m==='alone'?'fails the hidden test':'passes'):(out.some(u=>u.k==='stop')?'declared done':'running');
     $('hsCnt').innerHTML=stat('Turns used',fmt(out.length),'illustrative')+stat('Redone or repeated',fmt(waste),'turns')+stat('Checks run outside the model',fmt(checks),st.m==='avo'?'evaluations by execution':st.m==='statem'?'host-evaluated':'none in this run')+stat('Problems caught before the end',fmt(caught),'')+stat('Outcome',outcome,'');
-    const sc=$('hsScrub');sc.max=S.length*100;sc.value=Math.round((st.k+st.t)*100);
-    const pb=$('hsPlay');pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
   }
-  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    const S=M[st.m].steps;st.t+=dt*st.spd/(DURT*nT(S[st.k]));if(st.t>=1){if(st.k<S.length-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
-  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('hsPlay').addEventListener('click',()=>{const S=M[st.m].steps;if(st.play){pause()}else{if(st.k===S.length-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<S.length-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('hsFwd').addEventListener('click',()=>{pause();st.k=Math.min(M[st.m].steps.length-1,st.k+(st.t>=1?1:0));st.t=1;draw()});
-  $('hsBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('hsScrub').addEventListener('input',e=>{pause();const v=+e.target.value,S=M[st.m].steps;st.k=Math.min(S.length-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=S.length*100)st.t=1;draw()});
-  $('hsSpd').addEventListener('change',e=>{st.spd=+e.target.value});
+  // the controller: RD.anim (template) with the step lists on the left (one list per wrapper); a step reached by moving forward
+  // draws its turns one by one, any other jump draws it whole
+  function tween(){cancelAnimationFrame(st.raf);st.raf=0;const S=M[st.m].steps,dur=DURT*nT(S[st.k]);let t0=0;
+    const f=now=>{if(!t0)t0=now;st.t=cl((now-t0)/dur);card.dataset.frames=(+card.dataset.frames||0)+1;draw();st.raf=st.t<1?requestAnimationFrame(f):0};st.raf=requestAnimationFrame(f)}
+  const anim=RD.anim({card:'v-harness',ctl:'hsCtl',n:M.alone.steps.length,list:'sx-hs-alone',ms:5600,label:'Step of the run',
+    draw:i=>{st.k=i;if(card.classList.contains('rd-fwd')&&!RD.RM){st.t=0;draw();tween()}else{cancelAnimationFrame(st.raf);st.raf=0;st.t=1;draw()}}});
   const seg=$('hsM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
+    st.m=b.dataset.m;document.querySelectorAll('ol[id^="sx-hs-"]').forEach(o=>o.hidden=o.id!=='sx-hs-'+st.m);anim.reset(M[st.m].steps.length,'sx-hs-'+st.m)}));
   let rw=card.clientWidth;addEventListener('resize',()=>{const w=card.clientWidth;if(w&&w!==rw){rw=w;draw()}});
-  onTab(card.closest('.tab').id,()=>{draw();kick()});
-  draw();
+  onTab(card.closest('.tab').id,()=>anim.redraw());
+  window.TN_HS={anim,M,st}; // read by src/check_stages.mjs
 
   // ---- What the real runs measured: pairs per benchmark, never across benchmarks ----
   const P=[

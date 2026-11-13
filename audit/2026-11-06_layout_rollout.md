@@ -307,9 +307,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/vit` An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
 - [x] `whats_new/papers/wsm` WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training
 - [x] `whats_new/papers/zero` ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
-- [~] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
+- [x] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
 - [~] `whats_new/tech_news/2026_08_31_tech_news` 2026-08-31: tech news
-- [ ] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
+- [~] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
 - [ ] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
 - [ ] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
 - [ ] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
@@ -601,6 +601,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/vit`: Fig. 1 step 4 is a thin token row with much empty space, cut at the right edge (raise the camera or set aspect); Run tab tools and the Tables tab stay full width (tool and table exceptions).
 - `whats_new/papers/wsm`: Fig. 1 step 4 the "merge weights c" label is cut at the left edge and the loss bar labels sit close; Fig. 1 small on phones (value labels hidden); Tables tab stays full width (table-tab exception).
 - `whats_new/papers/zero`: Fig. 1 step 3 is busy (faded rows behind, the "V100 . 32 GB" label at the left edge); mk_coverage 52 of 53 (the Notion Takeaway text has a comma the card lacks; pre-existing).
+- `whats_new/tech_news/2026_08_24_tech_news`: DiffusionGemma stage step 3 the autoregressive lane is cut at the left edge; tab leads still say "below" for visuals now beside their items.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -753,3 +754,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - ViT: the 3D hero runs the shipped toy on the demo image (projection step uses the most-inked patch, 24); the ViT-against-ResNet stage moved from Method to Inductive bias, ResNet steps grouped 9 to 6; Problem stays full width (its explorer would give the answer); header 24 min counts the hidden ResNet list (one pass about 22). Keep?
 - WSM: Fig. 1 mixes the toy (steps 1 to 5) with Ling-mini's scores (step 6, bars measured from 58, labelled); it uses 16 checkpoints (the paper's Figure 2 uses ten, named in step 3); the 2D river-valley toggle became one 3D surface with both branches. Keep?
 - ZeRO: header 28 min counts the three hidden step-through comparison lists (one comparison about 24); no second stage for the trillion-parameter layout (one division; Megatron-LM's Fig. 3 draws such a cluster); the 32 GB plane is purple (orange is gradients); the step-through opens on DDP vs ZeRO-3 at N_d = 4. Keep?
+- Tech news 2026-08-24: the template tabs now remember the last tab (before, the page always opened At a glance); #v-diff now points at the stage's left-column text; full-width item cards capped at 60em; the "What the real runs measured" panel moved beside the harness item, above its animation; mk_issue.py builds the splits from markers in v_ parts (pattern for the later issues). Keep?
