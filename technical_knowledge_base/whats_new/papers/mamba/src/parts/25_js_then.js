@@ -1,20 +1,9 @@
 // ---- Then and now: layer stacks from the configs, KV cache against state ----
 (function(){
   const HY=PAPER.rc.hybrids,COLS={A:'var(--c2)',m:'var(--c1)',M:'var(--c3)',F:'var(--dim)',E:'var(--c5)',P:'var(--c2)'};
-  const SRC=r=>A('https://huggingface.co/'+r.src+'/blob/main/config.json',r.src);
-  const CAP=[
-    'The baseline Mamba is measured against, released by the authors with Mamba-2: every layer is attention plus MLP, so the cache grows by 320 KiB with every token and there is no fixed state.',
-    'The paper\'s model: 64 identical Mamba blocks, no attention and no MLP. Nothing grows with the sequence; the 11.9 MiB state is all there is.',
-    'Mamba-2 («Dao and Gu, May 2024|https://arxiv.org/abs/2405.21060»): <b>A</b> becomes a scalar per head so the scan turns into matrix multiplications (state space duality, 2 to 8 times faster), and the state size <i>N</i> grows eightfold, to 128, which costs memory per sequence.',
-    'The authors\' own hybrid from the same release: 6 of 64 layers are attention. The cache is 28% of a Transformer\'s per token; the state stays.',
-    'Jamba («AI21, March 2024|https://arxiv.org/abs/2403.19887»): Mamba-1 layers with one attention layer in eight, and a 16-expert MoE (top 2) in every other layer; 52B parameters, 12B active, contexts up to 256K. Its cache per token is a twentieth of the 2.7B Transformer\'s at about 20 times the size.',
-    'Nemotron-H 8B («NVIDIA, April 2025|https://arxiv.org/abs/2504.03624»): 24 Mamba-2 layers, 24 MLPs and only 4 attention layers spread evenly, close to the hybrid NVIDIA\'s 8B study chose (24 Mamba-2, 4 attention, 28 MLP; «Waleffe et al., 2024|https://arxiv.org/abs/2406.07887»); reported up to 3 times faster at inference than similar Transformers at similar accuracy.',
-    'Granite 4.0-H-Small (IBM, 2025, Apache 2.0): 36 Mamba-2 to 4 attention layers (9 to 1), every mixer followed by a 72-expert MoE (top 10), and no positional encoding at all in its attention layers.',
-    'Falcon-H1 7B («TII, July 2025|https://arxiv.org/abs/2507.22448»): a parallel hybrid, attention and Mamba-2 heads side by side in every layer. It keeps a cache in all 44 layers (with only 2 KV heads) and a state in all 44.',
-    'Nemotron 3 Nano (NVIDIA, December 2025, as dated in the «LLM Architecture Gallery|https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a»): 23 Mamba-2 layers, 23 MoE layers (128 experts, 6 active) and 6 attention layers with 2 KV heads: 6 KiB of cache per token, 2% of the 2.7B Transformer\'s.'];
-  const steps=HY.map((h,i)=>({t:h.name,c:CAP[i].replace(/«([^|»]+)\|([^»]+)»/g,(m,t,u)=>A(u,t))+' Source: '+SRC(h)+'.'}));
+  const steps=HY.map(h=>({t:h.name}));
   const ctx128=131072;
-  makeAnim({id:'thn',mode:'x',modes:{x:steps},dur:2600,
+  makeAnim({id:'thn',mode:'x',modes:{x:steps},lists:{x:'sx-thn'},dur:2600,
     draw(m,k,e,W){const h=HY[k],p=h.pattern,prev=k?HY[k-1].pattern:'',per=W<500?26:44,cs=Math.min(16,(W-8)/per),rows=Math.ceil(p.length/per);let s='';
       for(let i=0;i<p.length;i++){const r=Math.floor(i/per),c=i%per,x=4+c*cs,y=6+r*(cs+6),ch=p[i],was=prev[i]===ch;const op=was?1:e;
         if(ch==='P')s+=G(op,rc(x+.5,y,cs-1,cs/2,COLS.A,{r:1})+rc(x+.5,y+cs/2,cs-1,cs/2,COLS.M,{r:1}));else s+=G(op,rc(x+.5,y,cs-1,cs,COLS[ch],{r:2}))}

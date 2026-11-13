@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page template; storage key mb-tab; a data-to link opens the closed block that holds its target)
+// ---- Tabs ---- (the skill template, storage key mb-tab; a data-to link opens the closed block that holds its target)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

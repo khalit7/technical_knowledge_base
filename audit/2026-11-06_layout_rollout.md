@@ -272,9 +272,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
 - [x] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
 - [x] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
-- [~] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
+- [x] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 - [~] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
-- [ ] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
+- [~] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
 - [ ] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
 - [ ] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
 - [ ] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
@@ -565,6 +565,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/llama_3_herd`: Fig. 1 sits slightly high in its card on phones; Fig. 2 plates small on phones.
 - `whats_new/papers/llm_modules`: Run tab widgets stay full width (tool-tab exception); Fig. 2 at 1400 the "frozen-model states" label sits close to the "bos" column label.
 - `whats_new/papers/lora`: Fig. 4 close-up steps cut the neighbouring phi grids at the card edges; Train tab's two small sweep charts and the Tables tab stay full width (tool and table exceptions).
+- `whats_new/papers/mamba`: check_forward.py not rerun (torch not in the offline uv cache; node shows identical logits on 40 sequences); stage side labels hide on phones by design.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -682,3 +683,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Llama 3 Herd: Fig. 1 stretches heights 4x in steps 1 and 2 (one valley spans 0.02 of loss; stated, true scale from step 3); Fig. 2 reward-model scores are seeded illustrative draws (labelled); the 54-day replay is a widget opening on the whole run; Post-training data is its own h2 section (not in the section nav). Keep?
 - LLM Modules: corrected the leak animation's last step, which showed the released model right at "=" on the true prefix; it now shows the first position where free-running output departs from the trace ("T": 16 instead of 2), both traces quoted and checked. Keep?
 - LoRA: links the PEFT page's Fig. 2 (LoRA on a real SmolLM2 matrix) and builds only a LoRA trained against a known true update on the toy; Fig. 4 shows the default task and matrix only (the Train tab keeps every task); the Figure 2 chart now sits beside the Results bullets after its predict question. Keep?
+- Mamba: stage headers unnumbered (numbering would clash with the paper's own Figure 2); the selection stage scales state cells per position (as the old heat map did); the paper's Figure 1 image stays the hero; Then and now links Beyond attention's Fig. 5 instead of a 3D rebuild; build.sh now finds the repo root by relative path instead of git. Keep?

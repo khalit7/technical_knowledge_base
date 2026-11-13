@@ -21,7 +21,7 @@
   function logits(M,h){const P=M.P,hf=rms(h,P['nf.weight']);return mv(P['emb.weight'],hf,M.V,D)}
   // A recurrent Mamba state: per layer the SSM state and the conv buffer.
   function mstate(){const S=[];for(let l=0;l<NL;l++)S.push({h:new Float64Array(DI*N),buf:new Float64Array((KC-1)*DI)});return S}
-  // One token through the model; returns the residual stream, and per layer the mean Delta and (if want) the state.
+  // One token through the model; returns the residual stream, and per layer (if want) Delta, its mean, the state, the selective B_t and C_t (null in an LTI layer) and the conv output x.
   function mstep(M,S,tok,want){const P=M.P,sel=M.kind==='s6';let h=P['emb.weight'].slice(tok*D,tok*D+D);const info=[];
     for(let l=0;l<NL;l++){const p='blocks.'+l+'.',st=S[l],u=rms(h,P['norms.'+l+'.weight']);
       const xz=mv(P[p+'in_proj.weight'],u,2*DI,D),cw=P[p+'conv.weight'],cb=P[p+'conv.bias'],x=new Float64Array(DI);
@@ -36,7 +36,7 @@
           const hv=Math.exp(dl[c]*A[o+n])*st.h[o+n]+dl[c]*bb*x[c];st.h[o+n]=hv;s+=hv*cc}
         y[c]=(s+Ds[c]*x[c])*silu(xz[DI+c])}
       const o=mv(P[p+'out_proj.weight'],y,D,DI);for(let i=0;i<D;i++)h[i]+=o[i];
-      if(want){let m=0;for(const v of dl)m+=v;info.push({delta:dl,mean:m/DI,h:st.h.slice()})}}
+      if(want){let m=0;for(const v of dl)m+=v;info.push({delta:dl,mean:m/DI,h:st.h.slice(),B:sel?Float64Array.from(Bv):null,C:sel?Float64Array.from(Cv):null,x:x})}}
     return {h,info}}
   // Whole sequence. opt.at: positions whose logits are wanted (default all); opt.want: per-step Delta and states.
   function runMamba(M,ids,opt){opt=opt||{};const S=mstate(),out={logits:[],steps:[]},at=opt.at?new Set(opt.at):null;

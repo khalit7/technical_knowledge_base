@@ -1,18 +1,34 @@
 <section class="tab" id="t-then" role="tabpanel" hidden>
 <h2>Then and now: from all-Mamba to hybrids</h2>
-<p class="lead">What happened to the architecture after the paper, one released model at a time, each drawn from its own config.json: which layers mix tokens with attention and which with a state space layer, and what that costs in memory at inference. Attention layers pay a KV cache that grows with every token; SSM layers pay a fixed state.</p>
-<div class="card" id="thn">
+<div class="s3sp"><div class="s3R"><div class="card" id="thn">
 <div id="thnSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="thnBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="thnPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="thnFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="thnScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="thnSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="thnStep"></div><p id="thnCap"></p></div>
 <div class="an-cnt" id="thnCnt"></div>
-<p class="small mute" style="margin:6px 0 0">One square per layer, in order. KV cache per token = 2 × attention layers × KV heads × head size × 2 bytes; state per sequence = SSM layers × (inner width × state size + convolution buffer) × 2 bytes; both bf16, from each model's config.json (sources in each step). Jamba and Granite also replace most MLPs with mixtures of experts, Nemotron 3 Nano too; that changes compute, not the cache.</p>
-</div>
-<div class="card" id="ctx">
+
+</div></div><div class="s3L"><section id="th-stack">
+<p class="lead">What happened to the architecture after the paper, one released model at a time, each drawn from its own config.json: which layers mix tokens with attention and which with a state space layer, and what that costs in memory at inference. Attention layers pay a KV cache that grows with every token; SSM layers pay a fixed state.</p>
+<ol class="sx" id="sx-thn">
+<li><b>Transformer++ 2.7B.</b> The baseline Mamba is measured against, released by the authors with Mamba-2: every layer is attention plus MLP, so the cache grows by 320 KiB with every token and there is no fixed state. Source: {{state-spaces/transformerpp-2.7b|https://huggingface.co/state-spaces/transformerpp-2.7b/blob/main/config.json}}.</li>
+<li><b>Mamba 2.8B.</b> The paper's model: 64 identical Mamba blocks, no attention and no MLP. Nothing grows with the sequence; the 11.9 MiB state is all there is. Source: {{state-spaces/mamba-2.8b|https://huggingface.co/state-spaces/mamba-2.8b/blob/main/config.json}}.</li>
+<li><b>Mamba-2 2.7B.</b> Mamba-2 ({{Dao and Gu, May 2024|https://arxiv.org/abs/2405.21060}}): <b>A</b> becomes a scalar per head so the scan turns into matrix multiplications (state space duality, 2 to 8 times faster), and the state size <i>N</i> grows eightfold, to 128, which costs memory per sequence. Source: {{state-spaces/mamba2-2.7b|https://huggingface.co/state-spaces/mamba2-2.7b/blob/main/config.json}}.</li>
+<li><b>Mamba-2 + attention 2.7B.</b> The authors' own hybrid from the same release: 6 of 64 layers are attention. The cache is 28% of a Transformer's per token; the state stays. Source: {{state-spaces/mamba2attn-2.7b|https://huggingface.co/state-spaces/mamba2attn-2.7b/blob/main/config.json}}.</li>
+<li><b>Jamba v0.1 (52B, 12B active).</b> Jamba ({{AI21, March 2024|https://arxiv.org/abs/2403.19887}}): Mamba-1 layers with one attention layer in eight, and a 16-expert MoE (top 2) in every other layer; 52B parameters, 12B active, contexts up to 256K. Its cache per token is a twentieth of the 2.7B Transformer's at about 20 times the size. Source: {{ai21labs/Jamba-v0.1|https://huggingface.co/ai21labs/Jamba-v0.1/blob/main/config.json}}.</li>
+<li><b>Nemotron-H 8B.</b> Nemotron-H 8B ({{NVIDIA, April 2025|https://arxiv.org/abs/2504.03624}}): 24 Mamba-2 layers, 24 MLPs and only 4 attention layers spread evenly, close to the hybrid NVIDIA's 8B study chose (24 Mamba-2, 4 attention, 28 MLP; {{Waleffe et al., 2024|https://arxiv.org/abs/2406.07887}}); reported up to 3 times faster at inference than similar Transformers at similar accuracy. Source: {{nvidia/Nemotron-H-8B-Base-8K|https://huggingface.co/nvidia/Nemotron-H-8B-Base-8K/blob/main/config.json}}.</li>
+<li><b>Granite 4.0-H-Small (32B, 9B active).</b> Granite 4.0-H-Small (IBM, 2025, Apache 2.0): 36 Mamba-2 to 4 attention layers (9 to 1), every mixer followed by a 72-expert MoE (top 10), and no positional encoding at all in its attention layers. Source: {{ibm-granite/granite-4.0-h-small|https://huggingface.co/ibm-granite/granite-4.0-h-small/blob/main/config.json}}.</li>
+<li><b>Falcon-H1 7B.</b> Falcon-H1 7B ({{TII, July 2025|https://arxiv.org/abs/2507.22448}}): a parallel hybrid, attention and Mamba-2 heads side by side in every layer. It keeps a cache in all 44 layers (with only 2 KV heads) and a state in all 44. Source: {{tiiuae/Falcon-H1-7B-Base|https://huggingface.co/tiiuae/Falcon-H1-7B-Base/blob/main/config.json}}.</li>
+<li><b>Nemotron 3 Nano (30B, 3B active).</b> Nemotron 3 Nano (NVIDIA, December 2025, as dated in the {{LLM Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}}): 23 Mamba-2 layers, 23 MoE layers (128 experts, 6 active) and 6 attention layers with 2 KV heads: 6 KiB of cache per token, 2% of the 2.7B Transformer's. Source: {{nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16|https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16/blob/main/config.json}}.</li>
+</ol>
+<p class="small">The same models drawn as 3D layer patterns, with a cache rising on each attention layer, are Fig. 5 of {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}, which owns the hybrids.</p>
+<p class="small mute">One square per layer, in order. KV cache per token = 2 × attention layers × KV heads × head size × 2 bytes; state per sequence = SSM layers × (inner width × state size + convolution buffer) × 2 bytes; both bf16, from each model's config.json (sources in each step). Jamba and Granite also replace most MLPs with mixtures of experts, Nemotron 3 Nano too; that changes compute, not the cache.</p>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="th-ctx">
+<p><b>Try it:</b> cache plus state per sequence for every model above at the chosen context (log scale). Over the whole range the pure SSMs are cheapest and flat; the 2.7B Transformer's cache already passes Mamba's whole state at 38 tokens. At 128K tokens the hybrids need between about a third (Mamba-2 + attention, 6 attention layers of 64) and a fiftieth (Nemotron 3 Nano, 6 attention layers with 2 KV heads) of the Transformer's 40 GiB: their cost is still almost all cache, so the number and width of the attention layers decide it. Mamba-3 (2026) is not drawn: it changes the layer (a more expressive discretisation, complex-valued state, multi-input multi-output) and reports Mamba-2's perplexity at half its state size ({{Lahoti et al.|https://arxiv.org/abs/2603.15569}}), but no config of a released language model of that family was used here.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="ctx">
 <div class="ctl"><label>context length <b id="ctxLv"></b><input type="range" id="ctxL" min="10" max="20" step="1" value="17"></label></div>
 <div id="ctxSvg"></div>
-<p class="try"><b>Try:</b> cache plus state per sequence for every model above at the chosen context (log scale). Over the whole range the pure SSMs are cheapest and flat; the 2.7B Transformer's cache already passes Mamba's whole state at 38 tokens. At 128K tokens the hybrids need between about a third (Mamba-2 + attention, 6 attention layers of 64) and a fiftieth (Nemotron 3 Nano, 6 attention layers with 2 KV heads) of the Transformer's 40 GiB: their cost is still almost all cache, so the number and width of the attention layers decide it. Mamba-3 (2026) is not drawn: it changes the layer (a more expressive discretisation, complex-valued state, multi-input multi-output) and reports Mamba-2's perplexity at half its state size ({{Lahoti et al.|https://arxiv.org/abs/2603.15569}}), but no config of a released language model of that family was used here.</p>
-</div>
+
+</div></div></div></div>
 </section>

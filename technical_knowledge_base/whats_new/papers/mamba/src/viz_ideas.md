@@ -41,3 +41,13 @@ Added in the light pass:
 | # | Idea | Placement | Status | Notes |
 |---|---|---|---|---|
 | P-mamba.18 | **Hero: the paper's Figure 1** (selective SSM, selection mechanism, SRAM/HBM), embedded under CC BY 4.0 | Reading, top | built 2026-10-25 | img/fig1_selective_ssm.webp, credited in img/CREDITS.md |
+
+Added in the 2026-11-13 layout rollout:
+
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-mamba.19 | **3D stage: KV cache against a fixed state** at the paper's pair (Pythia-2.8B, Mamba-2.8B): a tower of one-token slabs against a glass block of the state, to scale, then both rescaled to 2,048 tokens | Reading, Problem | built 2026-11-13 | replaces the 2D `cmp` animation; `31_js_sc_cache.js`, data `PAPER.rc.mem_28` |
+| P-mamba.20 | **3D stage: Selective Copying through the trained toys**: the layer-1 state as an upright 64 x 16 plate, Δ per channel as bars under its columns, B and C as signed bars on posts, S6 against S4 | Reading, Selection | built 2026-11-13 | replaces the 2D `sel` animation; `32_js_sc_sel.js`, live forward pass of sc_s6 / sc_s4 |
+| P-mamba.21 | **3D stage: where the scan's tensors live**: HBM and SRAM slabs, (B, L, D, N) tensors as stacks of 16 plates, naive against fused traffic with the counted bill | Reading, The scan | built 2026-11-13 | new; `33_js_sc_fuse.js`, recompute.py's `io_fig8` |
+| P-mamba.22 | Then and now as 3D layer towers | Then and now | rejected 2026-11-13 | Beyond attention's Fig. 5 already draws the same hybrids in 3D; linked instead |
+| P-mamba.23 | Blelloch scan as a 3D tree | Reading, The scan | rejected 2026-11-13 | a flat tree of eight numbers reads best in 2D; kept as a 2D stepper with step lists |

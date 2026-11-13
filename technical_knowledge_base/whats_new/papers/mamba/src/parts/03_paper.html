@@ -1,8 +1,7 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L">
 <p class="core1"><b>The idea in one sentence:</b> let the state space model's step size Δ and its input and output maps <b>B</b> and <b>C</b> depend on the current token, so a fixed-size recurrent state can choose what to keep and what to skip; that kills the fast convolution, so a fused, hardware-aware scan computes the recurrence in GPU SRAM instead, and the result trains in linear time, generates without a KV cache, and matches Transformers on language up to 3B parameters.</p>
-<figure class="hfig"><img src="img/fig1_selective_ssm.webp" alt="The paper's Figure 1: a recurrent state h, drawn as stacked orange channels, passes from step t minus 1 to step t through a fixed matrix A; the input x_t is projected into B_t, C_t and the step size Delta_t (the selection mechanism, in blue); Delta_t discretises A and B; C_t reads y_t out of the state. A small pyramid marks GPU SRAM above GPU HBM." loading="lazy">
-<figcaption><b>Everything blue is new: B<sub><i>t</i></sub>, C<sub><i>t</i></sub> and Δ<sub><i>t</i></sub> are projected from the token x<sub><i>t</i></sub>, so the update of the wide state h (orange, D channels × N) differs at every step; the state lives only in fast SRAM.</b> Figure 1 of the paper, credit Albert Gu and Tri Dao, CC BY 4.0, {{arXiv 2312.00752|ax:S1.F1}}.</figcaption></figure>
 <p class="small"><b>You need:</b> a linear recurrence with a fixed state and how S4 turns it into a convolution; both are taught on {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}, which also owns Mamba-2 and the hybrids. The KV cache it is compared with is sized on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}.</p>
 <p class="small" style="margin-bottom:2px"><b>New terms</b></p>
 <ul class="terms">
@@ -11,25 +10,30 @@
 <li><b>Δ</b>: the discretisation step; large means "take this token in", near zero means "skip it".</li>
 <li><b>Hardware-aware scan</b>: the recurrence fused into one GPU kernel, run in SRAM, states recomputed in the backward pass.</li>
 </ul>
+</div>
+<div class="s3R"><div class="s3side"><figure class="hfig"><img src="img/fig1_selective_ssm.webp" alt="The paper's Figure 1: a recurrent state h, drawn as stacked orange channels, passes from step t minus 1 to step t through a fixed matrix A; the input x_t is projected into B_t, C_t and the step size Delta_t (the selection mechanism, in blue); Delta_t discretises A and B; C_t reads y_t out of the state. A small pyramid marks GPU SRAM above GPU HBM." loading="lazy">
+<figcaption><b>Everything blue is new: B<sub><i>t</i></sub>, C<sub><i>t</i></sub> and Δ<sub><i>t</i></sub> are projected from the token x<sub><i>t</i></sub>, so the update of the wide state h (orange, D channels × N) differs at every step; the state lives only in fast SRAM.</b> Figure 1 of the paper, credit Albert Gu and Tri Dao, CC BY 4.0, {{arXiv 2312.00752|ax:S1.F1}}.</figcaption></figure></div></div></div>
 <nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-ssm">State spaces</a><a href="#s-sel">Selection</a><a href="#s-gate">Δ as a gate</a><a href="#s-scan">The scan</a><a href="#s-block">The block</a><a href="#s-res">Results</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it?</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-cache"></div></div><div class="s3L">
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1 Introduction, §3.1]]
 <p>Transformers pay quadratic compute in sequence length to train and keep a KV cache that grows with every generated token ({{§1|ax:S1}}). Subquadratic alternatives (linear attention, gated convolutions such as H3 and Hyena, RWKV, RetNet, structured state space models like S4) scale better but had never matched attention on dense, discrete data like language ({{§2|ax:S2}}).</p>
 <p>The paper's diagnosis is a framing: <b>sequence modelling is compressing context into a state</b> ({{§3.1|ax:S3.SS1}}). Attention is effective and slow for the same reason, it does not compress at all; a recurrent model is fast because its state is fixed, and only as good as what it kept. Every efficient SSM before Mamba was <b>linear time-invariant (LTI)</b>: the same dynamics at every step, which lets it run as one global convolution and stops it deciding, token by token, what to store.</p>
-<div class="card" id="cmp">
-<div class="an-top"><div class="seg" id="cmpM" role="group" aria-label="Model"><button class="on" data-m="attn" aria-pressed="true">Transformer: keep everything (KV cache)</button><button data-m="ssm" aria-pressed="false">Mamba: a fixed state</button></div>
-<span class="small mute">Same 12-token input; memory counters at 2.8B scale.</span></div>
-<div id="cmpSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="cmpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="cmpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="cmpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="cmpScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="cmpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="cmpStep"></div><p id="cmpCap"></p></div>
-<div class="an-cnt" id="cmpCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Counters from the released configs (derived in {{recompute.py|tab:t-tables:tb-chk}}): Pythia-2.8B caches 2 × 32 layers × 2,560 numbers per token, 320 KiB in bf16; Mamba-2.8B keeps a 5,120 × 16 state and a 5,120 × 3 convolution buffer in each of 64 blocks, 11.9 MiB at any length. They cross at 38 tokens; at 2,048 the cache is 54 times the state.</p>
-</div>
+<ol class="sx" id="sx-cache">
+<li><b>The input.</b> Twelve tokens, three of them fillers ("um", "uh"). Mamba's state (right, glass) is allocated at its full size before the first token; the Transformer's cache (left) starts empty.</li>
+<li><b>Transformer: keep everything.</b> Each token appends its keys and values, for every layer, to the cache (one slab, 320 KiB) and reads all cached entries back to produce the next output. Memory and per-token work both grow with the sequence; nothing is ever dropped, so recall is exact.</li>
+<li><b>Mamba: fold each token into a fixed state.</b> The same twelve tokens go into one state of constant size, read once per output. In the paper's reading a selective Δ near 0 leaves the state almost unchanged on fillers, so they are skipped (the faint streams, drawn to illustrate the claim). At this length the state is still the larger of the two.</li>
+<li><b>The crossover.</b> The cache keeps growing one slab per token and passes the whole state at 38 tokens.</li>
+<li><b>At 2,048 tokens, 54 times the state.</b> Both drawn again to one scale: at the 2,048-token prompts of the paper's throughput test the cache is 640 MiB per sequence against the state's 11.9 MiB. That is what limits the batch size.</li>
+<li><b>The price.</b> The state is the same size at any length, but whatever it did not keep cannot be recovered: the limit later work measured on copying and recall ({{How much to believe|tab:t-read:s-believe}}).</li>
+</ol>
+<div class="an-cnt" id="cacheCnt"></div>
+<p class="small">The same contrast in general, at a 2026 hybrid's shapes, is Fig. 1 of {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}; this stage keeps to the paper's own pair, Pythia-2.8B against Mamba-2.8B.</p>
+<p class="small mute">Counters from the released configs (derived in {{recompute.py|tab:t-tables:tb-chk}}): Pythia-2.8B caches 2 × 32 layers × 2,560 numbers per token, 320 KiB in bf16; Mamba-2.8B keeps a 5,120 × 16 state and a 5,120 × 3 convolution buffer in each of 64 blocks, 11.9 MiB at any length. They cross at 38 tokens; at 2,048 the cache is 54 times the state.</p>
 <p>Synthetic tasks make the limit concrete ({{Figure 2|ax:S3.F2}}). Plain <b>Copying</b> has constant spacing, so a convolution kernel of the right length solves it. <b>Selective Copying</b> scatters the tokens to remember among noise, and <b>Induction Heads</b> asks for the token that followed an earlier occurrence of the current one ("Harry Potter ... Harry → Potter"), a test the paper calls predictive of in-context learning ({{§4.1.2|ax:S4.SS1.SSS2}}). Both need content-aware filtering; with varying spacing no static kernel lines inputs up with outputs.</p>
 </section>
+</div></div>
 
 <section id="s-ssm"><h2>State spaces, before Mamba</h2>
 [[S2|§2 State Space Models, Eqs. 1 to 4]]
@@ -41,6 +45,7 @@
 <p>The baselines all live in this family and are all LTI ({{§2|ax:S2}}): linear attention is a degenerate linear SSM, H3 wraps S4 in two gates, Hyena swaps in an MLP-parameterised convolution, RetNet uses state size 1, RWKV a ratio of two SSMs.</p></div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-sel"></div></div><div class="s3L">
 <section id="s-sel"><h2>Selection: the one change</h2>
 [[S3.SS2|§3.2, Algorithms 1 and 2; §3.5.2]]
 <p>Make Δ, <b>B</b> and <b>C</b> functions of the current token ({{§3.2|ax:S3.SS2}}): <span class="m"><b>B</b><sub><i>t</i></sub> = Linear<sub><i>N</i></sub>(<i>x<sub>t</sub></i>)</span>, <span class="m"><b>C</b><sub><i>t</i></sub> = Linear<sub><i>N</i></sub>(<i>x<sub>t</sub></i>)</span> and <span class="m">Δ<sub><i>t</i></sub> = softplus(Parameter + Broadcast<sub><i>D</i></sub>(Linear<sub>1</sub>(<i>x<sub>t</sub></i>)))</span>. The parameters gain a length dimension, so the model becomes time-varying and the convolution is gone; the paper calls the result S6 (S4 plus selection, computed with a scan; {{Remark 3.1|ax:S3.SS6}}). <b>A</b> stays a plain parameter, because Δ already makes <span class="m"><span style="text-decoration:overline">A</span> = exp(Δ<b>A</b>)</span> input-dependent, and the authors expect a selective <b>A</b> to perform about the same ({{§3.5.2|ax:S3.SS5.SSS2}}).</p>
@@ -54,68 +59,113 @@
 <div class="pred" id="pr-lti" data-ans="2"><div class="q">take the Mamba block, keep everything, but freeze Δ, <b>B</b> and <b>C</b> as learned constants (an LTI layer). On Selective Copying, about what share of the copied tokens does it get right?</div>
 <div class="opts"><button>About 100%, the gates in the block are enough</button><button>About 80%</button><button>About half</button><button>Chance (one in 8)</button></div>
 <div class="fb"></div>
-<div class="reveal" hidden><p class="small">The paper's {{Table 1|ax:S4.F5}}: the Mamba block with an S4 layer gets <b>56.4%</b>, with Hyena 28.4%, with the selective S6 layer <b>99.8%</b>; S4 with no gating at all gets 18.3%, and S6 with no gating still 97.0%. The selection, not the block, does the work: gating in an architecture does not interact along the sequence and cannot change the spacing between tokens ({{§4.1.1|ax:S4.SS1.SSS1}}, {{Appendix A|ax:A1}}). This page's toy, same block both ways (2 layers, <i>D</i> = 32, <i>N</i> = 16), measured on 1,000 fresh sequences: selective <b><span class="rv" data-k="sc_s6.tok"></span></b> of copied tokens, LTI <b><span class="rv" data-k="sc_s4.tok"></span></b>. Watch both below.</p></div></div>
-<div class="card" id="sel">
-<div class="an-top"><div class="seg" id="selM" role="group" aria-label="Layer"><button class="on" data-m="s6" aria-pressed="true">Selective (S6): Δ, B, C from the token</button><button data-m="s4" aria-pressed="false">Time-invariant (S4): fixed Δ, B, C</button></div>
-<button id="selNew" class="small">New random input</button></div>
-<div id="selSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="selBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="selPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="selFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="selScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="selSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="selStep"></div><p id="selCap"></p></div>
+<div class="reveal" hidden><p class="small">The paper's {{Table 1|ax:S4.F5}}: the Mamba block with an S4 layer gets <b>56.4%</b>, with Hyena 28.4%, with the selective S6 layer <b>99.8%</b>; S4 with no gating at all gets 18.3%, and S6 with no gating still 97.0%. The selection, not the block, does the work: gating in an architecture does not interact along the sequence and cannot change the spacing between tokens ({{§4.1.1|ax:S4.SS1.SSS1}}, {{Appendix A|ax:A1}}). This page's toy, same block both ways (2 layers, <i>D</i> = 32, <i>N</i> = 16), measured on 1,000 fresh sequences: selective <b><span class="rv" data-k="sc_s6.tok"></span></b> of copied tokens, LTI <b><span class="rv" data-k="sc_s4.tok"></span></b>. Watch both in the stage beside this section.</p></div></div>
+<p>The stage runs one sequence (48 positions, 6 data tokens among grey noise, then 6 markers) through two trained toy models live, forward pass checked against PyTorch. Drawn from layer 1 at each position: Δ<sub><i>t</i></sub> per channel (64 purple bars, one per column of the state), <b>B</b><sub><i>t</i></sub> (green, left) and <b>C</b><sub><i>t</i></sub> (gold, right) along the state axis, and the state <i>h</i> itself, 64 channels × 16, as cells on a glass plate (blue positive, orange negative). In the time-invariant model <b>B</b> and <b>C</b> differ per channel, so the bars show the outlined channel's.</p>
+<div class="s3chips" id="selM" role="group" aria-label="Layer"><button class="on" data-m="s6" aria-pressed="true">Selective (S6): Δ, B, C from the token</button><button data-m="s4" aria-pressed="false">Time-invariant (S4): fixed Δ, B, C</button></div>
+<p class="small"><button id="selNew" class="small">New random input</button></p>
+<ol class="sx" id="sx-sel-s6">
+<li><b>The input.</b> Six coloured tokens are scattered among noise at random positions; after them come six markers, and at each marker the model must output the next data token in order. Nothing in the spacing says where the tokens are: the model has to notice them by content.</li>
+<li><b>Data token 1: written through B<sub><i>t</i></sub>, scaled by Δ<sub><i>t</i></sub>.</b> The bars change at every position because they are computed from the token. The token enters the state through B<sub><i>t</i></sub>, and Δ<sub><i>t</i></sub> sets how strongly it is written and how fast the state decays. The paper reads Δ as a gate (large on what matters, near zero on noise); this trained toy did not learn that textbook pattern: averaged over channels Δ is about the same on data and noise (0.0187 against 0.0193 in layer 1).</li>
+<li><b>Data token 2: Δ keeps time.</b> Instead Δ varies with context. In layer 2 it drifts with position: the largest channel correlation is 0.68 with position against 0.22 with "this is a data token", a clock the model can use to keep the tokens in order (the Δ strips of both layers are in {{Run a toy Mamba|tab:t-run:sc}}).</li>
+<li><b>Data token 3: the selection carries the task.</b> Freeze Δ at its average and held-out accuracy falls from 99.93% to 37.6% (layer 1) or 23.2% (layer 2); freezing B in layer 1 gives 39.1%, freezing C in layer 2 29.3%.</li>
+<li><b>Data tokens 4 to 6.</b> Each data token is written into its own directions of the state (the plate), which the markers read back through C<sub><i>t</i></sub>.</li>
+<li><b>The markers: read out through C<sub><i>t</i></sub>.</b> At each marker the model reads the state out through C<sub><i>t</i></sub> and answers (the cubes above the markers, ringed green when right). On this input it gets <span class="selOk" data-m="s6"></span> of 6.</li>
+<li><b>Result.</b> On 1,000 fresh sequences this selective model gets 99.8% of copied tokens and 99.1% of whole sequences right (the paper, at length 4,096: 99.8%). Same block, same training: only Δ, B and C differ.</li>
+</ol>
+<ol class="sx" id="sx-sel-s4" hidden>
+<li><b>The input.</b> The same sequence: six data tokens at random positions among noise, then six markers.</li>
+<li><b>Data token 1: fixed Δ, B and C.</b> Δ, B and C are learned constants: every token, data or noise, is written with the same step and the same decay at every position, so the bars never move. The state is a fixed-kernel convolution of the whole input.</li>
+<li><b>Data token 2: nothing can tell data from noise.</b> Only the block's gate and projections see the content, and they act on one position at a time; they cannot change what the layer keeps along the sequence.</li>
+<li><b>Data token 3: noise is written as hard as data.</b> Every noise token between the data tokens enters the state with the same Δ and B, so the data have to be recovered from a blur.</li>
+<li><b>Data tokens 4 to 6.</b> The same fixed update at every position: the layer's output is one convolution of the input, whatever it contains.</li>
+<li><b>The markers.</b> Reading the state out, the time-invariant model has to undo a blur of every token it saw. On this input it gets <span class="selOk" data-m="s4"></span> of 6.</li>
+<li><b>Result.</b> On 1,000 fresh sequences this time-invariant model gets 67.4% of copied tokens and 5.0% of whole sequences right (the paper, at length 4,096: 56.4%). Same block, same training: only Δ, B and C differ.</li>
+</ol>
 <div class="an-cnt" id="selCnt"></div>
-<p class="small mute" style="margin:6px 0 0">One sequence (48 positions, 6 data tokens among grey noise, then 6 markers ▸) through two trained toy models, live (forward pass checked against PyTorch). Heat map: Δ of layer 2 per channel (rows) and position, each channel scaled to its maximum. Grid: layer 1's state <i>h</i>, 64 channels × 16, colour for sign.</p>
-</div>
+<p class="small">{{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}} (§4, Fig. 4) measures the same selection inside a trained tiny GPT, as the decay each token gets; this stage shows the paper's own synthetic task.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-gate"><h2>Δ is a gate</h2>
 [[Thmtheorem1|Theorem 1, §3.5.1, Appendix C]]
 <p>The most important connection, the paper says, is that classical RNN gating is a special case of selection ({{§3.5.1|ax:S3.SS5.SSS1}}). {{Theorem 1|ax:Thmtheorem1}}: with <i>N</i> = 1, <b>A</b> = −1, <b>B</b> = 1, <span class="m"><i>s</i><sub>Δ</sub> = Linear(<i>x</i>)</span> and τ<sub>Δ</sub> = softplus, the selective recurrence is exactly the gated RNN</p>
 <div class="eq"><i>g<sub>t</sub></i> = σ(Linear(<i>x<sub>t</sub></i>)), &nbsp;&nbsp; <i>h<sub>t</sub></i> = (1 − <i>g<sub>t</sub></i>) <i>h</i><sub><i>t</i>−1</sub> + <i>g<sub>t</sub></i> <i>x<sub>t</sub></i></div>
 <p>This is why Δ is projected from the input to one dimension and broadcast: if a token should be ignored, all channels should ignore it.</p>
 <details class="mist"><summary>The two-line proof, and how Δ is initialised and projected</summary><div class="b"><p>The proof ({{Appendix C|ax:A3}}) is two lines of zero-order hold: exp(−softplus(<i>z</i>)) = 1/(1 + e<sup><i>z</i></sup>) = 1 − σ(<i>z</i>), and <span class="m"><span style="text-decoration:overline">B</span> = 1 − <span style="text-decoration:overline">A</span></span>. In the experiments Δ's bias is initialised to τ<sub>Δ</sub><sup>−1</sup>(Uniform[0.001, 0.1]), and the projection is widened from 1 to a small rank <i>R</i> ({{§3.6|ax:S3.SS6}}); the released code uses <i>R</i> = ⌈<i>D</i>/16⌉, 160 for Mamba-2.8B.</p></div></details>
-<div class="card" id="gate">
+<p><b>Try it:</b> slide <i>z</i> down and the gate closes (Δ → 0, <span style="text-decoration:overline">A</span> → 1: keep the state, skip the token); slide it up and the token replaces the state. Solid lines are the theorem's zero-order hold; the dashed line is <span style="text-decoration:overline">B</span> as the released code computes it ({{selective_scan_ref|https://github.com/state-spaces/mamba/blob/main/mamba_ssm/ops/selective_scan_interface.py}}): the first-order <span style="text-decoration:overline">B</span> = Δ<b>B</b>, equal to the gate for small Δ and larger beyond (at <i>z</i> = 2, 2.13 against 0.88). So the shipped models are not exactly the theorem's gated RNN; this page's toys follow the code.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="gate">
 <div class="ctl"><label>pre-activation <i>z</i> = Linear(<i>x<sub>t</sub></i>) = <b id="gateZv">0</b><input type="range" id="gateZ" min="-6" max="6" step="0.05" value="0"></label></div>
 <div id="gateSvg"></div>
 <div class="out" id="gateOut"></div>
-<p class="try"><b>Try:</b> slide <i>z</i> down and the gate closes (Δ → 0, <span style="text-decoration:overline">A</span> → 1: keep the state, skip the token); slide it up and the token replaces the state. Solid lines are the theorem's zero-order hold; the dashed line is <span style="text-decoration:overline">B</span> as the released code computes it ({{selective_scan_ref|https://github.com/state-spaces/mamba/blob/main/mamba_ssm/ops/selective_scan_interface.py}}): the first-order <span style="text-decoration:overline">B</span> = Δ<b>B</b>, equal to the gate for small Δ and larger beyond (at <i>z</i> = 2, 2.13 against 0.88). So the shipped models are not exactly the theorem's gated RNN; this page's toys follow the code.</p>
-</div>
-</section>
 
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-fuse"></div></div><div class="s3L">
 <section id="s-scan"><h2>The hardware-aware scan</h2>
 [[S3.SS3|§3.3, Appendix D]]
-<p>Time-varying parameters kill the convolution, and the plain recurrence is sequential and would materialise <span class="m"><span style="text-decoration:overline">A</span>, <span style="text-decoration:overline">B</span></span> and the state, each (<i>B</i>, <i>L</i>, <i>D</i>, <i>N</i>), <i>N</i> times the size of input and output ({{§3.3.2|ax:S3.SS3.SSS2}}). But the recurrence costs O(<i>BLDN</i>) FLOPs against the convolution's O(<i>BLD</i> log <i>L</i>) with a lower constant, and outside matrix multiplication GPUs are limited by memory bandwidth, so the cost to cut is memory traffic. Three classical techniques:</p>
-<ul class="lst">
-<li><b>Kernel fusion.</b> Load (Δ, <b>A</b>, <b>B</b>, <b>C</b>) from slow HBM into fast SRAM, discretise and recur there, write only the (<i>B</i>, <i>L</i>, <i>D</i>) output ({{Appendix D|ax:A4}}); long sequences go in chunks, carrying the state. IO falls by O(<i>N</i>): 20 to 40 times faster in practice.</li>
-<li><b>Parallel scan.</b> The recurrence is linear, and pairs (<i>a</i>, <i>b</i>) meaning <span class="m"><i>h</i> ↦ <i>ah</i> + <i>b</i></span> compose associatively, so a work-efficient (Blelloch) scan gets every <i>h<sub>t</sub></i> in O(log <i>L</i>) parallel steps (below).</li>
-<li><b>Recomputation.</b> States needed for the backward pass are recomputed, not stored, which is faster than reading O(<i>BLDN</i>) from HBM. A selective SSM layer then stores about 16 bytes of activations per token, against about 12 for FlashAttention and 20 for an MLP: two Mamba blocks match one attention plus MLP pair.</li></ul>
-<div class="card" id="scn">
-<div class="an-top"><div class="seg" id="scnM" role="group" aria-label="Algorithm"><button class="on" data-m="seq" aria-pressed="true">Sequential loop</button><button data-m="par" aria-pressed="false">Parallel (Blelloch) scan</button></div>
-<span class="small mute">8 positions, real numbers, one channel and state.</span></div>
+<p>Time-varying parameters kill the convolution, and the plain recurrence is sequential and would materialise <span class="m"><span style="text-decoration:overline">A</span>, <span style="text-decoration:overline">B</span></span> and the state, each (<i>B</i>, <i>L</i>, <i>D</i>, <i>N</i>), <i>N</i> times the size of input and output ({{§3.3.2|ax:S3.SS3.SSS2}}). But the recurrence costs O(<i>BLDN</i>) FLOPs against the convolution's O(<i>BLD</i> log <i>L</i>) with a lower constant, and outside matrix multiplication GPUs are limited by memory bandwidth, so the cost to cut is memory traffic. Three classical techniques do it: kernel fusion and recomputation (the stage beside this, run at Figure 8's setting) and a parallel scan (further down).</p>
+<ol class="sx" id="sx-fuse">
+<li><b>The inputs sit in HBM.</b> <i>x</i> and Δ are (<i>B</i>, <i>L</i>, <i>D</i>), <b>B</b> and <b>C</b> (<i>B</i>, <i>L</i>, <i>N</i>), <b>A</b> (<i>D</i>, <i>N</i>). HBM is large and slow, SRAM small and fast; the counts below are elements moved between them at <i>L</i> = 16,384, <i>D</i> = 1,024, <i>N</i> = 16, batch 1.</li>
+<li><b>Naive: discretise, write Ā and B̄x.</b> A plain implementation reads the inputs (34,095,104 elements), computes <span class="m"><span style="text-decoration:overline">A</span> = exp(Δ<b>A</b>)</span> and <span class="m"><span style="text-decoration:overline">B</span><i>x</i></span>, and writes both back: each (<i>B</i>, <i>L</i>, <i>D</i>, <i>N</i>), a stack of <i>N</i> = 16 inputs. So far 570,966,016.</li>
+<li><b>Naive: the scan writes every state.</b> The scan reads <span class="m"><span style="text-decoration:overline">A</span></span> and <span class="m"><span style="text-decoration:overline">B</span><i>x</i></span> back and writes <i>h</i>, another (<i>B</i>, <i>L</i>, <i>D</i>, <i>N</i>) tensor. So far 1,376,272,384.</li>
+<li><b>Naive: read <i>h</i> and <b>C</b>, write <i>y</i>.</b> The output needs the states once more. Whole run: 1,661,747,200 elements, almost all of them the three (<i>B</i>, <i>L</i>, <i>D</i>, <i>N</i>) tensors.</li>
+<li><b>Fused: load once into SRAM.</b> One kernel loads (Δ, <b>A</b>, <b>B</b>, <b>C</b>) and <i>x</i> from slow HBM into fast SRAM ({{Appendix D|ax:A4}}).</li>
+<li><b>Fused: recur in SRAM, write only <i>y</i>.</b> It discretises and recurs there; the state (<i>D</i>, <i>N</i>) per position never leaves SRAM, and only the (<i>B</i>, <i>L</i>, <i>D</i>) output is written. Long sequences go in chunks, carrying the state. Whole run: 50,872,320 elements, 32.7 times fewer, about 2<i>N</i>: IO falls by O(<i>N</i>), 20 to 40 times faster in practice.</li>
+<li><b>Backward: recompute, do not store.</b> States needed for the backward pass are recomputed, not stored, which is faster than reading O(<i>BLDN</i>) from HBM. A selective SSM layer then stores about 16 bytes of activations per token, against about 12 for FlashAttention and 20 for an MLP: two Mamba blocks match one attention plus MLP pair.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="s-scan-io"><h3>Count the traffic yourself</h3>
+<p><b>Try it:</b> HBM traffic of one scan, counted in elements from the steps of {{Appendix D|ax:A4}} (batch 1): naive writes <span style="text-decoration:overline">A</span>, <span style="text-decoration:overline">B</span> and <i>h</i> to HBM and reads them back; fused reads Δ, <b>A</b>, <b>B</b>, <b>C</b>, <i>x</i> once and writes <i>y</i>. The ratio grows with <i>N</i>, not <i>L</i>. <span class="ill">Counted, not measured:</span> at the paper's benchmark setting (<i>D</i> = 1,024, <i>N</i> = 16) it is about 33, against a measured 20 to 40 ({{§4.5|ax:S4.SS5}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="io">
+<div class="ctl"><label>sequence length <i>L</i> = <b id="ioLv"></b><input type="range" id="ioL" min="9" max="19" step="1" value="14"></label><label>state size <i>N</i> = <b id="ioNv"></b><select id="ioN"><option>1</option><option>4</option><option selected>16</option><option>64</option><option>128</option></select></label><label>channels <i>D</i> = <b id="ioDv"></b><select id="ioD"><option>256</option><option selected>1024</option><option>5120</option></select></label></div>
+<div id="ioSvg"></div><div class="out" id="ioOut"></div>
+
+</div></div></div></div>
+<div class="s3sp"><div class="s3R"><div class="card" id="scn">
 <div id="scnSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="scnBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="scnPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="scnFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="scnScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="scnSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="scnStep"></div><p id="scnCap"></p></div>
 <div class="an-cnt" id="scnCnt"></div>
-</div>
-<div class="card" id="io">
-<div class="ctl"><label>sequence length <i>L</i> = <b id="ioLv"></b><input type="range" id="ioL" min="9" max="19" step="1" value="14"></label><label>state size <i>N</i> = <b id="ioNv"></b><select id="ioN"><option>1</option><option>4</option><option selected>16</option><option>64</option><option>128</option></select></label><label>channels <i>D</i> = <b id="ioDv"></b><select id="ioD"><option>256</option><option selected>1024</option><option>5120</option></select></label></div>
-<div id="ioSvg"></div><div class="out" id="ioOut"></div>
-<p class="try"><b>Try:</b> HBM traffic of one scan, counted in elements from the steps of {{Appendix D|ax:A4}} (batch 1): naive writes <span style="text-decoration:overline">A</span>, <span style="text-decoration:overline">B</span> and <i>h</i> to HBM and reads them back; fused reads Δ, <b>A</b>, <b>B</b>, <b>C</b>, <i>x</i> once and writes <i>y</i>. The ratio grows with <i>N</i>, not <i>L</i>. <span class="ill">Counted, not measured:</span> at the paper's benchmark setting (<i>D</i> = 1,024, <i>N</i> = 16) it is about 33, against a measured 20 to 40 ({{§4.5|ax:S4.SS5}}).</p>
-</div>
-</section>
+</div></div><div class="s3L"><section id="s-scan-par"><h3>The parallel scan</h3>
+<p>The recurrence is linear, and pairs (<i>a</i>, <i>b</i>) meaning <span class="m"><i>h</i> ↦ <i>ah</i> + <i>b</i></span> compose associatively, so a work-efficient (Blelloch) scan gets every <i>h<sub>t</sub></i> in O(log <i>L</i>) parallel steps. The card runs eight positions with real numbers, one channel and one state entry, both ways.</p>
+<div class="s3chips" id="scnM" role="group" aria-label="Algorithm"><button class="on" data-m="seq" aria-pressed="true">Sequential loop</button><button data-m="par" aria-pressed="false">Parallel (Blelloch) scan</button></div>
+<ol class="sx" id="sx-scn-seq">
+<li><b>Start from <i>h</i> = 0.</b> The loop applies one update per position, <i>h<sub>t</sub></i> = <span style="text-decoration:overline">A</span><sub><i>t</i></sub> <i>h</i><sub><i>t</i>−1</sub> + <span style="text-decoration:overline">B</span><sub><i>t</i></sub> <i>x<sub>t</sub></i>, so <i>h</i><sub>0</sub> is just the first input.</li>
+<li><b><i>h</i><sub>1</sub> to <i>h</i><sub>3</sub>, one after another.</b> Each step needs the previous one: the work is minimal (one multiply-add per position) but nothing runs in parallel.</li>
+<li><b><i>h</i><sub>4</sub> to <i>h</i><sub>6</sub>.</b> Still one at a time: 8 positions take 8 dependent steps; a million positions take a million.</li>
+<li><b><i>h</i><sub>7</sub>.</b> The last state, after 8 dependent steps: the value the parallel scan has to reproduce.</li>
+</ol>
+<ol class="sx" id="sx-scn-par" hidden>
+<li><b>Pairs.</b> Each position becomes a pair (<i>a</i>, <i>b</i>) meaning "<i>h</i> ↦ <i>a h</i> + <i>b</i>". Two consecutive pairs compose into one: (<i>a</i><sub>1</sub>, <i>b</i><sub>1</sub>) then (<i>a</i><sub>2</sub>, <i>b</i><sub>2</sub>) = (<i>a</i><sub>1</sub><i>a</i><sub>2</sub>, <i>a</i><sub>2</sub><i>b</i><sub>1</sub> + <i>b</i><sub>2</sub>). Because this is associative, the prefixes can be built as a tree.</li>
+<li><b>Up-sweep, stride 1.</b> Combine neighbouring pairs, all four at once: each right element now summarises its block of two.</li>
+<li><b>Up-sweep, stride 2.</b> Combine elements two apart: blocks of four.</li>
+<li><b>Up-sweep, stride 4.</b> The last element now holds the composition of the whole block.</li>
+<li><b>Clear the root.</b> Replace it with the identity (1, 0) and walk back down.</li>
+<li><b>Down-sweep, stride 4.</b> Pass prefixes down: the left child takes the parent's prefix, the right child the parent's prefix followed by the left block.</li>
+<li><b>Down-sweep, stride 2.</b> The same one level lower; all combines at a level are independent.</li>
+<li><b>Down-sweep, stride 1.</b> Every position now holds the composition of everything before it.</li>
+<li><b>Combine each prefix with its own pair.</b> One more combine gives <i>h<sub>t</sub></i>. All 8 match the loop (largest difference <span id="scnErr"></span>), in 8 parallel steps; for length <i>L</i> the depth is about 2 log<sub>2</sub> <i>L</i>, while the work stays O(<i>L</i>).</li>
+</ol>
+</section></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-block"><h2>The Mamba block</h2>
 [[S3.SS4|§3.4, Figure 3]]
 <p>Earlier SSM architectures interleaved an H3 block with an MLP block; Mamba merges them into one block repeated homogeneously, like the gated attention unit ({{§3.4|ax:S3.SS4}}, {{Figure 3|ax:S3.F3}}): expand <i>D</i> by <i>E</i> = 2 with two input projections; on the main branch a short causal convolution, SiLU and the selective SSM; on the other SiLU as a multiplicative gate; project back down. Against H3 it replaces the first gate with an activation; against the gated MLP (SwiGLU) it adds the SSM. Stack with RMSNorm and residuals: no attention, no separate MLP (an optional LayerNorm, after RetNet, can sit before the output projection).</p>
-<div class="card" id="blk">
+<details class="mist"><summary>Real states and the S4D-Real initialisation (§3.6)</summary><div class="b"><p>Two further choices ({{§3.6|ax:S3.SS6}}): states are real, not complex, by default (complex helps on continuous signals such as audio, the one experiment that switches it), and <b>A</b> is initialised S4D-Real, <span class="m"><b>A</b><sub><i>n</i></sub> = −(<i>n</i> + 1)</span>, with the expectation that many initialisations work at scale.</p></div></details>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="blk">
 <div class="an-top"><div class="seg" id="blkM" role="group" aria-label="Block"><button data-m="h3" aria-pressed="false">H3 block</button><button data-m="mlp" aria-pressed="false">Gated MLP</button><button class="on" data-m="mamba" aria-pressed="true">Mamba block</button></div></div>
 <div id="blkSvg"></div><div class="out" id="blkOut"></div>
 <p class="small mute" style="margin:4px 0 0">Redrawn from Figure 3; parameters from the released code's shapes ({{mamba_simple.py|https://github.com/state-spaces/mamba/blob/main/mamba_ssm/modules/mamba_simple.py}}) at <i>D</i> = 2,560. Projections are 3<i>ED</i><sup>2</sup> = 6<i>D</i><sup>2</sup>; the SSM's own parameters add 4.7%, so two blocks are 1.05 × 12<i>D</i><sup>2</sup>, one attention plus MLP pair: Mamba-2.8B has 64 blocks where a 2.8B Transformer has 32 layers.</p>
-</div>
-<details class="mist"><summary>Real states and the S4D-Real initialisation (§3.6)</summary><div class="b"><p>Two further choices ({{§3.6|ax:S3.SS6}}): states are real, not complex, by default (complex helps on continuous signals such as audio, the one experiment that switches it), and <b>A</b> is initialised S4D-Real, <span class="m"><b>A</b><sub><i>n</i></sub> = −(<i>n</i> + 1)</span>, with the expectation that many initialisations work at scale.</p></div></details>
-</section>
+</div></div></div></div>
 
 <section id="s-res"><h2>Results</h2>
 [[S4|§4 Empirical Evaluation]]
@@ -124,18 +174,23 @@
 <div class="opts"><button>Both</button><button>Only Mamba</button><button>Only the Transformer</button><button>Neither</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden><div id="prExt"></div><p class="small">In the paper ({{Table 11|ax:A5.T3}}, trained at 256) only Mamba: MHA-RoPE falls to 31% at 4 times the length and 5.5% at 64 times, Mamba stays perfect to 4,096 times. This page's toys (trained at 64, dashed) reproduce the ordering but not the "indefinitely": the selective model holds 98% at 4 times, where attention is at 13%, and then fades towards chance (1 in 15) by 64 times. Retraining it for 20,000 steps instead of 1,500 did not help. The paper's model is twice as wide and was trained on sequences 4 times as long, for 200K steps. Run them at any length in {{Run a toy Mamba|tab:t-run:ih}}.</p></div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>Language</b> ({{§4.2|ax:S4.SS2.SSS1}}). Under the Chinchilla protocol from about 125M to 1.3B on the Pile ({{Figure 4|ax:S4.F6}}, sizes in {{Table 12|ax:A5.T4}}), Mamba is the first attention-free model to match "Transformer++" (GPT-3 shapes plus rotary embeddings, SwiGLU, RMSNorm, no biases, higher learning rates), with the gap favouring Mamba at 8K context. Trained to 300B tokens with Pythia's data and tokenizer, every Mamba is best in its size class on every column of {{Table 3|ax:S4.T1}} (45 of 45 cells, one tie); Mamba-2.8B beats Pythia-2.8B on all six tasks (average 63.3 against 59.1) and Pythia-6.9B on the average (61.7). "Matches baselines at twice the model size" holds for three of five sizes, not at 130M or 370M ({{recount|tab:t-tables:tb3}}).</p>
-<div class="card" id="zs"><div id="zsSvg"></div>
-<p class="small mute" style="margin:4px 0 0">Average zero-shot accuracy against parameters, from {{Table 3|ax:S4.T1}} (log scale). Mamba, Pythia and RWKV share the Pile, the GPT-NeoX tokenizer and 300B tokens; the other baselines (GPT-Neo, OPT, Hybrid H3) differ in data or tokenizer. The paper's averages recompute exactly from its six columns.</p></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="zs"><div id="zsSvg"></div>
+<p class="small mute" style="margin:4px 0 0">Average zero-shot accuracy against parameters, from {{Table 3|ax:S4.T1}} (log scale). Mamba, Pythia and RWKV share the Pile, the GPT-NeoX tokenizer and 300B tokens; the other baselines (GPT-Neo, OPT, Hybrid H3) differ in data or tokenizer. The paper's averages recompute exactly from its six columns.</p></div></div></div></div>
 <p><b>DNA</b> ({{§4.3|ax:S4.SS3}}). On one human genome (HG38, about 4.5 billion base pairs) Mamba matches Transformer++ and HyenaDNA with about 3 to 4 times fewer parameters at the largest size, about 40M ({{Figure 5|ax:S4.F7}}, a figure with no table); at fixed size (about 1.4M) its perplexity keeps improving out to 1M-token context while HyenaDNA's gets worse. On five great apes sharing 99% of their DNA, a 7M Mamba fine-tuned at 1M context reaches 81.3% against HyenaDNA's 54.9% (chance 20%; {{Table 13|ax:A5.T5}}).</p>
 <p><b>Audio</b> ({{§4.4|ax:S4.SS4}}): Mamba blocks in place of SaShiMi's S4 + MLP improve long-context piano modelling and SC09 speech generation (FID 0.94 for a 6.1M Mamba against 1.42 for the 23M DiffWave + SaShiMi).</p>
 <details class="mist"><summary>Audio in detail (YouTubeMix, SC09, the U-Net ablation)</summary><div class="b"><p>Swapping SaShiMi's S4 + MLP blocks for Mamba blocks: on YouTubeMix piano both improve with context and Mamba more, up to near-minute sequences at fixed compute (the one experiment with complex states). On SC09 spoken digits a 6.1M Mamba beats the larger GAN and diffusion models, FID 0.94 against 1.42 for the 23M DiffWave + SaShiMi, and a 24.3M one gets 0.67 ({{Table 4|ax:S4.F11}}); Mamba blocks beat S4 + MLP in the outer U-Net stages, and in the center Mamba beats S4 + MLP, which beats attention ({{Table 5|ax:S4.F11}}).</p></div></details>
+<div class="s3sp"><div class="s3L">
 <p><b>Speed and memory</b> ({{§4.5|ax:S4.SS5}}, {{Figure 8|ax:S4.F12}}). With <i>N</i> = 16 the fused scan beats FlashAttention-2 beyond length 2K and a PyTorch scan by 20 to 40 times; generation throughput is 4 to 5 times a same-size Transformer's because, with no KV cache, Mamba runs far larger batches (even an untrained Mamba-6.9B out-generates a Transformer five times smaller). Training memory at 125M is "comparable" to the best Transformer: in {{Table 15|ax:A5.T7}} Mamba needs 4% to 12% more.</p>
-<div class="card" id="mem">
+<p><b>Try it:</b> why no KV cache means bigger batches: per-sequence memory of Pythia-2.8B (KV cache) and Mamba-2.8B (state) in bf16 from their configs, and how many sequences fit beside the 5.6 GB of weights. <span class="ill">Illustrative:</span> it ignores activations and allocator overhead; the paper's test uses prompt 2,048 plus 128 tokens ({{Appendix E.5|ax:A5.SS5}}).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="mem">
 <div class="ctl"><label>tokens per sequence (prompt + generated) = <b id="memTv"></b><input type="range" id="memT" min="6" max="17" step="1" value="11"></label><label>GPU memory <b id="memGv">80 GB</b><select id="memG"><option value="24">24 GB</option><option value="40">40 GB</option><option value="80" selected>80 GB</option></select></label></div>
 <div id="memSvg"></div><div class="out" id="memOut"></div>
-<p class="try"><b>Try:</b> why no KV cache means bigger batches: per-sequence memory of Pythia-2.8B (KV cache) and Mamba-2.8B (state) in bf16 from their configs, and how many sequences fit beside the 5.6 GB of weights. <span class="ill">Illustrative:</span> it ignores activations and allocator overhead; the paper's test uses prompt 2,048 plus 128 tokens ({{Appendix E.5|ax:A5.SS5}}).</p>
-</div>
+
+</div></div></div></div>
 <p><b>Ablations</b> at about 350M ({{§4.6|ax:S4.SS6.SSS1}}). LTI layers barely differ from each other (within 0.3 perplexity) and real equals complex for text; S6 gives a large gain in either block (Mamba 10.56 → 8.69, H3 10.34 → 8.95; {{Table 6|ax:S4.T2}}). Δ is the most important selective parameter (10.93 → 9.81 alone) and the three together beat any one ({{Table 7|ax:S4.F14}}); real initialisations beat complex S4D-Lin when selective ({{Table 8|ax:S4.F14}}); a rank-1 Δ projection gives most of its gain ({{Table 9|ax:S4.F16}}).</p>
 <div class="pred" id="pr-n" data-ans="0"><div class="q">raise the SSM state size <i>N</i> from 1 to 16 (about 1% more parameters). With <b>B</b> and <b>C</b> fixed (not selective), how much does perplexity improve?</div>
 <div class="opts"><button>Barely: under 0.1</button><button>About 0.5</button><button>Over 1.0</button></div>
