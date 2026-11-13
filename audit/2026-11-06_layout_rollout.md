@@ -280,9 +280,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
 - [x] `whats_new/papers/olmo_2` 2 OLMo 2 Furious (OLMo 2)
 - [x] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
-- [~] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
+- [x] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
 - [~] `whats_new/papers/phi_bench` Φ-Bench: Can Large Language Models Engineer the Infrastructure That Powers Them?
-- [ ] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
+- [~] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
 - [ ] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
 - [ ] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
 - [ ] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
@@ -573,6 +573,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/neohorse_1`: loop stage step 4 front-row stations are cut at the bottom edge and the "public_data" label touches the right edge; step 7 overview small on phones.
 - `whats_new/papers/on_policy_or_off_policy_learning`: Fig. 1 step 5 the route "2" label hides behind the -1.09 bar; Run tab sweep card segment buttons wrap at 1400 ("pass@1" over two lines).
 - `whats_new/papers/olmo_2`: Fig. 1 step 5 leaves much empty grid on the left (the stage-1 plate sits at the edge).
+- `whats_new/papers/pagedattention`: stage close views small on phones with the floor behind faint.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -698,3 +699,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - NeoHorse-1: the loop stage's curriculum and OPD steps use the Schedule tab's illustrative defaults (labelled); only its evaluation step is real (4B and 9B); the curate-once mode keeps its own 4-step list. Keep?
 - On-Policy or Off-Policy: the new stage runs at learning rate 0.1, one seed, prompt 11 chosen by a rule (the 0.02 three-seed sweep stays on the Run tab), and replaces the Run tab's prompt selector and 16-frame before/after card; in this toy reverse KL ends more accurate, unlike the paper (said plainly). Keep?
 - OLMo 2: Fig. 1's step list quotes the 7B with 13B and 32B in brackets (one shared list; counters follow the chosen model); anneal token axes stretched 43x and 7x (computed, stated); the spike replay cut from 8 sweep steps to 3 explained stretches; "Why the new initialisation is better" moved from a closed block into the open text. Keep?
+- PagedAttention: the new 3D hero (waste to scale, iteration 3,000 of a ShareGPT run, seed 1) replaced the paper's Figs 3 and 7 at the top (moved into Problem); the Orca (Oracle) predict question became a plain paragraph (the stage gives the answer); the closed Fig. 6 walk-through trimmed to "What one iteration does". Keep?

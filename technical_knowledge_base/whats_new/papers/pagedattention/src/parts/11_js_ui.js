@@ -13,33 +13,46 @@ const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1
 const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
 const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
 
-// makeAnim (never autoplays since 2026-10-25: it waits on step 1 until the reader presses play or steps): one input animated step by step, with modes (old method and new) sharing one scale.
-// o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
-// Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
+// makeAnim (2026-11-13, the layout rollout): one input animated step by step, with modes (old method and new) sharing one scale, explained by
+// an ol.sx step list per mode on the left (o.lists[mode]: one item per step, the current one marked, a click jumps to it; the other modes' lists are hidden).
+// Motion rules as RD.anim in the skill templates: it plays by itself once at least half of its card is in view, pauses off screen and resumes on return,
+// stops for good on any reader control (play, pause, step, scrub, a list item) or at its last step, and never moves by itself under reduced motion.
+// A mode switch shows that mode's list and replays from step 1. The card carries data-playing while it plays.
+// o = {id, modes:{m:[{t}...]}, lists:{m:'ol id'}, mode, draw(mode, k, e, width, t) -> svg, counters(mode,k,e,t) -> html, dur, durOf(mode,k) -> ms}
+// t is the step's raw progress 0..1 (1 once a step is reached by a control): a step that groups several frames (the long-replay rule) plays them in turn.
+// Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cnt and a .seg #<id>M.
 function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
-  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0,user:false,ended:false,lis:[]};
   const steps=()=>o.modes[st.m];
+  function bindList(){const lists=o.lists||{};Object.keys(lists).forEach(m=>{const el=$(lists[m]);if(el)el.hidden=m!==st.m});
+    const el=$(lists[st.m]);st.lis=el?[...el.children]:[];
+    st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;pause();st.k=i;st.t=1;draw()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
   function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
-    host.innerHTML=o.draw(st.m,st.k,e,w);
-    if(st.lk!==st.k||st.lm!==st.m){const S=steps()[st.k];$(id+'Step').innerHTML='Step '+(st.k+1)+' of '+steps().length+': '+S.t;$(id+'Cap').innerHTML=S.c;st.lk=st.k;st.lm=st.m}
-    $(id+'Cnt').innerHTML=o.counters(st.m,st.k,e);
+    host.innerHTML=o.draw(st.m,st.k,e,w,Math.min(1,st.t));
+    if(st.lk!==st.k||st.lm!==st.m){$(id+'Step').innerHTML='Step '+(st.k+1)+' of '+steps().length+': '+steps()[st.k].t;st.lk=st.k;st.lm=st.m;
+      st.lis.forEach((li,i)=>{li.classList.toggle('on',i===st.k);li.classList.toggle('done',i<st.k);if(i===st.k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')})}
+    $(id+'Cnt').innerHTML=o.counters(st.m,st.k,e,Math.min(1,st.t));if(o.onDraw)o.onDraw(st.m,st.k,Math.min(1,st.t));
     const n=steps().length,sc=$(id+'Scrub');sc.max=n*100;sc.value=Math.round((st.k+Math.min(1,st.t))*100);
-    const pb=$(id+'Play'),end=st.k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play')}
+    const pb=$(id+'Play'),end=st.k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
+    if(st.play)card.dataset.playing='1';else card.removeAttribute('data-playing')}
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
+  function tick(now){st.raf=0;if(!st.play||!live()){st.last=0;return}const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
+    st.t+=dt*st.spd/(o.durOf?o.durOf(st.m,st.k):DUR);const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false;st.ended=true}}
     card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
   const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $(id+'Play').addEventListener('click',()=>{if(st.play)pause();else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $(id+'Fwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
-  $(id+'Back').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
+  // autoplay on view, from step 1, unless the reader has taken a control or it has finished
+  function auto(){if(RM||st.user||st.ended||st.play||!live())return;if(!st.started){st.k=0;st.t=0}st.started=true;st.play=true;draw();kick()}
+  $(id+'Play').addEventListener('click',()=>{st.user=true;if(st.play)pause();else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
+  $(id+'Fwd').addEventListener('click',()=>{st.user=true;pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
+  $(id+'Back').addEventListener('click',()=>{st.user=true;pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $(id+'Scrub').addEventListener('input',e=>{st.user=true;pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
   $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    pause();st.m=b.dataset.m;st.k=0;st.t=1;st.lk=-1;bindList();st.user=false;st.ended=false;st.started=false;draw();auto()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
+  bindList();
   fit($(id+'Svg'),()=>draw());
   return {draw,st,kick}}
 

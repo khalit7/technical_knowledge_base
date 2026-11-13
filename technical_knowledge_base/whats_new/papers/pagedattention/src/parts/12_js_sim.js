@@ -32,7 +32,7 @@ const SIM=(function(){
     const wm=paged?Math.floor(watermark*nb):0;const bud=paged?null:Buddy(slots);
     const takeB=()=>{const j=Math.floor(prnd()*freeL.length);const b=freeL[j];freeL[j]=freeL[freeL.length-1];freeL.pop();return b};
     const acc={batch:0,seqs:0,token:0,resv:0,internal:0,saved:0,unshared:0,preempt:0,finished:0,gen:0};let m=0;
-    const tr=o.trace?[]:null;let ev=[];
+    const tr=o.trace?[]:null;let ev=[],snapOut=null;// o.snapAt: keep one step's layout only (the hero stage); never changes a count
     function admit(r){const k=r.outs.length;
       if(paged){const sh=Math.floor(r.p/block);const bl=[];for(let i=0;i<k;i++)bl.push(r.done[i]?0:Math.ceil((r.p+r.g[i])/block)-sh);
         const need=sh+bl.reduce((a,b)=>a+b,0);if(freeL.length-need<wm)return false;
@@ -64,7 +64,7 @@ const SIM=(function(){
           if(ntok+h.p+Math.max(...h.g)>maxTokens||nseq+live>maxSeqs)break;if(!admit(h))break;
           running.push(waiting.shift());ntok+=h.p+Math.max(...h.g);nseq+=live;ev.push(['adm',h.id])}}
       running.sort((a,b)=>a.id-b.id);
-      if(tr)tr.push(snap());
+      if(tr)tr.push(snap());if(step===o.snapAt)snapOut=snap();
       if(step>=warm){m++;let tok=0,resv=0,internal=0,saved=0,unshared=0;
         for(const r of running){const live=[];r.outs.forEach((_,i)=>{if(!r.done[i])live.push(i)});
           if(paged){const base=r.sh*block;tok+=base;unshared+=live.length*r.sh;saved+=Math.max(0,live.length-1)*r.sh;
@@ -75,7 +75,7 @@ const SIM=(function(){
       if(reqs&&!waiting.length&&!running.length&&nxt>=reqs.length)break}
     const S=slots;m=Math.max(m,1);
     const out={batch:acc.batch/m,seqs:acc.seqs/m,token:100*acc.token/m/S,resv:100*acc.resv/m/S,internal:100*acc.internal/m/S,preempt:acc.preempt,finished:acc.finished,tokens_per_step:acc.gen/m,saving:acc.unshared?100*acc.saved/acc.unshared:0};
-    out.external=100-out.token-out.resv-out.internal;if(tr)out.trace=tr;return out;
+    out.external=100-out.token-out.resv-out.internal;if(tr)out.trace=tr;if(snapOut)out.snap=snapOut;return out;
     function snap(){return {ev:ev.slice(),wait:waiting.map(r=>r.id),run:running.map(r=>({id:r.id,p:r.p,outs:r.outs.slice(),st:r.st.slice(),done:r.done.slice(),
       off:r.off?r.off.slice():null,R:r.R?r.R.slice():null,sb:r.sb?r.sb.slice():null,pb:r.pb?r.pb.map(L=>L.slice()):null})),free:paged?freeL.length:null}}}
   // the defaults sim.py writes to inputs/sim_check.json

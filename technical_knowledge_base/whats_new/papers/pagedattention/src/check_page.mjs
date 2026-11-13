@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the animations playing once in view and stepping end to end.
 // Also: the page's simulator (window.__simCheck) against sim.py's inputs/sim_check.json (must be identical), and the
 // page's curve crossings (window.__capsCheck) against recompute.py's inputs/recompute.json.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/pagedattention/src/check_page.mjs [shots dir]
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
+(await import('node:fs')).mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: true });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
@@ -56,11 +57,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
+    // each animation plays by itself once in view (2026-11-06 rollout; it inverts the 2026-10-25 never-autoplay rule); reduced motion is checked by check_stages.mjs
     for (const id of ['bt', 'kv']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 1200));
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play once in view`);
       actions++;
     }
     // open every closed block and audit what it shows

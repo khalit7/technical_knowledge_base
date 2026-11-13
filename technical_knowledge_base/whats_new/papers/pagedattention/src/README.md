@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with the verdict, the core sentence and the hero (the paper's Figures 3 and 7, before and after), You need and new terms, then Problem (Figure 1 redrawn, predict question on Orca (Oracle)'s waste), Background, The idea (Eq. 4), Block tables (the Figures 6 to 9 animation on the paper's own block numbers), Sharing (predict question on parallel-sampling savings), Preemption, Distributed, Implementation, Results, Ablations (predict question on block size), Limits, How much of this to believe, What it takes to use this, Why it matters, Connections. |
+| The paper | `t-read` | Headline card with the verdict, the core sentence and the hero (since 2026-11-13 the 3D stage `stg-hero`, the paper's measured waste to scale; the paper's Figures 3 and 7 moved beside the diagnosis in Problem), You need and new terms, then Problem (Figure 1 redrawn, predict question on Orca (Oracle)'s waste), Background, The idea (Eq. 4), Block tables (the Figures 6 to 9 animation on the paper's own block numbers), Sharing (predict question on parallel-sampling savings), Preemption, Distributed, Implementation, Results, Ablations (predict question on block size), Limits, How much of this to believe, What it takes to use this, Why it matters, Connections. |
 | Simulate the KV cache | `t-run` | The live ingredient: eight illustrative requests on 64 slots, animated for Orca (Max), Orca (Pow2), Orca (Oracle) and vLLM on the same memory; then the same simulator at the paper's OPT-13B scale (15,728 slots, Figure 11 length distributions) with trace, block size, samples per request and seed controls, against Figure 2 and Figure 13. |
 | The paper's figures, rebuilt | `t-tables` | Throughput curves (Figures 12, 14, 16, 17) with a latency threshold slider and the ratios they give; Table 1 recomputed; the bar charts (Figures 2, 13, 15); the ablations (Figures 18a, 19); the Figure 11 workloads; every number in the text checked. |
 | Then and now | `t-then` | Orca (2022), vLLM's release, the paper, everyone paging the KV cache, what paging left open, V1, the 2026 removal of swap space; a survived/changed table. |
@@ -27,6 +27,7 @@
 - `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt`, `inputs/table_S5_T1.txt`), `extract_figs.py` (SVG figures to `inputs/figs.json`; the SVGs themselves are not kept, the usage line says where to download them).
 - `recompute.py`: KV bytes per token from the OPT configurations, Table 1 slots, Figure 1 slopes, every curve crossing at every threshold (checked against the page's JS), the bar ratios, the ablation overheads, Figure 11 means. Writes `inputs/recompute.json`.
 - `sim.py`: the KV cache simulator (rules in its docstring); `parts/12_js_sim.js` is a line-for-line port, and `inputs/sim_check.json` holds the default runs the check compares (270 numbers, identical).
+- `check_stages.mjs` (from the repo root, 2026-11-13): the 3D stage and the two 2D animations at 1400 light, 920 light and 390 dark (autoplay once in view, one list item per step in every mode, a mode switch replays, a reader control stops autoplay for good, flows stop off screen, last step reached), every split two columns at 1400, reduced motion, and 174 numbers and events: the hero's step list against Table 1, Figure 2, Figure 13a and the simulator's averages, and every admission, finish and preemption the toy's stretch lists name against the simulator's trace.
 - `check_page.mjs` (from the repo root: `node technical_knowledge_base/whats_new/papers/pagedattention/src/check_page.mjs`): simulator and curve crossings against Python, then every control at 920 light and 390 dark, both animations stepped end to end with mid-animation screenshots to `../.shots/x-*.png`, text under 11 px, NaN/undefined, errors, sideways scroll.
 - `mk_coverage.py`: 61 facts of `live.md` with where the page carries each, verified against the built page; writes `coverage.json`.
 - `save_live.py`: copied the Notion fetch verbatim into `live.md`.
@@ -72,3 +73,48 @@ Why about 24 minutes is right: the paper has more distinct method pieces than mo
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: simulator and curve crossings identical to Python; 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 61 of 61 (the reading-time item's keys and the batching key updated).
+
+## The 2026-11-13 layout rollout (split layout, a renderer v2 stage, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `pagedattention-tab`). `21_js_rd_common.js` is not used: the page's own `makeAnim` (`11_js_ui.js`) is the rollout copy from Latent Context LMs (step lists per mode, autoplay on view, stops for good on a control, `data-playing`), plus two additions: a per-step duration (`durOf`) and the step's raw progress passed to `draw`, so a step can play a stretch of frames. `12_js_sim.js` gained one option, `snapAt` (record one iteration's layout for the stage; no count changes, `check_page.mjs` still finds all 270 numbers identical to `sim.py`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| The paper | Core sentence, You need, New terms | split | **3D** `stg-hero` (Fig. 1) | yes, 6 |
+| The paper | Problem: memory-bound, the cache is large | split | 2D Figure 1 (right) redrawn | no |
+| The paper | Problem: the diagnosis, three wastes | split | image: the paper's Figures 3 and 7 (the old hero) | no |
+| The paper | Problem: even the oracle wastes most | split | 2D Figure 2 against the simulator | no |
+| The paper | Problem: sharing, scheduling; Background; The idea | full width | none (Eq. 4 is a formula box) | no |
+| The paper | Block tables (§4.2 to §4.3) | split | 2D animation `bt`, four modes (Figures 6 to 9) | yes, 4 / 5 / 3 / 3 |
+| The paper | Sharing | split | 2D Figure 15 against the simulator | no |
+| The paper | Preemption, Distributed, Implementation, Results | full width | none | no |
+| The paper | Ablations: kernel overhead, block size | split | 2D Figure 18b and the simulator by block size | no |
+| The paper | Recompute against swap, Limits, Believe, Using it, Why it matters, Connections | full width | none | no |
+| Simulate | The toy KV cache | split | 2D animation `kv`, four modes, grouped by the long-replay rule | yes, 5 / 5 / 5 / 6 |
+| Simulate | At the paper's scale | split | 2D tool: notes left; controls, Figure 2 bars and table right | no |
+| Figures, rebuilt | Throughput curves; ablations; workloads | split | 2D tools and charts (notes left) | no |
+| Figures, rebuilt | Table 1, bar charts, every number checked | full width | tables | no |
+| Then and now, Further reading | all | full width | none | no |
+
+**The stage and its data.** `31_js_sc_hero.js`, Fig. 1, *the paper's measured waste, drawn to scale*: Table 1's 12 GB of KV cache for OPT-13B on one A100-40GB (15,728 slots of 800 KiB) four times, one floor per system of the evaluation (Orca Max, Pow2, Oracle; vLLM), one row per 2,048 slots (OPT's longest sequence). On each floor stands one iteration of this page's simulator (`SIM.run`, ShareGPT lengths from Figure 11, seed 1, iteration 3,000, after the warm-up), classified slot by slot: raised green slots hold a token, pale raised ones are reserved for tokens to come, the red floor is reserved past the real end (internal fragmentation), grey is the buddy allocator's rounding; vLLM's floor is 983 blocks of 16 with one request's blocks in blue. A glass plate (the model) streams one dot flow per running sequence to the slot it writes this iteration. The camera moves in close on each system in turn, then pulls back for the bill: Figure 13a's requests per batch as bars on white plinths. The step list quotes Figure 2 as printed and the simulator's averages (`inputs/sim_check.json`); a live line under the list gives the drawn iteration's own shares. Every number is checked by `check_stages.mjs`. The block-table mechanism on a pool (in 3D) is the owner's, Batching, KV cache and scheduling in depth (Fig. 3); this page links to it and keeps the paper's own Figures 6 to 9 in 2D with their block numbers.
+
+**Kept 2D, and why.** The block-table animation: the paper's own Figures 6 to 9, words and block numbers in small tables, which read best flat, and the 3D pool stage is the owner's. The toy KV cache on Simulate: 64 slots as squares with a request strip and counters, a flat picture whose change over time is the point (grouped into 5 or 6 explained stretches per system, each playing its iterations). Figure 1, Figures 2 and 15 (stacked and plain bars), Figure 18b (log axis), the throughput curves, the ablation and length charts (curves and histograms) and the tables.
+
+**Moved.** The paper's Figures 3 and 7 (before and after) from the top into Problem, beside the three wastes they draw. The Oracle predict question became a paragraph ("Even the oracle wastes most of its memory"): the stage now answers it at the top. The per-step captions of both animations became the step lists (`sx-bt1` to `sx-bt4`, `sx-kv1` to `sx-kv4`); the toy keeps a one-line live readout of the iteration drawn. The closed "Figure 6 walk-through in words" kept only what the list does not say ("What one iteration does"); its one extra fact (prefill uses ordinary attention) moved into the list.
+
+**Motion.** The stage and both animations play once at least half in view, pause off screen, stop for good on any control or at the last step, never move under reduced motion; a mode switch shows that mode's list and replays. `check_page.mjs` now asserts that each animation plays once in view (it asserted the opposite since 2026-10-25) and creates its screenshot folder.
+
+## Length judgement (2026-11-13)
+| | Before (2026-10-25) | After |
+|---|---|---|
+| The paper, core | 24.1 min (5,533 words) | 28.9 min (6,654) |
+| The paper, closed | 5.7 min (1,304) | 5.3 min (1,210) |
+| Simulate the KV cache | 3.6 min (822) | 6.8 min (1,573) |
+| Figures rebuilt; Then and now; Further reading | 5.8; 3.2; 2.2 | unchanged |
+| Visuals drawn in The paper (audit) | 9 | 10 |
+
+The growth is the step lists. On The paper, the hero's list (about 350 words, plus its provenance line) is new, and the block-table lists (about 660 words, three of the four modes hidden by default) replace captions that were drawn by script and invisible to the audit; on Simulate, the four stretch lists (about 750 words, three hidden by default) replace per-iteration captions. A reader following the default modes reads about 27 minutes on The paper and 4 on Simulate. Nothing was cut. Header: "Reading: 29 min, plus 5 in closed details."
+
+Ledger: 293 units (core 253, depth 27, owned 6, volatile 5, fat 2); 10 added (the stage, its provenance and bill, two block-table list facts, four toy stretch facts); keys re-pointed on 33, 34, 35 (the Oracle question, now a paragraph), 62 (the block-table intro), 69 (the Figure 6 walk-through, now the list), 194, 197, 198, 200 (the Simulate intro and Try line). `ledger.py check`: problems 0.
+
+Checks (13 November 2026): `checkpage.sh` tabs 5, fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems (simulator 270 and crossings 558 numbers identical to Python); `check_stages.mjs` 0 problems; `mk_coverage.py` 61 of 61; `verify_layout.mjs` problems 0.

@@ -82,28 +82,28 @@ drawBS();
   const cA='var(--c5)',cB='var(--c3)',cA2='var(--c6)';
   // a state: {phys:{id:[[word,color,gen]...]}, ref:{id:n}, seqs:[{n,c,blocks:[id...],fill:[...]}], hi:{id:1}, freed:{id:1}, copy:[from,to]}
   const one=[
-    {t:'Request A arrives',c:'The prompt is "Four score and seven years ago our", 7 tokens. Nothing is reserved for the 2,048-token maximum: vLLM will allocate blocks only as tokens arrive.',s:{phys:{},seqs:[{n:'A',c:cA,blocks:[],fill:[]}]}},
-    {t:'Prefill: two blocks, anywhere',c:'The prompt needs two blocks of 4. Logical block 0 maps to physical block 7, logical block 1 to physical block 1 (Figure 6, step 1); the prompt\'s KV cache is written into them and the first output token, "fathers", is generated. One slot of block 1 stays free for it.',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA])},seqs:[{n:'A',c:cA,blocks:[7,1],fill:[4,3]}],hi:{7:1,1:1}}},
-    {t:'Decode: fill the last slot',c:'The first decoding step runs PagedAttention over blocks 7 and 1 and stores the KV cache of "fathers" in the free slot; the block table\'s fill count for logical block 1 goes from 3 to 4 (step 2). "brought" is generated.',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA]).concat([['fathers',cA,1]])},seqs:[{n:'A',c:cA,blocks:[7,1],fill:[4,4]}],hi:{1:1}}},
-    {t:'Decode: a new block on demand',c:'The last block is full, so the next token needs a new logical block 2; vLLM allocates physical block 3 for it and records the mapping (step 3). At most one block per request is ever partly empty: here 3 slots.',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA]).concat([['fathers',cA,1]]),3:[['brought',cA,1]]},seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]}],hi:{3:1}}}];
+    {t:'Request A arrives',s:{phys:{},seqs:[{n:'A',c:cA,blocks:[],fill:[]}]}},
+    {t:'Prefill: two blocks, anywhere',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA])},seqs:[{n:'A',c:cA,blocks:[7,1],fill:[4,3]}],hi:{7:1,1:1}}},
+    {t:'Decode: fill the last slot',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA]).concat([['fathers',cA,1]])},seqs:[{n:'A',c:cA,blocks:[7,1],fill:[4,4]}],hi:{1:1}}},
+    {t:'Decode: a new block on demand',s:{phys:{7:PA.slice(0,4).map(w=>[w,cA]),1:PA.slice(4).map(w=>[w,cA]).concat([['fathers',cA,1]]),3:[['brought',cA,1]]},seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]}],hi:{3:1}}}];
   const Aend=one[3].s.phys;
   const B0=[['It',cB],['was',cB],['the',cB]];
   const two=[
-    {t:'Request A, as Figure 6 left it',c:'Request A holds physical blocks 7, 1 and 3. The rest of the pool is free; the block engine cut it from one contiguous chunk of GPU memory.',s:{phys:Aend,seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]}]}},
-    {t:'Request B arrives: block 5',c:'Request B\'s prompt "It was the" fits one block. The block manager gives it physical block 5, which is not next to anything of B\'s, and need not be (Figure 7). A is held still here for clarity; in vLLM both advance every step.',s:{phys:Object.assign({},Aend,{5:B0}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5],fill:[3]}],hi:{5:1}}},
-    {t:'B decodes "best"',c:'B\'s first generated token fills its block\'s last slot.',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]])}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5],fill:[4]}],hi:{5:1}}},
-    {t:'B needs a second block: block 2',c:'B\'s next token gets physical block 2, between A\'s blocks 1 and 3. Neighbouring logical blocks of both requests are scattered, and every block in the pool is usable by either request.',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]]),2:[['of',cB,1]]}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5,2],fill:[4,1]}],hi:{2:1}}},
-    {t:'"of times"',c:'B continues in block 2. Two requests, five blocks, 15 tokens, and the waste is the two partly filled last blocks: 5 slots. A contiguous system would have reserved each request\'s maximum length.',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]]),2:[['of',cB,1],['times',cB,1]]}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5,2],fill:[4,2]}],hi:{2:1}}}];
+    {t:'Request A, as Figure 6 left it',s:{phys:Aend,seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]}]}},
+    {t:'Request B arrives: block 5',s:{phys:Object.assign({},Aend,{5:B0}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5],fill:[3]}],hi:{5:1}}},
+    {t:'B decodes "best"',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]])}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5],fill:[4]}],hi:{5:1}}},
+    {t:'B needs a second block: block 2',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]]),2:[['of',cB,1]]}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5,2],fill:[4,1]}],hi:{2:1}}},
+    {t:'B fills "of times"',s:{phys:Object.assign({},Aend,{5:B0.concat([['best',cB,1]]),2:[['of',cB,1],['times',cB,1]]}),seqs:[{n:'A',c:cA,blocks:[7,1,3],fill:[4,4,1]},{n:'B',c:cB,blocks:[5,2],fill:[4,2]}],hi:{2:1}}}];
   const pr=PA.slice(0,4).map(w=>[w,'var(--c1)']),pr2=PA.slice(4).map(w=>[w,'var(--c1)']);
   const par=[
-    {t:'Two samples, one prompt',c:'Parallel sampling asks for two outputs, A1 and A2, from the same prompt. Only one copy of the prompt\'s KV cache is stored: both samples\' logical blocks 0 and 1 map to physical blocks 7 and 1, whose reference counts are 2 (Figure 8).',s:{phys:{7:pr,1:pr2},ref:{7:2,1:2},seqs:[{n:'A1',c:cA,blocks:[7,1],fill:[4,3]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,3]}],hi:{7:1,1:1}}},
-    {t:'A1 writes: copy-on-write',c:'A1 sampled "fathers" and must write it into its last logical block, physical block 1, whose reference count is 2. vLLM allocates block 3, the block engine copies block 1 into it, block 1\'s count drops from 2 to 1, and A1 writes into its own copy.',s:{phys:{7:pr,1:pr2,3:pr2.concat([['fathers',cA,1]])},ref:{7:2,1:1,3:1},seqs:[{n:'A1',c:cA,blocks:[7,3],fill:[4,4]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,3]}],hi:{3:1},copy:[1,3]}},
-    {t:'A2 writes in place',c:'A2 sampled "mothers". Block 1\'s reference count is already 1, so A2 writes straight into it: no copy. Block 7 stays shared. Only the prompt\'s last, partly filled block was ever copied.',s:{phys:{7:pr,1:pr2.concat([['mothers',cA2,1]]),3:pr2.concat([['fathers',cA,1]])},ref:{7:2,1:1,3:1},seqs:[{n:'A1',c:cA,blocks:[7,3],fill:[4,4]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,4]}],hi:{1:1}}}];
+    {t:'Two samples, one prompt',s:{phys:{7:pr,1:pr2},ref:{7:2,1:2},seqs:[{n:'A1',c:cA,blocks:[7,1],fill:[4,3]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,3]}],hi:{7:1,1:1}}},
+    {t:'A1 writes: copy-on-write',s:{phys:{7:pr,1:pr2,3:pr2.concat([['fathers',cA,1]])},ref:{7:2,1:1,3:1},seqs:[{n:'A1',c:cA,blocks:[7,3],fill:[4,4]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,3]}],hi:{3:1},copy:[1,3]}},
+    {t:'A2 writes in place',s:{phys:{7:pr,1:pr2.concat([['mothers',cA2,1]]),3:pr2.concat([['fathers',cA,1]])},ref:{7:2,1:1,3:1},seqs:[{n:'A1',c:cA,blocks:[7,3],fill:[4,4]},{n:'A2',c:cA2,blocks:[7,1],fill:[4,4]}],hi:{1:1}}}];
   const bm=(tabs,ref,freed,hi)=>({beam:1,tabs,ref,freed:freed||{},hi:hi||{}});
   const beam=[
-    {t:'Four beams, before the iteration',c:'Beam width k = 4, each candidate four blocks long (Figure 9, left of the dotted line). All share block 0, the prompt; candidates 0 to 2 share blocks 1 and 3 and diverge at the fourth; candidate 3 split off at the second block.',s:bm([[0,1,3,5],[0,1,3,6],[0,1,3,7],[0,2,4,8]],{0:4,1:3,3:3,2:1,4:1,5:1,6:1,7:1,8:1})},
-    {t:'The new top 4 all descend from candidates 1 and 2',c:'Candidates 0 and 3 drop out of the beam. Their logical blocks are freed and the reference counts of their physical blocks fall; blocks 2, 4, 5 and 8 reach 0 and return to the pool.',s:bm([[0,1,3,6],[0,1,3,6],[0,1,3,7],[0,1,3,7]],{0:4,1:4,3:4,6:2,7:2,2:0,4:0,5:0,8:0},{2:1,4:1,5:1,8:1})},
-    {t:'New blocks 9 to 12',c:'The four new candidates write their new tokens into newly allocated blocks 9 to 12. Now all share blocks 0, 1 and 3; candidates 0 and 1 share block 6, candidates 2 and 3 share block 7. A contiguous system would have had to copy most of candidate 2\'s cache to continue the new candidate 3; here at most one block is ever copied.',s:bm([[0,1,3,6,9],[0,1,3,6,10],[0,1,3,7,11],[0,1,3,7,12]],{0:4,1:4,3:4,6:2,7:2,9:1,10:1,11:1,12:1},{},{9:1,10:1,11:1,12:1})}];
+    {t:'Four beams, before the iteration',s:bm([[0,1,3,5],[0,1,3,6],[0,1,3,7],[0,2,4,8]],{0:4,1:3,3:3,2:1,4:1,5:1,6:1,7:1,8:1})},
+    {t:'The new top 4 all descend from candidates 1 and 2',s:bm([[0,1,3,6],[0,1,3,6],[0,1,3,7],[0,1,3,7]],{0:4,1:4,3:4,6:2,7:2,2:0,4:0,5:0,8:0},{2:1,4:1,5:1,8:1})},
+    {t:'New blocks 9 to 12',s:bm([[0,1,3,6,9],[0,1,3,6,10],[0,1,3,7,11],[0,1,3,7,12]],{0:4,1:4,3:4,6:2,7:2,9:1,10:1,11:1,12:1},{},{9:1,10:1,11:1,12:1})}];
   const MODES={one,two,par,beam};
   function cntOf(m,k){const S=MODES[m][k].s;
     if(S.beam){const used=Object.keys(S.ref).filter(b=>S.ref[b]>0).length,noshare=S.tabs.reduce((a,t)=>a+t.length,0);
@@ -112,7 +112,7 @@ drawBS();
     return stat('physical blocks in use',ids.length,'of 9, 4 slots each')+stat('slots holding a token',tok,'of '+alloc+' allocated')+stat('slots wasted',alloc-tok,'only in last blocks')+(m==='par'?stat('without sharing',noshare+' blocks',k>0?'one block copied':'no copies yet'):stat('reserved for future tokens','0','beyond the last block'))}
   function draw(m,k,e,W){const S=MODES[m][k].s,P=k>0?MODES[m][k-1].s:null;
     if(S.beam)return drawBeam(S,e,W);
-    const wide=W>=640,cw=wide?Math.min(52,(W*.42-50)/4):Math.min(56,(W-60)/4),ch=24,lab=48;
+    const wide=W>=640,cw=wide?Math.min(52,(W-2*48-18-150-44)/8):Math.min(56,(W-60)/4),ch=24,lab=48;
     let s='',y0=18;
     // logical blocks, one table per sequence
     const lw=lab+4*cw,tw=wide?150:0;let ly=y0;const out=[];
@@ -147,6 +147,6 @@ drawBS();
       s+=rc(x+1,y,bw-4,ch,r>0?(r>1?'var(--acc2)':'var(--soft)'):'none',{r:3,s:fr?'var(--bad)':'var(--line)',da:r>0?null:'3 3'})+tx(x+bw/2-1,y+ch/2+4,String(b),{fs:11,a:'middle',c:r>0?'var(--ink)':'var(--mute)'})+tx(x+bw/2-1,y+ch+13,r>0?'ref '+r:fr?'freed':'free',{fs:11,a:'middle',c:fr?'var(--bad)':'var(--mute)'});
       if(fr)s+=G(e,ln2(x+5,y+4,x+bw-8,y+ch-4,'var(--bad)',{sw:2})+ln2(x+bw-8,y+4,x+5,y+ch-4,'var(--bad)',{sw:2}))}
     return svgEl(W,py+2*(ch+20)+4,s,'beam search block tables')}
-  const modes={};Object.keys(MODES).forEach(m=>modes[m]=MODES[m].map(x=>({t:x.t,c:x.c})));
-  makeAnim({id:'bt',modes,mode:'one',dur:3200,draw:(m,k,e,w)=>draw(m,k,e,w),counters:(m,k)=>cntOf(m,k)});
+  const modes={};Object.keys(MODES).forEach(m=>modes[m]=MODES[m].map(x=>({t:x.t})));// the explanation of each step is the step list on the left (sx-bt1 to sx-bt4)
+  makeAnim({id:'bt',modes,lists:{one:'sx-bt1',two:'sx-bt2',par:'sx-bt3',beam:'sx-bt4'},mode:'one',dur:3600,draw:(m,k,e,w)=>draw(m,k,e,w),counters:(m,k)=>cntOf(m,k)});
 })();

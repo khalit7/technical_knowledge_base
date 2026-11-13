@@ -11,22 +11,24 @@ function layout(sys,S){const N=TOY.slots,kind=new Array(N).fill(0),own=new Array
     else{const R=r.R[i],A=SIM.pow2(R),off=r.off[i];for(let q=0;q<A;q++){const x=off+q;own[x]=ci;kind[x]=q<st?1:q<Math.min(R,F)?2:q<R?3:4}}})});
   return {kind,own,blk}}
 function shares(sys,S){const L=layout(sys,S),c=[0,0,0,0,0];L.kind.forEach(k=>c[k]++);const N=TOY.slots;return {token:100*c[1]/N,resv:100*c[2]/N,internal:100*c[3]/N,external:100*(c[4]+c[0])/N}}
-const toyModes={};
-['max','pow2','oracle','vllm'].forEach(s=>{const T=toyRuns[s];const steps=[{t:'Eight requests wait',c:'Nothing is allocated yet. '+(s==='vllm'?'vLLM will hand out 4-slot blocks as tokens arrive.':s==='max'?'Orca (Max) will reserve the 32-slot maximum for every request.':s==='pow2'?'Orca (Pow2) will reserve prompt + the output rounded up to a power of two (at most 2×).':'Orca (Oracle) will reserve exactly prompt + output: it is told the output lengths.')+' The buddy allocator'+(s==='vllm'?' is not used: every block has the same size.':' rounds every chunk up to a power of two.')}];
-  let seen={};
-  T.forEach((S,k)=>{const ad=S.ev.filter(e=>e[0]==='adm').map(e=>LET[e[1]-1]),fi=S.ev.filter(e=>e[0]==='fin').map(e=>LET[e[1]-1]),pre=S.ev.filter(e=>e[0]==='pre').map(e=>LET[e[1]-1]),bl=S.ev.filter(e=>e[0]==='blk');
-    const parts=[];
-    if(pre.length)parts.push('<b>Preempted '+pre.join(', ')+'</b>: a running request needed a new block and none was free, so the latest-arrived request gives up all its blocks and goes back to the front of the queue, to be recomputed in one prefill when memory frees up');
-    if(fi.length)parts.push('finished: '+fi.join(', ')+' (memory freed)');
-    if(ad.length)parts.push('admitted: '+ad.join(', ')+(s==='vllm'?' (prompt blocks only)':' (a whole chunk each)'));
-    if(bl.length)parts.push('new blocks: '+bl.map(e=>LET[e[1]-1]+' → '+e[2]).join(', '));
-    const w=S.wait.length,run=S.run.map(r=>LET[r.id-1]).join(' ');
-    if(!parts.length)parts.push('every running request appends one token');
-    const full=w&&!ad.length?' The next request in line, '+LET[S.wait[0]-1]+', does not fit.':'';
-    steps.push({t:(S.run.length?S.run.length+' running':'all done')+(w?', '+w+' waiting':''),c:parts.join('; ')+'.'+full+(S.run.length?' Running: '+run+'.':' All eight requests finished in '+T.length+' steps.')})});
-  toyModes[s]=steps});
-const toyAnim=makeAnim({id:'kv',modes:toyModes,mode:'max',dur:1500,
-  draw:(m,k,e,W)=>{const T=toyRuns[m],S=k>0?T[k-1]:{run:[],wait:[1,2,3,4,5,6,7,8],ev:[]},P=k>1?T[k-2]:null;
+// The long-replay rule (2026-11-06): the toy runs 15 to 29 iterations, so each step of the animation is a stretch of iterations,
+// explained by one item of the step list on the left (sx-kv*), and plays its iterations in turn. Frame 0 is before iteration 1; frame i is after iteration i.
+// check_stages.mjs asserts that the stretches end on the last iteration and that every event the lists name happens where they say.
+const TOYSTR={max:[[0,0],[1,6],[7,13],[14,23],[24,29]],pow2:[[0,0],[1,4],[5,9],[10,17],[18,26]],oracle:[[0,0],[1,4],[5,9],[10,17],[18,25]],vllm:[[0,0],[1,1],[2,3],[4,6],[7,9],[10,15]]};
+const toyModes={},toyCap={};
+['max','pow2','oracle','vllm'].forEach(s=>{const T=toyRuns[s];
+  toyModes[s]=TOYSTR[s].map(([a,b])=>({t:a===0?'Eight requests wait':a===b?'Iteration '+a:b===a+1?'Iterations '+a+' and '+b:'Iterations '+a+' to '+b}));
+  // a live line under the drawing: what this one iteration did (the step list explains the stretch)
+  toyCap[s]=[ 'Before iteration 1: nothing allocated, eight requests in the queue.'].concat(T.map((S,k)=>{const L=t=>S.ev.filter(e=>e[0]===t).map(e=>LET[e[1]-1]);const ad=L('adm'),fi=L('fin'),pre=L('pre'),bl=S.ev.filter(e=>e[0]==='blk');
+    const parts=[];if(pre.length)parts.push('preempted '+pre.join(', '));if(fi.length)parts.push('finished '+fi.join(', '));if(ad.length)parts.push('admitted '+ad.join(', '));
+    if(bl.length)parts.push('new blocks '+bl.map(e=>LET[e[1]-1]+' → '+e[2]).join(', '));if(!parts.length)parts.push('every running request appends one token');
+    return 'Iteration '+(k+1)+' of '+T.length+': '+parts.join('; ')+'.'+(S.run.length?' Running: '+S.run.map(r=>LET[r.id-1]).join(' ')+'.':' All eight done.')}))});
+// which frame a step shows at progress t, and that frame's own tween
+function toyFrame(m,k,e,t){const [a,b]=TOYSTR[m][k],n=b-a+1;if(n===1||t>=1)return {f:b,e:n===1?e:1};const u=t*n,j=Math.min(n-1,Math.floor(u));return {f:a+j,e:RM?1:ease(cl01((u-j)/.6))}}
+const toyAnim=makeAnim({id:'kv',modes:toyModes,lists:{max:'sx-kv1',pow2:'sx-kv2',oracle:'sx-kv3',vllm:'sx-kv4'},mode:'max',dur:3600,
+  durOf:(m,k)=>{const [a,b]=TOYSTR[m][k];return Math.max(3600,(b-a+1)*650)},
+  onDraw:(m,k,t)=>{const x=$('kvLive');if(x)x.textContent=toyCap[m][toyFrame(m,k,1,t).f]},
+  draw:(m,k0,e0,W,t)=>{const F0=toyFrame(m,k0,e0,t),k=F0.f,e=F0.e;const T=toyRuns[m],S=k>0?T[k-1]:{run:[],wait:[1,2,3,4,5,6,7,8],ev:[]},P=k>1?T[k-2]:null;
     const per=W>=600?16:8,cw=Math.floor((W-2)/per),ch=Math.min(30,cw),rows=TOY.slots/per;const L=layout(m,S),PL=P?layout(m,P):null;
     const COL=['none','','','var(--frag)','var(--dim)'];let s='';
     for(let x=0;x<TOY.slots;x++){const r=Math.floor(x/per),c=x%per,X=1+c*cw,Y=r*ch+1,k2=L.kind[x],o=L.own[x];
@@ -45,7 +47,7 @@ const toyAnim=makeAnim({id:'kv',modes:toyModes,mode:'max',dur:1500,
       ent.forEach(t=>{if((cur+'   '+t).length>mc){lines.push(cur);cur=t}else cur+=(cur?'   ':'')+t});lines.push(cur);
       lines.forEach(l=>{s+=tx(0,y+8,l,{fs:11,c:'var(--mute)'});y+=16})}
     return svgW(W,y+4,s,'KV cache memory, '+SYSN[m])},
-  counters:(m,k)=>{const T=toyRuns[m],S=k>0?T[k-1]:{run:[],wait:[1,2,3,4,5,6,7,8]};const sh=shares(m,S);let done=0;for(let j=0;j<k;j++)T[j].ev.forEach(ev=>{if(ev[0]==='fin')done++});
+  counters:(m,k0,e0,t)=>{const k=toyFrame(m,k0,1,t).f;const T=toyRuns[m],S=k>0?T[k-1]:{run:[],wait:[1,2,3,4,5,6,7,8]};const sh=shares(m,S);let done=0;for(let j=0;j<k;j++)T[j].ev.forEach(ev=>{if(ev[0]==='fin')done++});
     const pre=T.slice(0,k).reduce((a,S2)=>a+S2.ev.filter(e=>e[0]==='pre').length,0);
     return stat('iterations run',k+' of '+T.length,'to finish all eight')+stat('running / waiting / done',S.run.length+' / '+S.wait.length+' / '+done,pre?pre+' preemption'+(pre>1?'s':'')+' so far':'')+
       stat('<span style="color:var(--good)">■</span> slots holding a token',f1(sh.token,0)+'%','of 64')+stat('<span style="color:var(--c5)">■</span> reserved, to be used',f1(sh.resv,0)+'%','held empty meanwhile')+
