@@ -24,3 +24,11 @@ Question the page keeps returning to: what can be checked in Meta's engineering 
 Methodology gap noted: for long technical reports with many figures, the arXiv e-print often ships the figures as vector PDFs even when the HTML has no image; reading markers from the PDF drawing commands (pymupdf `get_drawings`, calibrated on gridlines) is as exact as the SVG method and should be tried first.
 
 | P-llama_3_herd.h | Hero: the report as one six-stage pipeline, contributions in blue (static SVG at measured width, 1 to 3 columns) | built 2026-10-25 (light pass) |
+
+2026-11-13 layout rollout:
+
+| P-llama_3_herd.17 | Fig. 1, 3D stage: the 133 IsoFLOPs runs over a floor of log tokens by log FLOPs, height = loss; one budget's valley, all ten parabolas, the curvature flattening, the minima dropped to the floor on the power law, extrapolated to 4.0e25 (16.55T, 402.8B) | built (`31_js_sc_iso.js`) |
+| P-llama_3_herd.18 | Fig. 2, 3D stage: one prompt through a round, K = 20 bars scored by the RM, the kept one into SFT with Table 7's mix, DPO with Table 6's mix, averaging, the loop back (six rounds); PPO mode with four resident networks | built (`32_js_sc_post.js`), replaces the 2D animation of `14_js_post.js` |
+| P-llama_3_herd.19 | Hero as a 3D stage (data stack, the 405B as 126 layers, a 16K-GPU grid) | rejected: a summary of six pieces of text, not one spatial structure; the GPU grid belongs to the Meta lab page and Distributed training |
+| P-llama_3_herd.20 | 3D device mesh of the 16K GPUs (TP inside servers, PP and DP across pods) | rejected: 4D parallelism is owned by Distributed training and the three meshes are drawn on the Meta lab page; linked |
+| P-llama_3_herd.21 | 54-day replay as an autoplaying animation | changed to a widget (long-replay rule): the outcome of the reader's checkpoint and restart settings is the point |

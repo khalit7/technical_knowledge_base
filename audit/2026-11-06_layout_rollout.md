@@ -269,8 +269,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
 - [x] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
 - [x] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
-- [~] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
-- [~] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
+- [x] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
+- [x] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
 - [ ] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
 - [ ] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 - [ ] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
@@ -562,6 +562,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/latent_context_language_models`: stage opening step leaves empty space at 1400; on phones the last step's time label sits close to the FastKVzip tower.
 - `whats_new/papers/ldm_stable_diffusion`: Fig. 1 step 4 the pixel-image planes are cut off at the left edge of the card at 1400.
 - `whats_new/papers/learn_whats_left_not_whats_mastered`: on phones Stage 1 step 4 "s = 0.98" touches the plinth end; long formula boxes in Stage 2's list scroll sideways.
+- `whats_new/papers/llama_3_herd`: Fig. 1 sits slightly high in its card on phones; Fig. 2 plates small on phones.
+- `whats_new/papers/llm_modules`: Run tab widgets stay full width (tool-tab exception); Fig. 2 at 1400 the "frozen-model states" label sits close to the "bos" column label.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -676,3 +678,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Latent Context LMs: static hero replaced by the 3D stage (same summary in its last step); KV cache drawn as a tower of 4,096-position slabs (height = memory to scale); which segments FastKVzip keeps is illustrative (labelled); Simulate steps slowed to 3.6 s. Keep?
 - LDM: hero prompt "red circle, top left" run through the shipped toy (seeds stated); the f-sweep's batch columns stand in an even row behind the tensors (labels collided); the two-chain animation runs in four stretches of five DDIM steps; the SD 1.5 latent, U-Net and 77-token stages are linked to Latent diffusion and DiTs instead of rebuilt. Keep?
 - Learn What's Left (SA-MRPO): Stage 2 uses step 80 of the gamma = 0.5 toy run with "first group of each kind"; the four method steps with their equations now live in Stage 2's step list; Stage 1 toggle labels shortened. Keep?
+- Llama 3 Herd: Fig. 1 stretches heights 4x in steps 1 and 2 (one valley spans 0.02 of loss; stated, true scale from step 3); Fig. 2 reward-model scores are seeded illustrative draws (labelled); the 54-day replay is a widget opening on the whole run; Post-training data is its own h2 section (not in the section nav). Keep?
+- LLM Modules: corrected the leak animation's last step, which showed the released model right at "=" on the true prefix; it now shows the first position where free-running output departs from the trace ("T": 16 instead of 2), both traces quoted and checked. Keep?

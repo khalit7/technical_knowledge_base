@@ -55,14 +55,8 @@ function pipeSim(P,V,M,N,tf,tb,c){tf=tf||1;tb=tb||2;c=c||0;
 (function(){if(!$('pp'))return;const P=4,V=2,LAT=[0,0.25,0.5,1,2];
   const CF={dfs:[8,4],l3:[10,5],bfs:[10,10]};const cache={};
   const sim=m=>{const c=LAT[+$('ppL').value],k=m+c;return cache[k]||(cache[k]=pipeSim(P,V,CF[m][0],CF[m][1],1,2,c))};
-  const cap={dfs:'Depth-first (Megatron interleaved): each stage runs N = PP = 4 micro-batches before switching chunk, so M must be a multiple of 4; 10 micro-batches are not allowed.',
-    l3:'Llama 3: N = 5 with M = 10, the setting of Figure 6. N is free, so the batch need not divide by the stage count.',
-    bfs:'Breadth-first (Lamy-Poirier): all M = 10 micro-batches pass a stage before the next chunk starts, holding the most activations.'};
-  const steps=m=>[{t:'Warm-up: forwards fill the pipeline',c:cap[m]+' Rank 0 runs ahead with forwards while later ranks wait for their first input.'},
-    {t:'Steady state: one forward, one backward',c:'Each rank alternates forward and backward work; idle gaps are the bubble.'},
-    {t:'Cool-down: the backwards drain',c:'No forwards are left; ranks wait for gradients from the stages after them.'},
-    {t:'The whole schedule',c:'Grey is idle. Compare the bubble with the formula (PP − 1)/(V × M) and the peak in-flight activations across modes, then add latency.'}];
-  const MODES={dfs:steps('dfs'),l3:steps('l3'),bfs:steps('bfs')};
+  // the four steps are written out in the step list #sx-pp, shared by the three modes; the modes are described above it
+  const ST=[{t:'Warm-up'},{t:'Steady state'},{t:'Cool-down'},{t:'The whole schedule'}],MODES={dfs:ST,l3:ST,bfs:ST};
   function draw(m,k,e,w){const r=sim(m),span=Math.max(sim('dfs').span,sim('l3').span,sim('bfs').span),ph=[0,r.firstB,r.lastF,r.span,r.span],t=k===3?r.span:ph[k]+(ph[k+1]-ph[k])*e;
     const pl=50,rh=26,H=P*rh+36,sx=v=>pl+(w-pl-6)*v/span;let s='';
     for(let p=0;p<P;p++){const y=6+p*rh;s+=rc(pl,y,sx(r.span)-pl,rh-6,'var(--soft)',{r:2})+tx(0,y+14,'rank '+p,{fs:11,c:'var(--mute)'})}
@@ -73,7 +67,7 @@ function pipeSim(P,V,M,N,tf,tb,c){tf=tf||1;tb=tb||2;c=c||0;
     s+=tx(pl,H-6,'time (forward = 1 unit, backward = 2)',{fs:11,c:'var(--mute)'})+tx(w-6,H-6,fmt(r.span,r.span%1?2:0)+' units',{fs:11,a:'end',c:'var(--mute)'});
     return svgW(w,H,s,'Pipeline schedule')+'<div class="stkl"><span><i style="background:var(--c1)"></i>forward, chunk 0</span><span><i style="background:var(--c6)"></i>forward, chunk 1</span><span><i style="background:var(--c2)"></i>backward, chunk 0</span><span><i style="background:var(--c5)"></i>backward, chunk 1</span><span>numbers: micro-batch</span></div>'}
   function counters(m){const r=sim(m);return stat('Micro-batches M, group N',CF[m][0]+', '+CF[m][1],'PP = 4, V = 2')+stat('Bubble, simulated',(r.bubble*100).toFixed(1)+'%','idle time over busy time')+stat('Bubble, (PP − 1)/(V × M)',(r.formula*100).toFixed(1)+'%','the paper\'s formula')+stat('Peak in flight per rank',r.peak,'micro-batch stages holding activations')}
-  const A=makeAnim({id:'pp',modes:MODES,mode:'l3',draw,counters,dur:3500});
+  const A=makeAnim({id:'pp',modes:MODES,mode:'l3',lists:{dfs:'sx-pp',l3:'sx-pp',bfs:'sx-pp'},draw,counters,dur:3800});
   function sweep(){const c=LAT[+$('ppL').value];$('ppLv').textContent=c?c+' unit'+(c>1?'s':''):'none';let s='<div class="tw"><table><thead><tr><th>N (M = 10)</th><th class="num">Bubble</th><th class="num">Formula</th><th class="num">Peak in flight</th></tr></thead><tbody>';
     [2,3,4,5,10].forEach(N=>{const r=pipeSim(P,V,10,N,1,2,c);s+='<tr'+(N===5?' style="font-weight:600"':'')+'><td>'+N+(N===5?' (Figure 6)':N===10?' (breadth-first)':'')+'</td>'+(r.deadlock?'<td class="num" colspan="3">this ordering deadlocks</td>':'<td class="num">'+(r.bubble*100).toFixed(1)+'%</td><td class="num">'+(r.formula*100).toFixed(1)+'%</td><td class="num">'+r.peak+'</td>')+'</tr>'});
     $('ppSweep').innerHTML=s+'</tbody></table></div>'}
@@ -97,12 +91,13 @@ function pipeSim(P,V,M,N,tf,tb,c){tf=tf||1;tb=tb||2;c=c||0;
       s+=rc(x,30,Math.max(1,sx(d+lost)-x),22,'var(--ink)',{r:0,op:.45})+ln2(x,22,x,30,c,{sw:1.4})});
     for(let d=0;d<=DAYS;d+=(w<520?14:7))s+=tx(sx(d),70,'day '+d,{fs:11,a:d===0?'start':d>=DAYS-3?'end':'middle',c:'var(--mute)'});
     s+=tx(sx(day),16,'day '+day.toFixed(1),{fs:11,a:sx(day)>w-60?'end':sx(day)<60?'start':'middle'});
-    const st=stats(m,day);MODES[m][k].c=st.n+' interruptions so far ('+EV.filter(x=>x.t<day*24&&x.cat!=='Planned').length+' unexpected); '+fmt(st.lost,1)+' hours lost to restarts and redone work, '+fmt(st.ck,1)+' hours paused for checkpoints.';
+    const st=stats(m,day);MODES[m][k].c=S.t+': '+st.n+' interruptions so far ('+EV.filter(x=>x.t<day*24&&x.cat!=='Planned').length+' unexpected); '+fmt(st.lost,1)+' hours lost to restarts and redone work, '+fmt(st.ck,1)+' hours paused for checkpoints.';
     $('rlCap').textContent=MODES[m][k].c;
     return svgW(w,H,s,'54-day timeline')+'<div class="stkl"><span><i style="background:var(--open2)"></i>training</span><span><i style="background:var(--ink);opacity:.45"></i>lost: restart + redone work</span>'+Object.entries(CAT).map(([k2,c])=>'<span><i style="background:'+c+'"></i>'+k2+'</span>').join('')+'<span><i style="background:var(--mute)"></i>planned</span></div>'}
   function counters(m,k,e){const S=MODES[m][k],day=S.a+(S.b-S.a)*e,st=stats(m,day),opt=Math.sqrt(2*st.s/LAM)*60;
     return stat('Effective training time',(st.eff*100).toFixed(1)+'%',st.eff<=0?'stops arrive faster than the job recovers':'paper: more than 90%')+stat('Expected, 1 − λ(R + I/2) − s/I',(Math.max(0,st.exp)*100).toFixed(1)+'%',st.exp<0?'the formula goes negative: no progress':'λ = '+(LAM*24).toFixed(2)+' per day')+stat('Best interval for this pause',opt<1?(opt*60).toFixed(0)+' s':opt.toFixed(1)+' min','I* = √(2s/λ)')+stat('Restart time used',st.R<1?(st.R*60).toFixed(0)+' min':st.R.toFixed(2)+' h',m==='manual'?'your setting + 2 h':'your setting')}
   const lab=(v,u)=>v<60?v+' '+u:(v/60)+(u==='min'?' h':' min');
   function labels(){$('rlIv').textContent=lab(IV[+$('rlI').value],'min');$('rlRv').textContent=lab(RV[+$('rlR').value],'min');const sv=SV[+$('rlS').value];$('rlSv').textContent=sv<60?sv+' s':(sv/60)+' min'}
-  const A=makeAnim({id:'rl',modes:MODES,mode:'auto',draw,counters,dur:2600});labels();
+  // a widget under the long-replay rule: it opens on the whole 54 days and never plays by itself (the reader's settings are the point)
+  const A=makeAnim({id:'rl',modes:MODES,mode:'auto',auto:false,draw,counters,dur:2600});labels();
   ['rlI','rlR','rlS'].forEach(i=>$(i).addEventListener('input',()=>{labels();if(A)A.draw()}));})();

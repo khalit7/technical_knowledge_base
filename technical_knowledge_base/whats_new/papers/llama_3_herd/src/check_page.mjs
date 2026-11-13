@@ -4,11 +4,12 @@
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/llama_3_herd/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: true });
+const shots = process.argv[2] || path.resolve(here, '../.shots'); fs.mkdirSync(shots, { recursive: true });
+const b = await puppeteer.launch({ headless: 'shell' });
 let problems = [], actions = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
@@ -19,14 +20,19 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
-  for (const [tab, id] of [['t-read', 'pt'], ['t-run', 'pp'], ['t-run', 'rl']]) {
-    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
-    await new Promise(r => setTimeout(r, 1500));
-    if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
+  // motion (2026-11-06): the pipeline animation plays by itself once half in view and replays after a mode switch; the 54-day replay is a
+  // widget (long-replay rule) and never moves by itself, not even after a mode switch. The two 3D stages are checked by check_stages.mjs.
+  for (const [tab, id, plays] of [['t-run', 'pp', true], ['t-run', 'rl', false]]) {
+    await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
+    await new Promise(r => setTimeout(r, 1800));
+    const f0 = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+    if (plays && !f0) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
+    if (!plays && f0) problems.push(`${scheme} ${width}: ${id} (a widget) moved by itself`);
     const ms = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
-    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1000));
-      if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} played on a mode switch`);
+    if (ms.length > 1) { await p.$eval(`#${id}M button[data-m=${ms[1]}]`, b => b.click()); await new Promise(r => setTimeout(r, 1200));
+      const f1 = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+      if (plays && !(f1 > f0)) problems.push(`${scheme} ${width}: ${id} did not replay on a mode switch`);
+      if (!plays && f1 !== f0) problems.push(`${scheme} ${width}: ${id} (a widget) played on a mode switch`);
       await p.$eval(`#${id}M button[data-m=${ms[0]}]`, b => b.click()) }
   }
   await p.$eval('#tabs button[data-t=t-read]', b => b.click());
@@ -84,7 +90,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle
-    for (const id of ['pt', 'pp', 'rl']) {
+    for (const id of ['pp', 'rl']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

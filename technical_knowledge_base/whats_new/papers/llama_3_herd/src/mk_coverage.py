@@ -88,7 +88,7 @@ C = [
  ('Six rounds of RM + SFT + DPO', R + ', Post-training; animation', ['six times in all']),
  ('Reward model: Llama 2 recipe minus the margin term', R + ', Post-training', ["Llama 2's objective without its margin term"]),
  ('Annotators pick chosen vs rejected on pairs from different recipes, optionally edit: edited > chosen > rejected', R + ', Post-training', ['two responses from two different models', 'edited > chosen > rejected']),
- ('Rejection sampling: K = 10 to 30 samples from the best checkpoint, RM picks the winner', R + ', Post-training; animation', ['K = 10 to 30 responses', 'keep the one the reward model scores highest']),
+ ('Rejection sampling: K = 10 to 30 samples from the best checkpoint, RM picks the winner', R + ', Post-training; Fig. 2 stage', ['K = 10 to 30 responses', 'The response the reward model scores highest is kept']),
  ('PagedAttention (vLLM) gives >2x RS throughput', R + ', Post-training', ['over 2× the throughput']),
  ('SFT on rejection-sampled + synthetic + curated data, LR 1e-5, 8.5-9K steps', R + ', Post-training', ['learning rate 10 −5 for 8.5K to 9K steps']),
  ('DPO on the latest preference batches only (near on-policy), LR 1e-5, beta 0.1', R + ', Post-training', ['on the latest preference batches only', 'β = 0.1']),
