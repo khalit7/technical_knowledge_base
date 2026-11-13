@@ -15,12 +15,19 @@ FAT = {1: 'old header reading-time line, replaced by the measured "Reading: N mi
  56: 'old predict question "how many were genuine model mistakes?", answered by the hero figure; the question now asks which benchmarks were grader-driven',
  57: 'same old predict question', 204: 'old note that the animation started on its own when on screen; it now waits ("The animation waits for you to press play or step.")'}
 OWNED = {113: (KR, 'futurehouse (23 july 2025)')}
+# Further reading entries: short keys before each entry's reading time (the 2026-11-13 sweep; check_times.py --fix rewrites those times)
+KEYS_FR = {"234": "Best resources CritPt leaderboard Artificial Analysis:", "235": "About 30% of Humanity's Last Exam", "236": "Pervasive label errors in test sets", "237": "What will it take to fix", "239": "Why SWE-bench Verified no longer measures", "240": "Vibe physics: the AI grad student", "241": "Claude Fable 5.1 and Claude Mythos", "242": "Probing the Critical Point (CritPt) of", "243": "Connected papers in this knowledge base"}
 KEYS = {111: "rule-based checkers (exact match or symbolic) are reproducible but brittle", 112: 'judge problems shrink as stronger models judge', 58: 'rebuilt from table 2 and the counts in appendix b.2'}
 NEW = [
  ('core', 'Core sentence: physicists re-checked answers marked wrong; 238 of 250 were the test\'s fault; measured error is mostly the defect rate; corrected best-model scores 78.7% to 94.6% mean@4 on smaller checked sets.', 'mostly the benchmark\'s own defect rate'),
- ('core', 'Hero: waffle of the 250 rejections by label (143 benchmark, 95 grader, 12 model; 57.2%, 38.0%, 4.8%); nothing marked right was re-checked.', 'of 250 answers marked wrong, 12 were the model\'s mistake'),
+ ('core', 'Hero: the 250 rejections by label (3D stage since 2026-11-13, a waffle before) (143 benchmark, 95 grader, 12 model; 57.2%, 38.0%, 4.8%); nothing marked right was re-checked.', 'of 250 answers marked wrong, 12 were the model\'s mistake'),
  ('core', 'New terms: model, grader and benchmark error; pre-audit and corrected; audit run; mean@4 and pass@4; EED; defect floor.', 'no model\'s measured error can fall below the share of defective items'),
  ('core', 'Predict: which benchmarks were mostly grader errors (PHYBench and PRISM-Physics).', 'on which benchmarks were most of them the grader\'s fault'),
+ ('core', 'Hero stage (2026-11-13): the 252 accepted answers of the audit run were never reviewed (104, 44, 26, 78).', '252 accepted answers, never checked'),
+ ('core', 'Hero stage (2026-11-13): after exclusion and re-grading, 116, 87, 74 and 82 questions kept; GPT-5.6-Sol corrected mean@4 78.66, 90.23, 94.59, 92.07.', '116, 87, 74 and 82 questions are kept'),
+ ('core', 'Results stage (2026-11-13): the rule-based-grader benchmarks rise most, GPT-5.6-Sol by 63.7 and 81.6 points.', 'gpt-5.6-sol by 63.7 and 81.6 points'),
+ ('core', 'Results stage (2026-11-13): GPT-5.6-Sol corrected scores span 78.66% to 94.59% on the smaller checked sets.', 'six corrected scores run from 78.66% to 94.59%'),
+ ('core', 'Follow the audit step lists (2026-11-13): the pass rate the audit counts imply per benchmark, e.g. (44 + 40) / 87 = 96.6% on PHYBench.', '(44 + 40) / 87 = 96.6%'),
  ('owned:' + LJ, 'LLM judge biases (position, verbosity, self-preference) and their measured sizes.', 'position bias'),
  ('owned:' + KR, 'Other audits of Humanity\'s Last Exam and answer-key defects.', 'futurehouse (23 july 2025)'),
  ('owned:' + HA, 'Scott\'s pi and agreement statistics defined.', "scott's pi"),
@@ -37,7 +44,7 @@ def find_key(text):
     for n in (8, 6, 4):
         for i in range(0, max(1, len(w) - n + 1)):
             k = ' '.join(w[i:i + n])
-            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k):
+            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k) and not re.search(r'\d+ ?min|\bmin\)', k):
                 return k
     return ''
 bad = 0
@@ -46,7 +53,7 @@ for x in u:
         continue
     if x['id'] in FAT:
         x['label'], x['key'], x['note'] = 'fat', '', FAT[x['id']]; continue
-    k = KEYS.get(x['id']) or find_key(x['text'])
+    k = KEYS.get(x['id']) or KEYS_FR.get(str(x['id'])) or find_key(x['text'])
     if not k:
         print('UNPLACED', x['id'], x['text'][:200]); bad += 1; x['label'], x['key'] = '', ''; continue
     x['key'] = k

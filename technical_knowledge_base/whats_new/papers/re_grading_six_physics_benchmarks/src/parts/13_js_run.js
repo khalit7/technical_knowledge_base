@@ -84,7 +84,7 @@
     vis.forEach(x=>{if(lastG!==null&&x.s[0]!==lastG){if(col>0){row++;col=0}row+=.35}lastG=x.s[0];pos[x.j]={x:2+col*(sz+gap),y:2+row*(sz+gap)};col++;if(col>=cols){col=0;row++}});
     const hgt=2+(row+(col>0?1:0))*(sz+gap)+4;
     return {dots,pos,st,sz,h:hgt}}
-  const anim=makeAnim({id:'au',mode:'HLE-Physics',dur:2600,modes:Object.fromEntries(Object.entries(B).map(([m,b])=>[m,b.steps.map(([t,c])=>({t,c}))])),
+  const anim=makeAnim({id:'au',mode:'HLE-Physics',dur:4600,move:.6,lists:{'HLE-Physics':'sx-au-hle','PHYBench':'sx-au-phy','PRISM-Physics':'sx-au-prism','UGPhysics':'sx-au-ug','CMT-Benchmark':'sx-au-cmt','CritPt':'sx-au-crit'},modes:Object.fromEntries(Object.entries(B).map(([m,b])=>[m,b.steps.map(([t,c])=>({t,c}))])),
     draw(m,k,e,w){const cur=layout(m,k,w),prev=layout(m,Math.max(0,k-1),w);let s='';const H=Math.max(...B[m].st.map((x,j)=>layout(m,j,w).h));
       cur.dots.forEach((d,j)=>{const a=prev.pos[j],b=cur.pos[j],sa=prev.st[d.c],sb=cur.st[d.c];
         const pa=a||b,pb=b||a;if(!pa)return;const x=pa.x+(pb.x-pa.x)*e,y=pa.y+(pb.y-pa.y)*e,op=sa[2]+(sb[2]-sa[2])*e,col=e<.5?sa[1]:sb[1];
