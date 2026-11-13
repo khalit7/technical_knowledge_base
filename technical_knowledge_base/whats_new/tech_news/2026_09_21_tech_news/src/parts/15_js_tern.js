@@ -1,11 +1,13 @@
 // ---- The same ternary weights packed two ways: five-trit bytes against the BITCOS bitmap + sign vector ----
+// Driven by RD.anim (template 21_js_rd_common.js): five explained steps per mode, listed on the left (sx-tn-trit, sx-tn-bitcos). A step reached
+// by moving forward writes its bytes or chunks frame by frame (the long-replay rule: 26 bytes or 8 chunks grouped into stretches).
 (function(){
   const card=$('v-tern');if(!card)return;
   const T=window.TERN||{};               // paper figures, set in 11c_tern_data.js
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const N=128,G=5,CH=16,NG=Math.ceil(N/G); // one block of 128 weights (the paper's block size); 26 five-trit bytes; BITCOS drawn in chunks of 16
   const TB=T.trit_bpw||1.625;            // five-trit cost per weight in 128-weight blocks: 26 x 8 / 128
-  const st={m:'trit',z:0.515,p:0,play:!RM,spd:1,vis:false,raf:0,last:0};
+  const st={m:'trit',z:0.515,p:0,k:0,raf:0};
   let W=[];
   function sample(){ // exactly round(z*N) zeros, placed by a seeded shuffle; signs random
     const rnd=mulberry32(20260914),nz=Math.round(st.z*N),idx=[...Array(N).keys()];
@@ -30,15 +32,17 @@
     const b=[];for(let i=7;i>=0;i--)b.push((v>>i)&1);return b}
   function val(k){let v=0;for(let i=G-1;i>=0;i--){const t=k*G+i<N?W[k*G+i]:0;v=v*3+(t===0?0:t>0?1:2)}return v}
   const box=$('tnSvg');
-  function draw(){
+  // where each step ends, in bytes (five-trit) or 16-weight chunks (BITCOS) written; the last step of each mode is a summary
+  const END={trit:[0,5,25,NG,NG],bitcos:[0,1,N/CH,N/CH,N/CH]};
+  function render(){
     const narrow=box.clientWidth<560,Wd=narrow?Math.max(300,box.clientWidth):760;
     const perRow=narrow?16:32,cw=(Wd-16)/perRow,ch=Math.min(22,cw*1.05);
     const bitsPerRow=narrow?52:104,bw=(Wd-16)/bitsPerRow,bh=7;
-    const S=steps(),p=st.p,B=bits(p);
+    const p=st.p,B=bits(p),k=st.k,last=k===4;
     let s='',y=16;
     s+='<text x="8" y="'+(y-4)+'" font-size="12" fill="var(--mute)">weights (illustrative sample, '+W.filter(v=>!v).length+' of '+N+' zero)</text>';
-    const cur=st.m==='trit'?Math.min(NG-1,Math.floor(p+1e-9)):Math.min(N/CH-1,Math.floor(p+1e-9));
-    const grpSize=st.m==='trit'?G:CH,active=p<S-(st.m==='trit'?0:1)-1e-9;
+    // the group last written (outlined) while a step is writing; none on the intro and summary steps
+    const grpSize=st.m==='trit'?G:CH,cur=Math.ceil(p-1e-9)-1,active=p>1e-9&&!(st.m==='trit'?last:k>=3);
     W.forEach((v,i)=>{const r=Math.floor(i/perRow),c=i%perRow,x=8+c*cw,yy=y+4+r*(ch+4);
       const inCur=active&&Math.floor(i/grpSize)===cur,done=i<B.w;
       s+='<rect x="'+(x+1)+'" y="'+yy+'" width="'+(cw-2)+'" height="'+ch+'" rx="3" fill="'+(v?(v>0?'var(--c1)':'var(--c2)'):'var(--soft)')+'" fill-opacity="'+(done||inCur?1:.45)+'" stroke="'+(inCur?'var(--ink)':'var(--line)')+'" stroke-width="'+(inCur?1.6:1)+'"/>';
@@ -54,13 +58,15 @@
     if(st.m==='trit'){
       const a=strip(narrow?'stored bytes: '+B.bm.length+' of '+NG*8+' bits':'stored bytes: '+B.bm.length+' of '+NG*8+' bits (dark 1, grey 0, dashed still to write)',B.bm,'var(--ink)',y,NG*8);s+=a.t;y+=a.h+10;
       if(active){const v=val(cur),tr=W.slice(cur*G,cur*G+G).map(t=>t===0?0:t>0?1:2);
-        s+='<text x="8" y="'+(y+8)+'" font-size="12">byte '+(cur+1)+': trits '+tr.join(',')+(narrow?'':' (0 = 0, + = 1, − = 2)')+' in base 3 = '+v+(tr.length<G?' ('+tr.length+' left)':'')+'</text>';y+=18}
+        s+='<text x="8" y="'+(y+8)+'" font-size="12">byte '+(cur+1)+': trits '+tr.join(',')+(narrow?'':' (0 = 0, + = 1, − = 2)')+' in base 3 = '+v+(tr.length<G?' ('+tr.length+' left)':'')+'</text>'}
+      y+=18;
     }else{
       const nnz=W.filter(v=>v).length;
       const a=strip('presence bitmap: '+B.bm.length+' bits'+(narrow?'':' (dark = non-zero)'),B.bm,'var(--ink)',y,N);s+=a.t;y+=a.h+18;
       const b=strip((narrow?'signs, non-zero only: ':'sign vector, non-zero weights only: ')+B.sg.length+' bits'+(narrow?'':' (dark = −)'),B.sg,'var(--c2)',y,nnz);s+=b.t;y+=b.h+10;
-      if(p>=S-1-1e-9){const i=W.findIndex((v,k)=>v&&k>=40)>=0?W.findIndex((v,k)=>v&&k>=40):W.findIndex(v=>v);const pc=W.slice(0,i).filter(v=>v).length;
-        s+='<text x="8" y="'+(y+8)+'" font-size="12">'+(narrow?'weight '+(i+1)+': bit set, so sign entry '+(pc+1):'decode weight '+(i+1)+': its bitmap bit is set, so its sign is sign entry '+(pc+1))+'</text><text x="8" y="'+(y+24)+'" font-size="12" fill="var(--mute)">('+pc+' set bits come before it)</text>';y+=34}
+      if(last){const i=W.findIndex((v,k)=>v&&k>=40)>=0?W.findIndex((v,k)=>v&&k>=40):W.findIndex(v=>v);const pc=W.slice(0,i).filter(v=>v).length;
+        s+='<text x="8" y="'+(y+8)+'" font-size="12">'+(narrow?'weight '+(i+1)+': bit set, so sign entry '+(pc+1):'decode weight '+(i+1)+': its bitmap bit is set, so its sign is sign entry '+(pc+1))+'</text><text x="8" y="'+(y+24)+'" font-size="12" fill="var(--mute)">('+pc+' set bits come before it)</text>'}
+      y+=34;
     }
     // a fixed-height scale bar comparing both totals for this sample
     const tritBits=NG*8,bcBits=N+W.filter(v=>v).length,mx=Math.max(tritBits,bcBits,1);
@@ -69,24 +75,13 @@
       const yy=y+k*16;s+='<text x="8" y="'+(yy+10)+'" font-size="11.5" fill="var(--mute)">'+l+' total</text><rect x="80" y="'+yy+'" width="'+(v*sc)+'" height="11" rx="2" fill="'+c+'" opacity="'+(on?1:.45)+'"/><text x="'+(84+v*sc)+'" y="'+(yy+10)+'" font-size="11.5">'+v+' bits</text>'});
     y+=36;
     box.innerHTML=svgEl(Wd,y,s,'A block of 128 ternary weights and the bits that store them');
-    // caption
-    let t,c;const nnz=W.filter(v=>v).length,nz=N-nnz;
-    if(st.m==='trit'){const g=Math.floor(p+1e-9);
-      if(g===0&&p<1e-9){t='Five-trit packing, before the first byte';c='There are 3⁵ = 243 ways to fill five ternary weights and a byte has 256 values, so five weights fit in 8 bits: 1.6 bits per weight. But weights are quantised in blocks of 128, and 128 is not a multiple of 5, so a block needs 26 bytes. The packing ignores what the weights are: a zero costs as much as a sign.'}
-      else if(g<NG){t='Byte '+(g+1)+' of '+NG;c=(g===NG-1?'The last byte holds only the 3 weights left over (128 = 25 x 5 + 3), so part of it is wasted. ':'Five weights become one base-3 number between 0 and 242, written as one byte. ')+'Whatever the share of zeros, every byte costs 8 bits.'}
-      else{t='Done: '+tritBits+' bits for '+N+' weights';c='26 x 8 / 128 = '+(tritBits/N).toFixed(3)+' bits per weight, the paper\'s figure for five-trit packing as deployed, against the log₂3 = 1.585 bound. The '+nz+' zeros cost exactly as much as the '+nnz+' signs. Switch to BITCOS.'}}
-    else{const k=Math.floor(p+1e-9);
-      if(k===0&&p<1e-9){t='BITCOS, before the first chunk';c='Two arrays instead of one: a bitmap with one bit per weight saying whether it is non-zero, then a compacted vector with one sign bit for each non-zero weight only. Cost: 1 + (1 − z) = 2 − z bits per weight.'}
-      else if(k<N/CH){t='Weights '+(k*CH+1)+' to '+Math.min(N,(k+1)*CH);c='Every weight adds one bitmap bit; only the non-zero ones add a sign bit. Zeros are now cheaper than signs: one bit instead of two.'}
-      else if(k<N/CH+1-1e-9&&p<S){t='All '+N+' weights written';c='Bitmap '+N+' bits plus '+nnz+' sign bits = '+bcBits+' bits, '+(bcBits/N).toFixed(3)+' per weight on this sample (formula: 2 − z = '+(2-st.z).toFixed(3)+'). To decode a weight, read its bitmap bit; if set, its sign is the entry whose index is the number of set bits before it, a population count that CPUs and GPUs do in one instruction.'}
-      else{t='Decode: one population count per weight';c='Five-trit packing needs a division by 3 (or a table) to unpack each byte; BITCOS needs a bit test and a population count, which is why the paper reports faster kernels as well as smaller weights: up to 1.28x on matrix-vector products, 1.18x end to end on CPUs and 1.27x on GPUs.'}}
-    $('tnStep').textContent=t;$('tnCap').textContent=c;
     $('tnCnt').innerHTML=stat('weights stored',fmt(B.w)+' / '+N,'one block')+stat('bits written',fmt(B.bm.length+B.sg.length))+stat('bits per weight so far',B.w?((B.bm.length+B.sg.length)/B.w).toFixed(2):'0')+
       stat('long-run rate',(st.m==='trit'?TB:(2-st.z).toFixed(3))+' bits','five-trit: '+TB+' · BITCOS: 2 − z = '+(2-st.z).toFixed(3))+stat('entropy bound at this z',H(st.z).toFixed(3)+' bits','derived: −z log₂ z − (1 − z) log₂((1 − z)/2)');
-    $('tnScrub').value=Math.round(1000*p/S);
-    const end=p>=S-1e-9,pb=$('tnPlay');pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
     $('tnZv').textContent=st.z.toFixed(3)+' ('+Math.round(st.z*N)+' of 128 in the sample)';
   }
+  // the numbers in the step lists that depend on the sample
+  function nums(){const nnz=W.filter(v=>v).length,bc=N+nnz,V={nz:N-nnz,nnz,bc,bpw:(bc/N).toFixed(3),rate:(2-st.z).toFixed(3)};
+    document.querySelectorAll('[data-tn]').forEach(e=>{e.textContent=V[e.dataset.tn]})}
   // ---- static chart: bits per weight against z ----
   const pbox=$('tnPlot');
   function plot(){
@@ -122,28 +117,22 @@
     if(T.best)s+=lab(X(T.best.z)-6,Y(T.best.b)+16,T.best.b+' (sparsest)','var(--ink)','end');
     pbox.innerHTML=svgEl(Wd,Hh,s,'Bits per weight against zero share');
   }
-  // ---- animation plumbing (as in the DiffusionGemma lanes) ----
-  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.p+=dt/1000*steps()/12*st.spd;const S=steps();if(st.p>=S){st.p=S;st.play=false}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
-  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('tnPlay').addEventListener('click',()=>{if(st.play)pause();else{if(st.p>=steps()-1e-9)st.p=0;st.play=true;kick()}draw()});
-  $('tnFwd').addEventListener('click',()=>{pause();st.p=Math.min(steps(),Math.floor(st.p+1e-9)+1);draw()});
-  $('tnBack').addEventListener('click',()=>{pause();st.p=Math.max(0,Math.ceil(st.p-1e-9)-1);draw()});
-  $('tnScrub').addEventListener('input',e=>{pause();st.p=steps()*(+e.target.value)/1000;draw()});
-  $('tnSpd').addEventListener('change',e=>{st.spd=+e.target.value});
-  $('tnZ').addEventListener('input',e=>{st.z=+e.target.value;sample();draw();plot()});
+  // ---- the controller: RD.anim with the step list on the left; a step reached by moving forward writes its stretch frame by frame ----
+  function draw(i,fwd){st.k=i;const to=END[st.m][i];if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}
+    const from=st.p;if(!(fwd||card.classList.contains('rd-fwd'))||RM||to<=from||card.offsetParent===null){st.p=to;render();return}
+    const dur=Math.max(600,Math.min(3200,(st.m==='trit'?160:400)*(to-from))),t0=performance.now();
+    const f=now=>{const u=Math.min(1,(now-t0)/dur);st.p=from+(to-from)*u;card.dataset.frames=(+card.dataset.frames||0)+1;render();st.raf=u<1?requestAnimationFrame(f):0};
+    st.raf=requestAnimationFrame(f)}
+  if(T.default_z)st.z=T.default_z;$('tnZ').value=st.z;sample();nums();
+  const anim=RD.anim({card:'v-tern',ctl:'tnCtl',n:5,list:'sx-tn-trit',ms:5200,label:'Step of the packing',draw:i=>draw(i)});
+  const setZ=z=>{st.z=z;$('tnZ').value=z;sample();nums();anim.go(anim.i);plot()}; // moving z is a reader control: autoplay stops
+  $('tnZ').addEventListener('input',e=>setZ(+e.target.value));
   const pre=$('tnPre');const PRE=[['uniform, z = 1/3',1/3],['crossover, z = '+(2-TB).toFixed(3).replace(/0+$/,''),2-TB],[(T.best?'sparsest model, z = '+T.best.z:'z = 0.515'),T.best?T.best.z:0.515]];
   pre.innerHTML=PRE.map((q,i)=>'<button data-i="'+i+'">'+q[0]+'</button>').join('');
-  pre.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{st.z=PRE[+b.dataset.i][1];$('tnZ').value=st.z;sample();draw();plot()}));
+  pre.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setZ(PRE[+b.dataset.i][1])));
+  // a mode switch: the other list, from step 1, replayed (the one exception to "stops for good")
   const seg=$('tnM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.p=0;if(!RM){st.play=true}draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
-  let rw=0;addEventListener('resize',()=>{const w=box.clientWidth;if(w&&w!==rw){rw=w;draw();plot()}});
-  if(T.default_z)st.z=T.default_z;$('tnZ').value=st.z;
-  sample();
-  onTab(card.closest('.tab').id,()=>{rw=box.clientWidth;draw();plot();kick()});
+    st.m=b.dataset.m;st.p=0;document.querySelectorAll('ol[id^="sx-tn-"]').forEach(o=>o.hidden=o.id!=='sx-tn-'+st.m);anim.reset(5,'sx-tn-'+st.m)}));
+  let rw=0;addEventListener('resize',()=>{const w=box.clientWidth;if(w&&w!==rw){rw=w;render();plot()}});
+  onTab(card.closest('.tab').id,()=>{rw=box.clientWidth;render();plot()});
 })();

@@ -1,10 +1,28 @@
-<div class="viz" id="v-kv">
-<h3>From 3,514 to 890 bytes per token, one change at a time</h3>
-<p class="lede">The cache a model keeps for every token it has read is what limits how many long agent sessions fit on one GPU. Step through how DeepSeek got from V4-Flash's cache to V4.1-Flash's: the bars are bytes per token, to scale, with each layer that stores a cache drawn as its own segment. One step makes the cache bigger on purpose. Then set a context length to see what one session holds.</p>
-<div class="an-ctl"><button id="kvPlay" class="an-play">▶ Play</button><button id="kvBack" aria-label="Previous step">◀ Step</button><button id="kvFwd" aria-label="Next step">Step ▶</button><input type="range" id="kvScrub" min="0" max="3" step="1" value="0" aria-label="Step"></div>
-<div class="plot" id="kvPlot"></div>
-<div class="an-cap"><div class="t" id="kvStep"></div><p id="kvCap"></p></div>
-<div class="ctl"><label>Context of one session: <b id="kvLv"></b><input type="range" id="kvL" min="0" max="4" step="1" value="3"></label></div>
-<div class="plot" id="kvFam"></div>
+<!--RFIRST-->
+<!--R-->
+<div id="stg-kv"></div>
+<!--L-->
+<div class="viz-l" id="v-kv">
+<h3 class="vz-h">From 3,514 to 890 bytes per token, one change at a time</h3>
+<p class="vz-l">The cache a model keeps for every token it has read is what limits how many long agent sessions fit on one GPU. Its size is three factors multiplied: bytes per stored entry, one entry per m tokens (the sequence compression), and how many layers store one. The scene draws all three: layers run left to right, a window of 16 tokens runs front to back, and each stored entry is a box as tall as its bytes (the main entry, with the 68-byte indexer key on top in orange). It plays by itself once in view; the steps below follow DeepSeek from V4-Flash's cache to V4.1-Flash's. One step makes the cache bigger on purpose. Drag to turn the scene.</p>
+<p class="ill">Illustrative: the 16-token window; V4-Flash's CSA and HCA layers drawn grouped by kind (the sources give the counts, not the order; its 2 sliding-window-only layers are not drawn); and which later layer reads which source (drawn as the nearest source before it: the sources name the four source layers, not the map). The bytes are the sources' own.</p>
+<p class="sxh">Step by step</p>
+<ol class="sx" id="sx-kv">
+<li><b>V4-Flash: every layer keeps its own cache.</b> 21 CSA layers each store one 584-byte entry (448 FP8 channels + 64 BF16 RoPE channels + scales) plus a 68-byte indexer key for every 4 tokens: four entries in the 16-token window. 20 HCA layers store one entry for every 128 tokens, too sparse to show in 16 tokens (the flat lanes on the right). Total 21 x 652 / 4 + 20 x 584 / 128 = 3,514 bytes per token, 97% of it in the CSA layers.</li>
+<li><b>Cross-layer reuse: 4 layers store, the rest read theirs.</b> V4.1 (40 layers: a 20-layer encoder, then a 20-layer decoder) drops HCA and lets later layers reuse the cache and the top-k index of four source layers (2, 8, 14 and 20): the dots stream from each source to the layers that read it; layers 0 and 1 attend only within their sliding window. Still in the V4 format at m = 4: 4 x 652 / 4 = 652 bytes per token, 5.4 times smaller.</li>
+<li><b>Relax the sequence compression (the cache grows).</b> Merging 4 tokens into one entry loses detail, so the three encoder sources now merge only 2 (eight entries in the window) and the decoder source keeps every token (sixteen): 3 x 652 / 2 + 652 = 1,630 bytes per token. The cache is 2.5 times bigger than the step before, spent on quality.</li>
+<li><b>FP4 main entries: 584 to 288 bytes.</b> The main entry is stored as 512 FP4 channels (256 bytes) with one E4M3 scale per 16 channels (32 bytes): 288 bytes instead of 584, so every box shrinks while the indexer key stays. Total 3 x 356 / 2 + 356 = 534 + 356 = 890 bytes per token: 3.95 times smaller than V4-Flash, and the encoder-decoder split is what lets V4.1 relax the compression and still end lower.</li>
+</ol>
 <p class="small mute">From {{zartbot's breakdown|https://zartbot.github.io/blog/model_arch/dsv41flash_arch/en.html}} and the {{DeepSeek-V4.1-Flash model card|https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash}}: V4-Flash keeps a cache in 41 layers (21 CSA layers at sequence compression m = 4, main entry 584 B plus a 68 B indexer key; 20 HCA layers at m = 128, no indexer), 3,514 B per token; V4.1-Flash stores only at 4 source layers that later layers reuse, with m = 2 on the three encoder sources and m = 1 on the decoder source, and FP4 main entries of 288 B. The card's 437x is against DeepSeek-V1 (389,120 B: 95 layers x K and V x 8 heads x 128 x 2 bytes, from the {{67B config|https://huggingface.co/deepseek-ai/deepseek-llm-67b-base/raw/main/config.json}}); V3 is 61 x (512 + 64) x 2 = 70,272 B from its {{config|https://huggingface.co/deepseek-ai/DeepSeek-V3/raw/main/config.json}} (79x, derived here); V3.2's 48,068 B is the card's chart value. Every default is recomputed in <code>src/recompute.py</code> and lands on the published 3,514, 890 and 437x independently. The 128-token sliding-window cache is small and bounded, and not counted.</p>
+</div>
+<!--A-->
+<div class="s3sp" id="sp-kv-fam">
+<div class="s3L">
+<h3 class="vz-h">What one session holds</h3>
+<p class="vz-l">Bytes per token become gigabytes once a session is long. Set a context length to see what one session's cache holds for each DeepSeek generation, on a log scale: V4.1-Flash against the 2023 model the card compares it with.</p>
+<div class="ctl"><label>Context of one session: <b id="kvLv"></b><input type="range" id="kvL" min="0" max="4" step="1" value="3"></label></div>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="viz" id="v-kv-fam"><div class="plot" id="kvFam"></div></div>
+</div></div>
 </div>

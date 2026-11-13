@@ -1,15 +1,43 @@
+<!--RFIRST-->
+<!--R-->
+<div class="s3side">
 <div class="viz" id="v-tern">
 <h3>The same ternary weights, packed two ways</h3>
-<p class="lede">One block of 128 weights from a ternary layer (the block size deployed formats quantise in), each −1, 0 or +1, stored two ways and drawn to the same scale, one small square per stored bit. <b>Five-trit packing</b> (the usual way) reads every group of five weights as one base-3 number and stores it in a byte, 26 bytes per block: a zero costs as much as a sign. <b>BITCOS</b> stores a presence bitmap (one bit per weight: is it non-zero?) and then one sign bit for each non-zero weight only, packed together. Play one, switch, and move the zero share: the more zeros, the less BITCOS stores.</p>
-<p class="ill">Illustrative sample: the 128 weights are drawn at random with the chosen share of zeros; the bit counts are exact for that sample, and the long-run rates below are the formulas.</p>
 <div class="an-top"><div class="seg" id="tnM"><button class="on" data-m="trit" aria-pressed="true">Before: five-trit packing</button><button data-m="bitcos" aria-pressed="false">After: BITCOS bitmap + signs</button></div></div>
-<div class="ctl"><label>Share of weights that are zero, z: <b id="tnZv"></b><input type="range" id="tnZ" min="0.2" max="0.6" step="0.005" value="0.515"></label><div class="chips" id="tnPre"></div></div>
 <div class="an-svg" id="tnSvg"></div>
-<div class="an-ctl"><button id="tnPlay" class="an-play">▶ Play</button><button id="tnBack" aria-label="Previous step">◀ Step</button><button id="tnFwd" aria-label="Next step">Step ▶</button><input type="range" id="tnScrub" min="0" max="1000" value="0" aria-label="Scrub"><select id="tnSpd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
-<div class="an-cap"><div class="t" id="tnStep"></div><p id="tnCap"></p></div>
+<div class="an-ctl" id="tnCtl"></div>
 <div class="an-cnt" id="tnCnt"></div>
-<h3 style="margin-top:16px">Bits per weight against the share of zeros</h3>
-<p class="lede">Five-trit packing costs the same whatever the weights are. BITCOS costs 2 − z bits per weight, so it wins once more than 37.5% of the weights are zero (2 − z &lt; 1.625). Each dot is one of the paper's 29 models at its measured zero share: 26 are past the crossover; the 3 that are not are Bonsai 27B and two CAT-Q Qwen3 mixture-of-experts checkpoints, 30B-A3B and 235B-A22B. The dashed curve is the entropy of the weights (the least any lossless code can average, if + and − are equally likely), which BITCOS touches at z = 0.5.</p>
+</div>
+</div>
+<!--L-->
+<p class="vz-l">One block of 128 weights from a ternary layer (the block size deployed formats quantise in), each −1, 0 or +1, stored two ways and drawn to the same scale, one small square per stored bit. <b>Five-trit packing</b> (the usual way) reads every group of five weights as one base-3 number and stores it in a byte, 26 bytes per block: a zero costs as much as a sign. <b>BITCOS</b> stores a presence bitmap (one bit per weight: is it non-zero?) and then one sign bit for each non-zero weight only, packed together. It plays by itself once in view; the steps below say what each stretch shows. Then switch to BITCOS (the buttons above the drawing) and move the zero share: the more zeros, the less BITCOS stores.</p>
+<p class="ill">Illustrative sample: the 128 weights are drawn at random with the chosen share of zeros; the bit counts are exact for that sample, and the long-run rates are the formulas.</p>
+<div class="ctl"><label>Share of weights that are zero, z: <b id="tnZv"></b><input type="range" id="tnZ" min="0.2" max="0.6" step="0.005" value="0.515"></label><div class="chips" id="tnPre"></div></div>
+<p class="sxh">Step by step</p>
+<ol class="sx" id="sx-tn-trit">
+<li><b>Before the first byte.</b> There are 3⁵ = 243 ways to fill five ternary weights and a byte has 256 values, so five weights fit in 8 bits: 1.6 bits per weight. But weights are quantised in blocks of 128, and 128 is not a multiple of 5, so a block needs 26 bytes. The packing ignores what the weights are.</li>
+<li><b>Bytes 1 to 5.</b> Each group of five weights (outlined) is read as one base-3 number between 0 and 242, with 0 = 0, + = 1 and − = 2, and written as one byte; the line under the bit strip shows the number for the byte just written.</li>
+<li><b>Bytes 6 to 25.</b> The same for the next 100 weights. Whatever the share of zeros, every byte costs 8 bits: a zero costs as much as a sign.</li>
+<li><b>Byte 26: three weights left over.</b> 128 = 25 x 5 + 3, so the last byte holds only the 3 weights left and part of it is wasted.</li>
+<li><b>Done: 208 bits for 128 weights.</b> 26 x 8 / 128 = 1.625 bits per weight, the paper's figure for five-trit packing as deployed, against the log₂3 = 1.585 bound. The <span data-tn="nz">66</span> zeros cost exactly as much as the <span data-tn="nnz">62</span> signs. Switch to BITCOS.</li>
+</ol>
+<ol class="sx" id="sx-tn-bitcos" hidden>
+<li><b>Two arrays instead of one.</b> A presence bitmap with one bit per weight saying whether it is non-zero, then a compacted vector with one sign bit for each non-zero weight only. Cost: 1 + (1 − z) = 2 − z bits per weight.</li>
+<li><b>Weights 1 to 16.</b> Every weight adds one bitmap bit; only the non-zero ones add a sign bit. Zeros are now cheaper than signs: one bit instead of two.</li>
+<li><b>Weights 17 to 128.</b> The rest of the block, 16 weights at a time: the bitmap grows by 16 bits each time, the sign vector by however many of the 16 are non-zero.</li>
+<li><b>All 128 weights written.</b> Bitmap 128 bits plus <span data-tn="nnz">62</span> sign bits = <span data-tn="bc">190</span> bits, <span data-tn="bpw">1.484</span> per weight on this sample (formula: 2 − z = <span data-tn="rate">1.485</span>), against five-trit packing's 208.</li>
+<li><b>Decode: one population count per weight.</b> To decode a weight, read its bitmap bit; if set, its sign is the entry whose index is the number of set bits before it, a population count that CPUs and GPUs do in one instruction. Five-trit packing needs a division by 3 (or a table) to unpack each byte, which is why the paper reports faster kernels as well as smaller weights: up to 1.28x on matrix-vector products, 1.18x end to end on CPUs and 1.27x on GPUs.</li>
+</ol>
+<!--A-->
+<div class="s3sp" id="sp-tern-z">
+<div class="s3L">
+<h3 class="vz-h">Bits per weight against the share of zeros</h3>
+<p class="vz-l">Five-trit packing costs the same whatever the weights are. BITCOS costs 2 − z bits per weight, so it wins once more than 37.5% of the weights are zero (2 − z &lt; 1.625). Each dot is one of the paper's 29 models at its measured zero share: 26 are past the crossover; the 3 that are not are Bonsai 27B and two CAT-Q Qwen3 mixture-of-experts checkpoints, 30B-A3B and 235B-A22B. The dashed curve is the entropy of the weights (the least any lossless code can average, if + and − are equally likely), which BITCOS touches at z = 0.5. The blue line is the zero share set above.</p>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="viz" id="v-tern-z">
 <div class="plot" id="tnPlot"></div>
 <p class="small mute" id="tnSrc">From {{Breaking the 1.58-bit Barrier, arXiv 2609.16338|https://arxiv.org/abs/2609.16338}}: five-trit packing in 128-weight blocks needs ⌈128/5⌉ = 26 bytes, 26 x 8 / 128 = 1.625 bits per weight; BITCOS costs 2 − z; crossover z &gt; 0.375; 26 of 29 models win; the zero shares are Table I's (transcribed in <code>src/inputs/bitcos_table1.csv</code>). Rates are for the ternary symbols alone; the 16-bit group scales add the same overhead to both layouts (Table I's "+scale" columns, for example Bonsai 27B at 1.828 against 1.750). <b>Derived:</b> the entropy curve (with + and − equally likely, an assumption) and its touch point at z = 0.5. The defaults reproduce the paper's 1.625 and its 1.485 for the sparsest model (CAT-Q Qwen3-1.7B, z = 51.48%) independently, from the two formulas; <code>src/recompute.py</code> checks all 29 rows.</p>
+</div>
+</div></div>
 </div>

@@ -40,3 +40,7 @@ The ternary animation follows the DeepSeek MLA explainer: same input, old and ne
 - **Self-reported series beside an independent measurer.** When a company's rounded figures lean on a third party's measurements, plot both, labelled, rather than choosing one.
 - **A ratio's denominator can be the wrong scope.** "2% of the token spend" compared one proof with a whole multi-problem run; the visual toggles the denominator.
 - **Size budget for long issues.** At 73 items the verification notes must be condensed by hand (what was checked, what differs) or the page passes 300 KB; the strip's data now carries only each item's first sentence.
+
+## 2026-11-13 rollout
+- **Built: the KV cache as a 3D stage** (layer x token window x entry bytes), because zartbot's formula is a product of three factors and each step of the V4 to V4.1 story changes exactly one of them: which layers store (reuse), how many entries per token (m), how big an entry is (FP4). The 2D step bars showed only the product.
+- **Rejected for 3D**: the ternary packing (a bit layout, flat by nature), and every chart in the issue (time series, log scales, scatters, timelines), which read best flat.
