@@ -67,3 +67,30 @@ Why about 21 minutes is right: Reading now holds what took 22.1 core minutes acr
 
 ## Checks (24 October 2026)
 `checkpage.sh`: tabs 3, 217 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 550 actions, 0 problems (including no movement before a click). `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78 (four keys updated for the reworded baseline bullets and the header).
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`): the top (core sentence, You need, new terms left; the paper's Figure 1 right), Text to text (the Appendix D picker right), Span corruption (stage), Architectures (stage), Objectives (the target-length chart right), Fine-tuning and mixing (the mixing widget right), Putting it all together (Table 15 gains right). Problem, Baseline (its bucket slider and recipe chart are closed blocks), Data, Scaling (prediction only), Results, How much to believe and Why it matters stay full width. The ablation grid tab: the explorer's text, chips and controls left, its chart and table right; Table 14 likewise. Further reading unchanged.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged), replacing the two 2D `makeAnim` animations and their per-step captions (now the step lists):
+  - `31_js_sc_span.js`, Fig. 2, three modes with three step lists (`sx-sp-iid`, `sx-sp-bert`, `sx-sp-span`; the baseline first): Figure 2's sentence as blocks; picked tokens lift and turn red; kept tokens and sentinels slide into the input row and the dropped spans into the target row, with dots flowing along each move; the encoder (glass plate) reads the input, cross-attention flows to the decoder plate, which writes the target; the last step is to scale per 512 tokens of text (`L512` from `T5.lenIid` and `T5.lenSpans`; scores from Tables 5 and 7). Data: `FIG` (the paper's Figure 2 and Table 3 examples); the i.i.d. and span rows are recomputed from the mask with the ported `T5.sentinelize` and `T5.targetsFromSpans`, and the page's error box fires if they ever stop matching Figure 2. This replaces the computed Figure 2 card (the same check, now inside the stage).
+  - `32_js_sc_arch.js`, Fig. 3: Table 2's five structures (encoder-decoder, shared, 6 + 6, language model, prefix LM) side by side, each as stacks of one slab per block (blue encoder and orange decoder weights; purple one set of weights) with its attention mask as a glass plate on the floor (Figures 3 and 4: fully visible, causal, causal with prefix, on the page's 7 + 3 word example), filling row by row; the camera moves in close on one structure per step and marks one query row; parameters and cost labels from Table 2. The scores stay in the prediction that follows (a stage showing them would answer it). The general mask figure and the encoder-decoder's read-once cache are the owner's (Families and objectives, Figs. 2 and 5), linked rather than redrawn.
+- **Kept 2D**: the target-length chart (a scatter), the Table 15 bars, the bucket and learning-rate charts (closed), the mixing table, the prediction bars, the Appendix D picker, the playground (closed) and the whole ablation grid tab: all read best flat. The hero stays the paper's own Figure 1 (CC BY 4.0), the figure people cite.
+- **Motion**: the stages follow the template rules (play once half in view, pause off screen, stop for good on any control or at the end, never under reduced motion). `makeAnim` was removed from `11_js_ui.js` (nothing uses it). `99_js_tabs.js` and `05z_errbox.js.html` are the templates (storage key `t5-tab`); this page's two additions (a cross-tab link opens the closed block after its target; `#t-run` opens Reading at the span stage) moved to `99b_js_tablinks.js`. `check_page.mjs` now asserts that the stages play on view (it used to forbid it) and steps every stage and mode; `check_stages.mjs` is the rollout's layout and motion check.
+- **Build**: `build.sh` finds the repo root by walking up to `.venv` or `html_utils` (no git). Also fixed: in the target-length chart a right-edge label clamp had been swallowed into a comment, and labels near the y axis now flip to the right of their point.
+
+## Length judgement (2026-11-13)
+| | Before (audit 2026-11-13, pre-pass) | After |
+|---|---|---|
+| The paper, core | 4,915 words, 21.4 min | 5,575 words, 24.2 min |
+| The paper, closed | 526 words, 2.3 min | 526, unchanged |
+| The ablation grid | 394 core + 722 closed | unchanged |
+| Further reading | 607 | unchanged |
+| Visuals in The paper (audit) | 7 | 7 |
+
+The growth is the step lists that now explain the two stages: the audit counts all three objective modes' lists (about 330 words of them hidden at any time), so one pass reads about 23 minutes. Header: "Reading: 24 min, plus 2 in closed details." (`reading.json`). Nothing was cut; the old captions became list items.
+
+Ledger: 211 units (core 184, depth 14, owned 6, volatile 1, fat 6). Re-pointed 42 (the arch note), 149 and 150 (the span note, "Step 5" became "Step 6"); 152 (the old "stops when off screen" motion line) is now fat; 8 units added for the stages' step lists. `ledger.py check`: problems 0.
+
+## Checks (13 November 2026)
+`checkpage.sh`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stage runs (three widths; the span stage in all three modes), 0 problems. `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78. `html_utils/verify_layout.mjs`: problems 0.

@@ -1,4 +1,4 @@
-// ---- The paper tab: text-to-text examples, STS-B rounding, position buckets, LR schedule, Figure 2, masks, predictions, mixing, Table 15 ----
+// ---- The paper tab: text-to-text examples, STS-B rounding, position buckets, LR schedule, predictions, mixing, Table 15 ----
 const tokChip=x=>x.sent?'<span class="tk s">'+escH(x.s)+'</span>':x.rnd?'<span class="tk r" title="random replacement token">'+escH(x.t)+'</span>':'<span class="tk">'+escH(x.t)+'</span>';
 // Text to text
 (function(){const bar=$('t2tChips');if(!bar)return;
@@ -37,47 +37,6 @@ const tokChip=x=>x.sent?'<span class="tk s">'+escH(x.s)+'</span>':x.rnd?'<span c
   [[1e4,0.01,'0.01 until step 10⁴'],[2**19,1/Math.sqrt(2**19),'0.00138 at 2¹⁹']].forEach(([n,v,t],i)=>{s+='<circle cx="'+f.lx(n)+'" cy="'+f.ly(v)+'" r="3.5" fill="var(--c2)"/>'+tx(f.lx(n)+(i?-8:6),f.ly(v)+(i?16:-8),t,{fs:11,a:i?'end':'start'})});
   s+=tx(W-12,22,'solid: baseline, 2¹⁹ steps; dashed: final models',{fs:11,a:'end',c:'var(--mute)'});
   el.innerHTML=svgW(W,H,s,'Inverse square root learning rate')})})();
-// Figure 2, computed with the ported functions
-(function(){const el=$('fig2');if(!el)return;const m=FIG.iid.mask.map(Boolean);
-  const inp=T5.sentinelize(FIG_TOK,m).out,tgt=T5.targetsFromSpans(FIG_TOK,m);
-  const ok=inp.map(x=>x.s||x.t).join(' ')===FIG.iid.inp.join(' ')&&tgt.map(x=>x.s||x.t).join(' ')===FIG.iid.tgt.join(' ');
-  el.innerHTML='<div class="lbl">original text, three words picked for corruption (×)</div><div class="io toks">'+FIG_TOK.map((t,i)=>'<span class="tk'+(m[i]?' x':'')+'">'+escH(t)+'</span>').join('')+'</div>'+
-   '<div class="lbl">input: each run of corrupted words becomes one sentinel</div><div class="io toks">'+inp.map(tokChip).join('')+'</div>'+
-   '<div class="lbl">target: only the dropped spans, each after its sentinel, closed by a final one</div><div class="io toks">'+tgt.map(tokChip).join('')+'</div>'+
-   '<p class="small mute" style="margin:6px 0 0">The example of Figure 2 (§3.1.4). '+(ok?'Computed here with the ported T5 functions from the mask alone; it matches the paper\'s figure token for token.':'(mismatch with the figure: please report)')+'</p>'})();
-// Attention masks: encoder-decoder, language model, prefix LM
-(function(){const X=['translate','English','to','German:','That','is','good.'],Y=['Das','ist','gut.'];
-  const SC={ed:{L:'<i>2P</i>',M:'<i>M</i>',g:83.28,gl:'83.28',sq:80.88},lm:{L:'<i>P</i>',M:'<i>M</i>',g:74.70,sq:61.14},plm:{L:'<i>P</i>',M:'<i>M</i>',g:81.82,sq:78.94}};
-  const seq=m=>m==='ed'?X.concat(Y):X.concat(['target:'],Y),nIn=m=>m==='ed'?7:8;
-  // kind of cell (row i attends column j): 0 none, 1 encoder self, 2 decoder self, 3 cross, 4 one stack
-  function cell(m,i,j){const n=nIn(m);if(m==='ed'){if(i<n)return j<n?1:0;return j<n?3:(j<=i?2:0)}
-    if(m==='lm')return j<=i?4:0;if(i<n)return j<n?4:0;return j<=i?4:0}
-  const COL=['','var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
-  const modes={
-   ed:[{t:'the example, two stacks',c:'The input "translate English to German: That is good." goes to the encoder (blue rows), the target "Das ist gut." to the decoder (orange rows). Row <i>i</i>, column <i>j</i> will be filled where position <i>i</i> may attend to position <i>j</i>.'},
-       {t:'encoder self-attention: fully visible',c:'Every input word attends to every input word, before and after it. This is the "fully visible" mask of Figure 3, left; BERT\'s encoder uses the same pattern.'},
-       {t:'decoder: causal self-attention plus cross-attention',c:'Each target word attends to the target words up to itself (causal, orange triangle) and, through cross-attention, to every encoder output (green block). Nothing flows from the target back into the input.'},
-       {t:'what it costs',c:'Two stacks, so twice the parameters (2<i>P</i>), but each word passes through only one of them, so the cost per example is <i>M</i>, the same as one <i>L</i>-layer stack running over input and target together. Best on every task in Table 2.'}],
-   lm:[{t:'the example, one stack',c:'A language model sees one sequence: input and target concatenated with a "target:" marker, "translate English to German: That is good. target: Das ist gut.", all through the same stack.'},
-       {t:'input positions: causal',c:'Each input word sees only the words before it. "translate" cannot see "good.", so the representation of the beginning of the input is "unnecessarily limited", the frequently cited drawback the paper names (§3.2.1).'},
-       {t:'target positions: causal',c:'The target continues the same causal triangle, so it is predicted exactly like the next words of a document; this is how GPT-2 did tasks zero-shot.'},
-       {t:'what it costs',c:'One stack (<i>P</i> parameters) running over input and target (<i>M</i> FLOPs, like the encoder-decoder). Far behind: 74.70 GLUE and 61.14 SQuAD with the denoising objective, against 83.28 and 80.88.'}],
-   plm:[{t:'the example, one stack',c:'The same single stack and concatenated sequence as the language model; only the mask changes.'},
-        {t:'prefix positions: fully visible',c:'Over the prefix (everything up to "target:") the mask is fully visible, as in an encoder. In this form the prefix LM "closely resembles BERT" for classification: the label is emitted right after the fully visible input.'},
-        {t:'target positions: causal, seeing the whole prefix',c:'Target words see the whole prefix and the target words up to themselves. Compare with the encoder-decoder: the same visible cells, but one stack\'s weights for all of them and no separate cross-attention.'},
-        {t:'what it costs',c:'<i>P</i> parameters, <i>M</i> FLOPs: half the encoder-decoder\'s parameters at the same cost. 81.82 GLUE, below the encoder-decoder with shared parameters (82.81), which also has <i>P</i> parameters: the explicit cross-attention seems to help.'}]};
-  function draw(m,k,e,W){const S=seq(m),n=S.length,ni=nIn(m),lw=Math.min(84,W*.24),top=66,cs=Math.min(W>700?36:26,Math.floor((W-lw-6)/n)),H=top+n*cs+8;let s='';
-    S.forEach((t,j)=>{const x=lw+j*cs+cs/2;s+='<text x="'+x.toFixed(1)+'" y="'+(top-6)+'" font-size="11" transform="rotate(-55 '+x.toFixed(1)+' '+(top-6)+')" fill="'+(j<ni?'var(--ink)':'var(--c2)')+'">'+escH(t)+'</text>'});
-    S.forEach((t,i)=>{s+=tx(lw-4,top+i*cs+cs/2+4,escH(t),{fs:11,a:'end',c:i<ni?'var(--ink)':'var(--c2)'})});
-    for(let i=0;i<n;i++)for(let j=0;j<n;j++){const kind=cell(m,i,j);let op=0;
-      if(kind){const isIn=i<ni;if(k>=3)op=1;else if(k===2)op=isIn?1:e;else if(k===1)op=isIn?e:0}
-      s+=rc(lw+j*cs+1,top+i*cs+1,cs-2,cs-2,kind&&op>0?COL[kind]:'var(--soft)',{r:2,op:kind&&op>0?(0.25+0.75*op):1})}
-    s+=ln2(lw+ni*cs,top,lw+ni*cs,top+n*cs,'var(--mute)',{da:'3 2'})+ln2(lw,top+ni*cs,lw+n*cs,top+ni*cs,'var(--mute)',{da:'3 2'});
-    return svgW(W,H,s,'Attention mask')}
-  function counters(m,k){const S=seq(m),n=S.length,ni=nIn(m);let vis=0,inSeen=0;for(let i=0;i<n;i++)for(let j=0;j<n;j++){if(cell(m,i,j))vis++;if(i<ni&&j<ni&&cell(m,i,j))inSeen++}
-    const leg=m==='ed'?'<span class="lg"><i style="background:var(--c1)"></i>encoder self</span><span class="lg"><i style="background:var(--c2)"></i>decoder self</span><span class="lg"><i style="background:var(--c3)"></i>cross</span>':'<span class="lg"><i style="background:var(--c4)"></i>one stack</span>';
-    return '<div style="grid-column:1/-1">'+leg+'</div>'+stat('input words each input word sees',(inSeen/ni).toFixed(1)+' of '+ni,m==='lm'?'causal: fewer':'all of them')+stat('parameters',SC[m].L,m==='ed'?'two stacks':'one stack')+stat('cost per example',SC[m].M,'FLOPs, §3.2.2')+(k>=3?stat('GLUE, Table 2',f2(SC[m].g),'SQuAD '+f2(SC[m].sq)):stat('GLUE, Table 2','…','at step 4'))}
-  makeAnim({id:'msk',modes,mode:'ed',draw,counters,dur:2600})})();
 // Predict, then reveal
 PRED_REVEAL['pr-arch']=()=>predBars('prArch','T2',0,{pick:r=>r.labels[0]==='Denoising',hl:x=>/shared/.test(x.n),title:'GLUE, Table 2, denoising objective'});
 PRED_REVEAL['pr-data']=()=>{const el=$('prData');el.innerHTML='<div id="prData0"></div><div id="prData3"></div>';predBars('prData0','T8',0,{hl:x=>/unfiltered/.test(x.n),title:'GLUE, Table 8'});predBars('prData3','T8',3,{hl:x=>/unfiltered/.test(x.n),title:'SuperGLUE, Table 8'})};
