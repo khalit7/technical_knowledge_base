@@ -1,4 +1,4 @@
-// ---- Tabs ---- (skill template 99_js_tabs.js, 2026-10-26; storage key schro-tab)
+// ---- Tabs ---- (skill template 99_js_tabs.js, recopied 2026-11-13; storage key schro-tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

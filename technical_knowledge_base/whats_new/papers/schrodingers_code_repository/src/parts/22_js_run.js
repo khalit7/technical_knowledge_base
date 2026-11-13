@@ -33,17 +33,7 @@
     const viol=edges.filter(([p,c])=>pos[p]>pos[c]).length,moved=order.filter((u,i)=>u!==i).length;
     const FR=EX.field_run,mo=SR.topoOrder({length:FR.names.length,deps:FR.deps},st.seed);const ci=FR.names.indexOf('contribute_to_class');
     return {viol,moved,ci,cnew:mo.indexOf(ci),nm:FR.names.length}}
-  // ---- the step animation ----
-  const S2=[{t:'The code as Django ships it',c:'Two excerpts of the real repository at the task\'s base commit: <code>Field.contribute_to_class</code> and its neighbours in <code>django/db/models/fields/__init__.py</code> (lines 742 to 786), where the fix goes.'},
-    {t:'Find the repository\'s own names',c:'The released extractor walks the syntax tree of every Django file and keeps classes, public functions, modules, files, directories, module variables and class attributes; it drops Python builtins, keywords, third-party names and a list of common words. Highlighted: the 40 targets in this excerpt. <code>self</code>, <code>name</code> and <code>getattr</code> are reserved; <code>attname</code> is only ever an instance attribute, so it is not a target and survives.'},
-    {t:'Split each name into tokens',c:'<code>tokenize_identifier</code> splits on underscores, dots and case changes. Every target is rebuilt from tokens, so one token maps the same way everywhere: whatever <code>get</code> becomes, it becomes in every name.'},
-    {t:'Draw one word per token, from the seed',c:'For each of the 47 tokens, in alphabetical order, the candidate list is shuffled by the seeded generator and the first word not used yet is taken (<code>create_token_mapping</code>). Bold is this seed\'s choice; a star marks a word the paper itself shows.'},
-    {t:'Rebuild every name in its original style',c:'<code>reconstruct_identifier</code> keeps CamelCase, snake_case, UPPER_CASE and file suffixes. Its one quirk is visible in Figure 4: a multi-word replacement inside a CamelCase name keeps its underscore, so <code>CharField</code> with char &#8594; character_unit becomes <code>Character_unitField</code>.'},
-    {t:'What the agent sees',c:'Every observation is translated before the agent reads it and every command translated back before it runs. Hover a highlighted name to see the original. The project name itself becomes <code>working_repository</code> (the code\'s Level 1).'}];
-  const S3=[{t:'35 definitions in file order',c:'<code>fields/__init__.py</code> has one long run of top-level definitions: three helper functions, <code>Field</code> and 31 field classes. Level 3 may reorder them only within this run; the imports and assignments around it are anchors.'},
-    {t:'Which definitions must come first',c:'A class cannot be defined before its base class (or a metaclass, decorator or default argument it names). The released code finds these definition-time dependencies in the syntax tree: green arcs, base above subclass.'},
-    {t:'Sample an order that respects them',c:'A random topological sort: repeatedly pick, uniformly, one definition whose dependencies are already placed. The released code retries up to 32 times until the order differs from the original.'},
-    {t:'Check the result',c:'Every arc still points downwards (a red arc would mean a broken import). In the paper the variant is then kept only if all Pass-to-Pass tests still pass and the Fail-to-Pass test still fails.'}];
+  // ---- the step animation: its steps are explained by the step lists #sx-tp-l2 and #sx-tp-l3 in 04_run.html (since 2026-11-13) ----
   function drawL2(k,e,w){const c=cur;let h='';
     if(k===0)h=pre(esc(code0()))+'<p class="small mute">'+EX.tree.slice(0,12).map(esc).join(' · ')+' ...</p>';
     else if(k===1)h=pre(markTargets(code0()));
@@ -52,7 +42,7 @@
     else if(k===4){h='<div class="tokl">'+R.keys.map(x=>'<span class="tk">'+esc(x)+' &#8594; <b>'+esc(c.fm[x]||x)+'</b></span>').join('')+'</div>'}
     else h=pre(hl(code0(),c.fm))+'<p class="small">'+EX.tree.filter(p=>/fields\/__init__|base\.py/.test(p)).map(p=>hl(p,c.fm)).join(' · ')+'</p>';
     return '<div class="tpview" style="opacity:'+(.35+.65*e).toFixed(2)+'">'+h+'</div>'}
-  const anim=makeAnim({id:'tp',mode:'l2',modes:{l2:S2,l3:S3},dur:3200,
+  const anim=makeAnim({id:'tp',mode:'l2',lists:{l2:'sx-tp-l2',l3:'sx-tp-l3'},dur:3600,
     draw:(m,k,e,w)=>m==='l2'?drawL2(k,e,w):l3svg(w,k,e),
     counters:(m,k,e)=>{if(m==='l2'){const n=Object.keys(cur.fm).length,pr=R.prose_renamed.filter(x=>cur.fm[x]).length;
         return stat('Targets in this excerpt','40','of '+fmt(R.counts.classes+R.counts.functions)+' class and function targets in Django')+stat('Renamed with this '+(st.fig?'preset':'seed'),n+' of 40',st.fig?'only the tokens Figure 4 shows change':'tokens left as-is keep their name')+stat('Words renamed inside the issue prose',pr+' of '+R.prose_renamed.length,R.prose_renamed.join(', '))}

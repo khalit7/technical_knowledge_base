@@ -1,5 +1,5 @@
 """Extract the arXiv HTML (v1) of SchrodingerRepo to plain text, its tables to text, and its anchor list.
-usage: curl -sL https://arxiv.org/html/2609.27891v1 -o $SCRATCH/mole.html; python3 extract_paper.py /tmp/das.html  (writes into inputs/)"""
+usage: curl -sL https://arxiv.org/html/2609.27891v1 -o $SCRATCH/mole.html; python3 extract_paper.py $SCRATCH/mole.html  (writes into inputs/)"""
 import re, sys, html, os
 s = open(sys.argv[1]).read()
 os.makedirs('inputs', exist_ok=True)

@@ -15,7 +15,11 @@ STAT = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
 FAT = {}
 # unit 15 held how SWE-bench is built (2,294 issues, the 500 Verified), owned by Coding benchmarks (one sentence and a link stay here)
 OWNED = {15: (COD, 'leaving 2,294 tasks')}
-KEYS = {5: 'scoped on 26 october 2026 from the earlier database takeaway', 91: 'where do they go?'}
+KEYS = {5: 'scoped on 26 october 2026 from the earlier database takeaway', 91: 'where do they go?',
+        # re-pointed in the 2026-11-13 layout rollout: the flow diagram became the Idea stage, the case animation its 3D stage, and two keys held "N min" look-alikes
+        36: 'how a command travels, step by step (drawn from §iii-c and figure 2 )', 37: 'levels 1 and 2 act only on this observation layer',
+        39: 'the panel in this section applies the renamings the paper', 121: "the stage walks the agent's path in each view", 122: 'only the steps figure 4 describes are drawn',
+        105: 'minus 72.42 is 0.55', 219: 'the readme, mapper.py, manager.py and intra_file_reorder.py'}
 NEW = [
  ('core', 'Core sentence: same tasks and tests, the repository redrawn per run under four behaviour-preserving levels; Pass@1 falls 6 to 14 points and actions rise.', 'part of a repository-level score is knowing where things are in a familiar codebase'),
  ('core', 'Hero (redrawn; arXiv non-exclusive licence): the familiar and the seeded view of the Django case (Figure 4 paths), the translator, and Table I Pass@1 and actions, baseline against full setting, for four models.', 'same task, unfamiliar names: pass@1 falls and the search gets longer'),

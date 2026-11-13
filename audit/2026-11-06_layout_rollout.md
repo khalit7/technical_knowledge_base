@@ -295,9 +295,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
 - [x] `whats_new/papers/scaffold_computational_separations` Understanding the Benefits of Scaffolds through Computational Separations
 - [x] `whats_new/papers/scaling_laws_for_neural_language_models` Scaling Laws for Neural Language Models
-- [~] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
+- [x] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
 - [~] `whats_new/papers/seq_vs_seq` Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
-- [ ] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
+- [~] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
 - [ ] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
 - [ ] `whats_new/papers/statem` StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
 - [ ] `whats_new/papers/switch_transformers` Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
@@ -589,6 +589,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/scaffold_computational_separations`: hero last step the orange ceiling tints most of the scene (busy); hero step 4 the "reader, 2 layers" label touches the left edge.
 - `whats_new/papers/rrsi`: Fig. 1 step 4 the pass-axis labels and "tokens: cheaper in front" sit at the left edge and the incumbent line runs off it; ball labels hide on phones.
 - `whats_new/papers/scaling_laws_for_neural_language_models`: both animation cards too tall to be sticky on phones; mk_coverage 50 of 51 (the Takeaway "6+ orders of magnitude" was already missing before this pass).
+- `whats_new/papers/schrodingers_code_repository`: Idea stage step 4 labels crowd (the two fields/__init__ labels overlap, "model_fields/tests.py" runs to the right edge); case stage labels close at 1400 ("base.py" beside the fields/ patch).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -729,3 +730,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Scaffold separations: the (4,3) tree is left out of the tree stage (no student, and it is the predict answer); the hero's bigger graph is the first 16-vertex seed with t beyond 8 hops (seed 3); the Tables tab was split (intro left, selector right). Keep?
 - RRSI: the hero is now the 3D stage of the released coding run (the Harvey LAB loop-plus-Table-2 SVG retired; Table 2's trade is the last step); both long replays grouped into stretches (toy: five rounds each); moving a toy slider keeps the current step. Keep?
 - Kaplan scaling laws: the hero is now the 3D Eq. 1.6 surface (old 2D hero removed) in a new "At a glance" section; Fig. 2 derives where Kaplan's frontier crosses the 2.4% overfitting line (near 1.3e20 FLOPs, labelled derived) and sets Chinchilla's 20 tokens per parameter beside it (Gopher budget: 485B on 198B against 69.3B on 1.39T); frontiers drawn on the floor only. Keep?
+- Schrödinger's Code: the static hero stays (the Idea stage carries the mechanism); the Transform animation keeps playing when the seed slider or Figure 4 preset changes; the Idea stage's non-sample file blocks are uniform (no line counts given); Level 4's 8-line band drawn at least 0.05 thick (stated). Keep?

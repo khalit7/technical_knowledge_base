@@ -1,4 +1,4 @@
-// ---- The paper tab: Figure 1, the flow diagram, the level panel, Table I, Figure 3, RQ4 power, the case study ----
+// ---- The paper tab: Figure 1, the level panel, Table I, Figure 3, RQ4 power (the Idea and case-study stages are 31_js_sc_idea.js and 32_js_sc_case.js since 2026-11-13) ----
 (function(){
   const TB=PAPER.tables,RC=PAPER.rc,R=window.REPO;
   const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -14,16 +14,6 @@
     const lg=legend(F.cats.map((c,i)=>[c,F1C[i]]),pl,y+4,w-pl-pr);
     s+=lg.s.replace(/stroke-width="2.2"/g,'stroke-width="8"');
     $('f1Plot').innerHTML=svgW(w,y+lg.h+6,s,'Figure 1 redrawn')}
-  // ---- flow diagram ----
-  function flow(w){const narrow=w<600;let s='';
-    const boxes=narrow?[[10,8,w-20,46,'Agent (mini-swe-agent)','reads the virtual view, issues bash commands'],[10,92,w-20,58,'Translator (Levels 1 and 2)','virtual names &#8594; real before a command runs; real &#8594; virtual in every output'],[10,188,w-20,58,'Real SWE-bench container','original repository plus the Level 3 or 4 overlay, checked by the tests'],[10,284,w-20,46,'Patch recovery','diff of final against original files, graded by the standard tests']]
-      :[[10,30,170,64,'Agent','mini-swe-agent: reads the virtual view, issues bash commands'],[w/2-120,18,240,88,'Translator (Levels 1, 2)','virtual &#8594; real for commands; real &#8594; virtual for outputs; a notebook of names emitted'],[w-190,30,180,64,'Real container','original repository + Level 3/4 overlay'],[w-190,128,180,52,'Patch recovery','file diffs, standard tests']];
-    boxes.forEach(b=>{s+=rc(b[0],b[1],b[2],b[3],'var(--soft)',{s:'var(--line)',r:6});s+=tx(b[0]+b[2]/2,b[1]+18,b[4],{fs:12,a:'middle',w:600});
-      const words=b[5].split(' ');let line='',ly=b[1]+34;const maxc=Math.floor(b[2]/6.2);words.forEach(wd=>{if((line+' '+wd).length>maxc){s+=tx(b[0]+b[2]/2,ly,line.trim(),{fs:11,a:'middle',c:'var(--mute)'});ly+=13;line=wd}else line+=' '+wd});s+=tx(b[0]+b[2]/2,ly,line.trim(),{fs:11,a:'middle',c:'var(--mute)'})});
-    const A=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4" marker-end="url(#fla)"/>';
-    let H;if(narrow){s+=A(w/2-30,56,w/2-30,90)+A(w/2+30,90,w/2+30,56)+A(w/2-30,152,w/2-30,186)+A(w/2+30,186,w/2+30,152)+A(w/2,248,w/2,282);H=336}
-    else{s+=A(182,52,w/2-122,52)+A(w/2-122,72,182,72)+A(w/2+122,52,w-192,52)+A(w-192,72,w/2+122,72)+A(w-100,96,w-100,126);H=188}
-    $('flowSvg').innerHTML='<svg viewBox="0 0 '+w+' '+H+'" width="'+w+'" height="'+H+'" style="max-width:100%;height:auto" role="img" aria-label="How a command travels"><defs><marker id="fla" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>'+s+'</svg>'}
   // ---- the level panel (renamings as printed in Figure 4) ----
   const FM=SR.forwardMap(R.keys,R.fig.mapping);
   function lvDraw(m){const ex=R.ex,iss=ex.issue.split('\n').slice(0,6).join('\n'),path='django/db/models/fields/__init__.py';let h='';
@@ -77,43 +67,5 @@
   function Phi(z){const t=1/(1+.2316419*Math.abs(z)),d=.3989423*Math.exp(-z*z/2),p=d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p}
   ['pwN','pwD'].forEach(id=>$(id).addEventListener('input',()=>refit($('pwPlot'))));
   PRED_REVEAL.pr3=()=>fit($('pwPlot'),pw);
-  // ---- case study animation ----
-  const TREE=[['django/',0],['db/',1],['models/',2],['base.py',3],['manager.py',3],['options.py',3],['query.py',3],['fields/',3],['__init__.py',4],['related.py',4],['mixins.py',4],['utils/',1],['encoding.py',2],['tests/',0],['model_fields/',1],['models.py',2],['tests.py',2]];
-  const PATHS=['django/','django/db/','django/db/models/','django/db/models/base.py','django/db/models/manager.py','django/db/models/options.py','django/db/models/query.py','django/db/models/fields/','django/db/models/fields/__init__.py','django/db/models/fields/related.py','django/db/models/fields/mixins.py','django/utils/','django/utils/encoding.py','tests/','tests/model_fields/','tests/model_fields/models.py','tests/model_fields/tests.py'];
-  const lab=(i,mode)=>{if(mode==='orig')return TREE[i][0];const p=SR.apply(PATHS[i],FM,true).replace(/\/$/,'');const seg=p.split('/').pop();return seg+(PATHS[i].endsWith('/')?'/':'')};
-  const CS={orig:[{t:'Read the issue',c:'The issue names Django\'s own vocabulary: <code>get_FOO_display()</code>, <code>models.Model</code>, <code>models.CharField</code>, <code>choices</code>. Each is a cue to a file the model has seen many times.',v:[],cue:'Cannot override get_FOO_display() ... models.CharField(..., choices=...)'},
-      {t:'List, then search for get_.*_display under django/db/models/',c:'One search returns <code>django/db/models/fields/__init__.py</code> and <code>django/db/models/base.py</code>.',v:[0,1,2,3,7,8]},
-      {t:'Open the field file around the match',c:'<code>get_%s_display</code> is installed unconditionally with <code>setattr</code> in <code>contribute_to_class</code>.',v:[8]},
-      {t:'Check the backing method in base.py',c:'<code>_get_FIELD_display</code> is the implementation; the fault is localised.',v:[3]},
-      {t:'Patch',c:'Guard the installation with an existence check: only <code>setattr</code> if the class has no such method. Same patch as the gold patch. <b>37 actions in all.</b>',v:[8],end:37}],
-    map:[{t:'Read the renamed issue',c:'The same issue now says: a custom <code>render_FOO_label()</code> should override the generated label-rendering method, on <code>object_models.Blueprint</code> with <code>object_models.Character_unitField</code> and <code>picks</code>. None of these names was ever in training data.',v:[]},
-      {t:'List the directory, enumerate Python files, inspect the tree',c:'Without a familiar path to jump to, the agent maps the top-level <code>working_repository/</code> tree first.',v:[0,1,2,7,11,13,14]},
-      {t:'Search source and tests for display-related methods',c:'It searches for <code>render_*_label</code> across the repository, source and tests alike.',v:[0,2,3,7,8,14,15,16]},
-      {t:'Open the transformed implementation files',c:'<code>working_repository/storage_engine/object_models/entries/__init__.py</code> and the backing file <code>anchor.py</code>; it finds the analogous <code>render_%s_label</code> generation.',v:[8,3]},
-      {t:'Keep reading to confirm the mapping',c:'Surrounding field-registration logic, tests, configuration files and a minimal reproduction, to be sure the renamed names behave like the original display method.',v:[4,5,6,8,9,10,12,15,16]},
-      {t:'Patch, then recover it',c:'Guard <code>render_%s_label</code> generation with an existence check. The submission is recovered from the environment\'s git diff and maps back to the same patch. <b>217 actions in all.</b>',v:[8],end:217}]};
-  function csDraw(m,k,e,w){const steps=CS[m],seen=new Set();steps.slice(0,k).forEach(s=>s.v.forEach(i=>seen.add(i)));const now=new Set(steps[k].v);
-    const rh=19,top=8,H=top+TREE.length*rh+64,ind=16;let s='';
-    TREE.forEach(([n,d],i)=>{const y=top+i*rh,x=8+d*ind,on=now.has(i),was=seen.has(i);const label=lab(i,m);
-      if(on)s+=rc(x-4,y,Math.min(w-x-4,label.length*7.2+14),rh-3,'var(--hl)',{r:3,op:e});
-      s+=tx(x,y+12,esc(label),{fs:12,c:on?'var(--ink)':was?'var(--acc)':'var(--mute)',w:on?700:null})});
-    // to-scale action bar at the last step
-    const yb=top+TREE.length*rh+14,last=k===steps.length-1,bw=w-16;
-    s+=tx(8,yb,'Actions (the paper\'s totals): '+(last?(m==='orig'?'37':'217'):'not given per step'),{fs:11,c:'var(--mute)'});
-    s+=rc(8,yb+6,bw,12,'var(--soft)',{s:'var(--line)',r:3});
-    if(last)s+=rc(8,yb+6,bw*(m==='orig'?37:217)/217*e,12,m==='orig'?'var(--c3)':'var(--c2)',{r:3});
-    s+=ln2(8+bw*37/217,yb+3,8+bw*37/217,yb+21,'var(--ink)',{sw:1,op:.5})+tx(8+bw*37/217+3,yb+32,'37',{fs:11,c:'var(--mute)'})+tx(8+bw,yb+32,'217',{fs:11,a:'end',c:'var(--mute)'});
-    if(w>=600){const px=Math.max(230,w*.36),pw2=w-px-8;const wrap=(t,y0,fs,c)=>{const mc=Math.floor(pw2/(fs*.56));let line='',yy=y0,o='';t.split(' ').forEach(wd=>{if((line+' '+wd).length>mc){o+=tx(px+10,yy,esc(line.trim()),{fs,c});yy+=fs+4;line=wd}else line+=' '+wd});o+=tx(px+10,yy,esc(line.trim()),{fs,c});return {o,y:yy}};
-      s+=rc(px,8,pw2,H-80,'var(--soft)',{s:'var(--line)',r:8});s+=tx(px+10,28,'The issue, as this view words it',{fs:11,c:'var(--mute)'});
-      let r1=wrap(ISS[m],46,12);s+=r1.o;s+=tx(px+10,r1.y+30,'This step (paraphrasing Figure 4)',{fs:11,c:'var(--mute)'});
-      const r2=wrap(CMD[m][k],r1.y+48,12,'var(--acc)');s+=G(e,r2.o)}
-    return svgW(w,H,s,'Case study')}
-  const ISS={orig:'Cannot override get_FOO_display() in Django 2.2+. class FooBar(models.Model): foo_bar = models.CharField(..., choices=[...]); def get_foo_bar_display(self): return "something"',
-    map:'A custom render_FOO_label() should override the generated label-rendering method (Figure 4), on object_models.Blueprint with object_models.Character_unitField(..., picks=[...]).'};
-  const CMD={orig:['Read the issue; every name in it is a Django name.','ls; then search for get_.*_display under django/db/models/','Open django/db/models/fields/__init__.py at the match','Open django/db/models/base.py: _get_FIELD_display','Patch: if not hasattr(cls, \'get_%s_display\' % self.name): setattr(...)'],
-    map:['Read the issue; none of its names has been seen before.','ls; enumerate the .py files; inspect working_repository/','Search source and tests for render_*_label','Open .../object_models/entries/__init__.py and anchor.py','Read registration code, tests, configuration; run a reproduction','Patch render_%s_label generation; recover the diff and map it back']};
-  const csA=makeAnim({id:'cs',mode:'orig',modes:CS,dur:2600,draw:csDraw,
-    counters:(m,k,e)=>{const steps=CS[m],seen=new Set();steps.slice(0,k+1).forEach(s=>s.v.forEach(i=>seen.add(i)));
-      return stat('Steps Figure 4 shows',(k+1)+' of '+steps.length,m==='orig'?'familiar view':'renamed view')+stat('Tree entries lit so far',seen.size+' of '+TREE.length,'an illustration of the text')+stat('Actions in the run',k===steps.length-1?(m==='orig'?'37':'217'):'...',m==='orig'?'same patch':'5.9 times as many, same patch')}});
-  onTab('t-read',()=>{fit($('f1Plot'),f1);fit($('flowSvg'),flow);fit($('t1Plot'),t1);fit($('f3Plot'),f3)});
+  onTab('t-read',()=>{fit($('f1Plot'),f1);fit($('t1Plot'),t1);fit($('f3Plot'),f3)});
 })();

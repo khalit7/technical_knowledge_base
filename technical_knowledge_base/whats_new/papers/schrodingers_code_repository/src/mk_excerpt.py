@@ -41,7 +41,7 @@ big = max(range(len(runs)), key=lambda i: len(runs[i]))
 mi = next(i for i, r in enumerate(mruns) if any(n.name == 'contribute_to_class' for n in r))
 out = {'_doc': 'Excerpt of Django at 84633905 (BSD-3-Clause) used by the page; run specs from schro_ref.build_run_specs (a copy of the released intra_file_reorder._build_run_specs).',
        'commit': '84633905273fc916e3d17883810d9969c03f73c2', 'instance': inst['instance_id'], 'issue': inst['problem_statement'].strip(),
-       'issue_created': inst['created_at'], 'gold_patch': inst['patch'], 'f2p': inst['FAIL_TO_PASS'],
+       'issue_created': inst['created_at'], 'gold_patch': inst['patch'], 'f2p': inst['FAIL_TO_PASS'], 'p2p': inst['PASS_TO_PASS'],
        'files': [{'path': 'django/db/models/fields/__init__.py', 'text': fields_txt, 'from': 'lines 85 and 742-786'},
                  {'path': 'django/db/models/base.py', 'text': base_txt, 'from': 'lines 403 and 941-944'}],
        'tree': tree,

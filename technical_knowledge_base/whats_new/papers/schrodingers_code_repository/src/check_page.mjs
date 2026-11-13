@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the 2D animation stepping end to end and every animation and stage playing once in view.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/schrodingers_code_repository/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -61,9 +61,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
-    for (const id of ['cs', 'tp']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // every animation and stage plays by itself once scrolled into view (2026-11-06 rule; it used to forbid any frame before a click):
+    // the 3D stages (#stg-idea, #stg-cs) and the 2D Level 2 / Level 3 animation (#tp). check_stages.mjs checks the rest of the motion rules.
+    for (const id of [...await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id)), ...((await p.$(`#${t} #tp`)) ? ['tp'] : [])]) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1600);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // closed details hold text too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // ranges: min, middle, max
@@ -95,7 +97,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle; the replay is stepped for every episode
-    for (const id of ['cs', 'tp']) {
+    for (const id of ['tp']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const eps = [];
       for (const ep of (eps.length ? eps : [null])) {
