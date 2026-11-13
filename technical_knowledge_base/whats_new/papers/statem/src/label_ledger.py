@@ -13,13 +13,30 @@ CC = 'agents_and_retrieval/topic_agentic_harnesses/claude_code'
 LG = 'agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph'
 AB = 'measurement/topic_benchmarks/agentic'
 ES = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
-FAT = {1: 'old header reading-time line (19 min, resources), replaced by the measured "Reading: N min, plus M in closed details."'}
+FAT = {1: 'old header reading-time line (19 min, resources), replaced by the measured "Reading: N min, plus M in closed details."',
+       167: 'the 2D replay\'s scrolling event list; since 2026-11-13 the replay is a 3D stage whose generated step list marks the current step'}
 OWNED = {}
-KEYS = {}
+KEYS = {  # re-keyed by hand in the 2026-11-13 split rollout (sentences reworded beside the new stages)
+ 42: 'the same run, without and with the gate, is on the stage',
+ 165: 'a refused one leaves a red plate on the edge',
+ 166: 'check outputs are trimmed to about 260 characters',
+ # Further reading: keys without the resource's reading time (check_times.py and the build rewrite those figures)
+ 203: 'reading time of the resources below',
+ 205: 'code: henryqin1997/statem, apache-2.0',
+ 208: 'the runtime, the minimal runbook, the six-step transition',
+ 209: 'terminal-bench 2.1 submission pr #142',
+ 210: 'deepseek-v4-flash artifact release the authors',
+ 211: 'git_webserver_deploy family guide the authors',
+ 212: 'hugging face paper page hugging face daily papers',
+ 213: 'connected papers in this knowledge base harnessdev',
+}
 NEW = [
  ('core', 'Core sentence: a versioned YAML runbook of states whose exits are host-run checks; GPT-5.5 83.1% to 92.1% on the same 89 tasks the profile grew on; +0.55 to +1.34 on the one held-out test.', 'the agent cannot talk its way past'),
  ('core', 'Hero: every before/after pair as dumbbells, Terminal-Bench (development) against BusinessBench held-out; frozen runbook did nothing for DeepSeek (82.7 to 82.0) until $37 of adaptation.', 'big gains where the runbook was built, almost none where it was not'),
  ('core', 'New terms: runbook, profile, checked goto, harness scaling, hyper-agent, raw against reviewed.', 'a leaderboard score before and after the judge\'s cheating review'),
+ ('core', 'Stage (2026-11-13): the checked goto on configure-git-webserver in 3D, soft plan against StateM; the gate refuses the handoff while nginx is down, the agent repairs, the gate passes (illustrative).', 'the edge to handoff runs the fixed end-to-end gate on the host'),
+ ('core', 'Stage (2026-11-13): context as a stack, the plan buried under execution output, the in_hook anchor on top.', 'the green slab on top of the stack'),
+ ('core', 'Stage (2026-11-13): a real released run replayed on the runbook graph in 3D, refused gotos as red plates on their edge, one step per recorded event.', 'one recorded event a step'),
  ('owned:' + CC, 'How hooks and stop hooks work in a coding harness (Claude Code): a stop hook can refuse to end a run.', 'a stop hook that ran the tests turned a half-fixed run into a fixed one'),
  ('owned:' + LG, 'Graph runtimes: explicit state, checkpointers, interrupts and durable execution (LangGraph).', 'checkpointers, interrupts, durable execution'),
  ('owned:' + AB, 'The harness alone moves an agentic benchmark score by large margins for the same model (Terminal-Bench 2.0 public board).', 'about 18 points across nine agents'),

@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the 3D stages playing once in view and stepping end to end.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/statem/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,11 +42,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
-    for (const id of ['gw', 'rp']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+    // since 2026-11-13 the stages play by themselves once scrolled into view (the rule of 2026-11-06; src/check_stages.mjs checks the rest)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // open every closed block and audit what it shows
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
@@ -86,27 +85,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await p.$eval('#gridDet a[data-rp]', a => a.click()); actions++; await wait(200);
       await audit(t + ' grid replay link');
     }
-    // step the animations through every step and screenshot the middle; the replay is stepped for every episode
-    for (const id of ['gw', 'rp']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const eps = await p.$$eval(`#${id}Sel option`, os => os.map(o => o.value)).catch(() => []);
-      for (const ep of (eps.length ? eps : [null])) {
-        if (ep) { await p.evaluate((id, ep) => { const e = document.getElementById(id + 'Sel'); e.value = ep; e.dispatchEvent(new Event('change', { bubbles: true })) }, id, ep); actions++ }
-        const modes = await p.$$eval(`#${id}M button`, bs => bs.filter(b => !b.hidden).map(b => b.dataset.m)).catch(() => []);
-        for (const m of (modes.length ? modes : [null])) {
-          if (m) await clk(`#${id}M button[data-m="${m}"]`);
-          await clk(`#${id}Play`); await clk(`#${id}Play`);
-          await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-          const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2) && (!ep || ['r0', 'r1', 'r3'].includes(ep))) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${ep || 'x'}-${(m || 'x').replace(':', '-')}-${scheme}-${width}.png` }) } }
-          await audit(`${t} ${id} ${m} stepped`);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
-        }
+    // step every 3D stage to its last step with the forward button (each replay of the Replay tab, both harnesses of the gw stage)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      const runs = id === 'stg-rp' ? await p.$$eval('#rpSel option', os => os.map(o => o.value)) : [null];
+      const modes = id === 'stg-gw' ? ['soft', 'sm'] : [null];
+      for (const ep of runs) for (const m of modes) {
+        if (ep) await p.evaluate(ep => { const e = document.getElementById('rpSel'); e.value = ep; e.dispatchEvent(new Event('change', { bubbles: true })) }, ep);
+        if (m) await clk(`#gwM button[data-m="${m}"]`);
+        const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+        for (let k = 1; k < n; k++) { await clk(`#${id}-f`); actions++ }
+        await audit(`${t} ${id} ${ep || ''} ${m || ''} stepped`);
       }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
