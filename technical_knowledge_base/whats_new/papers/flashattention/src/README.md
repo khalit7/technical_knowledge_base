@@ -26,12 +26,13 @@
 - `mk_tables.py`: `tables.json` from the extracts (Tables 5 and 6 share one HTML figure, so they are parsed from the paper text).
 - `recompute.py`: the HBM counts of Algorithms 0 to 4, Figure 2 reconstruction, FLOPs, an online-softmax exactness test, the toy counts, and the claim checks. Writes `inputs/recompute.json`.
 - `save_live.py` copied the Notion fetch verbatim into `live.md`; `extract_paper.py` turned the arXiv HTML v2 into `inputs/paper_v2.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from FlashAttention-2, -3, -4, Mamba, PyPI, the repo README and usage.md, PyTorch, cuDNN, vLLM and the FlexAttention blog.
-- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, the animation stepped through all three modes and every block size, text at least 11 px, no NaN or errors, no sideways scroll, and the simulator against `recompute.json`.
+- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, text at least 11 px, no NaN or errors, no sideways scroll, and the simulator against `recompute.json`.
+- `check_stages.mjs` (from the repo root with node, 2026-11-13): both 3D stages at 1400 light, 920 light and 390 dark (autoplay on view, one list item per step in every mode, flows stop off screen, reader control stops autoplay, last step reached), every split two columns at 1400, reduced motion, and 43 numbers in the step lists and the block-size table against the simulator and Figure 2's table.
 - `mk_coverage.py`: writes and verifies `coverage.json` against `live.md` (63 items).
 
 ## Parts
 
-HTML: `00_top`, `01_css` (ZeRO's copy of the reference CSS), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`. JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference, unchanged), `12_js_fa` (cost model and simulator; `window.__faCheck()`), `13_js_read`, `14_js_run`, `15_js_tables`, `16_js_then`, `14b_js_hero` (the hero, static), `99_js_tabs` (the skill template, storage key `fa-tab`; replaced `90_js_tabs` on 2026-10-25). `04_run.html` was removed on 2026-10-25: its content is in `03_paper.html`.
+HTML: `00_top`, `01_css` (ZeRO's copy of the reference CSS), `02_split` (template, 2026-11-13), `02_header`, `03_paper`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`. JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference; its `makeAnim` is no longer used), `12_js_fa` (cost model and simulator; `window.__faCheck()`), `13_js_read`, `14_js_run` (the toy runs, the live readout under Fig. 2's step list, the scale panel and the block-size chart; `window.__kx`), `15_js_tables`, `16_js_then`, `25_js_s3` (renderer v2, template), `31_js_sc_hero` (Fig. 1), `32_js_sc_kx` (Fig. 2), `99_js_tabs` (the skill template, storage key `fa-tab`). `04_run.html` was removed on 2026-10-25 and `14b_js_hero.js` (the static 2D hero) on 2026-11-13.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -63,3 +64,44 @@ Why about 24 minutes is right: The paper plus the old Run tab was 24.3 minutes o
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 4, 184 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 340 actions, 0 problems; the simulator still equals `recompute.py` (std 4,608, FlashAttention 2,496, FA-2 order 1,312 values; Figure 2 model 25.233 and 4.605 GB). `mk_coverage.py`: 63 of 63.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `fa-tab`). `21_js_rd_common.js` is not used (no `RD.anim` on this page).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| The paper | Core sentence, You need, New terms | split | **3D** `stg-hero` (Fig. 1) | yes, 6 |
+| The paper | Problem | full width | none | no |
+| The paper | The GPU's memory (levels, kernels) | split | 2D log bars (hierarchy) and the P100 photo, stacked | no |
+| The paper | Standard attention, predict 1 | split | 2D Figure 2 bars | no |
+| The paper | Tiling: online softmax, predict 2 | split | 2D one-row widget (block size, new scores, skip the rescale) | no |
+| The paper | Tiling: Algorithm 1, Theorem 1 | split | **3D** `stg-kx` (Fig. 2), modes standard (or with masking and dropout), FlashAttention, FA-2 order | yes, 5 / 7 / 6 / 6 |
+| The paper | Recomputation | full width | none (two closed blocks) | no |
+| The paper | IO complexity: Theorem 2, predict 3, Proposition 3 | split | 2D Theorem 2 curve (log-log) | no |
+| The paper | The same counters at the paper's scale | split | 2D tool: sliders, bars, stats | no |
+| The paper | Why bigger blocks stop helping (closed) | full width | 2D bound chart | no |
+| The paper | Block-sparse, Results, Limitations, How much to believe, Why it matters, Connections | full width | none | no |
+| Tables | Figure 3 rebuilt | split | 2D tool (notes left; controls, chart and read-off table right) | no |
+| Tables, Then and now, Further reading | the rest | full width | tables, version cards | no |
+
+**Stages and their data.**
+- `31_js_sc_hero.js`, Fig. 1, the hero (replaces the static 2D hero): HBM as a large slab, SRAM as a small raised one; Q, K, V, S, P and O as glass plates to scale for N = 1,024, d = 64; standard attention's three kernels each with its streams (thick for N x N), FlashAttention's fused kernel with blocks and one tile on chip and the N x N plates faint (never stored), then Figure 2's bill as bars on white plinths, the camera moving in close. Numbers read from `PAPER.tables.f2` (66.6 and 75.2 GFLOPs, 40.3 and 4.4 GB, 41.7 and 7.3 ms) and §2.1; slabs and stream widths are schematic, said under the list.
+- `32_js_sc_kx.js`, Fig. 2 (replaces the 2D kernel animation; the long replay is grouped by the long-replay rule): the toy run of `FA.simulate` (N = 32, d = 4, blocks of 8, seed 7) in three modes. Each matrix is a glass plate with one cell per value; reads and writes stream between HBM and SRAM, sized by the values moved; the S plate lights its tiles in the loop's order (column by column under Algorithm 1, row by row under FA-2's order); the running HBM count stands as a bar beside standard attention's whole run; the followed row's m, ℓ and four output values are bars on a plinth on the chip, with the rescale factor when its maximum rises. A FlashAttention step is one outer iteration and plays its four inner iterations. Every count in the step lists ("So far", "Whole run") and the block-size table (blocks of 4, 8 and 16, which replaces the block-size select) is checked against the simulator by `check_stages.mjs`; the counters and the followed row's numbers are a live readout under the list.
+- Online softmax for one query block is drawn on Writing kernels (Fig. 6), which owns it; this page links to it and draws what the paper adds: the whole loop, both loop orders, and the HBM traffic Theorem 2 counts.
+
+**Kept 2D**: the hierarchy (two log-scale bars: capacity and bandwidth differ by orders of magnitude); Figure 2's bars (three pairs of numbers); the online-softmax widget (one row of eight scores with a table); the Theorem 2 curve and the block-size bound (log axes); the scale panel (a tool with six controls); Figure 3 (log-log runtime curves) and the tables; Then and now's version cards (text cards with a toggle, no spatial structure).
+
+**Motion.** Both stages play once at least half in view and stop for good on any reader control or at the last step; the mode toggle and the masking checkbox swap the list and replay; "New random input" redraws without replaying (the counts do not depend on the input, only the followed row's numbers). The per-step caption of the old animation moved into the step lists. `check_page.mjs` no longer asserts that nothing moves before a click; `check_stages.mjs` asserts autoplay instead.
+
+## Length judgement (2026-11-13)
+| | Before (2026-10-25) | After |
+|---|---|---|
+| The paper, core | 24.1 min (5,546 words) | 29.4 min (6,772) |
+| The paper, closed | 2.8 min (654) | 3.1 min (707) |
+| Tables; Then and now; Further reading | 5.6 + 3.6; 1.8 + 1.1; 1.8 | unchanged |
+| Visuals in Reading (audit) | 9 | 9 (the two animations are now stages) |
+
+The growth is the step lists: Fig. 1's (256 words) replaces a 120-word caption; Fig. 2's four lists (929 words) replace a caption drawn by script, invisible to the audit, and 711 of those words belong to the three modes hidden by default. A reader following the default mode reads about 26 minutes. Nothing was cut; the block-size table (new) replaces the block-size select. Header: "Reading: 29 min, plus 3 in closed details."
+
+Ledger: 238 units (core 209, depth 18, owned 4, volatile 5, fat 2); 7 added (the two figures, their provenance, the FA-1 and FA-2 traffic claims, the block-size table, and the owner link to Writing kernels' Fig. 6, keyed on that page); keys re-pointed on 160, 165 and 227 (the old animation's wording). `ledger.py check`: problems 0.

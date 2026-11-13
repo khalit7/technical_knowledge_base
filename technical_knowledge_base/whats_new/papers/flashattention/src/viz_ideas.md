@@ -29,3 +29,9 @@ What the methodology lacked here: a rule for when a systems simulation should al
 - P-flashattention.h2 (built): a CC0 photo of a P100 package (die and HBM stacks) beside the hierarchy chart.
 - Moved, not new: the kernel animation, the scale panel and the block-size chart from the Run tab into Reading; Figure 2's bars, the online-softmax demo and the Theorem 2 curve out of predict reveals.
 - Rejected: embedding the paper's Figure 1 (arXiv non-exclusive licence); the Commons A100 image (vendor render, doubtful licence).
+
+## 2026-11-13 layout rollout
+- P-flashattention.r1 (built): Fig. 1, the hero as a 3D stage (HBM and SRAM slabs, plates to scale, streams per kernel, Figure 2's bill as bars). Replaces h1.
+- P-flashattention.r2 (built): Fig. 2, the kernel run as a 3D stage, grouped one outer iteration per step; tiles light in loop order; HBM count bar; followed row's m, l, O as bars. Replaces .1's 2D animation; its block-size select became a table of whole-run counts.
+- P-flashattention.r3 (rejected): a 3D online-softmax stage for one query block: Writing kernels' Fig. 6 already draws it and owns the concept.
+- P-flashattention.r4 (rejected): the hierarchy chart or the Theorem 2 curve in 3D: log axes read best flat.

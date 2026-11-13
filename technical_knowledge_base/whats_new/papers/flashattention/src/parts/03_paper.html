@@ -1,15 +1,23 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-hw">The GPU's memory</a><a href="#s-idea">Tiling</a><a href="#s-bwd">Recomputation</a><a href="#s-io">IO complexity</a><a href="#s-sparse">Block-sparse</a><a href="#s-res">Results</a><a href="#s-lim">Limitations</a><a href="#s-trust">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> attention on a GPU is slow because it pushes the N × N score matrix through slow high-bandwidth memory (HBM), not because of its arithmetic; FlashAttention computes exact attention tile by tile in on-chip SRAM, finishing the softmax block by block with a running maximum and sum and recomputing tiles in the backward pass, so the N × N matrix never touches HBM: on GPT-2 medium 9.2× less memory traffic and 5.7× faster, despite 13% more FLOPs.</p>
-<div class="card" id="hero2">
-<div class="t" style="font-weight:600;margin-bottom:4px">Same output, far fewer trips to HBM</div>
-<div id="heroSvg"></div>
-<p class="small mute" style="margin:6px 0 0">The idea of the paper's {{Figure 1|ax:S1.F1}} (left) redrawn, with the numbers of {{Figure 2|ax:S3.F2}} (GPT-2 medium attention: N = 1,024, d = 64, 16 heads × batch 64, forward and backward, one A100). <b>Left:</b> standard attention writes S = QK<sup>T</sup> and P = softmax(S), each N × N, to HBM and reads them back, one kernel per step. <b>Right:</b> FlashAttention loads blocks of Q, K and V into SRAM, computes each tile of S and P there and keeps only O and two numbers per row (m, ℓ) in HBM. Ratios: 40.3 / 4.4 = 9.2× less traffic, 41.7 / 7.3 = 5.7× faster. The arrows are schematic (round trips, not to scale); the animation in Tiling counts them exactly.</p>
-</div>
+<p class="sxh">Fig. 1 · Same output, far fewer trips to HBM</p>
+<ol class="sx" id="sx-hero">
+<li><b>Two memories.</b> The large HBM slab: 40 to 80 GB at 1.5 to 2.0 TB/s. The small SRAM slab above it: 192 KB on chip in each of the A100's 108 streaming multiprocessors, about 19 TB/s. <span class="s3q">Q</span>, <span class="s3k">K</span> and <span class="s3v">V</span> (N × d each) start in HBM.</li>
+<li><b>Standard attention, kernel 1: S = QK<sup>T</sup> goes to HBM.</b> Q and K come up to the chip; the whole N × N score matrix S goes back down, 16 times the size of Q at N = 1,024 and d = 64.</li>
+<li><b>Kernel 2: softmax reads S and writes P.</b> A second N × N round trip: softmax does a few operations per value, so this kernel is all memory traffic.</li>
+<li><b>Kernel 3: O = PV, and P stays for the backward pass.</b> P and V come up, O goes down; P stays in HBM for the gradients. An N × N matrix crossed the HBM boundary four times.</li>
+<li><b>FlashAttention: one fused kernel, tiles stay on chip.</b> Blocks of Q, K and V come up; each tile of S and P is computed in SRAM and dropped; only O and two numbers per row, the running maximum m and sum ℓ, go back. The N × N plates are never stored (faint).</li>
+<li><b>The bill, Figure 2.</b> HBM traffic 40.3 GB against 4.4 GB, runtime 41.7 ms against 7.3 ms, with 66.6 against 75.2 GFLOPs: 13% more arithmetic (recomputation), yet far faster. Ratios: 40.3 / 4.4 = 9.2× less traffic, 41.7 / 7.3 = 5.7× faster.</li>
+</ol>
+<p class="small mute">Numbers from the paper's {{Figure 2|ax:S3.F2}} (GPT-2 medium attention: N = 1,024, d = 64, 16 heads × batch 64, forward and backward, one A100) and §2.1; the idea of its {{Figure 1|ax:S1.F1}} (left). Q, K, V, S and P are drawn to scale for N = 1,024, d = 64; the two slabs and the streams are schematic (stream width shows N × N against N × d, not exact bytes). Figure 2 below counts them exactly.</p>
 <p class="small"><b>You need:</b> what makes a kernel memory-bound (arithmetic intensity, the roofline) is taught on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; the GPU's memory levels as a programmer sees them on {{Memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}; the FlashAttention algorithm across its four versions, written and measured as kernels, on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}. This page is the 2022 paper. <b>New terms:</b> <b>HBM</b> (the GPU's large off-chip memory); <b>SRAM</b> (the small on-chip memory of each streaming multiprocessor); <b>IO-aware</b> (designed around reads and writes between memory levels); <b>M</b> (SRAM size, in values); <b>B<sub>r</sub>, B<sub>c</sub></b> (rows per block of Q and of K, V); <b>m, ℓ</b> (each row's running maximum and running sum, the online softmax's state); <b>recomputation</b> (rebuilding S and P in the backward pass instead of storing them).</p>
 </section>
-<nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-hw">The GPU's memory</a><a href="#s-idea">Tiling</a><a href="#s-bwd">Recomputation</a><a href="#s-io">IO complexity</a><a href="#s-sparse">Block-sparse</a><a href="#s-res">Results</a><a href="#s-lim">Limitations</a><a href="#s-trust">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+</div></div>
 
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1 Introduction]]
@@ -18,14 +26,20 @@
 <p>Nobody had made attention IO-aware because the frameworks would not let them: "common Python interfaces to deep learning such as PyTorch and Tensorflow do not allow fine-grained control of memory access" ({{§1|ax:S1}}). It takes a hand-written CUDA kernel.</p>
 </section>
 
-<section id="s-hw"><h2>The GPU's memory, and why attention waits on it</h2>
+<section id="s-hw">
+<div class="s3sp"><div class="s3L">
+<h2>The GPU's memory, and why attention waits on it</h2>
 [[S2.SS1|§2.1 Hardware Performance]]
 <p>On an A100 the two levels look like this ({{§2.1|ax:S2.SS1}}): 40 to 80 GB of HBM at 1.5 to 2.0 TB/s, and 192 KB of on-chip SRAM in each of its 108 streaming multiprocessors, with bandwidth estimated around 19 TB/s. The SRAM is an order of magnitude faster and many orders of magnitude smaller.</p>
-<div id="hierSvg"></div>
-<p class="small mute">Drawn on log scales from the numbers in §2.1. Total SRAM is 108 × 192 KB = 20.25 MiB (21.2 MB); the bandwidth ratio is 19 / 1.5 = 12.7.</p>
-<figure class="card" style="margin:12px 0"><img src="img/p100_die_hbm.webp" alt="A Tesla P100 package photographed in near infrared: the large GP100 GPU die in the centre, with two HBM2 memory stacks on each side, all on one interposer" loading="lazy" style="display:block;width:100%;max-width:520px;height:auto;margin:0 auto;border-radius:6px">
-<figcaption class="small"><b>What is next to what.</b> The GPU die in the centre carries every streaming multiprocessor and its SRAM; the four rectangles beside it are HBM stacks, millimetres away on the same interposer, yet every byte between them crosses the HBM bus. This is a P100 (2016), the A100's predecessor with the same layout of die plus HBM stacks. <span class="mute">Photo: FritzchensFritz, CC0, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:Nvidia%4016nm%40Pascal%40GP100%40Tesla_P100%40T_Taiwan_1912A1_PN9G70.S6W_GP100-897-A1_DSCx01%40SWIR.jpg}}.</span></figcaption></figure>
 <p>A GPU runs an operation as a <b>kernel</b>: it loads inputs from HBM into registers and SRAM, computes, and writes the outputs back to HBM. Whether a kernel is limited by arithmetic or by memory depends on its <b>arithmetic intensity</b>, the operations per byte moved ({{§2.1|ax:S2.SS1}}; the roofline in general is on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). Matrix multiplies with a large inner dimension are compute-bound. Most other operations are memory-bound: elementwise ones (activation, dropout) and reductions (sum, <b>softmax</b>, batch norm, layer norm). The usual cure for memory-bound work is <b>kernel fusion</b>: load the input once and apply several operations to it. Compilers fuse elementwise operations automatically, but in training the intermediate values still have to be written to HBM for the backward pass, which defeats naive fusion.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">SRAM: about 13 times faster, nearly 2,000 times smaller</div><div id="hierSvg"></div>
+<p class="small mute">Drawn on log scales from the numbers in §2.1. Total SRAM is 108 × 192 KB = 20.25 MiB (21.2 MB); the bandwidth ratio is 19 / 1.5 = 12.7; 40 GB of HBM is 1,887 times the 21.2 MB of SRAM.</p>
+</div>
+<figure class="card" style="margin:12px 0 0"><img src="img/p100_die_hbm.webp" alt="A Tesla P100 package photographed in near infrared: the large GP100 GPU die in the centre, with two HBM2 memory stacks on each side, all on one interposer" loading="lazy" style="display:block;width:100%;height:auto;margin:0 auto;border-radius:6px">
+<figcaption class="small"><b>What is next to what.</b> The GPU die in the centre carries every streaming multiprocessor and its SRAM; the four rectangles beside it are HBM stacks, millimetres away on the same interposer, yet every byte between them crosses the HBM bus. This is a P100 (2016), the A100's predecessor with the same layout of die plus HBM stacks. <span class="mute">Photo: FritzchensFritz, CC0, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:Nvidia%4016nm%40Pascal%40GP100%40Tesla_P100%40T_Taiwan_1912A1_PN9G70.S6W_GP100-897-A1_DSCx01%40SWIR.jpg}}.</span></figcaption></figure></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <p><b>Standard attention</b> ({{Algorithm 0|ax:alg0}}, {{§2.2|ax:S2.SS2}}) computes S = QK<sup>T</sup>, P = softmax(S), O = PV for Q, K, V of size N × d, and writes both N × N matrices, S and P, to HBM. Often N ≫ d (GPT-2: N = 1024, d = 64). Each step is a separate kernel that reads its input from HBM and writes its output back, and masking applied to S or dropout applied to P add more round trips over the N × N matrix; frameworks had tried fusing some of them, such as masking with softmax ({{§2.2|ax:S2.SS2}}).</p>
 <div class="pred" id="pr-flops" data-ans="2"><div class="q">FlashAttention does more arithmetic than standard attention: it recomputes the attention matrix in the backward pass. For GPT-2 medium's attention, forward and backward on an A100, is it slower or faster?</div>
 <div class="opts"><button>About 13% slower: more FLOPs</button><button>About the same</button><button>About 5.7× faster</button><button>About 13× faster</button></div>
@@ -34,10 +48,14 @@
 <p><b>5.7× faster</b>, with 13% more FLOPs ({{Figure 2, left|ax:S3.F2}}): 41.7 ms against 7.3 ms, because the HBM traffic fell from 40.3 GB to 4.4 GB, 9.2× less. </p>
 <p class="small">Two checks of the printed numbers. At the A100's 1.5 TB/s, moving 40.3 GB alone takes 26.9 ms of standard attention's 41.7 ms, so it is memory-bound; FlashAttention's 4.4 GB takes 2.9 ms of its 7.3, so arithmetic now matters too. The GFLOPs column, however, cannot be recomputed from the stated workload: the matrix multiplies alone are <span id="rdMM"></span> GFLOP, about 12 times the printed values (their ratio, 1.13, is close to the 7/6 that recomputation adds). See {{Every number checked|tab:t-tables:tb-chk}}.</p>
 </div></div>
-<div class="card"><p class="small" style="margin:0 0 4px"><b>Answer the question above before you look.</b> Figure 2 (left) as printed: each pair scaled to its own maximum.</p><div id="f2Svg"></div></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="small" style="margin:0 0 4px"><b>Answer the question above before you look.</b> Figure 2 (left) as printed: each pair scaled to its own maximum.</p><div id="f2Svg"></div></div></div></div></div>
 </section>
 
-<section id="s-idea"><h2>The idea: tiling, with the softmax done one block at a time</h2>
+
+<section id="s-idea">
+<div class="s3sp"><div class="s3L">
+<h2>The idea: tiling, with the softmax done one block at a time</h2>
 [[S3.SS1|§3.1, Algorithm 1]]
 <p>The goal is to never read or write the N × N matrix in HBM. That needs two things ({{§1|ax:S1}}): (i) computing the softmax without access to a whole row of S at once, and (ii) not storing the attention matrix for the backward pass. Both use well-established techniques: <b>tiling</b> for the first, <b>recomputation</b> for the second.</p>
 <p>The obstacle to tiling attention like a matrix multiply is that softmax couples a whole row: the safe softmax of a vector x subtracts the row maximum m(x) and divides by the row sum ℓ(x), so no output can be final until the whole row has been seen. The fix is to decompose the softmax ({{§3.1|ax:S3.SS1}}, the paper's references 60, 51, 66; "online softmax" after Milakov and Gimelshein). For a row split into two blocks x<sup>(1)</sup> and x<sup>(2)</sup>:</p>
@@ -51,30 +69,64 @@
 <div class="reveal" hidden>
 <p><b>It is rescaled and kept.</b> Each exponential so far was taken against the old maximum; multiplying by e<sup>m<sub>old</sub> − m<sub>new</sub></sup> moves it onto the new one, which is exact. Ignoring the rescale (the third answer) gives the wrong weights as soon as the maximum moves; tick "skip the rescale" below to see it.</p>
 </div></div>
-<div class="card"><p class="small" style="margin:0 0 6px"><b>Answer the question above before you look.</b> One row of eight real scores, processed block by block and compared with the plain softmax.</p>
+<p class="small">The same merge drawn for one block of queries, with its running maximum and sum as bars, is Fig. 6 on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}, which owns online softmax as a kernel technique; this page follows the paper's whole loop and its HBM traffic.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="small" style="margin:0 0 6px"><b>Answer the question above before you look.</b> One row of eight real scores, processed block by block and compared with the plain softmax.</p>
 <div class="ctl"><label>Blocks of <select id="osB"><option value="1">1 score</option><option value="2" selected>2 scores</option><option value="4">4 scores</option><option value="8">8 scores (one block)</option></select></label><label><button id="osNew">New scores</button> <label class="small"><input type="checkbox" id="osSkip"> skip the rescale (wrong)</label></label></div>
 <div class="tw"><table id="osT"></table></div>
 <div id="osSvg"></div>
 <p class="small" id="osRep"></p>
-</div>
+</div></div></div></div>
+
+<div class="s3sp" id="kx"><div class="s3R"><div id="stg-kx"></div></div><div class="s3L">
 <p><b>Algorithm 1</b> ({{Algorithm 1|ax:alg1}}) applies this to whole tiles. Split K and V into T<sub>c</sub> blocks of B<sub>c</sub> rows and Q into T<sub>r</sub> blocks of B<sub>r</sub> rows, with B<sub>c</sub> = ⌈M / 4d⌉ and B<sub>r</sub> = min(⌈M / 4d⌉, d) for an SRAM of M values, so that a K block, a V block, a Q block and an output block fit on chip. The outer loop loads K<sub>j</sub> and V<sub>j</sub> into SRAM (line 6); the inner loop loads Q<sub>i</sub>, O<sub>i</sub> and the statistics ℓ<sub>i</sub>, m<sub>i</sub> (line 8), computes the tile S<sub>ij</sub> = Q<sub>i</sub>K<sub>j</sub><sup>T</sup> on chip (line 9), its block maximum, exponentials and sum (line 10), updates the running (m, ℓ) (line 11), rescales the output accumulator and adds P̃<sub>ij</sub>V<sub>j</sub> (line 12), and writes O<sub>i</sub>, ℓ<sub>i</sub>, m<sub>i</sub> back (lines 12 and 13). Only Q, K, V, O and the O(N) statistics ever touch HBM.</p>
-<p><b>Standard against FlashAttention, on the same input.</b> One forward pass on a real random 32 × 4 input, computed in your browser tile by tile, every running maximum and rescale included; at the end the output is compared with the plain formula. One small square per value: the top band is HBM, the bottom band is SRAM, and blocks move between them as the algorithms' load and write lines say. <b>Try:</b> step through standard attention and watch S and P fill HBM; switch to FlashAttention: the N × N area stays an outline and the HBM counter ends at about half (a third with masking and dropout ticked). Block size 4 nearly erases the advantage, 16 grows it: Theorem 2 in miniature. The third mode is the loop order FlashAttention-2 switched to (Q outer: each Q block loaded once and its output written once), the picture to have today; the later versions are on {{Then and now|tab:t-then}} and, as kernels, on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
-<div class="card" id="kx">
-<div class="an-top"><div class="seg" id="kxM" role="group" aria-label="Algorithm"><button class="on" data-m="std" aria-pressed="true">Standard</button><button data-m="fa" aria-pressed="false">FlashAttention</button><button data-m="fa2" aria-pressed="false">FlashAttention-2 order</button></div>
-<label class="small">Block size <select id="kxB"><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option></select></label>
-<label class="small"><input type="checkbox" id="kxMd"> masking and dropout</label>
-<button id="kxNew" class="small">New random input</button></div>
-<div id="kxSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="kxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="kxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="kxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="kxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="kxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="kxStep"></div><p id="kxCap"></p></div>
+<p class="sxh">Fig. 2 · One forward pass, three ways, tile by tile (toy: N = 32, d = 4, blocks of 8)</p>
+<p>A real random 32 × 4 input, computed in your browser tile by tile, every running maximum and rescale included; at the end the output is compared with the plain formula. The large slab is HBM, the small raised one is SRAM; each matrix is a glass plate, one cell per value, and dots stream along every read and write. <b>Try:</b> step through standard attention and watch S and P fill HBM; switch to FlashAttention: the N × N area stays an outline, only tiles light up on chip, and the HBM counter ends at about half (a third with masking and dropout ticked). The third mode is the loop order FlashAttention-2 switched to (Q outer: each Q block loaded once and its output written once), the picture to have today; the later versions are on {{Then and now|tab:t-then}} and, as kernels, on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
+<div class="seg" id="kxM" role="group" aria-label="Algorithm"><button class="on" data-m="std" aria-pressed="true">Standard</button><button data-m="fa" aria-pressed="false">FlashAttention</button><button data-m="fa2" aria-pressed="false">FlashAttention-2 order</button></div>
+<div class="ctl" style="margin-top:6px"><label class="small"><input type="checkbox" id="kxMd"> masking and dropout</label> <button id="kxNew" class="small">New random input</button></div>
+<ol class="sx" id="sx-kx-std">
+<li><b>Q, K and V sit in HBM.</b> Each is N × d = 32 × 4 = 128 values. Standard attention (Algorithm 0) runs three separate kernels, and each writes its whole result back to HBM before the next can start.</li>
+<li><b>Kernel 1: S = QK<sup>T</sup>, written to HBM.</b> Q and K come up by blocks; the full 32 × 32 score matrix S, 1,024 values, 8 times the size of Q, goes back down. HBM traffic so far: 1,280 values. This is the matrix FlashAttention never writes.</li>
+<li><b>Kernel 2: P = softmax(S), written to HBM.</b> Softmax does a few operations per value but must read all of S and write all of P; each row needs its own maximum and sum before any output is final, which is why S had to be complete first. So far: 3,328.</li>
+<li><b>Kernel 3: O = PV, written to HBM.</b> P and V come up, O goes down. The output is exact, but the N × N matrix crossed the HBM boundary four times. So far: 4,608.</li>
+<li><b>Saved for the backward pass: P stays in HBM.</b> Algorithm 3 reads P to compute the gradients, so S and P, 2N<sup>2</sup> = 2,048 values, stay: the O(N<sup>2</sup>) memory that limits context length. Whole run: 4,608 values moved.</li>
+</ol>
+<ol class="sx" id="sx-kx-stdmd" hidden>
+<li><b>Q, K and V sit in HBM.</b> 128 values each. Three kernels, now with a mask pass and a dropout pass between them, each a separate round trip.</li>
+<li><b>Kernel 1: S = QK<sup>T</sup>, written to HBM.</b> 1,024 values of S go down. So far: 1,280.</li>
+<li><b>Masking: read S, write S again.</b> A padding or causal mask is another elementwise kernel: all of S comes up and goes back (§2.2). So far: 3,328.</li>
+<li><b>Kernel 2: P = softmax(S), written to HBM.</b> So far: 5,376.</li>
+<li><b>Dropout: read P, write P again.</b> One more pass over the N × N matrix (and training keeps its mask for the backward pass). FlashAttention fuses masking and dropout into its one kernel at no extra HBM cost. So far: 7,424.</li>
+<li><b>Kernel 3: O = PV, written to HBM.</b> The N × N matrix crossed the HBM boundary eight times. So far: 8,704.</li>
+<li><b>Saved for the backward pass: P and the dropout mask stay in HBM.</b> Whole run: 8,704 values moved.</li>
+</ol>
+<ol class="sx" id="sx-kx-fa" hidden>
+<li><b>Initialise O = 0, ℓ = 0, m = −∞ in HBM</b> (Algorithm 1, line 2). Blocks of B = 8 rows (B<sub>c</sub> = B<sub>r</sub> = 8), so K and V split into T<sub>c</sub> = 4 blocks and Q into T<sub>r</sub> = 4. The extra state in HBM is two numbers per row: 64 values against standard attention's 2,048.</li>
+<li><b>Outer j = 1: K<sub>1</sub>, V<sub>1</sub> come on chip and stay</b> (line 6). The inner loop streams all four Q blocks past them: each brings Q<sub>i</sub>, O<sub>i</sub>, ℓ<sub>i</sub>, m<sub>i</sub> up (line 8), computes the tile S<sub>i1</sub> in SRAM only (line 9), updates each row's m and ℓ, rescales O<sub>i</sub> by e<sup>m<sub>old</sub> − m<sub>new</sub></sup>, adds P̃<sub>i1</sub>V<sub>1</sub> (lines 10 to 12), and writes O<sub>i</sub>, ℓ<sub>i</sub>, m<sub>i</sub> back (lines 12 and 13). The first column of tiles lights up. So far: 768 values.</li>
+<li><b>Outer j = 2: the second column.</b> Every Q block and its output make another round trip; a row that meets a larger score has its output so far rescaled (the readout below follows one row). So far: 1,344.</li>
+<li><b>Outer j = 3: the third column.</b> O<sub>i</sub> goes down and comes back once per K, V block: T<sub>c</sub> round trips of the output, the term Theorem 2 counts. So far: 1,920.</li>
+<li><b>Outer j = 4: the last column.</b> Each row's (m, ℓ, O) now covers all 32 keys; no tile of S or P ever reached HBM. So far: 2,496.</li>
+<li><b>Saved for the backward pass: O, ℓ and m.</b> Plus the random-number state for dropout; Algorithm 4 recomputes each S and P tile on chip from Q, K, V and these statistics. Whole run: 2,496 values against standard attention's 4,608, and the output matches it up to rounding (the readout gives the maximum difference).</li>
+</ol>
+<ol class="sx" id="sx-kx-fa2" hidden>
+<li><b>FlashAttention-2's order: Q blocks outside.</b> Each Q block is loaded once and stays on chip while every K, V block streams past it. The running output, maximum and sum live in SRAM, so nothing is initialised in HBM.</li>
+<li><b>Outer i = 1: Q<sub>1</sub> comes up and stays.</b> K<sub>1</sub> to K<sub>4</sub> and V<sub>1</sub> to V<sub>4</sub> stream in; each tile S<sub>1j</sub> lives only in SRAM; the unnormalised output is rescaled by e<sup>m<sub>old</sub> − m<sub>new</sub></sup> but not divided by ℓ until the end (fewer non-matmul operations). After the last block: divide by ℓ once, write O<sub>1</sub> and its logsumexp L = m + log ℓ, once. The first row of tiles lights up. So far: 328 values.</li>
+<li><b>Outer i = 2: the second row of tiles.</b> K and V are read again, once per Q block; O<sub>2</sub> goes down once. So far: 656.</li>
+<li><b>Outer i = 3.</b> So far: 984.</li>
+<li><b>Outer i = 4.</b> So far: 1,312.</li>
+<li><b>Saved for the backward pass: O and one logsumexp per row.</b> A single number per row, L = m + log ℓ, instead of the pair (m, ℓ). Whole run: 1,312 values: each Q block read once and each O written once, K and V read T<sub>r</sub> = 4 times.</li>
+</ol>
 <div class="an-cnt" id="kxCnt"></div>
 <p class="small" id="kxRow"></p>
-<p class="small mute" style="margin:6px 0 0">Toy sizes so the picture fits: N = 32, d = 4, square blocks; real sizes are in the <a href="#kx-scale">scale panel</a>. Nothing moves until you press play or step.</p>
-<details style="margin:4px 0 0"><summary class="small">How the animation counts</summary><p class="small mute">Real kernels use N in the thousands, d = 64 or 128 and blocks of 64 to 256 rows. Counts are values moved across the HBM boundary, read or written, exactly as the algorithms' load and write lines say; standard attention's "by blocks" matrix multiplies are counted as one read of each input, as in the proof of {{Theorem 2|ax:A3}}. Inputs are Gaussian, Q and K scaled by 1.5 so that the running maxima move.</p></details>
-</div>
+<div class="tw"><table class="small" id="kxTab"><caption class="small" style="text-align:left;caption-side:top;margin-bottom:4px"><b>Block size 4 nearly erases the advantage, 16 grows it: Theorem 2 in miniature.</b> Whole-run HBM traffic of this toy (N = 32, d = 4), values read plus written, by block size.</caption>
+<tr><th>Block size</th><th>Standard</th><th>with masking and dropout</th><th>FlashAttention</th><th>FlashAttention-2 order</th></tr>
+<tr><td>4</td><td>4,608</td><td>8,704</td><td>4,544</td><td>2,336</td></tr>
+<tr><td>8 (the animation)</td><td>4,608</td><td>8,704</td><td>2,496</td><td>1,312</td></tr>
+<tr><td>16</td><td>4,608</td><td>8,704</td><td>1,472</td><td>800</td></tr>
+</table></div>
+<details style="margin:4px 0 0"><summary class="small">How the animation counts</summary><p class="small mute">Toy sizes so the picture fits: N = 32 rows, head dimension d = 4, square blocks (B<sub>r</sub> = B<sub>c</sub>); real kernels use N in the thousands, d = 64 or 128 and blocks of 64 to 256 rows (real sizes are in the <a href="#kx-scale">scale panel</a>). Counts are values moved across the HBM boundary, read or written, exactly as the algorithms' load and write lines say; standard attention's "by blocks" matrix multiplies are counted as one read of each input, as in the proof of {{Theorem 2|ax:A3}}. Inputs are Gaussian, Q and K scaled by 1.5 so that the running maxima move. Each FlashAttention step plays the four inner iterations of one outer iteration. The table's counts are the page's simulator, checked against recompute.py.</p></details>
 <p>Because the whole computation is one kernel, the steps between the matrix multiplies cost nothing extra: matrix multiply, softmax, optionally masking and dropout, matrix multiply, all on chip before the result goes back to HBM ({{§3.1|ax:S3.SS1}}, "Implementation details: kernel fusion"; the full version with the softmax scaling τ = 1/√d, a masking function and dropout is {{Algorithm 2|ax:alg2}}). <b>Theorem 1</b> ({{Theorem 1|ax:Thmtheorem1}}) states that Algorithm 1 returns exactly softmax(QK<sup>T</sup>)V, with O(N<sup>2</sup>d) FLOPs and O(N) memory beyond the inputs and output; the proof in {{Appendix C|ax:A3}} is an induction over the outer loop. In plain numbers the online and standard results differ only by rounding: <span id="rdExact"></span>.</p>
+</div></div>
 </section>
 
 <section id="s-bwd"><h2>Recomputation: the backward pass without the attention matrix</h2>
@@ -89,7 +141,9 @@
 </details>
 </section>
 
-<section id="s-io"><h2>The IO complexity argument (the paper's real thesis)</h2>
+<section id="s-io">
+<div class="s3sp"><div class="s3L">
+<h2>The IO complexity argument (the paper's real thesis)</h2>
 [[S3.SS2|§3.2, Theorem 2, Proposition 3]]
 <p><b>Theorem 2</b> ({{Theorem 2|ax:Thmtheorem2}}): for SRAM size M with d ≤ M ≤ Nd, standard attention needs Θ(Nd + N<sup>2</sup>) HBM accesses and FlashAttention needs Θ(N<sup>2</sup>d<sup>2</sup>M<sup>−1</sup>). For typical d (64 to 128) and M (around 100 KB), d<sup>2</sup> is many times smaller than M, so FlashAttention needs many times fewer accesses.</p>
 <details class="card"><summary><b>The proof idea of Theorem 2</b></summary><p class="small">K and V blocks of size Θ(M) are each loaded once; for each one, all of Q is streamed past, which is Θ(NdM<sup>−1</sup>) passes over Q, each loading Θ(Nd) values ({{Appendix C|ax:A3}}).</p></details>
@@ -99,15 +153,23 @@
 <div class="reveal" hidden>
 <p><b>Roughly halve</b>, because the count is N<sup>2</sup>d<sup>2</sup>/M: twice as large blocks mean half as many passes over Q and O. It cannot fall forever: once one block holds all of K and V (M ≈ Nd), every input is read once and the count reaches the Θ(Nd) floor that any exact algorithm must pay. </p>
 </div></div>
-<div class="card"><p class="small" style="margin:0 0 6px"><b>Answer the question above before you look.</b> Algorithm 1's exact count, forward pass, one head, against the SRAM size.</p>
+
+<p><b>Proposition 3</b> ({{Proposition 3|ax:Thmtheorem3}}) adds a lower bound: no exact attention algorithm can make o(N<sup>2</sup>d<sup>2</sup>M<sup>−1</sup>) HBM accesses for all M in [d, Nd]. The authors call this a lower bound "over a subrange of M", common in streaming algorithms, and leave a bound for every M as future work; within this cost model FlashAttention is optimal, but the bound says nothing about the M of a real GPU (the proof uses the end of the range: at M = Θ(Nd) the bound is Θ(Nd), what reading the inputs alone costs).</p>
+<p>The validation is {{Figure 2|ax:S3.F2}}: left, more FLOPs but fewer HBM accesses and a much shorter runtime (the predict question above); middle, the forward runtime falls as the block size B<sub>c</sub> grows, because there are fewer passes over the input, until beyond about 256 it is "bottlenecked by other factors (e.g., arithmetic operations)", and larger blocks would not fit SRAM anyway ({{§3.2|ax:S3.SS2}}). The closed block below draws the two lower bounds that produce that shape.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="small" style="margin:0 0 6px"><b>Answer the question above before you look.</b> Algorithm 1's exact count, forward pass, one head, against the SRAM size.</p>
 <div class="ctl"><label>Sequence length <select id="thN"><option value="1024">1,024</option><option value="4096" selected>4,096</option><option value="16384">16,384</option></select></label><label>Head dimension <select id="thD"><option value="64" selected>64</option><option value="128">128</option></select></label></div>
 <div id="thSvg"></div>
 <p class="small" id="thRep"></p>
-</div>
-<p><b>Proposition 3</b> ({{Proposition 3|ax:Thmtheorem3}}) adds a lower bound: no exact attention algorithm can make o(N<sup>2</sup>d<sup>2</sup>M<sup>−1</sup>) HBM accesses for all M in [d, Nd]. The authors call this a lower bound "over a subrange of M", common in streaming algorithms, and leave a bound for every M as future work; within this cost model FlashAttention is optimal, but the bound says nothing about the M of a real GPU (the proof uses the end of the range: at M = Θ(Nd) the bound is Θ(Nd), what reading the inputs alone costs).</p>
-<p>The validation is {{Figure 2|ax:S3.F2}}: left, more FLOPs but fewer HBM accesses and a much shorter runtime (the predict question above); middle, the forward runtime falls as the block size B<sub>c</sub> grows, because there are fewer passes over the input, until beyond about 256 it is "bottlenecked by other factors (e.g., arithmetic operations)", and larger blocks would not fit SRAM anyway ({{§3.2|ax:S3.SS2}}). The closed block below draws the two lower bounds that produce that shape.</p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <h3 id="kx-scale">The same counters at the paper's scale</h3>
 <p>The counts the animation keeps, as formulas from Algorithms 0 to 4, for forward and backward together, at any size. The defaults are {{Figure 2|ax:S3.F2}}'s GPT-2 medium workload: N = 1024, d = 64, 16 heads × batch 64, fp16, with the A100's 192 KB of SRAM per streaming multiprocessor ({{§2.1|ax:S2.SS1}}) setting the block size by Algorithm 1's rule B_c = ⌈M / 4d⌉.</p>
+<p class="small" id="scRep"></p>
+<details><summary class="small">Units and the two time bounds</summary><p class="small mute">GB is 10<sup>9</sup> bytes at 2 bytes per value. "Time at bandwidth" divides bytes by the A100's 1.5 TB/s ({{§2.1|ax:S2.SS1}}) and "time at peak" divides the matrix-multiply FLOPs by the A100's 312 TFLOPS fp16 tensor-core peak ({{NVIDIA A100 datasheet|https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf}}); both are lower bounds, not predictions. The block-sparse density s scales the T_c passes, as in {{Proposition 4|ax:Thmtheorem4}}.</p></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="card">
 <div class="ctl">
 <label>Sequence length N = <b id="scNv">1,024</b><input type="range" id="scN" min="7" max="16" step="1" value="10"></label>
 <label>Head dimension d <select id="scD"><option value="32">32</option><option value="64" selected>64</option><option value="128">128</option></select></label>
@@ -118,8 +180,7 @@
 </div>
 <div id="scSvg"></div>
 <div class="out" id="scO"></div>
-<p class="small" id="scRep"></p>
-<details><summary class="small">Units and the two time bounds</summary><p class="small mute">GB is 10<sup>9</sup> bytes at 2 bytes per value. "Time at bandwidth" divides bytes by the A100's 1.5 TB/s ({{§2.1|ax:S2.SS1}}) and "time at peak" divides the matrix-multiply FLOPs by the A100's 312 TFLOPS fp16 tensor-core peak ({{NVIDIA A100 datasheet|https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf}}); both are lower bounds, not predictions. The block-sparse density s scales the T_c passes, as in {{Proposition 4|ax:Thmtheorem4}}.</p></details>
+</div></div></div></div>
 <details class="card" id="kx-blocks"><summary><b>Why bigger blocks stop helping</b> (Figure 2, middle)</summary>
 <p>{{Figure 2|ax:S3.F2}} (middle) sweeps the block size B_c and reports that the forward runtime falls as blocks grow, until about 256, after which "the runtime is then bottlenecked by other factors (e.g., arithmetic operations)" ({{§3.2|ax:S3.SS2}}). The figure prints no values, so nothing here reproduces it; what can be drawn is the reason. Runtime can be no shorter than either the time to move the forward pass's HBM bytes or the time to do its matrix multiplies. The first falls as B_c grows; the second does not move.</p>
 <div class="ctl"><label>Matrix-multiply efficiency (share of the 312 TFLOPS peak actually reached) = <b id="bkEv">35%</b><input type="range" id="bkE" min="10" max="90" step="5" value="35"></label></div>

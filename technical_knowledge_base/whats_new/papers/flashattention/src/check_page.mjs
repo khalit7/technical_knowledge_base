@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll. The two 3D stages are stepped by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/flashattention/src/check_page.mjs [shots dir]
 // Also compares the page's own simulator (window.__faCheck) with recompute.py's independent counts.
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
@@ -51,9 +51,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll the animation into view and wait
-    if (await p.$(`#${t} #kx`)) { await p.$eval('#kx', e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#kx', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: kx moved before any click (${fr} frames)`) }
+    // the 3D stages (Fig. 1 and Fig. 2) play by themselves once in view since 2026-11-13; check_stages.mjs checks their motion and step lists
     // closed details hold controls and outputs too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
@@ -85,26 +83,6 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const segs = await p.$$(`#${t} .seg button`);
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
-    // step the animations through every step and screenshot the middle
-    for (const id of ['kx']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
-      for (const m of (modes.length ? modes : [null])) {
-        if (m) await clk(`#${id}M button[data-m=${m}]`);
-        await clk(`#${id}Play`); await clk(`#${id}Play`);
-        await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-        const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
-        await audit(`${t} ${id} ${m} stepped`);
-        for (const nd of ['4', '16', '8']) { await p.select('#kxB', nd); await clk(`#${id}Fwd`); actions++; await audit(`${t} ${id} ${m} block ${nd}`) }
-        await clk('#kxMd'); await clk(`#${id}Fwd`); await audit(`${t} ${id} ${m} md`); await clk('#kxMd');
-        for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
-      }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
-    }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
   await p.close();

@@ -1,59 +1,12 @@
-// ---- Run the kernel: the animation, the counters at the paper's scale, and the block-size bound ----
+// ---- The kernel run (data for the Fig. 2 stage), the counters at the paper's scale, and the block-size bound ----
 (function(){
-const COL={Q:'var(--c1)',K:'var(--c2)',V:'var(--c3)',O:'var(--c4)',S:'var(--c5)',P:'var(--c6)',l:'var(--mute)'};
 const KX={N:32,d:4,B:8,md:false,seed:7,sims:{}};
 const modes={std:[],fa:[],fa2:[]};
 function rebuild(){['std','fa','fa2'].forEach(m=>{const s=FA.simulate(m,KX.N,KX.d,KX.B,KX.md,KX.seed);KX.sims[m]=s;modes[m].length=0;s.steps.forEach(x=>modes[m].push(x))})}
 rebuild();
 const total=m=>{const s=KX.sims[m].steps;const z=s[s.length-1];return z.rd+z.wr};
-// layout: returns positions of every HBM matrix and the SRAM band at width w
-function layout(w,mode){const N=KX.N,d=KX.d,g=12,narrow=w<640;const stc=mode==='fa2'?1:2;let cs,pos={},y0=36,h;
-  if(!narrow){cs=Math.min(11,Math.floor((w-8*g)/(4*d+stc+2*N)));let x=4;['Q','K','V','O'].forEach(m=>{pos[m]={x,y:y0,w:d*cs,h:N*cs};x+=d*cs+g});pos.l={x,y:y0,w:stc*cs,h:N*cs};x+=stc*cs+g+6;
-    pos.S={x,y:y0,w:N*cs,h:N*cs};x+=N*cs+g;pos.P={x,y:y0,w:N*cs,h:N*cs};h=y0+N*cs}
-  else{cs=Math.max(4,Math.min(Math.floor((w-g-8)/(2*N)),Math.floor((w-5*g)/(4*d+stc))));let x=4;['Q','K','V','O'].forEach(m=>{pos[m]={x,y:y0,w:d*cs,h:N*cs};x+=d*cs+g});pos.l={x,y:y0,w:stc*cs,h:N*cs};
-    const y1=y0+N*cs+38;pos.S={x:4,y:y1,w:N*cs,h:N*cs};pos.P={x:4+N*cs+g,y:y1,w:N*cs,h:N*cs};h=y1+N*cs}
-  return {cs,pos,hbmH:h+8,narrow}}
-function grid(p,cs,rows,cols,c,op){let s=rc(p.x,p.y,p.w,p.h,c,{r:1,op});if(cs>=6){let ln='';for(let i=1;i<rows;i++)ln+='M'+p.x+' '+(p.y+i*cs)+'h'+p.w;for(let j=1;j<cols;j++)ln+='M'+(p.x+j*cs)+' '+p.y+'v'+p.h;s+='<path d="'+ln+'" stroke="var(--bg)" stroke-width="'+(cs>=9?1:.6)+'" opacity=".7"/>'}return s}
-function draw(mode,k,e,w){const sim=KX.sims[mode],S=sim.steps[k],N=KX.N,d=KX.d,B=KX.B;const L=layout(w,mode),cs=L.cs,P=L.pos;let s='';
-  // HBM band
-  const bandH=L.hbmH+(mode==='std'?2:14);s+=rc(0,0,w,bandH,'var(--soft)',{r:8});s+=tx(6,13,'HBM: large and slow',{fs:11,c:'var(--mute)',w:600});
-  const names={Q:'Q',K:'K',V:'V',O:'O',l:mode==='fa2'?'L':'ℓ, m',S:'S',P:'P'};
-  ['Q','K','V','O','l'].forEach(m=>{const p=P[m];let have=m==='l'?!!S.have.l:(m==='O'?!!S.have.O||mode==='fa':true);
-    if(m==='O'&&mode==='std')have=!!S.have.O;
-    if(mode==='std'&&m==='l'){return}
-    s+=tx(p.x+p.w/2,p.y-4,names[m],{fs:11,a:'middle',c:COL[m],w:600});
-    let fillRows=N;if(mode==='fa2'&&(m==='O'||m==='l'))fillRows=S.oRows==null?0:S.oRows;
-    s+=rc(p.x,p.y,p.w,p.h,'none',{s:COL[m],da:'3 2',r:1,op:.8});
-    if(m==='O'&&mode==='std'&&!have){}else if(fillRows>0)s+=grid({x:p.x,y:p.y,w:p.w,h:fillRows*cs},cs,fillRows,m==='l'?(mode==='fa2'?1:2):d,COL[m],.55)});
-  // follow-row marker
-  if(mode!=='std'){const y=P.Q.y+(sim.row+.5)*cs;s+=tx(P.Q.x-1,y+4,'',{fs:11});s+=ln2(P.O.x-3,y,P.O.x+P.O.w+3,y,'var(--ink)',{sw:1.6})+tx(P.O.x+P.O.w/2,P.O.y+P.O.h+13,'row '+(sim.row+1),{fs:11,a:'middle',c:'var(--ink)'})}
-  // S and P
-  ['S','P'].forEach(m=>{const p=P[m];s+=tx(p.x,p.y-5,mode==='std'?m+' (N × N)':(m==='S'?(L.narrow?'S: tiles on chip only':'S: tiles computed on chip only'):'P: never stored'),{fs:11,c:COL[m],w:600});
-    s+=rc(p.x,p.y,p.w,p.h,'none',{s:COL[m],da:'4 3',r:1});
-    if(mode==='std'&&S.have[m])s+=grid(p,cs,N,N,COL[m],.5);
-    if(mode!=='std'&&m==='S'){(S.tiles||[]).forEach(t=>{s+=rc(p.x+t[1]*B*cs,p.y+t[0]*B*cs,B*cs,B*cs,COL.S,{r:0,op:.16})});
-      if(S.cur){const t=S.cur;s+=rc(p.x+t[1]*B*cs,p.y+t[0]*B*cs,B*cs,B*cs,COL.S,{r:0,op:.55*(.4+.6*e)})}}
-    if(mode!=='std'&&m==='P')s+=tx(p.x+p.w/2,p.y+p.h/2+4,'0 values in HBM',{fs:11,a:'middle',c:'var(--mute)'})});
-  // SRAM band
-  const y2=bandH+10,slots=S.sram||[];let x=6,yy=y2+36,rowH=0;const sp={};
-  const items=slots.map(z=>({n:z[0],r:z[1],c:z[2],k:z[3]}));
-  items.forEach(it=>{const ww=it.c*cs,hh=it.r*cs;if(x+ww>w-6&&x>6){x=6;yy+=rowH+18;rowH=0}it.x=x;it.y=yy;x+=Math.max(ww,it.n.length*6.6)+14;rowH=Math.max(rowH,hh)});
-  const sramH=(items.length?yy+rowH:y2+40)-y2+10;
-  s+=rc(0,y2,w,Math.max(46,sramH),'var(--acc2)',{r:8,op:.6});s+=tx(6,y2+13,'SRAM: on chip, small and fast'+(items.length?'':' (empty)'),{fs:11,c:'var(--mute)',w:600});
-  items.forEach(it=>{sp[it.k]=sp[it.k]||it;s+=tx(it.x,it.y-3,it.n,{fs:11,c:COL[it.k]});s+=grid({x:it.x,y:it.y,w:it.c*cs,h:it.r*cs},cs,it.r,it.c,COL[it.k],.85)});
-  // events: reads fly down into SRAM, writes fly up into HBM
-  (S.ev||[]).forEach(ev=>{const p=P[ev.m];if(!p)return;const r0=ev.r0==null?0:ev.r0,r1=ev.r1==null?(ev.m==='S'||ev.m==='P'?N:N):Math.min(N,ev.r1);
-    const cols=ev.m==='S'||ev.m==='P'?N:(ev.m==='l'?(mode==='fa2'?1:2):d);const hx=p.x,hy=p.y+r0*cs,hw=cols*cs,hh=(r1-r0)*cs;
-    if(ev.k==='k'){s+=rc(hx-2,hy-2,hw+4,hh+4,'none',{s:'var(--good)',sw:2.2,r:2});return}
-    const slot=sp[ev.m==='l'?'l':ev.m];
-    if(mode==='std'){if(ev.k==='r')s+=rc(hx-2,hy-2,hw+4,hh+4,'none',{s:'var(--acc)',sw:2.4,r:2});else{s+=rc(hx,hy,hw,hh*e,'var(--hl)',{r:0,op:.75});s+=rc(hx-2,hy-2,hw+4,hh+4,'none',{s:'var(--bad)',sw:2.4,r:2})}return}
-    if(!slot){s+=rc(hx-2,hy-2,hw+4,hh+4,'none',{s:ev.k==='r'?'var(--acc)':'var(--bad)',sw:2,r:2});return}
-    const a=ev.k==='r'?{x:hx,y:hy}:{x:slot.x,y:slot.y},b=ev.k==='r'?{x:slot.x,y:slot.y}:{x:hx,y:hy};
-    const fx=a.x+(b.x-a.x)*e,fy=a.y+(b.y-a.y)*e,fw=slot.c*cs,fh=slot.r*cs;
-    s+=rc(hx-2,hy-2,hw+4,hh+4,'none',{s:ev.k==='r'?'var(--acc)':'var(--bad)',sw:2,r:2});
-    if(e<1)s+=rc(fx,fy,fw,fh,COL[ev.m],{r:1,op:.9,s:ev.k==='r'?'var(--acc)':'var(--bad)',sw:1.5})});
-  const H=y2+Math.max(46,sramH)+4;
-  return svgW(w,H,s,'HBM and SRAM contents at this step')}
+// the animation itself is the 3D stage in 32_js_sc_kx.js (2026-11-13); this part keeps the simulator runs, the live readout under its step list,
+// the scale panel and the block-size chart. counters(mode, simulator step) fills #kxCnt and #kxRow.
 function counters(mode,k){const S=KX.sims[mode].steps[k],tot=S.rd+S.wr,std=total('std'),me=total(mode),end=k===KX.sims[mode].steps.length-1;
   const onchip=(S.sram||[]).reduce((a,z)=>a+z[1]*z[2],0);
   let h=stat('HBM traffic so far',fmt(tot)+' values','reads '+fmt(S.rd)+' · writes '+fmt(S.wr));
@@ -70,12 +23,10 @@ function counters(mode,k){const S=KX.sims[mode].steps[k],tot=S.rd+S.wr,std=total
     x+=(mode==='fa2'&&!S.end&&!(S.fin&&S.rowb)?'Unnormalised output Õ = ':'Output so far O = ')+'['+t.o.map(v=>v.toFixed(3)).join(', ')+']; final answer ['+sim.Oref[r].map(v=>v.toFixed(3)).join(', ')+'].';
     R.innerHTML=x}
   return h}
-const an=makeAnim({id:'kx',modes,mode:'std',draw,counters,dur:2600});
-function reset(){rebuild();if(an){an.st.k=0;an.st.t=1;an.st.play=false;an.draw()}}
-$('kxB').addEventListener('change',e=>{KX.B=+e.target.value;reset()});
-$('kxMd').addEventListener('change',e=>{KX.md=e.target.checked;reset()});
-$('kxNew').addEventListener('click',()=>{KX.seed=(KX.seed*1103515245+12345)%2147483647||7;reset()});
-window.__kx={KX,an,rebuild};
+function readout(mode,k){$('kxCnt').innerHTML=counters(mode,k)}
+function setMd(v){KX.md=v;rebuild()}
+function newInput(){KX.seed=(KX.seed*1103515245+12345)%2147483647||7;rebuild()}
+window.__kx={KX,rebuild,total,readout,setMd,newInput};
 
 // ---- the same counters at the paper's scale ----
 function scale(){const N=2**(+$('scN').value),d=+$('scD').value,Mkb=16*(+$('scM').value),M=Mkb*1024/2,bsel=+$('scB').value,BH=+$('scH').value,s=(+$('scS').value)/20;
@@ -115,5 +66,5 @@ function blocks(){const eff=(+$('bkE').value)/100;$('bkEv').textContent=Math.rou
     $('bkRep').innerHTML='Forward pass only, Figure 2\'s workload, B_r = 64. The HBM line is Algorithm 1\'s count (T_c = ⌈N / B_c⌉ passes over Q and O); the FLOPs line is the two matrix multiplies, '+(2*FA.mm(N,d)*BH/1e9).toFixed(0)+' GFLOP, at the share of peak you choose. Runtime cannot sit below either line, so past the crossing (B_c ≈ '+(bx||'beyond 1024')+' here) bigger blocks buy nothing. Illustrative: the default 35% sits inside the 25 to 40% of peak that the '+A('https://arxiv.org/abs/2307.08691','FlashAttention-2')+' paper reports for the original FlashAttention.'})}
 $('bkE').addEventListener('input',blocks);
 // the kernel animation, the scale panel and the block-size chart sit in the Reading tab since 2026-10-25
-onTab('t-read',()=>{scale();blocks();if(an)an.draw()});
+onTab('t-read',()=>{scale();blocks()});
 })();
