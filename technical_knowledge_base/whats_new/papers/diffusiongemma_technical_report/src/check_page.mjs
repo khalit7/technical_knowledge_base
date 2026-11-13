@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the 3D stage playing once in view, and the Run the toy widget
+// staying still until the reader acts, then stepping end to end in each mode.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/diffusiongemma_technical_report/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,8 +43,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
-    for (const id of ['dgx', 'run']) {
+    // the 3D stage plays by itself once scrolled into view (2026-11-06 rule; check_stages.mjs checks it in depth)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: stage ${id} did not play when scrolled into view`);
+      actions++;
+    }
+    // the Run the toy decoder is a widget (the long-replay rule, case b): it never moves before the reader acts
+    for (const id of ['run']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
       const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
@@ -84,7 +91,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const tst = await p.$eval('#tstOut', e => e.innerText); if (!/%/.test(tst)) problems.push('browser test produced no result'); else console.log(scheme, width, 'browser test:', tst.replace(/\s+/g, ' ').slice(0, 400));
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['dgx', 'run']) {
+    for (const id of ['run']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

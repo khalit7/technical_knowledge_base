@@ -27,7 +27,7 @@ const TOYV=(function(){
       runs.multinomial=TD.diffuse(Mm,pb.prompt,o);runs.masked=TD.diffuse(Mk,pb.prompt,o);runs.ar=TD.autoregress(Mm,pb.prompt);
       for(const m of ['multinomial','masked','ar'])modes[m].splice(0,modes[m].length,...plan(runs[m],m,pb,o));
       if(src.after)src.after(runs,pb,o);
-      if(A){A.st.k=0;A.st.t=1;A.st.play=false;A.st.lk=-1;A.draw()}}
+      if(A){A.st.k=src.openEnd?modes[A.st.m].length-1:0;A.st.t=1;A.st.play=false;A.st.lk=-1;A.draw()}}
     function state(m,k){// what each canvas shows at step k: {rows:[{inp,pred,conf,U,status,final}], passes, tokens}
       const S=modes[m],run=runs[m],ref=pb.ref;const cv=[...Array(K)].map(()=>({inp:null,pred:null,conf:null,U:null,status:'waiting',final:null}));let passes=0,rev=0,cache=1;
       if(m==='ar'){for(let i=1;i<=k&&i<S.length;i++){const s=S[i];if(s.kind!=='ar')continue;passes++;const kk=Math.floor(s.i/C),c=cv[kk];if(!c.final)c.final=Array(C).fill(null),c.conf=Array(C).fill(0);c.final[s.i%C]=s.f.t;c.conf[s.i%C]=s.f.conf;c.status='writing';if(s.i%C===C-1)c.status='done'}
@@ -60,5 +60,5 @@ const TOYV=(function(){
     function counters(m,k){const st=state(m,k),run=runs[m];const done=st.cv.filter(c=>c.final&&(m!=='ar'||c.status==='done')).length;
       const toks=m==='ar'?st.passes:done*C;const last=k>=modes[m].length-1;const ok=last?run.ans.filter((b,i)=>b===pb.ref[i]).length:null;
       return stat('Forward passes',st.passes,m==='ar'?'one per token':'denoise + encode')+stat('Final tokens',toks+' / 24','')+stat('TPF so far',st.passes?(toks/st.passes).toFixed(2):'0','AR = 1')+(m!=='ar'?stat('Revisions',last?run.revisions:'...','accepted, then changed'):'')+stat('Correct bits',ok==null?'...':ok+' / 24','against the rule')}
-    rerun();A=makeAnim({id,modes,mode:'multinomial',draw,counters,dur:1500});
+    rerun();A=makeAnim({id,modes,mode:'multinomial',draw,counters,dur:1500,openEnd:!!src.openEnd});
     return {rerun,runs:()=>runs,anim:A}}})();

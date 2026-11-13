@@ -1,4 +1,4 @@
-// ---- Run the toy tab, the Reading tab's toy animation and the predict question that runs the toy ----
+// ---- Run the toy tab and the predict question that runs the toy (the Reading tab's toy run is the 3D stage, 31_js_sc_samp.js) ----
 (function(){
 const BV=[0,0.01,0.02,0.03,0.05,0.1,0.15,0.2,0.3,0.4,0.5,0.7,1,1.5,2,3,4,5,6,8,100],EV=[0,0.0005,0.001,0.005,0.01,0.05,0.1,0.2,0.5];
 const T=window.TOY||{},R=(T.results||{}).runs||[],held=TD.testRules;
@@ -7,9 +7,6 @@ const randBits=(rng,n)=>Array.from({length:n},()=>rng()<0.5?1:0);
 // a fixed problem for the Reading tab's animation (chosen by mk_toydata.py: a held-out rule the toy solves, with revisions)
 const DEMO=T.demo||{task:'seq',rule:held[3],bits:[0,1,1]};
 const paperOpts=()=>({N:48,b:0.1,estop:0.005,tmax:0.8,tmin:0.4,sc:true,seed:1});
-if($('dgx')){const pb=TD.problem(DEMO.task,DEMO.rule,DEMO.bits);
-  $('dgxProb').innerHTML='Task <b>'+DEMO.task+'</b>, held-out rule '+DEMO.rule+' ('+ruleTxt(DEMO.rule)+'), '+(DEMO.task==='seq'?'start '+DEMO.bits.join(' '):'input '+DEMO.bits.join(''));
-  onTab('t-read',()=>{});TOYV('dgx',{problem:()=>pb,opts:paperOpts})}
 
 if($('toyNote')&&T.nums){const n=T.nums,p=x=>(100*x).toFixed(0)+'%';
   $('toyNote').innerHTML='<b>What the toy finds</b> (512 held-out problems, measured offline): only multinomial noise produces revisions (<b>'+n.ms.revisions.toFixed(2)+'</b> per answer against the masked twin\'s '+n.ks.revisions.toFixed(2)+'), as Section 3.2 argues; but they buy no accuracy here: exact answers '+p(n.ms.acc)+' / '+p(n.mc.acc)+' for multinomial against '+p(n.ks.acc)+' / '+p(n.kc.acc)+' for masked (seq / conv), and masked settles in fewer passes, since a [mask] marks exactly what is unknown (one training seed each; the paper never makes this comparison). The rest is on the <a href="#" data-tab="t-run">Run the toy</a> tab.'}
@@ -38,7 +35,7 @@ const opts=()=>{const tm=+$('runT').value/10;return {N:+$('runN').value,b:BV[+$(
 function labels(){const o=opts();$('runBv').textContent=o.b>=100?'∞ (accept all)':o.b;$('runNv').textContent=o.N;$('runEv').textContent=o.estop;$('runTv').textContent=o.tmax.toFixed(1)+' → '+o.tmin.toFixed(2);$('runSv').textContent=o.seed}
 function problem(){const task=$('runTask').value,r=+sel.value;if(task==='seq'&&bits.length!==3)bits=randBits(mulberry32(bseed),3);if(task==='conv'&&bits.length!==TD.NB)bits=randBits(mulberry32(bseed),TD.NB);
   const pb=TD.problem(task,r,bits);$('runProb').innerHTML='<b>Prompt</b>: '+task+' · rule '+ruleTxt(r)+' · '+(task==='seq'?'start <b>'+bits.join(' ')+'</b>':'input <b>'+bits.join('')+'</b>')+'<br><b>Reference answer</b> (from the rule): <span class="mono">'+pb.ref.join('').replace(/(.{8})/g,'$1 ')+'</span>';return pb}
-const view=TOYV('run',{problem,opts,after:(runs,pb)=>{labels();const row=(n,r)=>n+': '+r.fwd+' passes, TPF '+(24/r.fwd).toFixed(2)+', '+r.ans.filter((b,i)=>b===pb.ref[i]).length+'/24 bits';
+const view=TOYV('run',{openEnd:true,problem,opts,after:(runs,pb)=>{labels();const row=(n,r)=>n+': '+r.fwd+' passes, TPF '+(24/r.fwd).toFixed(2)+', '+r.ans.filter((b,i)=>b===pb.ref[i]).length+'/24 bits';
   $('runCmp').innerHTML='Same problem, three decoders. '+row('<b>Multinomial</b>',runs.multinomial)+' (passes per canvas '+runs.multinomial.steps.join(', ')+', revisions '+runs.multinomial.revisions+'); '+row('<b>masked</b>',runs.masked)+' (revisions '+runs.masked.revisions+'); '+row('<b>AR</b>',runs.ar)+'.'}});
 let tm=0;const later=()=>{labels();clearTimeout(tm);tm=setTimeout(view.rerun,60)};
 ['runB','runN','runE','runT','runS'].forEach(id=>$(id).addEventListener('input',later));

@@ -39,7 +39,7 @@ setT('bvChk',RC.checks.length+' checks: '+RC.checks.filter(c=>c.ok===true).lengt
     const dg=F.dg.slice();if($('gpuMoE').checked)dg[0]=F.ar[0];if($('gpuSmp').checked)dg[1]=F.ar[1];if($('gpuAtt').checked)dg[2]=F.ar[2];
     const tot=dg.reduce((a,b)=>a+b,0),ar=F.ar.reduce((a,b)=>a+b,0);
     const narrow=w<560,H=narrow?250:230,pl=narrow?96:120,pr=narrow?8:150,bw=Math.min(46,(H-60)/2.6);
-    const sx=v=>pl+(w-pl-pr)*v/14;let s='';
+    const sx=v=>pl+(w-pl-pr)*v/15.6;let s='';
     [0,2,4,6,8,10,12,14].forEach(v=>{s+=ln2(sx(v),20,sx(v),H-40,LN)+tx(sx(v),H-26,v,{fs:11,a:'middle',c:MU})});
     s+=tx((pl+w-pr)/2,H-8,'GPU time per step (ms)',{fs:11,a:'middle',c:MU});
     const bar=(y,arr,label,sub)=>{let x=0,o='';arr.forEach((v,i)=>{o+=rc(sx(x),y,sx(x+v)-sx(x)-1,bw,cols[i],{r:2});if(sx(x+v)-sx(x)>30)o+=tx((sx(x)+sx(x+v))/2,y+bw/2+4,v.toFixed(2),{fs:11,a:'middle',c:'#fff'});x+=v});

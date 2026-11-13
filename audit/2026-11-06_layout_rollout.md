@@ -251,9 +251,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
 - [x] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
 - [x] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
-- [~] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
+- [x] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
 - [~] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
-- [ ] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
+- [~] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
 - [ ] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
 - [ ] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
 - [ ] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
@@ -544,6 +544,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/deepseek_v3_technical_report`: the promoted-accumulation card is sticky and about 750 px tall (overflows short laptop windows); FP8 and cost predict prompts are spoiled by the visual beside them (move the questions above their splits).
 - `whats_new/papers/demystifying_agent_skills`: the replay card (about 530 px) is not pinned on phones and scrolls away from its steps.
 - `whats_new/papers/deepseekmath`: PPO stage step 1 close-up cuts the reward plate at the right edge; corpus stage is 48 small columns (spread is the point, but busy).
+- `whats_new/papers/diffusiongemma_technical_report`: at 920 px the canvas-2 cache cells sit near the "drag to turn" hint; step 1 of the stage is sparse (prompt and cache only).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -640,3 +641,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - DeepSeek-V3: routing example uses illustrative seeded affinities (seed 17, labelled) with the paper's node-limited rule; the scaling heatmap became a widget opening on per tensor; DualPipe stays Table 2 plus a link to the DeepSeek lab page's simulation. Keep?
 - Demystifying Agent Skills: the 3D stage replaces the HTML bar hero (numbers moved to its step list); the page keeps a one-line patch to the template 99_js_tabs.js that opens the closed block a link points into (also on R1 and Chinchilla; consider adding it to the template); retrieval card positions and which cards each agent opens are illustrative (labelled). Keep?
 - DeepSeekMath: each stage keeps a step list per mode (the hidden one counts toward 27 min; sharing would save about 2 min); value model teal and flagged domains dark-outlined for colour reasons; the GRPO equations stay full width above the Fig. 2 split. Keep?
+- DiffusionGemma: the masked-diffusion twin is not a mode of the 3D stage (the demo problem is one it fails on, 10 of 24 bits, unrepresentative over 512 problems; it stays on Run the toy); the hero stays 2D; the Run-tab decoder is a widget opening on the finished answer. Keep?
