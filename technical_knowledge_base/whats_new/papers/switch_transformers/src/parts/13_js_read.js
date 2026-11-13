@@ -13,21 +13,8 @@ const EC=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
     const load=[0,0,0,0];FIRST.forEach(e=>load[e]++);if(k===2)SECOND.forEach(e=>load[e]++);
     const dead=[...Array(12).keys()].filter(t=>!slot.some(s=>s.t===t));
     return {k,C,slot,drop,load,dead,fill}}
-  const modes={
-    moe:[{t:'a batch of 12 tokens',c:'One core\'s share of the batch: 12 tokens, 4 experts. The MoE Transformer the paper compares against sends every token to its two best experts (Shazeer et al. 2017, GShard).'},
-         {t:'the router, in float32',c:'Logits <i>h</i>(<i>x</i>) = <i>W</i><sub>r</sub> · <i>x</i>, one per expert, then a softmax (Eq. 1). Switch casts this one function to float32 (selective precision). The bars under each token are its four gate values.'},
-         {t:'choose the top 2',c:'Each token picks its two largest gate values: solid outline for the first choice, dashed for the second. Total demand per expert is the sum of both.'},
-         {t:'capacity: C slots per expert',c:'Two choices per token double the buffer: C = 2 × (12 / 4) × capacity factor, rounded up. Every slot is computed and communicated whether or not a token fills it.'},
-         {t:'dispatch through the all-to-all',c:'Tokens are copied into their experts\' slots in batch order, first choices before second choices. A copy that finds its expert full is dropped.'},
-         {t:'experts compute every slot',c:'Each expert runs its FFN over all C slots; empty ones are padding. Two expert FFNs per token is twice the FLOPs of a dense FFN, so top-2 is not FLOP-matched to T5-Base.'},
-         {t:'combine, weighted by the gates',c:'Each token\'s output is the sum of its kept experts\' outputs times their gate values (Eq. 2), added to the residual stream. A token that lost one copy still has the other.'}],
-    sw:[{t:'a batch of 12 tokens',c:'The same 12 tokens and the same router probabilities, now through a Switch layer: one expert per token.'},
-        {t:'the router, in float32',c:'The same router: logits <i>W</i><sub>r</sub> · <i>x</i>, a softmax in float32, cost <i>d</i><sub>model</sub> × experts per token (§3).'},
-        {t:'choose the top 1',c:'Each token keeps only its largest gate value. Shazeer et al. conjectured this would starve the router of gradient; the gate value multiplying the output still carries one.'},
-        {t:'capacity: C slots per expert',c:'One choice per token: C = (12 / 4) × capacity factor, rounded up (Eq. 3). Half of top-2\'s buffer at the same capacity factor, which is benefit (2) of §2.1.'},
-        {t:'dispatch through the all-to-all',c:'Tokens fill their expert\'s slots in batch order (the cumulative sum in Code Block 15). A token arriving at a full expert is dropped: it skips the layer entirely.'},
-        {t:'experts compute every slot',c:'One expert FFN per token: the same FLOPs as T5-Base\'s dense FFN, plus the router. Padding is the price of a capacity factor above 1.0.'},
-        {t:'combine, weighted by the gate',c:'Output = <i>p</i><sub>i</sub>(<i>x</i>) <i>E</i><sub>i</sub>(<i>x</i>) added to the residual stream; a dropped token "is passed directly to the next layer through the residual connection" (§2.2), unchanged.'}]};
+  // the step texts are the ol.sx lists #sx-rta-sw and #sx-rta-moe in 03_paper.html
+  const modes={moe:Array.from({length:7},()=>({})),sw:Array.from({length:7},()=>({}))};
   function draw(m,k,e,W){const R=route(m),per=W<560?6:12,rows=12/per,pad=2,tw=(W-2*pad)/per,th=24,gap=k>=1?26:8;
     const rowY=r=>6+r*(th+gap),tpos=t=>({x:pad+(t%per)*tw,y:rowY(Math.floor(t/per))});
     const eY=rowY(rows)+16,cw=(W-2*pad)/4,sh=W<560?17:19,Cmax=Math.ceil(12/4*CF*(m==='moe'?2:1)-1e-9),slotsH=Cmax*(sh+3);
@@ -59,7 +46,7 @@ const EC=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
     return stat('expert FFNs per token',R.k+'×',R.k===2?'twice a dense FFN':'the same as dense T5')+stat('capacity C per expert',k>=3?R.C:'…',k>=3?'4 experts, '+slots+' slots':'at step 4')+
       stat('slots computed',k>=5?slots+' for 12 tokens':'…',k>=5?(slots-used)+' padded':'at step 6')+stat('tokens with no expert',k>=4?R.dead.length:'…',k>=4?(R.drop.length-R.dead.length)+' second choices lost':'at step 5')+
       stat('all-to-all, each way',k>=4?slots+' × d<sub>model</sub>':'…','E × C × d<sub>model</sub>, bfloat16')}
-  const A=makeAnim({id:'rta',modes,mode:'sw',draw,counters,dur:2600});
+  const A=makeAnim({id:'rta',modes,mode:'sw',lists:{sw:'sx-rta-sw',moe:'sx-rta-moe'},draw,counters,dur:3400});
   const cf=$('rtaCf');cf.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{cf.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));CF=+b.dataset.cf;if(A)A.draw()}));
 })();
 
@@ -117,30 +104,5 @@ PRED_REVEAL['pr-bf']=function(){const L=$('bfL'),G_=$('bfG'),K=$('bfK'),host=$('
 PRED_REVEAL['pr-c']=function(){const el=$('prCbars');fit(el,W=>{const it=[{n:'Switch-XXL, SQuAD',v:89.6,c:'var(--c1)',hl:1},{n:'Switch-C, SQuAD',v:87.7,c:'var(--c2)'}];
   el.innerHTML=hbars(W,it,{dom:[85,91],fmt:f1,title:'SQuAD exact match after fine-tuning (§8), axis from 85'})+'<p class="small mute" style="margin:2px 0 0">FLOPs per sequence, Table 9: Switch-XXL 6.3T, Switch-C 890B ('+RC.ratios.xxl_over_c_flops_printed.toFixed(1)+'x). Parameters: 395B against 1,571B ('+RC.ratios.c_over_xxl_params_printed.toFixed(1)+'x).</p>'})};
 
-// Figure 9 redrawn: how weights and tokens split over 16 cores
-(function(){const B=2**20,d=768,ff=3072,cap=1.0;
-  const S={d:{n:16,m:1,E:1,c:'Data parallelism (§5.1): every core holds the whole FFN and 1/16 of the batch. "No communication is needed until the entire forward and backward pass is finished", then the gradients are all-reduced.'},
-    m:{n:1,m:16,E:1,c:'Model parallelism (§5.2): every core holds all B tokens and 1/16 of d<sub>ff</sub>. The second matrix multiplication sums over the split d<sub>ff</sub>, so each core all-reduces a [B, d<sub>model</sub>] tensor in the forward pass and again in the backward pass.'},
-    md:{n:4,m:4,E:1,c:'Model and data parallelism (§5.3), as in the largest T5 models and GPT-3: each core holds B/n tokens and d<sub>ff</sub>/m of the weights, and all-reduces [B/n, d<sub>model</sub>] in each pass.'},
-    ed:{n:16,m:1,E:16,c:'Expert and data parallelism (§5.4), Switch-Base and Switch-C: n = 16 data shards and 16 experts, one per core. Each core routes its own B/n tokens, then an all-to-all of [E, C, d<sub>model</sub>] sends them to their experts, and another brings the outputs back. Weights grow with the cores; per-core memory and FLOPs do not.'},
-    emd:{n:4,m:4,E:4,c:'Expert, model and data parallelism (§5.5), Switch-XXL: 4 experts, each split 4 ways over d<sub>ff</sub>. Larger d<sub>ff</sub> means more FLOPs per token, but m is taken from n, so the batch per step shrinks for the same tokens per core, and the all-to-all is joined by all-reduces. "The best mapping is empirically determined."'}};
-  let mode='d';
-  function draw(W){const st=S[mode],cell=Math.min(22,(W-40)/2/4-4),gw=4*(cell+4),gx=[Math.max(8,(W/2-gw)/2),W/2+Math.max(8,(W/2-gw)/2)],top=20,H=top+gw+30;let s='';
-    s+=tx(gx[0],14,'weights',{fs:12,w:600})+tx(gx[1],14,'tokens',{fs:12,w:600});
-    const pal=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
-    for(let i=0;i<16;i++){const r=Math.floor(i/4),c=i%4,x0=gx[0]+c*(cell+4),x1=gx[1]+c*(cell+4),y=top+r*(cell+4);
-      // logical mesh: data index = row-major i / m, model index = i % m
-      const mi=i%st.m,ni=Math.floor(i/st.m),wid=st.E>1?(st.m>1?(ni%st.E)*st.m+mi:ni):mi,dataId=ni;
-      const wc=st.m===1&&st.E===1?pal[0]:pal[wid%6],op=st.m===1&&st.E===1?.55:.35+.65*((wid%16)/15);
-      s+=rc(x0,y,cell,cell,wc,{r:3,op})+rc(x1,y,cell,cell,st.n===1?pal[1]:pal[dataId%6],{r:3,op:st.n===1?.55:.35+.65*((dataId%16)/15)});
-      if(cell>=18){s+=tx(x0+cell/2,y+cell/2+4,st.E>1?'E'+(Math.floor(wid/st.m)+1):(st.m>1?(mi+1):'W'),{fs:11,a:'middle'})}}
-    s+=tx(gx[0],H-8,st.m>1?(st.E>1?st.E+' experts × '+st.m+' slices':st.m+' slices of d_ff'):st.E>1?st.E+' experts, one per core':'one copy per core',{fs:11,c:'var(--mute)'});
-    s+=tx(gx[1],H-8,st.n>1?st.n+' slices of the batch':'every core: the whole batch',{fs:11,c:'var(--mute)'});
-    $('parSvg').innerHTML=svgW(W,H,s,'Figure 9 redrawn');
-    const tok=B/st.n,perCoreW=2*d*ff/st.m,total=2*d*ff*st.E;
-    let comm=0,what='none in the forward pass';if(mode==='m'||mode==='md'){comm=tok*d*2;what='all-reduce of [B/n, d<sub>model</sub>]'}
-    if(mode==='ed'){comm=2*tok*cap*d*2;what='two all-to-alls of [E, C, d<sub>model</sub>]'}
-    if(mode==='emd'){comm=2*tok*cap*d*2+tok*d*2;what='two all-to-alls plus an all-reduce'}
-    $('parCnt').innerHTML=stat('tokens per core',fmt(tok),'B / n, n = '+st.n)+stat('FFN weights per core',(perCoreW/1e6).toFixed(2)+'M',(total/1e6).toFixed(1)+'M distinct over all cores')+stat('sent per core, forward',comm?fmtBytes(comm):'0 B',what)+stat('FFN FLOPs per token',fmt(4*d*ff/1e6,2)+'M','2 per weight; one expert per token');
-    $('parCap').innerHTML=st.c}
-  segBind('parM',m=>{mode=m;refit($('parSvg'))});fit($('parSvg'),draw)})();
+// Figure 9 is the 3D stage in 32_js_sc_par.js
+

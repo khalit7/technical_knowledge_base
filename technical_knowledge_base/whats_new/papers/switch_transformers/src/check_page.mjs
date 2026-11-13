@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end (2026-11-13: also 1400 px; the 2D animations
+// must autoplay once scrolled into view, inverting the 2026-10-24 never-autoplay check; the 3D stages are checked by check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/switch_transformers/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: true });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -19,6 +20,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
+  await p.$eval('#tabs button[data-t=t-read]', b => b.click()); // the last tab is remembered across pages
   const audit = async (where) => {
     const r = await p.evaluate(() => {
       const small = [];
@@ -42,10 +44,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
+    // autoplay (2026-11-06 motion rules): each animation plays by itself once at least half in view
     for (const id of ['rta', 'thn']) { if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
-      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) || !(await p.$eval(`#${id}Play`, e => /Pause/.test(e.textContent)))) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }

@@ -25,7 +25,7 @@
      S('8',HF('Qwen/Qwen3-30B-A3B'),'config'),S('128 small (768 wide, against 6,144 dense)',HF('Qwen/Qwen3-30B-A3B'),'config'),S('every layer',HF('Qwen/Qwen3-30B-A3B'),'config'),S('top-8 gates renormalised',HF('Qwen/Qwen3-30B-A3B'),'config'),
      S('global-batch f·P loss, coefficient 0.001','https://arxiv.org/html/2505.09388v1#S2','§2'),null,null,null]}];
   // carry: a cell left null keeps the previous model's value only for display as "not stated"
-  const modes={t:M.map(m=>({t:m.n+' ('+m.y+')',c:m.c}))};
+  const modes={t:M.map(m=>({t:m.n}))}; // the step texts are the ol.sx #sx-thn in 06_then.html
   function same(a,b){return a&&b&&a.v===b.v}
   function draw(md,k,e,W){const m=M[k],sw=M[0];
     const rows=LINES.map((l,i)=>{const c=m.cells[i],s0=sw.cells[i];const diff=k>0&&c&&!c.same&&c.v!==s0.v;
@@ -35,4 +35,4 @@
   function counters(md,k){if(k===0)return stat('lines','8','the Switch recipe');const m=M[k];let st=0,ch=0;m.cells.forEach((c,i)=>{if(!c)return;st++;if(!c.same&&c.v!==M[0].cells[i].v)ch++});
     let ever=new Set();for(let j=1;j<=k;j++)M[j].cells.forEach((c,i)=>{if(c&&!c.same&&c.v!==M[0].cells[i].v)ever.add(i)});
     return stat('lines this source states',st+' of 8','the rest: not stated')+stat('of those, different from Switch',ch,'highlighted')+stat('lines changed by someone, 2021 to '+m.y.slice(-4),ever.size+' of 8',8-ever.size+' never changed in these sources')}
-  makeAnim({id:'thn',modes,mode:'t',draw,counters,dur:3200})})();
+  makeAnim({id:'thn',modes,mode:'t',lists:{t:'sx-thn'},draw,counters,dur:4200})})();
