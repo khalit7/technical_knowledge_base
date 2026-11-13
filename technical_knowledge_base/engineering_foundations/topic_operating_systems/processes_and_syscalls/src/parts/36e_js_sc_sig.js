@@ -14,7 +14,7 @@
     // processes and code on the plate
     const box=(c,s,f,lab,a,hl)=>{R.box(c,s,{fill:hl?mix(P.paper,P.c4,.4):f,a});R.label([c[0],c[1]+s[1],c[2]],lab,{fs:12.5,b:1,dy:-10,a:Math.max(.45,a),c:hl?P.c4:P.ink})};
     box(SND,[1.3,.45,.8],mix(P.paper,P.c1,.2),'sender',k===0?1:.5);
-    box(MAIN,[1.6,.45,.8],mix(P.paper,P.c1,.2),'target: main thread',k>=4?1:.6,k===6);
+    box(MAIN,[1.6,.45,.8],mix(P.paper,P.c1,.2),nar?'main thread':'target: main thread',k>=4?1:.6,k===6);
     box(HND,[1.4,.45,.8],mix(P.paper,P.c1,.1),'handler()',k>=5?1:.45,k===5);
     // the kernel's side: entry, the ignored check, the pending bits, the real-time queue, the mask
     box(ENT,[1.0,.35,.7],mix(P.paper,P.c5,.3),nar?'send':'__send_signal_locked',k<=1?1:.5,false);
@@ -47,6 +47,6 @@
     if(k===6){R.flowArc([HND[0],YU,HND[2]],[MAIN[0]+.5,.3,ZP-.6],.4,{c:P.c2,r:.065,n:6,a:e});R.flowArc([MAIN[0]+.2,.3,ZP-.6],[MAIN[0],YU,MAIN[2]],.4,{c:P.c2,r:.065,n:6,a:e});
       R.label([MAIN[0]+.5,.3,ZP-.6],'rt_sigreturn',{fs:12.5,mono:true,b:1,dy:-12,c:P.c2,a:e})}
   }
-  S3.stage({id:'stg-sig',list:'sx-sig',fig:'Fig. 5 · a signal is recorded first, acted on later',cam:[.1,.62],bounds:[[-4.6,0,-1.5],[4.4,YU+.6,1.6]],aspect:.6,dur:1400,hold:5000,draw,
+  S3.stage({id:'stg-sig',list:'sx-sig',fig:'Fig. 5 · a signal is recorded first, acted on later',cam:[.1,.62],bounds:[[-4.6,0,-1.5],[4.4,YU+.6,1.6]],aspect:.5,dur:1400,hold:5000,draw,
     margin:w=>w<520?[16,8,24,8]:[20,14,26,14]});
 })();

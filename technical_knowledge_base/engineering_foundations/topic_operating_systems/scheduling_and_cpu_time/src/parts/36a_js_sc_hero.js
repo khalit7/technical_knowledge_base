@@ -53,7 +53,7 @@
       R.label([TX(0),0,LZ(4)+.45],'quota: 100 ms of CPU per 100 ms period, spent by 5 threads',{al:'left',fs:12.5,b:1,c:P.c1,dy:38,wide:1})}
   }
   const full={cam:[.18,.72],bounds:[[-5.2,0,-1],[5.2,2.4,1.2]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · run queues, virtual runtime, a quota',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:5200,draw,
+  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · run queues, virtual runtime, a quota',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
     view:k=>k===1?{cam:[.12,.5],bounds:[[-3.9,0,1.6],[3.9,1.9,3.1]]}:k===2?{cam:[.1,.8],bounds:[[-5,0,-1.7],[4.8,.8,1.8]]}:full,
     margin:w=>w<520?[16,10,16,10]:[18,16,18,16]});
 })();

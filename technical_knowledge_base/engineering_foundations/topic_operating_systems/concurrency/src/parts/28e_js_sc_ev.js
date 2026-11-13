@@ -60,7 +60,7 @@
       }else if(mode==='epoll'){
         // the interest list is registered once; the callback puts only the ready socket on the ready list
         R.box(IL,[1.6,.3,.7],{fill:mix(P.paper,P.ink,.06),dz:110});R.label([IL[0],.3,IL[2]],'interest list · 8',{fs:12,b:1,dy:-10});
-        R.box(RL,[1.6,.1,.7],{fill:mix(P.paper,P.c6,.3),dz:115,shadow:false});R.label([RL[0],.1,RL[2]],'ready list',{fs:12,b:1,dy:-10,c:P.c6});
+        R.box(RL,[1.6,.1,.7],{fill:mix(P.paper,P.c6,.3),dz:115,shadow:false});R.label(R.W<520?[RL[0]+.8,.1,RL[2]]:[RL[0],.1,RL[2]],'ready list',R.W<520?{fs:12,b:1,al:'left',dx:4,dy:4,c:P.c6}:{fs:12,b:1,dy:-10,c:P.c6});
         for(let i=0;i<N;i++)R.line([[IL[0],.15,IL[2]+.35],[X(i),.05,SK(i)[2]-.22]],{c:P.c5,w:1,a:k===0?.6*e:.25,dz:118});
         if(k===0)R.flowArc(L,[IL[0],.3,IL[2]],.15,{c:P.c5,a:e,r:.06,n:7,top:1});
         const items=k===2||k===3&&e<.5?[2]:arr?[5,2,7]:[];

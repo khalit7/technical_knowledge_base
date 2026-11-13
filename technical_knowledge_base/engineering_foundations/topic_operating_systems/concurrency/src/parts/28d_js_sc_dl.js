@@ -47,5 +47,5 @@
       R.label([0,YU+1.15,0],t<.7?'saver waits holding nothing: no cycle':'--ordered: "'+fin+'"',{fs:13,b:1,c:P.good,a,wide:1})}
   }
   S3.stage({id:'stg-dl',list:'sx-dl',fig:'Fig. 4 · a recorded deadlock, then one lock order',cam:[-.28,.42],bounds:[[-3.2,0,-1.4],[3.2,2.9,1.7]],aspect:.62,dur:1600,hold:4800,draw,
-    margin:w=>w<520?[16,8,30,8]:[18,16,30,16]});
+    margin:w=>w<520?[16,8,30,8]:[18,16,30,16],view:()=>innerWidth<520?{cam:[-.28,.72]}:null});
 })();

@@ -59,7 +59,7 @@
   }
   const full={cam:[.36,.62],bounds:[[-2.9,0,-2],[4.3,3.4,2]]};
   const st=S3.stage({id:'stg-sm',list:'sx-sm',fig:'One softmax, naive and stable, logits (1000, 999, 0)',cam:full.cam,bounds:full.bounds,aspect:.78,dur:1500,hold:5200,draw,
-    view:k=>k===1||k===2?{cam:[.3,.5],bounds:[[-2.9,.4,-2],[4.3,3.4,-.6]]}:k>=3?{cam:[.4,.52],bounds:[[-2.9,.1,.5],[4.3,2.5,2]]}:full,
+    view:k=>k===1||k===2?{cam:[.3,.5],bounds:[[-2.9,.4,-2],[4.3,3.4,-.6]]}:k>=3?{cam:[.14,.5],bounds:[[-2.8,0,.8],[k<=4?2.9:4.9,2.5,1.8]]}:full,
     margin:w=>w<520?[16,10,26,58]:[20,20,30,80],onStep:k=>{try{readout(k)}catch(e){}}});
   // the left column's readout: the values of this step as their stored bits (the lanes of 23_js_rd_anim.js)
   const PICK=[[['n',0]],[['n',1],['n',2],['n',3]],[['n',4],['n',5],['n',6]],[['s',1]],[['s',2]],[['s',3],['s',4]],[['s',5],['s',6]]];

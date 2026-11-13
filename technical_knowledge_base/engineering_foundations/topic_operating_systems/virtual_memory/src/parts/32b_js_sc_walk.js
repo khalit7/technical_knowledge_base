@@ -42,6 +42,6 @@
   }
   const full={cam:[.18,.6],bounds:[[-5.4,0,-1.6],[4.6,2.5,2.1]]};
   S3.stage({id:'stg-walk',list:'sx-walk',fig:'Fig. 2 · one address, four table reads',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1400,hold:4600,draw,
-    view:k=>k===0?{cam:[.08,.5],bounds:[[-4.2,0,1.2],[3.4,.3,2.1]]}:k>=2&&k<=5?{cam:[.18,.6],bounds:[[PX(k-2)-1.6,0,-1.6],[PX(k-2)+3.3,PY(k-2)+.75,2.0]]}:full,
-    margin:w=>w<520?[20,8,18,8]:[26,14,20,14]});
+    view:k=>k===0?{cam:[.08,.5],bounds:[[-4.2,0,1.2],[4.5,.3,2.1]]}:k>=2&&k<=5?{cam:[.18,.6],bounds:[[PX(k-2)-1.6,0,-1.6],[PX(k-2)+3.5,PY(k-2)+.75,2.5]]}:full,
+    margin:w=>w<520?[20,8,18,8]:[26,14,44,14]});
 })();

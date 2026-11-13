@@ -39,6 +39,6 @@
     if(dead)R.quad([[X0-.08,.01,ZF-HD-.05],[X0+L+.08,.01,ZF-HD-.05],[X0+L+.08,.01,ZF+HD+.05],[X0-.08,.01,ZF+HD+.05]],{fill:false,ec:P.bad,ea:1,lw:2,dz:-50});
     R.label([0,0,ZB-HD],i<0?'request 0 of '+OPS.length:'request '+Math.min(i+1,OPS.length)+' of '+OPS.length,{al:'left',dx:200,dy:-12,fs:12,mono:1,c:P.mute,wide:1});
   }
-  S3.stage({id:'stg-cuda',list:'sx-cuda',fig:'Fig. 6 · caching allocator, batch 8, 9, 10',cam:[.06,.86],bounds:[[-6,0,-2.3],[6,.6,2.4]],aspect:.45,dur:3200,hold:4200,draw,
+  S3.stage({id:'stg-cuda',list:'sx-cuda',fig:'Fig. 6 · caching allocator, batch 8, 9, 10',cam:[.06,.86],bounds:[[-6,0,-2.3],[6,.6,2.4]],aspect:.36,dur:3200,hold:4200,draw,
     margin:w=>w<520?[14,8,26,8]:[20,90,28,90]});
 })();

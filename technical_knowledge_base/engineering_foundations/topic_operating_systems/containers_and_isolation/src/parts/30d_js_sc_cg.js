@@ -35,7 +35,7 @@
         R.box([x,PH,z],[.18,.22,.2],fill?{fill:mix(P.paper,P.c4,.55),a:pa,shadow:false,lw:.6}:{fill:P.paper,fa:.15,a:pa*.8,shadow:false,lw:.6})}
       if(k===3){const t=cl(e*1.6-.6,0,1),p=[CTR[0]+1.4,PH+.2+1.1*Math.sin(Math.PI*t),CTR[2]-.3];R.box(p,[.2,.24,.22],{fill:mix(P.paper,P.bad,.4),a:t>0?1:0,shadow:false,ec:P.bad});
         R.label([CTR[0]+1.4,PH+.6,CTR[2]-.3],'fork: EAGAIN · pids.events max 1',{al:'left',dx:14,fs:12.5,b:1,c:P.bad,a:t});
-        R.label([CTR[0],PH,CTR[2]+.8],'pids.max 16 · 15 tasks',{fs:12.5,b:1,c:P.c4,dy:32,a:e})}}
+        R.label([CTR[0],0,CTR[2]+.8],'pids.max 16 · 15 tasks',{fs:12.5,b:1,c:P.c4,dy:34,a:e})}}
     // memory.max 64 MiB as a glass ceiling; the 100 MB allocation rises into it and is killed
     if(k>=4){const YC=PH+1.6,ma=k===4?e:.35;R.glass([CTR[0]-1.25,YC,CTR[2]-.75],[2.5,0,0],[0,0,1.5],{c:P.c2,a:ma,nu:5,nv:3});
       R.label([CTR[0]+1.25,YC,CTR[2]-.75],'memory.max 64 MiB',{al:'left',dx:8,fs:12.5,b:1,c:P.c2,a:ma});
@@ -54,6 +54,6 @@
   const full={cam:[.2,.6],bounds:[[-4,0,-2.6],[4,1.6,2.4]]};
   S3.stage({id:'stg-cg',list:'sx-cg',fig:'Fig. 4 · one tree, limits pushing back',cam:full.cam,bounds:full.bounds,aspect:.68,dur:1500,hold:4800,draw,
     // the last three steps are about the limited child: the camera moves in on it
-    view:k=>k===3||k===4?{cam:[.3,.45],bounds:[[.6,0,.2],[4.6,2.1,2.3]]}:k===5?{cam:[.25,.5],bounds:[[.8,0,.2],[6,1.4,2.3]]}:full,
+    view:k=>k===3||k===4?{cam:[.3,.6],bounds:[[-3.8,0,-2.5],[5.4,2.1,2.4]]}:k===5?{cam:[.25,.5],bounds:[[.8,0,.2],[6,1.4,2.3]]}:full,
     margin:w=>w<520?[16,8,16,8]:[18,16,18,16]});
 })();

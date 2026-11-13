@@ -34,6 +34,6 @@
     if(k===4)R.label([0,0,2.1],'free in one arena cannot serve another · peak '+K['arenas.g.peak']+' MiB · '+K['arenas.g.sec']+' s',{fs:12.5,b:1,c:P.c2,a:e,wide:1});
   }
   const full={cam:[.1,.78],bounds:[[-5.4,0,-1.9],[6,1.2,2.2]]};
-  S3.stage({id:'stg-arena',list:'sx-arena',fig:'Fig. 4 · 8 producers, 1 consumer, glibc arenas',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4600,draw,
+  S3.stage({id:'stg-arena',list:'sx-arena',fig:'Fig. 4 · 8 producers, 1 consumer, glibc arenas',cam:full.cam,bounds:full.bounds,aspect:.4,dur:1500,hold:4600,draw,
     margin:w=>w<520?[14,8,28,8]:[18,14,30,70]});
 })();

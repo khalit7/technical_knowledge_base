@@ -26,8 +26,7 @@
   window.VI_CAVI={lam1:H[0].lamN,b1:H[0].bN,Et1:H[0].Et,lam5:H[4].lamN,Et5:H[4].Et,lamEnd:last.lamN,bEnd:last.bN,EtEnd:last.Et,varMuQ:1/last.lamN,varMuExact:E.varMu,varTauQ:aN/(last.bN*last.bN),varTauExact:E.varT};
   const L=(()=>{const v=[-.45,1,.6],m=Math.hypot(...v);return v.map(x=>x/m)})();
   function surface(R,V,c,a,fa){const P=R.P;if(a<=.01)return;const ec=P.dark?mix(c,[255,255,255],.25):mix(c,[0,0,0],.25);
-    for(let i=0;i<NX;i++)for(let j=0;j<NY;j++){const h=[V[i][j],V[i+1][j],V[i+1][j+1],V[i][j+1]];if(Math.max(...h)*HS<.0015)continue;
-      const pts=[[i,j],[i+1,j],[i+1,j+1],[i,j+1]].map(([u,w],n)=>[X(MU[0]+u*dm),h[n]*HS,Zt(TA[0]+w*dt)]);
+    for(let i=0;i<NX;i++)for(let j=0;j<NY;j++){const h=[V[i][j],V[i+1][j],V[i+1][j+1],V[i][j+1]];      const pts=[[i,j],[i+1,j],[i+1,j+1],[i,j+1]].map(([u,w],n)=>[X(MU[0]+u*dm),h[n]*HS,Zt(TA[0]+w*dt)]);
       const u=[pts[1][0]-pts[0][0],pts[1][1]-pts[0][1],pts[1][2]-pts[0][2]],w=[pts[3][0]-pts[0][0],pts[3][1]-pts[0][1],pts[3][2]-pts[0][2]];
       let nr=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]];if(nr[1]<0)nr=nr.map(x=>-x);const nm=Math.hypot(...nr)||1;
       const lm=Math.max(0,(nr[0]*L[0]+nr[1]*L[1]+nr[2]*L[2])/nm),sh=P.dark?.62+.38*lm:.8+.2*lm,tt=Math.min(1,(h[0]+h[1]+h[2]+h[3])/4/peak);

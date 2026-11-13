@@ -28,9 +28,10 @@
     if(k===6)R.flowArc([tl[0]+.4,.4,tl[2]],[cx(4),YD+.4,-1.35],1.2,{c:P.c2,a:e,r:.075,speed:2});
     // the count
     const n=k===7?D.walk43:refs[k],CA=k>=1&&k<=5?[cx(k-1)-2.1,2.55,-2]:[-5.5,2.6,-2];
-    R.label(CA,k===0?'every plate: one memory read':'memory references: '+n,{al:'left',fs:13.5,b:1,mono:true,c:P.ink});
-    if(k===7)R.label(CA,'2 MiB in both stages: '+D.walk33,{al:'left',fs:12.5,mono:true,dy:20,c:P.mute,a:e});
-    if(k===5||k===6)R.label(CA,'without a VM: 4',{al:'left',fs:12.5,mono:true,dy:20,c:P.mute,a:k===5?e:1})
+    const q=R.p(CA),dx=18-q[0],dy=22-q[1]; // pinned to the canvas's top-left corner so the count stays put while the camera moves
+    R.label(CA,k===0?'every plate: one memory read':'memory references: '+n,{al:'left',fs:13.5,b:1,mono:true,c:P.ink,dx,dy});
+    if(k===7)R.label(CA,'2 MiB in both stages: '+D.walk33,{al:'left',fs:12.5,mono:true,dx,dy:dy+20,c:P.mute,a:e});
+    if(k===5||k===6)R.label(CA,'without a VM: 4',{al:'left',fs:12.5,mono:true,dx,dy:dy+20,c:P.mute,a:k===5?e:1})
   }
   const full={cam:[.42,.6],bounds:[[-5.6,0,-2.1],[4.8,2.4,1.2]]};
   S3.stage({id:'stg-walk',list:'sx-walk',fig:'Fig. 4 · one TLB miss, two dimensions',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1600,hold:4600,draw,

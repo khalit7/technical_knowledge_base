@@ -20,13 +20,13 @@
     // the rail, with 5 ms ticks that scroll as the queue's virtual time advances
     R.line([[X0-.4,.01,ZR],[X0+SPAN*XS,.01,ZR]],{c:P.ink,w:1.6,head:7});
     for(let t=Math.ceil(m/5)*5;t<=m+SPAN;t+=5){const x=X(t);R.line([[x,.01,ZR-.18],[x,.01,ZR+.18]],{c:P.mute,w:1});if(t%10===0)R.label([x,0,ZR+.2],f(t),{mono:true,fs:12,dy:14,c:P.mute,wide:1})}
-    R.label([X0+SPAN*XS,0,ZR],'virtual runtime, ms →',{al:'right',fs:12,dy:34,c:P.mute});
+    R.label([X0+SPAN*XS,0,ZR],'virtual runtime, ms →',{al:'right',fs:12,dy:34,c:P.mute,a:k===3?0:1});
     // the CPU at the left end: the leftmost task streams into it
     R.box(CPU,[1,.45,1],{fill:mix(P.paper,P.ink,.1)});R.label([CPU[0],.45,CPU[2]],'CPU',{fs:12.5,b:1,dy:-9});
     const li=vs.indexOf(Math.min(...vs)),focus=k===3?2:-1;
     K.forEach(([key,nm,c],i)=>{const x=X(vs[i]),zz=ZR+(i===0?-.55:i===1?.55:0),h=Math.max(.05,ex[i]/HMAX*2.2),dim=focus>=0&&i!==focus?.3:1;
       R.box([x,0,zz],[.5,h,.5],{fill:mix(P.paper,P[c],.55),a:dim,ec:i===li?P[c]:undefined,lw:i===li?1.6:.9});
-      const lo={al:i===1?'right':'center',dx:i===1?-14:0};
+      const lo={al:i===1?'right':i===0?'left':'center',dx:i===1?-14:i===0?14:0};
       R.label([x,h,zz],nm,Object.assign({fs:12.5,b:i===li,c:i===2?P.acc:P.ink,dy:R.W<520?-10:-26,a:dim},lo));
       R.label([x,h,zz],f(ex[i])+' ms CPU',Object.assign({fs:12,mono:true,c:P.mute,dy:-10,a:dim,wide:1},lo))});
     if(k<3)R.flowArc([X(vs[li]),.3,ZR+(li===0?-.55:li===1?.55:0)],[CPU[0]+.4,.35,CPU[2]],.6,{c:P[K[li][2]],r:.06,n:6,speed:1.3,a:k===0?e:1});
@@ -35,7 +35,7 @@
       R.line([[xs,.6,ZR],[xl,.6,ZR]],{c:P.acc,w:2,a:e});R.label([(xs+xl)/2,.6,ZR],'median lag '+f(lag,1)+' ms · at most 9',{fs:12.5,b:1,c:P.acc,dy:-10,a:e})}
   }
   const full={cam:[.08,.6],bounds:[[-5.5,0,-.3],[4.6,2.4,1.5]]};
-  S3.stage({id:'stg-vr',list:'sx-vr',fig:'Fig. 3 · CFS run queue, measured',cam:full.cam,bounds:full.bounds,aspect:.56,dur:3200,hold:4600,draw,
-    view:k=>k===3?{cam:[.2,.45],bounds:[[-3.8,0,-.1],[1.6,1.6,1.3]]}:full,
+  S3.stage({id:'stg-vr',list:'sx-vr',fig:'Fig. 3 · CFS run queue, measured',cam:full.cam,bounds:full.bounds,aspect:.46,dur:3200,hold:4600,draw,
+    view:k=>k===3?{cam:[.2,.45],bounds:[[-3.8,0,-.1],[1.6,2.6,1.3]]}:full,
     margin:w=>w<520?[16,10,16,10]:[18,16,18,16]});
 })();

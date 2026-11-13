@@ -34,7 +34,7 @@
       R.label([0,2.5,0],'measured: '+mn.toFixed(2)+' to '+mxv.toFixed(2)+' us per switch',{fs:13,b:1,c:P.acc,a:e})}
   }
   const full={cam:[.0,.72],bounds:[[-4.4,0,-1.9],[4.4,2.4,1.9]]};
-  S3.stage({id:'stg-sw',list:'sx-sw',fig:'Fig. 2 · one context switch, v5.10 arm64',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1300,hold:4600,draw,
+  S3.stage({id:'stg-sw',list:'sx-sw',fig:'Fig. 2 · one context switch, v5.10 arm64',cam:full.cam,bounds:full.bounds,aspect:.54,dur:1300,hold:4600,draw,
     // the pick, the MMU and the register swap happen in the CPU: the camera moves in on it
     view:k=>(k===2||k===3)&&innerWidth>=560?{cam:[.25,.6],bounds:[[-2.2,0,-1.2],[4.4,2,1.9]]}:full,
     margin:w=>w<520?[16,10,16,10]:[18,110,18,110]});

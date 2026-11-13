@@ -58,7 +58,7 @@
         R.label([PR[2].x,.3,-1.05],'SIGCHLD',{fs:12.5,b:1,mono:true,dy:-14,c:P.c4,a:e})}}
   }
   const full={cam:[.3,.4],bounds:[[-5.9,0,-1.7],[5.9,3.3,1.8]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the recorded job: processes above, records below',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5200,draw,
+  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the recorded job: processes above, records below',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1500,hold:5200,draw,
     view:k=>k===1||k===2?{cam:[.5,.32],bounds:[[-3.2,0,-1.5],[.8,3.3,1.3]]}:full,
     margin:w=>w<520?[14,8,24,8]:[18,14,26,14]});
 })();

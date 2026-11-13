@@ -32,6 +32,6 @@
     if(k===3)for(let i=0;i<3;i++)for(let j=0;j<3;j++)R.flowArc(top(1,4,nk,j,M2),top(2,3,i,j,M3),.6+.08*i,{c:P.bad,a:f*.7,r:.05,n:4,speed:1.2});
   }
   const full={cam:[.16,.72],bounds:[[-4.5,0,-1.3],[4.25,1.3,1.6]]};
-  S3.stage({id:'stg-nan',list:'sx-nan',fig:'One NaN through a linear layer and one training step',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5000,draw,
+  S3.stage({id:'stg-nan',list:'sx-nan',fig:'One NaN through a linear layer and one training step',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5000,draw,
     margin:w=>w<520?[20,8,44,8]:[24,16,56,16]});
 })();

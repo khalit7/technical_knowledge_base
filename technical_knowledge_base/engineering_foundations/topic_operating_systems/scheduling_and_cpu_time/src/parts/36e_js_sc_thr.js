@@ -41,6 +41,6 @@
     if(k===3)R.label([TX(W[1]),0,LZ(4)+.5],'periods throttled: '+r.stat.nr_throttled+' of '+r.stat.nr_periods,{al:'right',fs:12.5,b:1,c:P.bad,dy:34,a:e});
     if(k===4)R.label([TX(W[1]),0,LZ(4)+.5],'periods throttled: '+r.stat.nr_throttled+' of '+r.stat.nr_periods,{al:'right',fs:12.5,b:1,c:P.bad,dy:34,a:e});
   }
-  S3.stage({id:'stg-thr',list:'sx-thr',fig:'Fig. 5 · a 1-CPU quota, measured',cam:[.06,.82],bounds:[[-6.8,0,-1.8],[4.6,.9,1.9]],aspect:.56,dur:2600,hold:4600,draw,
+  S3.stage({id:'stg-thr',list:'sx-thr',fig:'Fig. 5 · a 1-CPU quota, measured',cam:[.06,.82],bounds:[[-6.8,0,-1.8],[4.6,.9,1.9]],aspect:.46,dur:2600,hold:4600,draw,
     margin:w=>w<520?[16,10,16,10]:[18,16,18,16]});
 })();

@@ -51,7 +51,7 @@
     if(op==='read'&&/blocks/.test(cur.res)&&A['p'+pid])R.label([A['p'+pid].x,YU+.36,ZF],'read() blocks: a write end is still open',{fs:12.5,b:1,dy:-30,c:P.bad,a:e,wide:1});
     if(/end of file/.test(cur.res)&&A['p'+pid])R.label([A['p'+pid].x,YU+.36,ZF],'read() = 0: end of file',{fs:12.5,b:1,dy:-30,c:P.c3,a:e});
   }
-  const st=S3.stage({id:'stg-fd',list:'sx-fd-tables',fig:'Fig. 7 · per-process tables, shared descriptions, objects',cam:[.05,.82],bounds:[[-4.2,0,-2.0],[4.2,YU+.5,3.0]],aspect:.7,dur:1300,hold:5000,draw,
+  const st=S3.stage({id:'stg-fd',list:'sx-fd-tables',fig:'Fig. 7 · per-process tables, shared descriptions, objects',cam:[.05,.82],bounds:[[-4.2,0,-2.0],[4.2,YU+.15,3.0]],aspect:.7,dur:1300,hold:5000,draw,
     margin:w=>w<520?[16,8,20,8]:[20,14,22,150]});
   RD.seg(document.getElementById('rd-fdx-mode'),m=>{mode=m;Object.keys(MODES).forEach(x=>{document.getElementById('sx-fd-'+x).hidden=x!==m});st.list('sx-fd-'+m)});
 })();

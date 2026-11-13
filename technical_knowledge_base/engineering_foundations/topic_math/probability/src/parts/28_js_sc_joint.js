@@ -14,7 +14,7 @@
       let h=J[i][j],a=k===0?1:k===1?.4:k===2?(j===0?1:1-.8*e):k===3?.85:1,lab=J[i][j].toFixed(2),c=P.c1;
       if(k===0)h*=e;
       if(k===2&&j===0){h=lerp(J[i][j],cond[i],e);lab=(e<1?h.toFixed(3):cond[i].toFixed(3));c=mix(P.c1,P.acc,e)}
-      R.box([x,0,z],[.66,h*SY,.66],{fill:mix(c,P.paper,.3),a});R.label([x,h*SY,z],lab,{mono:true,fs:12.5,b:1,dy:-10,c:k===2&&j===0?P.acc:P.c1,a:Math.max(a,.3)})}
+      R.box([x,0,z],[.66,h*SY,.66],{fill:mix(c,P.paper,.3),a});R.label([x,h*SY,z],lab,{mono:true,fs:12.5,b:1,dy:-10,c:k===2&&j===0?P.acc:P.c1,a:k===3&&R.W<520?.35:Math.max(a,.3)})}
     XS.forEach((s,i)=>R.label([gx(0)-CW/2-.25,0,gz(i)],s,{al:'right',dx:-6,fs:12.5,b:1,c:P.mute,grp:'rows'}));
     YS.forEach((s,j)=>R.label([gx(j),0,gz(1)+CW/2+.1],s,{fs:12.5,b:1,c:P.mute,dy:15}));
     // 2. the marginals: sum each row (P(X), on the left) and each column (P(Y), in front); dots stream from the cells into the sums

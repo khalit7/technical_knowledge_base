@@ -53,7 +53,7 @@
       R.label([XM,1.75,0],'∂z/∂μ = 1 · ∂z/∂σ = ε',{mono:true,fs:12.5,b:1,c:P.c2,a});
       R.label([XL-.9,1.05,1.95],'no gradient into ε',{al:'right',dx:-14,fs:12.5,c:P.c6,a})}
   }
-  S3.stage({id:'stg-vae',list:'sx-vae',fig:'Fig. 5 · a VAE, one image',cam:[.55,.42],bounds:[[-5.1,0,-1.7],[5.2,1.9,2]],aspect:.62,dur:1600,hold:5000,draw,
+  S3.stage({id:'stg-vae',list:'sx-vae',fig:'Fig. 5 · a VAE, one image',cam:[.55,.42],bounds:[[-5.1,0,-1.7],[5.2,1.9,2]],aspect:.55,dur:1600,hold:5000,draw,
     margin:w=>w<520?[14,8,12,8]:[18,16,14,40],
     view:k=>k===3?{cam:[.3,.85],bounds:[[XL-HL-.2,0,-HL-.2],[XL+HL+1.3,1.3,HL+.3]]}:null});
 })();

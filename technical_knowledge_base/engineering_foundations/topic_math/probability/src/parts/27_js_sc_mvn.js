@@ -31,7 +31,7 @@
       [[A,fa,'Mahalanobis 1 · p = 0.161',P.acc],[B,fb,'Mahalanobis 3 · p = 0.003',P.c4]].forEach(([q,v,t,c],i)=>{
         R.line([w(0,0,.06),w(q[0],q[1],.06)],{c,w:1.6,dash:[4,3],a:e});
         R.box(w(q[0],q[1],0),[.12,Math.max(.02,v*SY*e),.12],{fill:mix(c,P.paper,.2),a:e});R.ball(w(q[0],q[1],v*SY*e+.04),.07,{c,a:e});
-        R.label(w(q[0],q[1],v*SY),t,{mono:true,fs:12.5,b:1,c,dy:-12,al:i?'right':'left',dx:i?-6:6,a:e})});
+        R.label(w(q[0],q[1],v*SY),t,{mono:true,fs:12.5,b:1,c,dy:i&&R.W<520?-32:-12,al:i?'right':'left',dx:i?-6:6,a:e})});
       R.label(w(0,-.4,0),'both 1.342 from the mean',{fs:12.5,c:P.mute,dy:16,a:e})}
     if(k===4)R.label(w(0,0,f(0,0,r)*SY),'ρ = '+r.toFixed(2)+' · det Σ = '+(1-r*r).toFixed(4),{mono:true,fs:13,b:1,c:P.ink,dy:-14})
   }

@@ -21,7 +21,7 @@
     PMS.surf(R,M.lik.m,M.lik.s,{c:P.c1,a:la,grow:k===1?e:1});
     PMS.surf(R,M.pri.m,M.pri.s,{c:P.c5,a:pa,grow:k===2?e:1});
     PMS.surf(R,M.post.m,M.post.s,{c:P.c4,a:qa,grow:k===3?e:1});
-    if(k>=1&&k<=3){R.ball(at(mle,H*(k===1?e:.05)+.06),.09,{c:P.c1,a:k===1?e:.7});R.label(at(mle,H*(k===1?1:.05)),'MLE (0.75, 0.25, 0)',{mono:true,fs:12.5,b:1,c:P.c1,al:'left',dx:10,dy:-10,a:k===1?e:.7})}
+    if(k>=1&&k<=3){R.ball(at(mle,H*(k===1?e:.05)+.06),.09,{c:P.c1,a:k===1?e:.7});R.label(at(mle,H*(k===1?1:.05)),'MLE (0.75, 0.25, 0)',{mono:true,fs:12.5,b:1,c:P.c1,al:k===1&&R.W<520?'right':'left',dx:k===1&&R.W<520?-10:10,dy:-10,a:k===1?e:.7})}
     if(k===2){R.ball(at([1/3,1/3,1/3],H*e+.06),.09,{c:P.c5,a:e});R.label(at([1/3,1/3,1/3],H),'prior peak (1/3, 1/3, 1/3)',{mono:true,fs:12.5,b:1,c:P.c5,dy:-14,a:e})}
     if(k===3){R.ball(at(map,H*e+.06),.1,{c:P.c4,a:e});R.label(at(map,H),'MAP (0.571, 0.286, 0.143)',{mono:true,fs:12.5,b:1,c:P.c4,al:'right',dx:-10,dy:-12,a:e});
       R.flowArc(at(mle,.05),at(map,.05),.5,{c:P.c4,r:.06,n:7,a:e})}

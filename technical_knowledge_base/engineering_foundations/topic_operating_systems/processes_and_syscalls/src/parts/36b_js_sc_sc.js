@@ -39,7 +39,7 @@
     R.glow(LOC.door,.5,{c:P.c2,a:hot('door')?.9:.35});
     // registers: four plinths, the ones this step sets in orange
     const [rg,ch]=regs(S,k);['x0','x1','x2','x8'].forEach((n,i)=>{const c=[1.55+i*.82,YU,.95],on=n in ch;if(nar&&!on)return;
-      R.box(c,[.5,.18,.42],{fill:on?mix(P.paper,P.c2,.55):P.paper,shadow:false});R.label([c[0],c[1]+.18,c[2]],n+' '+rg[n],{fs:12.5,mono:true,b:on,dy:-10,c:on?P.c2:P.ink})});
+      R.box(c,[.5,.18,.42],{fill:on?mix(P.paper,P.c2,.55):P.paper,shadow:false});R.label([c[0],c[1]+.18,c[2]],n+' '+rg[n],{fs:12.5,mono:true,b:on,dy:nar&&i%2?-26:-10,c:on?P.c2:P.ink})});
     // the call moving: a ball from the last place to this one, with a stream along its path
     const a0=where(S,k-1),a1=where(S,k),hgt=a0[1]===a1[1]?.5:.15,pos=R.arcPt(a0,a1,hgt,e);
     if(k>0||e<1){const pts=[];for(let i=0;i<=20;i++)pts.push(R.arcPt(a0,a1,hgt,i/20));R.flow(pts,{c:st.at==='strace'?P.c4:P.c2,r:.065,n:6,speed:1.4})}

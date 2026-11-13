@@ -39,5 +39,5 @@
   const full={cam:[.4,.6],bounds:[[-2.9,0,-.6],[2.9,2.0,2.6]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the tiny model’s bet',cam:full.cam,bounds:full.bounds,aspect:.72,dur:1400,hold:4600,draw,
     margin:w=>w<520?[14,10,14,10]:[22,16,14,120],
-    view:k=>k===0?{cam:[.4,.55],bounds:[[-2.6,0,1.2],[2.6,1.5,2.8]]}:k===2?{cam:[.62,.45],bounds:[[.7,0,-.9],[3.2,1.8,.9]]}:k===3?{cam:[.3,.7],bounds:[[-2.9,0,-.4],[2.9,1.9,3.6]]}:full});
+    view:k=>k===0?{cam:[.16,.42],bounds:[[-2.4,0,1.7],[2.4,1.6,2.6]]}:k===2?{cam:[.62,.45],bounds:[[.7,0,-.9],[3.2,1.8,.9]]}:k===3?{cam:[.3,.7],bounds:[[-2.9,0,-.4],[2.9,1.9,3.6]]}:full});
 })();
