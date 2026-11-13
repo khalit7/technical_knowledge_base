@@ -19,9 +19,9 @@ python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '01b_css.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '_gen_curves.js', '11_js_ui.js', '12_js_data.js', '13_js_read.js', '14_js_pipe.js',
-      '20_js_run.js', '22_js_tables.js', '14b_js_hero.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '01b_css.html', '02_split.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '_gen_curves.js', '11_js_ui.js', '12_js_data.js', '13_js_read.js',
+      '20_js_run.js', '22_js_tables.js', '14b_js_hero.js', '25_js_s3.js', '31_js_sc_pipe.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)

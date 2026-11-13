@@ -1,6 +1,6 @@
 // ---- Replay the stability fixes: the spike detector sweeping both runs of each ablation figure ----
 (function(){if(!$('sw'))return;
-const NS=8;let pk={};
+const NS=3;let pk={};
 const INFO={
  fig4:{a:'A 16,000-step test run made to spike quickly by shortening the warmup; the only difference is the initialisation.',z:'The old scaled initialisation spikes again and again; the normal(0, 0.02) one almost never.'},
  fig3:{a:'Two runs, the same except that one masks sequences with long repeated n-grams out of the loss.',z:'The filter removes most gradient spikes, though not all, and does nothing for the slow growth of the norm.'},
@@ -12,10 +12,9 @@ const PAPERN={fig4:'0.40 → 0.03',fig7:'0.108 → 0.069',fig10:'0.16 → 0.092'
 function panel(m){const F=CV[m];const want=pk[m]||'gnorm';return F.panels.find(p=>p.key===want)||F.panels[0]}
 function fillSel(m){const F=CV[m],sel=$('swP');sel.innerHTML=F.panels.map(p=>'<option value="'+p.key+'"'+((pk[m]||'gnorm')===p.key?' selected':'')+'>'+p.label+(p.runs[0].z?'':' (not scored)')+'</option>').join('')}
 const K=()=>+$('swK').value;
-function steps(m){const F=CV[m],P=F.panels.find(p=>p.key==='gnorm')||F.panels[0];return Array.from({length:NS},(_,k)=>{
-  const xs=Math.round(P.x1*(k+1)/NS);
-  return {t:k===0?'Start the detector':k===NS-1?'The whole run':'Sweep to step '+fmt(xs),
-    c:k===0?F.title+' ('+F.paper+'). '+INFO[m].a+' The detector cannot score a value until it has the 1,000 before it.':k===NS-1?INFO[m].z+(PAPERN[m]?' The paper prints '+PAPERN[m]+'%.':' The paper prints no spike score for this figure.'):'Each value is compared with the mean of the 1,000 values before it; triangles mark those at least k standard deviations away. Top: OLMo-0424\'s setting; bottom: OLMo 2\'s.'}})}
+// three explained stretches (the long-replay rule): each step sweeps a third of the run; the step list sx-sw explains them, #swInfo says what this figure is
+function steps(m){return Array.from({length:NS},(_,k)=>({t:k===0?'Start the detector':k===NS-1?'The whole run':'Sweep on'}))}
+function setInfo(m){const F=CV[m];setH('swInfo','<b>'+F.title+'</b> ('+F.paper+'). '+INFO[m].a+' <b>What it shows:</b> '+INFO[m].z+(PAPERN[m]?' The paper prints '+PAPERN[m]+'%.':' The paper prints no spike score for this figure.'))}
 function draw(m,k,e,w){const P=panel(m),H=w<500?340:310,pl=46,pr=10,W=w-pl-pr,gap=36,h=(H-gap-40)/2,frac=Math.min(1,(k+e)/NS),upto=Math.round(P.nb*frac),xm=P.x0+(P.x1-P.x0)*frac;let s='';
   P.runs.forEach((R,j)=>{const y=14+j*(h+gap);s+=axesSvg(P,pl,y,W,h,{noX:j===0});
     s+=envSvg(P,R,pl,y,W,h,{op:.15,col:'var(--dim)'})+envSvg(P,R,pl,y,W,h,{upto,band:!!R.z,k:R.z?K():0});
@@ -28,9 +27,10 @@ function counters(m,k,e){const P=panel(m),frac=Math.min(1,(k+e)/NS),xm=P.x0+(P.x
   return P.runs.map((R,j)=>{const n=spikes(R,kk,xm),f=Math.max(0,(xm-R.first_eval_step)/(P.x1-R.first_eval_step)),ev=Math.max(1,Math.round(R.ev*Math.min(1,f)));
     return stat((j?'OLMo 2 setting':'OLMo-0424 setting')+', spikes at '+kk+'σ',n+(frac>=1?' of '+fmt(R.ev):''),frac>=1?'score <b>'+(100*n/R.ev).toFixed(3)+'%</b>':'about '+(100*n/ev).toFixed(2)+'% so far')}).join('')+(PAPERN[m]&&P.key==='gnorm'?stat('Paper',PAPERN[m]+'%','§3, at 7σ'):'')}
 const modes={};Object.keys(INFO).forEach(m=>modes[m]=steps(m));
-const A=makeAnim({id:'sw',modes,mode:'fig4',draw,counters,dur:1700});
+const lists={};Object.keys(INFO).forEach(m=>lists[m]='sx-sw');
+const A=makeAnim({id:'sw',modes,lists,mode:'fig4',draw,counters,dur:4200});
 const redraw=()=>{if(A)A.draw()};
-$('swM').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{fillSel(b.dataset.m)}));
+$('swM').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{fillSel(b.dataset.m);setInfo(b.dataset.m)}));setInfo('fig4');
 $('swP').addEventListener('change',e=>{pk[A.st.m]=e.target.value;redraw()});
 $('swK').addEventListener('input',()=>{setH('swKv',K()+'σ');redraw()});setH('swKv',K()+'σ');fillSel('fig4');
 
@@ -45,7 +45,7 @@ $('swK').addEventListener('input',()=>{setH('swKv',K()+'σ');redraw()});setH('sw
 // Figure 8: the z-loss fork
 (function(){const Z=CV.fig8;fit($('zSvg'),w=>{const H=200,pl=46,pr=10,P={x0:Z.x0,x1:Z.x1,lo:Z.lo,hi:Z.hi,log:true,nb:Z.nb};let s=axesSvg(P,pl,6,w-pl-pr,H-36,{});
   Z.runs.forEach(R=>{s+=envSvg(P,R,pl,6,w-pl-pr,H-36,{op:.6,col:R.c?'var(--c1)':'var(--c2)'})});
-  const lx=scales(P,pl,6,w-pl-pr,H-36).lx;s+=ln2(lx(Z.fork_start),6,lx(Z.fork_start),H-30,'var(--mute)',{da:'3 3'})+tx(lx(Z.fork_start)-4,22,'fork at step '+fmt(Z.fork_start),{fs:11,a:'end',c:'var(--mute)'});
+  const lx=scales(P,pl,6,w-pl-pr,H-36).lx;s+=ln2(lx(Z.fork_start),6,lx(Z.fork_start),H-30,'var(--mute)',{da:'3 3'})+tx(lx(Z.fork_start)-4,62,'fork at step '+fmt(Z.fork_start),{fs:11,a:'end',c:'var(--mute)'});
   s+=legend([['Flash Attention fused z-loss (kept)','var(--c1)'],['PyTorch z-loss fork (abandoned)','var(--c2)']],pl+6,22,Math.min(w-pl-pr-12,lx(Z.fork_start)-pl-120>200?lx(Z.fork_start)-pl-120:w-pl-pr-12)).s;
   $('zSvg').innerHTML=svgW(w,H,s,'Figure 8 re-drawn')})})();
 // Figure 10, right: embedding norm
