@@ -20,8 +20,8 @@
       const cols=s.log.map(x=>termCol(P,x[0])),done=s.log.map((_,j)=>j<s.commit);
       const top=stack(R,p,.78,.6,.48,cols,done,a,{h:.1,g:.022});
       const role=!s.alive?'crashed':s.role;
-      R.label([p[0],top,p[2]],'S'+(i+1)+' · term '+s.term,{b:1,fs:13,dy:-14,c:s.alive?P.ink:P.mute});
-      const unc=s.log.length-s.commit;R.label([p[0],top,p[2]],role+(s.alive&&unc>0&&s.log.length?' · '+unc+' uncommitted':''),{fs:12,mono:1,dy:-30,wide:1,c:s.role==='leader'&&s.alive?P.good:s.role==='candidate'?P.c5:!s.alive?P.bad:P.mute});
+      R.label([p[0],top,p[2]-.26],'S'+(i+1)+' · term '+s.term,{b:1,fs:13,dy:-14,c:s.alive?P.ink:P.mute});
+      const unc=s.log.length-s.commit;R.label([p[0],top,p[2]-.26],role+(s.alive&&unc>0&&s.log.length?' · '+unc+' uncommitted':''),{fs:12,mono:1,dy:-30,wide:1,c:s.role==='leader'&&s.alive?P.good:s.role==='candidate'?P.c5:!s.alive?P.bad:P.mute});
       if(!s.alive)cut(R,[p[0],.75,p[2]],1,.28);
       // the election timer of a live follower or candidate: full when just reset, empty when it fires
       if(s.alive&&s.role!=='leader'&&s.eto>0)timer(R,[p[0]+.66,0,p[2]+.2],(s.dl-t)/s.eto,.9,s.role==='candidate'?P.c5:P.acc,.95)});

@@ -7,17 +7,17 @@ window.DSF_QSTEPS=[{N:3,W:0,R:0},{N:3,W:2,R:0},{N:3,W:2,R:2},{N:3,W:1,R:1},{N:5,
   const {node,tag,win,arcPts}=DSK,S=window.DSF_QSTEPS;
   const pos=(i,N)=>{const a=Math.PI*(.12+.76*(N===1?.5:i/(N-1)));return [-Math.cos(a)*3.5,0,-Math.sin(a)*2.0+.7]};
   const CL=[0,0,2.7];
-  function draw(R,k,e){const P=R.P,s=S[k],N=s.N;R.grid(-4.6,4.6,-2.6,3.6,.5);
+  function draw(R,k,e){const P=R.P,s=S[k],N=s.N,z=narrow()?1.35:1;// on a phone the machines are drawn largerR.grid(-4.6,4.6,-2.6,3.6,.5);
     const ew=k===1||k===3?win(e,0,.6):1,er=k===2||k===3||k===4?win(e,k===3?.35:.2,.85):1;
-    node(R,CL,[.9,.42,.6],P.c4,{});R.label([CL[0],0,CL[2]+.3],k===0?'client':'client · N '+N+', W '+s.W+', R '+s.R,{b:1,fs:12.5,dy:14});
+    node(R,CL,[.9*z,.42*z,.6*z],P.c4,{});R.label([CL[0],0,CL[2]+.3],k===0?'client':'client · N '+N+', W '+s.W+', R '+s.R,{b:1,fs:12.5,dy:14});
     for(let i=0;i<N;i++){const p=pos(i,N),wr=i<s.W,rd=s.R>0&&i>=N-s.R,both=wr&&rd,stale=rd&&!wr;
       const v2=wr&&(k===1||k===3?ew>.6:true);
-      node(R,p,[.82,.5,.62],P.acc,{t:.22,a:1});R.label([p[0],0,p[2]+.31],'r'+(i+1),{b:1,fs:12.5,dy:18,c:P.mute});
-      tag(R,[p[0],.5,p[2]],v2?P.good:P.mute,v2?'v2':'v1',1,{s:[.55,.16,.42],dy:-10});
+      node(R,p,[.82*z,.5*z,.62*z],P.acc,{t:.22,a:1});R.label([p[0],0,p[2]+.31*z],'r'+(i+1),{b:1,fs:12.5,dy:18,c:P.mute});
+      tag(R,[p[0],.5*z,p[2]],v2?P.good:P.mute,v2?'v2':'v1',1,{s:[.55*z,.16*z,.42*z],dy:-10});
       // the write: dots from the client to the W replicas that confirm (a dot also heads for the others: it is sent to all N)
       if(s.W&&(k===1||k===3||k===4))R.flow(arcPts(R,[CL[0],.45,CL[2]-.2],[p[0],.7,p[2]],.7,20),{c:P.good,a:(wr?.95:.25)*(k===4?.45:1),r:.06,n:6,speed:1.2});
       // the read set: a dashed outline on the floor, and dots coming back from each replica the read hears from
-      if(rd&&k>=2){const c=stale&&!s.ok?P.bad:P.acc,a=er;R.quad([[p[0]-.6,.02,p[2]-.5],[p[0]+.6,.02,p[2]-.5],[p[0]+.6,.02,p[2]+.5],[p[0]-.6,.02,p[2]+.5]],{fill:null,ec:c,dash:[5,4],lw:2,a});
+      if(rd&&k>=2){const c=stale&&!s.ok?P.bad:P.acc,a=er;R.quad([[p[0]-.6*z,.02,p[2]-.5*z],[p[0]+.6*z,.02,p[2]-.5*z],[p[0]+.6*z,.02,p[2]+.5*z],[p[0]-.6*z,.02,p[2]+.5*z]],{fill:null,ec:c,dash:[5,4],lw:2,a});
         R.flow(arcPts(R,[p[0],.7,p[2]],[CL[0]+.2,.45,CL[2]-.2],.5,20),{c,a:a*.95,r:.06,n:5,speed:1.1})}
       if(both&&k>=2)R.glow([p[0],.75,p[2]],.55,{c:P.good,a:er*.8});
       if(stale&&s.ov===0&&k===3)R.label([p[0],.7,p[2]],'read returns v1',{fs:12.5,b:1,c:P.bad,dy:-32,a:er})}

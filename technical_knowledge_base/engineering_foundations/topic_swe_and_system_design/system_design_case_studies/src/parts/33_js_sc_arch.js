@@ -46,6 +46,9 @@ window.ARCH=(function(){
         if(!view(k)&&!narrow)lab(R,[x,0,z1+.1],ln,{fs:12,mono:1,c:P.mute,dy:10,wide:1})});
       const A={},H={},hot={},nw={};
       sp.nodes.forEach(n=>{A[n.id]=alpha(n,k,e);hot[n.id]=hk.has(n.id)?(hp.has(n.id)&&st&&st.pk!==k?1:e):0;nw[n.id]=fx&&n.in===k?e:0});
+      // in a close view on a wide screen, a part the step is not about fades as it nears the card's edge, so the crop does not cut a solid part
+      if(!narrow&&view(k))sp.nodes.forEach(n=>{if(hot[n.id]>.01||nw[n.id]>.01)return;const q=R.p([n.p[0],.3,n.p[2]]);
+        const d=Math.min(q[0],R.W-q[0],q[1],R.H-q[1]);A[n.id]*=.15+.85*cl((d-20)/90,0,1)});
       ctx.A=A;ctx.hot=hot;
       // edges: a faint line and, unless dashed (configuration), dots flowing from a to b; red into a bottleneck
       (sp.edges||[]).forEach(ed=>{const a=byId[ed.a],b=byId[ed.b];if(!a||!b)return;if(ed.in!==undefined&&ed.in>k)return;if(ed.out!==undefined&&k>=ed.out)return;

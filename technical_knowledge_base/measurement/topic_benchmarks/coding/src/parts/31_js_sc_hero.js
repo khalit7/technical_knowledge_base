@@ -59,7 +59,7 @@
     const lv=[null,0,1,2,3,null];
     PAIRS.forEach((p,i)=>{let A=0,g=0,full=false,x=p[4];
       if(lv[k]===i){A=1;g=win(e,.2,.85);full=true}else if(lv[pk]===i&&k!==pk){A=1-win(e,0,.4);g=1;full=true}
-      if(k===5){A=Math.max(A,win(e,.3,1));g=1;full=false;if(i===1)x=-3.35;if(i===2)x=-2.6}
+      if(k===5){A=Math.max(A,win(e,.3,1));g=1;full=false;if(i===1)x=-3.85;if(i===2)x=-3.0}   // further apart and clear of the harness cage, so the two small pairs do not overlap
       if(A>.02){pair(R,P,x,p[2],p[3],i===3?P.c6:i===0?P.c2:P.c4,A,g,full,p[1]);
         if(full&&g>.2){const src=i===0?[XE,.6,-.3]:i===3?[XM+.3,.8,-.3]:[XT+.3,.6,-.2];R.flowArc(src,[x+.2,p[3]/100*BH*g+.05,ZB],.35,{c:i===3?P.c6:i===0?P.c2:P.c4,a:A*.7,n:6,r:.05})}}});
     if(k===5)lab(R,[XS,BH*.5,0],'same model, 11.2 to 18.5 points',{fs:12,c:P.acc,b:1,dy:-28,a:win(e,.4,1),wide:1});

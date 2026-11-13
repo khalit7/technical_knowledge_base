@@ -13,11 +13,13 @@
     const nm=(t,keep)=>k<3||keep?t:null,thin=R.W<520;
     // on a phone the lane a step is not about carries no names either
     const nN=(t,keep)=>thin&&on<=.5&&!keep?null:nm(t,keep),nF=(t,keep)=>thin&&off<.5&&!keep?null:nm(t,keep);
+    // and the flat stages (the glass plates) carry no names on a phone (train only in the training step; the agreement labels name step 4's)
+    const pl=(f,t,keep)=>thin&&!(keep&&k===2)?null:f(t,keep);
     // online lane, in front
     block(R,[X[0],0,ZN],[.62,.36,.5],CN,nN('ticket'),{a:on});
-    plate(R,[X[1],0,ZN],CN,agree?1:on,nN('features now',agree),{w:.95,h:.95,glow:k===0?.35:0});
+    plate(R,[X[1],0,ZN],CN,agree?1:on,pl(nN,'features now',agree),{w:.95,h:.95,glow:k===0?.35:0});
     block(R,[X[2],0,ZN],[1.15,.7,.9],P.acc,k===4?null:nm('model'),{a:mA,t:.4,fs:13.5});
-    plate(R,[X[3],0,ZN],CN,agree?1:on,nN('action',agree),{w:.95,h:.95});
+    plate(R,[X[3],0,ZN],CN,agree?1:on,pl(nN,'action',agree),{w:.95,h:.95});
     block(R,[X[4],0,ZN],[.7,.42,.55],CN,nN('outcome',k===1),{a:k===1?1:on});
     const lineN=poly([[X[0]+.31,Y,ZN],[X[4]-.35,Y,ZN]],40);
     R.line([lineN[0],lineN[lineN.length-1]],{c:CN,w:1.2,a:.3*on,dash:[4,4]});
@@ -26,9 +28,9 @@
     const nLog=k===1?6:k>=2?6:4;
     stack(R,[X[0],0,ZO],.75,.55,nLog,CF,Math.max(off,k===1?1:0),{fresh:k===1?win(e,.4,.9):1});
     lab(R,[X[0],.75,ZO],nF('event logs',k===1),{b:1,fs:13,dy:-12,c:P.ink,a:Math.max(.35,k===1?1:off)});
-    plate(R,[X[1],0,ZO],CF,agree?1:off,nF('feature pipeline',agree),{w:.95,h:.95});
-    plate(R,[X[2],0,ZO],CF,off,nF('train'),{w:.95,h:.95,glow:k===2?.3:0});
-    plate(R,[X[3],0,ZO],CF,agree?1:off,nF('offline eval',agree),{w:.95,h:.95});
+    plate(R,[X[1],0,ZO],CF,agree?1:off,pl(nF,'feature pipeline',agree),{w:.95,h:.95});
+    plate(R,[X[2],0,ZO],CF,off,pl(nF,'train',k===2),{w:.95,h:.95,glow:k===2?.3:0});
+    plate(R,[X[3],0,ZO],CF,agree?1:off,pl(nF,'offline eval',agree),{w:.95,h:.95});
     block(R,[X[4],0,ZO],[.8,.5,.6],CF,nF('registry'),{a:off});
     const lineO=poly([[X[0]+.4,Y,ZO],[X[4]-.4,Y,ZO]],40);
     R.line([lineO[0],lineO[lineO.length-1]],{c:CF,w:1.2,a:.3*off,dash:[4,4]});

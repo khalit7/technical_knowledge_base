@@ -29,7 +29,7 @@
     D.forEach((row,j)=>{const x0=FX(j),x1=FX(rank[j]),x=k===0?x0:k===1?lerp(x0,x1,e):x1,c=per[j],mx=c>0&&c<4;
       row.forEach((v,r)=>{const ok=v===0,lift=k===1&&mx?.18*e:0;R.box([x,lift,FZ(r)],[CW*.82,CW*.6,RW*.8],{fill:mix(P.paper,ok?P.good:P.bad,.6),a:fa*(k===1&&!mx?1-.45*e:1),shadow:false,lw:.6})})});
     if(k<=1)R.label([FX(0)-.25,0,FZ(1.5)],'4 runs',{al:'right',dx:-6,fs:12,c:P.mute,wide:1});
-    if(k===0)R.label([0,0,FZ(3)+.3],'30 problems · '+st.corr+' of '+st.na+' answers right',{fs:12.5,dy:14,c:P.mute});
+    if(k===0){const tw=turn();R.label(tw?[FX(n-1)+.15,0,FZ(3)+.25]:[0,0,FZ(3)+.3],'30 problems · '+st.corr+' of '+st.na+' answers right',{al:tw?'right':'center',fs:12.5,dy:tw?16:14,c:P.mute})} // on wide screens and phones steps 1 and 2 turn the row into depth, so this sits below its near end
     if(k===1){R.label([FX(st.all/2-.5),.2,FZ(0)-.3],st.all+' right on all 4',{fs:12.5,b:1,c:P.good,a:e,dy:-10});
       R.label([FX(st.all+mixed/2-.5),.4,FZ(0)-.3],'only '+mixed+' mixed',{fs:12.5,b:1,c:P.c5,a:e,dy:-10});
       R.label([FX(n-st.none/2-.5),0,FZ(3)+.3],st.none+' wrong on all 4',{fs:12.5,b:1,c:P.bad,a:e,dy:14})}
@@ -48,8 +48,9 @@
     // 5: the binomial on 30 problems, ignoring the runs
     if(k>=4){band(R,P,ZB,st.ciProb,P.c5,e,'±'+st.ciProb.toFixed(2));R.label([SX(55),0,ZB],'binomial, n = 30',{al:'right',dx:-4,fs:12,c:P.c5,a:e,grp:'cl'})}
   }
+  const turn=()=>innerWidth>=1100||innerWidth<520; // where the card is tall for the row (aspect-sized, or a phone), steps 1 and 2 turn it into depth
   const full={cam:[0,1.1],bounds:[[-5,0,-4.6],[5.2,.6,1.9]]};
   S3.stage({id:'stg-clu',list:'sx-clu',fig:'Fig. 3 · o1 (medium), AIME 2025, 120 answers',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[18,16,16,150],
-    view:k=>k<=1?{cam:[0,1.0],bounds:[[-4.8,0,.2],[4.8,.6,2]]}:full});
+    view:k=>k<=1?{cam:turn()?[.5,.72]:[0,1.0],bounds:[[-4.8,0,.2],[4.8,.6,2]]}:full});
 })();

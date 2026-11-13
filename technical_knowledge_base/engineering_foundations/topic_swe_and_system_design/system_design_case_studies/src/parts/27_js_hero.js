@@ -13,7 +13,7 @@
   const T=(x,y,s,o)=>RD.t(x,y,RD.esc(s),o);
   function arrow(x1,y1,x2,y2){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--acc)" stroke-width="1.8" marker-end="url(#hero-ah)"/>'}
   function draw(){
-    const W=RD.width(host),narrow=W<600;let s='',H;
+    const W=RD.width(host),narrow=W<760;let s='',H;   // the across layout needs about 760 px; the right column of a split at 1400 px gets the stacked one
     const defs='<defs><marker id="hero-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--acc)"/></marker></defs>';
     const box=(x,y,w,h,hl)=>'<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="6" fill="'+(hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(hl?'var(--acc)':'var(--line)')+'" stroke-width="'+(hl?2:1)+'"/>';
     if(!narrow){
@@ -41,7 +41,7 @@
       STEPS.forEach((st,i)=>{const hl=i===1||i===5;s+=T(0,y+15,(i+1)+' '+st[0],{w:hl?700:400,fill:hl?'var(--acc)':undefined});
         s+=box(lw,y+3,bw*st[1]/15,rh-6,hl)+T(lw+bw*st[1]/15+4,y+15,st[1]+' min',{fill:'var(--mute)'});y+=rh});
       y+=10;s+=T(0,y+4,'What the estimate showed was hard:',{fill:'var(--mute)'});y+=12;
-      KINDS.forEach(k=>{const bh=16+k.d.length*15;s+=box(0,y,W,bh,true);s+=T(8,y+14,k.k,{w:700,fill:'var(--acc)'});
+      KINDS.forEach(k=>{const bh=21+k.d.length*15;s+=box(0,y,W,bh,true);s+=T(8,y+14,k.k,{w:700,fill:'var(--acc)'});
         k.d.forEach((r,j)=>{s+=T(8,y+29+j*15,(j>0&&r[0]===k.d[j-1][0]?'':r[0]+': ')+r[1])});y+=bh+5});
       H=y;
     }

@@ -39,8 +39,9 @@ window.MSD_SKEW=(function(){
     const hN=k===2?D.on*U*win(e,.3,.9):k>=3?D.on*U:0;
     if(k>=1&&k<4)bar(R,[BX,0,ZO],hO,CO,1,String(k===1&&e<.9?Math.round(D.off*win(e,.3,.9)):D.off),{w:.5,d:.5});
     if(k>=2)bar(R,[BX,0,ZN],hN,CN,1,String(k===2&&e<.9?Math.round(D.on*win(e,.3,.9)):D.on),{w:.5,d:.5});
-    if(k>=1)lab(R,[BX+.4,.1,ZO],'training row',{fs:12.5,b:1,al:'left',dx:8,c:k===4?CN:CO});
-    if(k>=2)lab(R,[BX+.4,.1,ZN],'live request',{fs:12.5,b:1,al:'left',dx:8,c:CN});
+    const lf=k===3;   // step 4: the model sits to the right of the bars, so their names go on the left
+    if(k>=1)lab(R,[lf?BX-.4:BX+.4,.1,ZO],'training row',{fs:12.5,b:1,al:lf?'right':'left',dx:lf?-8:8,c:k===4?CN:CO});
+    if(k>=2)lab(R,[lf?BX-.4:BX+.4,.1,ZN],'live request',{fs:12.5,b:1,al:lf?'right':'left',dx:lf?-8:8,c:CN});
     // 5. the fix: the value used at serving is logged, and the training row reads the log
     if(k===4){const y=stack(R,[BX,0,ZO],.66,.66,Math.max(1,Math.round(D.on*win(e,.45,.9))),CN,1,{h:U-.03,g:.03});
       lab(R,[BX,y,ZO],String(D.on),{fs:13,b:1,mono:1,dy:-10});

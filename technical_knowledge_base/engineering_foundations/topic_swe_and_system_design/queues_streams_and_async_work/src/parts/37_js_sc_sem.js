@@ -56,13 +56,14 @@
       R.glow([PE[0] - .5, .3, PE[2]], .5, { c: P.bad, a: win(e, .5, .65) });
       lab(R, [PE[0] - .4, .3, PE[2]], 'ON CONFLICT: skip, ack', { mono: 1, b: 1, fs: 12.5, c: P.bad, dy: -44, a: win(e, .5, .7) }); }
     // 6. at scale: measured (three runs each) and simulated (20 seeds)
-    if (sc) { const a = win(e, .3, .7), u = 1 / 40, X = [-3.3, -1.1, 1.1, 3.3];
-      bar(R, [X[0], 0, 0], mean(LOST), u, P.bad, a, { lab: LOST.join(', '), name: 'at-most-once: lost', lwide: 1, nwide: 1 });
-      bar(R, [X[1], 0, 0], mean(DUP), u, P.c5, a, { lab: DUP.join(', '), name: 'at-least-once: duplicates', lwide: 1, nwide: 1 });
-      bar(R, [X[2], 0, 0], mean(IDUP), u, P.c3, a, { lab: IDUP.join(', ') + ' (caught ' + HIT.join(', ') + ')', name: 'idempotent: duplicates', lwide: 1, nwide: 1 });
-      bar(R, [X[3], 0, 0], mean(SIM), u, P.mute, a, { lab: QSN.sem.sim.toFixed(1), name: 'model, 20 seeds', lwide: 1, nwide: 1 }); }
+    // on a phone the values stay (smaller, the idempotent bar without its caught counts) and the step text names the bars
+    if (sc) { const a = win(e, .3, .7), u = 1 / 40, X = [-3.3, -1.1, 1.1, 3.3], th = R.W < 520, fs = th ? 12 : 13;
+      bar(R, [X[0], 0, 0], mean(LOST), u, P.bad, a, { lab: LOST.join(', '), name: 'at-most-once: lost', fs, nwide: 1 });
+      bar(R, [X[1], 0, 0], mean(DUP), u, P.c5, a, { lab: DUP.join(', '), name: 'at-least-once: duplicates', fs, nwide: 1 });
+      bar(R, [X[2], 0, 0], mean(IDUP), u, P.c3, a, { lab: IDUP.join(', ') + (th ? '' : ' (caught ' + HIT.join(', ') + ')'), name: 'idempotent: duplicates', fs, nwide: 1 });
+      bar(R, [X[3], 0, 0], mean(SIM), u, P.mute, a, { lab: QSN.sem.sim.toFixed(1), name: 'model, 20 seeds', fs, nwide: 1 }); }
   }
   const full = { cam: [.25, .72], bounds: [[-4.6, 0, -1.6], [4.6, 1.2, 1.6]] };
   S3.stage({ id: 'stg-sem', list: 'sx-sem', fig: 'Fig. 4 · the work, the ack, and a crash between them', cam: full.cam, bounds: full.bounds, aspect: .44, dur: 1500, hold: 4800, draw, margin: QS3.margin,
-    view: k => k === 5 ? { cam: [.12, .45], bounds: [[-4.4, 0, -1], [4.4, 1.8, 1.4]] } : full });
+    view: k => k === 5 ? { cam: [.12, .45], bounds: innerWidth < 520 ? [[-3.8, 0, -1], [3.8, 1.8, 1.4]] : [[-4.4, 0, -1], [4.4, 1.8, 1.4]] } : full });   // a phone fits the four bars tighter, so their values stand apart
 })();

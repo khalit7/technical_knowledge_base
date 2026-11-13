@@ -46,11 +46,12 @@
     // 4. workers take one each, do the work, acknowledge (the message is deleted)
     if (k === 3 || k === 6) WK.forEach((w, i) => { R.flow(arcPts(R, [BX1, .2, BZ], [w[0] - .45, .35, w[2]], .25), { c: P.c4, r: .07, n: 5, speed: 1.3, a: k === 6 ? .5 : 1 });
       R.flow(arcPts(R, [w[0] + .45, .35, w[2]], [FX[0] - .5, .25, FX[2] + (i - 1) * .25], .2), { c: P.c6, r: .07, n: 5, speed: 1.3, a: k === 6 ? .5 : win(e, .2, .5) }); });
-    if (k === 3) lab(R, [WK[0][0], .5, WK[0][2]], 'work, then ack: deleted', { fs: 12.5, b: 1, c: P.c5, dy: -26, a: win(e, .3, .6) });
+    if (k === 3) lab(R, [WK[0][0], .5, WK[0][2]], 'work, then ack: deleted', { fs: 12.5, b: 1, c: P.c5, dy: -44, a: win(e, .3, .6) });
     const nRc = k === 3 ? Math.round(1 + 3 * e) : k === 4 ? 4 : k === 6 ? 4 : 0;
     for (let i = 0; i < nRc; i++) msg(R, [FX[0], .3 + i * .1, FX[2]], P.c6, A(3, 4), { s: [.6, .08, .6], t: .45 });
     // 5. a crash after the work and before the ack: the message comes back and the work runs again
-    if (k === 4) { const w = WK[1]; crash(R, w, .55, win(e, .05, .25), '✕ crash before ack');
+    if (k === 4) { const w = WK[1]; crash(R, w, .55, win(e, .05, .25), null);   // its label goes low on the left, clear of the first worker and the receipts
+      lab(R, [w[0] - .45, .05, w[2] + .25], '✕ crash before ack', { b: 1, fs: 13, c: P.bad, al: 'right', dx: -8, dy: 8, a: win(e, .05, .25) });
       const back = seg([w[0] - .45, .3, w[2]], slot(0), 14); msg(R, along(back, win(e, .3, .55)), P.bad, win(e, .25, .35) * (1 - win(e, .62, .7)));
       R.flow(arcPts(R, [BX1, .2, BZ], [WK[0][0] - .45, .35, WK[0][2]], .25), { c: P.bad, r: .08, n: 5, speed: 1.4, a: win(e, .6, .75) });
       msg(R, [FX[0], .3 + 4 * .1, FX[2]], P.bad, win(e, .8, .95), { s: [.6, .08, .6], t: .7 });

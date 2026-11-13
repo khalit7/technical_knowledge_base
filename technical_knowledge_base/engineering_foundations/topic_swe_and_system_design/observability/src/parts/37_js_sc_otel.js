@@ -60,7 +60,8 @@
   const full = { cam: [.2, .7], bounds: [[-6, 0, -3.0], [5.3, .8, 2.8]] };
   S3.stage({ id: 'stg-otel', list: 'sx-otel', fig: 'Fig. 4 · the OpenTelemetry path', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1500, hold: 4600, draw,
     margin: w => w < 520 ? [22, 8, 14, 8] : [30, 16, 22, 16],
-    view: k => desk(k) });
+    // on a phone (under 520 px) the camera looks along the pipeline, as Fig. 1 does, so the long band fills the tall card (the close views keep their angle)
+    view: k => { const v = desk(k); return innerWidth < 520 && !v ? { cam: [1.5708, .78], bounds: full.bounds } : v; } });
   function desk(k) { return k === 2 ? { cam: [.25, .62], bounds: [[-1.6, 0, -3.8], [3.6, 1.5, -.6]] }
       : k === 4 ? { cam: [.3, .62], bounds: [[-6.2, 0, -1.6], [-2.0, 1.5, 3.2]] } : null; }
 })();

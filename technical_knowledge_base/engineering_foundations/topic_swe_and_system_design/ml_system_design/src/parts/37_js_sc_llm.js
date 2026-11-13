@@ -35,10 +35,10 @@ window.MSD_LITELLM={version:'1.104.0',pause:.5,
     const bigShare=sh.big+sh.fb+sh.err;
     R.flow(k===0||k===1?part(toL,T):toL,{c:CL,a:1,r:.06,n:n(bigShare),speed:1.2});
     if(k>=1)lab(R,toS[9],pct(sh.small),{fs:12.5,b:1,mono:1,c:CS,al:'left',dx:14,a:k===1?win(e,.4,.8):1});
-    lab(R,toL[11],pct(bigShare),{fs:12.5,b:1,mono:1,c:CL,al:'right',dx:-10,dy:-6,a:k===1?win(e,.4,.8):1});
+    if(k!==2)lab(R,toL[8],pct(bigShare),{fs:12.5,b:1,mono:1,c:CL,al:'right',dx:-10,dy:-6,a:k===1?win(e,.4,.8):1});   // step 3 says it once, as the share that fails
     // the large model's provider fails: errors go back to the app, or the gateway falls back to the second provider
     if(k===2||k===3){cross(R,[XM,1.05,ZL],win(e,0,.3),P.bad,.24);
-      lab(R,[XM+.65,.6,ZL],'provider failing',{fs:12.5,b:1,c:P.bad,al:'left',dx:10,a:win(e,0,.3)})}
+      lab(R,[XM+.65,.3,ZL+.3],'provider failing',{fs:12.5,b:1,c:P.bad,al:'left',dx:10,dy:6,a:win(e,0,.3)})}
     if(k===2){const back=arcPts(R,[XM-.5,.6,ZL-.1],[XA+.3,.55,-.3],1.1,30);R.flow(part(back,win(e,.2,1)),{c:P.bad,a:1,r:.065,n:n(sh.err),speed:1.4});
       lab(R,back[15],pct(sh.err)+' of requests fail',{fs:12.5,b:1,c:P.bad,dy:-12,a:win(e,.4,.8)})}
     if(k===3){const fb=arcPts(R,[XM-.4,.4,ZL-.45],[XM-.4,.4,ZF+.42],.35,16);R.flow(part(fb,win(e,.15,.7)),{c:CF,a:1,r:.065,n:n(sh.fb),speed:1.1});

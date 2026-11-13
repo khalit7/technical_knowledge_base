@@ -50,5 +50,5 @@
   const narrow=()=>(document.getElementById('stg-nl').clientWidth||999)<520,full={cam:[.2,.72],bounds:()=>narrow()?[[-4.5,0,-3.8],[5.5,2.0,2.0]]:[[-6.3,0,-3.8],[5.6,2.0,2.0]]};
   S3.stage({id:'stg-nl',list:'sx-nl',fig:'Fig. 2 · NoLiMa, Llama 3.3 70B, one needle, five questions',cam:full.cam,bounds:full.bounds,aspect:.56,dur:2600,hold:4800,draw,
     margin:w=>w<520?[16,8,14,8]:[22,16,48,16],
-    view:null});
+    view:k=>narrow()&&k===0?{cam:[.55,.9],bounds:[[-4.5,0,.9],[5.5,.8,2.1]]}:null}); // on a phone, step 1 (only the haystack and the question) turns the row into depth so it fills the card
 })();

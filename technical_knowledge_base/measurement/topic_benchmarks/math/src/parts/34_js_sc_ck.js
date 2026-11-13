@@ -59,7 +59,7 @@
       if(cz)R.label([x,0,ZI+.3],i<3?(i===1?D.p7_right_boxed_identical_to_key:D.p7_right_boxed_equal_after_light_normalisation)+' of '+right+' right answers pass':nform+' answers use this form',{fs:12.5,b:1,c:ok?P.good:P.bad,dy:30,a:g})});
   }
   const full={cam:[.05,1.1],bounds:[[-7.6,0,-1.6],[6.7,.8,2.1]]};
-  S3.stage({id:'stg-ck',list:'sx-ck',fig:'Fig. 1 · one real answer, four checks',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
+  S3.stage({id:'stg-ck',list:'sx-ck',fig:'Fig. 1 · one real answer, four checks',cam:full.cam,bounds:full.bounds,aspect:.42,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[24,16,40,16],
     view:k=>{const i=k===5?3:k-1;return k>=1?{cam:[.55,.6],bounds:[[X[i]-1.5,0,-1.5],[X[i]+1.7,.75,1.7]]}:full}});
 })();

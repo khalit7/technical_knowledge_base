@@ -33,7 +33,7 @@ window.DSF_FENCE={start:100,c1:10,c2:60,t1:33,t2:34};
     if(k===3){const a0=[W2[0]+.5,.6,W2[2]],b0=[ST[0]-.5,.7,ST[2]+.2];R.flow(arcPts(R,a0,b0,.6,20),{c:P.good,a:1,r:.075,n:7});R.label(mid(a0,b0,.6),'balance = '+(F.start-F.c2)+' · token '+F.t2,{fs:12.5,b:1,mono:1,c:P.good,dy:16,wide:1})}
     if(k===4){const ok=mode===0,a0=[W1[0]+.5,.6,W1[2]],b0=[ST[0]-.55,.7,ST[2]-.2],pts=arcPts(R,a0,b0,.6,20);
       if(ok)R.flow(pts,{c:P.bad,a:1,r:.075,n:7});else{R.flow(pts.slice(0,15),{c:P.bad,a:1,r:.075,n:5});cut(R,pts[14],win(e,.3,.6),.22)}
-      R.label(mid(a0,b0,.6,.42),'balance = '+(F.start-F.c1)+' · token '+F.t1,{fs:12.5,b:1,mono:1,c:P.bad,dy:22,wide:1});
+      R.label(mid(a0,b0,.6,.6),'balance = '+(F.start-F.c1)+' · token '+F.t1,{fs:12.5,b:1,mono:1,c:P.bad,dy:-20,wide:1});
       R.label([ST[0],0,ST[2]+.5],ok?'60-credit charge lost':'token 33 < 34: rejected',{fs:13,b:1,c:ok?P.bad:P.good,dy:16,a:win(e,.45,.8)})}
   }
   // on a phone (canvas under 520 px) the camera looks along the row of machines, so the long axis becomes depth and the scene fills the tall card

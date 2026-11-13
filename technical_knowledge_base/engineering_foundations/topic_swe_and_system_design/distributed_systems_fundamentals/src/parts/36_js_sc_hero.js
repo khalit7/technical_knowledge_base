@@ -9,9 +9,9 @@
   function draw(R,k,e){const P=R.P,SC=[P.c1,P.c6,P.c5];R.grid(-5.6,5.6,-4.2,4.4,.5);
     // composition: step 1 is about the key ranges, 2 about the copies, 3 and 4 about shard 2 only, 5 about the etcd group
     const focus2=k===2||k===3,nodesA=k===0?.22:1;
-    SX.forEach((x,i)=>{const sa=focus2&&i!==1?.25:1,c=SC[i];
+    SX.forEach((x,i)=>{const sa=focus2&&i!==1?.1:1,c=SC[i];
       R.glass([x-1.35,.012,-1.45],[2.7,0,0],[0,0,2.75],{c,a:(k===0?1:.55)*sa,nu:6,nv:5,th:.02});
-      R.label([x,0,1.35],'Shard '+(i+1)+' · '+RANGE[i],{b:1,fs:12.5,dy:16,c,a:Math.max(.45,sa)});
+      R.label([x,0,1.35],'Shard '+(i+1)+' · '+RANGE[i],{b:1,fs:12.5,dy:16,c,a:focus2&&i!==1?.12:1});
       // leader and followers; their logs: 100 "hi" for all, 101 "hello" on shard 2 from step 3
       const lead=LP(x),has=i===1&&k>=2,f1=has&&(k>2||win(e,.55,.8)>0),fa=nodesA*sa;
       node(R,lead,[.95,.62,.72],P.good,{a:fa,lab:k>=1?'leader':null,dy:-14-(has?14:0)});

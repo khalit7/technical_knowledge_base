@@ -17,11 +17,12 @@
   function draw(R, k, e) {
     const P = R.P, A = (...ks) => ks.indexOf(k) >= 0 ? 1 : .25, sig = k >= 3, rq = k <= 2 || k === 6 ? 1 : .3;
     R.grid(-6.2, 5.2, -3.2, 4, .5);
+    const fr = k === 3 ? .12 : null;   // step 4's close view cuts the right-hand parts at the card edge, so they fade further
     // the services, front row
     party(R, LG, [1.0, .5, .8], P.c2, 'load generator', { a: k === 0 || k === 2 ? 1 : .3 * (sig ? 1 : 1.6), grp: 'svc' });
     party(R, API, [1.4, .8, 1.1], P.c1, 'chat-api', { a: k <= 2 ? 1 : k === 6 || k === 3 || k === 4 || k === 5 ? .75 : .4, grp: 'svc' });
-    party(R, MOD, [1.1, .45, .8], P.c4, 'model call', { a: k === 2 ? 1 : .3, grp: 'svc' });
-    party(R, RET, [1.3, .7, 1.0], P.c3, 'retrieval', { a: k === 1 ? 1 : k === 4 || k === 5 ? .75 : .35, grp: 'svc' });
+    party(R, MOD, [1.1, .45, .8], P.c4, fr ? null : 'model call', { a: k === 2 ? 1 : fr || .3, grp: 'svc' });
+    party(R, RET, [1.3, .7, 1.0], P.c3, fr ? null : 'retrieval', { a: k === 1 ? 1 : k === 4 || k === 5 ? .75 : fr || .35, grp: 'svc' });
     REP.forEach(([nm, p]) => { const hot = nm === 'r3-cold'; party(R, p, [.75, .42, .62], hot ? P.bad : P.c3, k === 1 ? nm : null, { a: k === 1 ? (hot ? 1 : .35) : .22, t: hot ? .4 : .2, lc: hot ? P.bad : P.mute });
       if (hot && k === 1) R.glow([p[0], .5, p[2]], .7, { c: P.bad, a: .5 * win(e, .1, .5) }); });
     // the replayed clock (steps 1 to 3)
@@ -42,9 +43,9 @@
     // the three stores, back row
     const pa = [k === 3 || k === 6 ? 1 : .35, k === 4 || k === 6 ? 1 : .35, k === 5 || k === 6 ? 1 : .35];
     floorPlate(R, MP, PW, PD, P.c1, sig ? pa[0] : .3, { nu: 5, nv: 3 });
-    floorPlate(R, TP, PW, PD, P.c3, sig ? pa[1] : .3, { nu: 6, nv: 3 });
-    floorPlate(R, LP, PW, PD, P.c5, sig ? pa[2] : .3, { nu: 4, nv: 3 });
-    [[MP, 'metrics', P.c1], [TP, 'traces', P.c3], [LP, 'logs', P.c5]].forEach(([c, t, col], i) => lab(R, [c[0] - PW / 2 + .1, .05, c[2] + PD / 2], t, { b: 1, fs: 13.5, c: col, dy: 14, al: 'left', a: sig ? Math.max(.5, pa[i]) : .5, grp: 'store' }));
+    floorPlate(R, TP, PW, PD, P.c3, fr || (sig ? pa[1] : .3), { nu: 6, nv: 3 });
+    floorPlate(R, LP, PW, PD, P.c5, fr || (sig ? pa[2] : .3), { nu: 4, nv: 3 });
+    [[MP, 'metrics', P.c1], [TP, 'traces', P.c3], [LP, 'logs', P.c5]].forEach(([c, t, col], i) => lab(R, [c[0] - PW / 2 + .1, .05, c[2] + PD / 2], t, { b: 1, fs: 13.5, c: col, dy: 14, al: 'left', a: fr && i ? fr : sig ? Math.max(.5, pa[i]) : .5, grp: 'store' }));
     // 4. metrics: the request is one count in the 1.0 to 1.5 s bucket; the ringed dot is its exemplar
     const ma = k > 3 ? pa[0] : k === 3 ? win(e, .25, .7) : 0;
     if (k === 3) R.flow(arcPts(R, [API[0] - .5, .8, API[2] - .3], [MP[0] + 1.0, .5, MP[2] + .2], .6), { c: P.c1, r: .07, n: 7, speed: 1.3, a: 1 - win(e, .85, 1) });

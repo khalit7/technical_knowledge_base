@@ -55,7 +55,7 @@
   const narrow=()=>(document.getElementById('stg-mm').clientWidth||999)<520,B=()=>mode==='blind'?[[narrow()?-4.0:-5.2,0,-.6],[4.7,2.0,1.6]]:[[-6.6,0,-4.8],[4.7,2.2,1.5]];
   const st=S3.stage({id:'stg-mm',list:'sx-mm-blind',fig:'Fig. 3 · MMMU validation, with and without the image',cam:[-.25,.74],bounds:()=>B(),aspect:.55,dur:2200,hold:4800,draw,
     margin:w=>w<520?[16,8,14,8]:[22,16,40,16],
-    view:k=>mode==='blind'?null:k===4?{cam:[-.2,.85],bounds:B()}:{cam:[-.25,.7],bounds:[[-4.1,0,-.2],[4.7,2.2,1.6]]}});
+    view:k=>mode==='blind'?(narrow()?{cam:[-.62,.66]}:null):k===4?{cam:[-.2,.85],bounds:B()}:{cam:[-.25,.7],bounds:[[-4.1,0,-.2],[4.7,2.2,1.6]]}});
   document.querySelectorAll('#mm-mode button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#mm-mode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;
     ['blind','pro'].forEach(m=>{document.getElementById('sx-mm-'+m).hidden=m!==mode});st.host.querySelector('.stg-top span').textContent=mode==='blind'?'Fig. 3 · MMMU validation, with and without the image':'Fig. 3 · MMMU-Pro, three fixes, GPT-4o and every model';st.list('sx-mm-'+mode)}));
   LCS.mmStage=st;

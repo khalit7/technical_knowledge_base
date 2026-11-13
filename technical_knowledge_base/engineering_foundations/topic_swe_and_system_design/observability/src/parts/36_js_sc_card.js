@@ -12,7 +12,8 @@ window.OBS_CARD = { B: 10, R: 5, S: 4, I: 10, series: (x) => (10 + 2) * 5 * 4 * 
   const SX = 5.4, SZ = 6.5, PX = 6.2, PZ = 7.3;                                     // one instance set's footprint, and its pitch in the 10 x 10 field
   const disk = s => { const g = C.gbDay(s); return g < 1 ? fmt(g * 1000, 1) + ' MB' : fmt(g, g < 10 ? 2 : 1) + ' GB'; };
   // two lines under the field: the count, then its samples and disk
-  const say = (R, p, s, head, c, a) => { lab(R, p, (head || '') + fmt(s) + ' series', { b: 1, fs: 15, mono: 1, c, dy: 18, a }); lab(R, p, fmt(C.sps(s)) + ' samples/s · ' + disk(s) + ' a day', { fs: 12.5, mono: 1, c: R.P.mute, dy: 37, a }); };
+  // (steps 5 and 6 hang them under the field's nearest corner, so they sit on the floor and not over the cells)
+  const say = (R, p, s, head, c, a, al) => { lab(R, p, (head || '') + fmt(s) + ' series', { b: 1, fs: 15, mono: 1, c, dy: 18, a, al }); lab(R, p, fmt(C.sps(s)) + ' samples/s · ' + disk(s) + ' a day', { fs: 12.5, mono: 1, c: R.P.mute, dy: 37, a, al }); };
   function draw(R, k, e) {
     const P = R.P;
     if (k <= 3) R.grid(-3.6, 3.6, -3.6, 3.6, .4); else if (k === 4) R.grid(-8, 64, -8, 76, 4); else R.grid(-40, 660, -40, 780, 40);
@@ -39,18 +40,18 @@ window.OBS_CARD = { B: 10, R: 5, S: 4, I: 10, series: (x) => (10 + 2) * 5 * 4 * 
     if (k === 4 || k === 5) { const a0 = k === 4 ? win(e, .3, .6) : 1 - win(e, .1, .5);
       for (let i = 0; i < 100; i++) { const gx = i % 10, gz = Math.floor(i / 10), a = a0 * (k === 4 && i ? win(e, .35 + i * .005, .6 + i * .005) : 1); if (a <= .01) continue;
         R.box([gx * PX, 0, gz * PZ], [SX, BH * 3, SZ], { fill: mix(P.paper, P.c2, i ? .4 : .7), a, shadow: false, lw: .6 }); }
-      if (k === 4) { say(R, [4.5 * PX, 0, 9.5 * PZ], C.series(100), '+ model: ', P.c2, win(e, .5, .9));
+      if (k === 4) { say(R, [9 * PX + SX / 2, 0, 9 * PZ + SZ / 2], C.series(100), '+ model: ', P.c2, win(e, .5, .9));
         lab(R, [0, BH * 3, 0], 'one cell = all 2,400', { fs: 12.5, c: P.mute, dy: -12, wide: 1, a: win(e, .4, .8) }); } }
     // step 6: tenant_id with 10,000 values instead: a field of 100 x 100 cells, the model field above is the shaded corner of 10 x 10
     if (k === 5) { const a = win(e, .3, .7), W = 100 * PX, D = 100 * PZ, o0 = [-PX / 2, .5, -PZ / 2];
       R.glass(o0, [W, 0, 0], [0, 0, D], { c: P.c6, a, nu: 100, nv: 100, th: .5 });
       R.quad([[o0[0], .6, o0[2]], [o0[0] + 10 * PX, .6, o0[2]], [o0[0] + 10 * PX, .6, o0[2] + 10 * PZ], [o0[0], .6, o0[2] + 10 * PZ]], { fill: P.c2, fa: .8, a });
       lab(R, [o0[0] + 10 * PX, .6, o0[2] + 5 * PZ], 'step 5: 100 cells', { fs: 12.5, c: P.c2, b: 1, al: 'left', dx: 8, a, wide: 1 });
-      say(R, [o0[0] + W / 2, .5, o0[2] + D], C.series(1e4), '+ tenant_id: ', P.bad, win(e, .5, .9)); }
+      say(R, [o0[0] + W, .5, o0[2] + D], C.series(1e4), '+ tenant_id: ', P.bad, win(e, .5, .9)); }
   }
   // bounds grow with the step: the full view (the stage's distance) is the largest, so close views stay free of distortion
   const v0 = (y) => [[O[0] - 1.6, 0, O[1] - .7], [O[0] + 1.6, y, O[1] + .9]];
-  const V = [v0(.3), v0(.3), v0(.9), [[-3, 0, -3.4], [3, .9, 4.2]], [[-4, 0, -4.5], [58, 3, 74]], [[-5, 0, -6], [618, 3, 800]]];
+  const V = [v0(.3), v0(.3), v0(.9), [[-3, 0, -3.4], [3, .9, 4.2]], [[-4, 0, -4.5], [58, 3, 92]], [[-5, 0, -6], [618, 3, 960]]];   // the extra depth in front leaves floor for the two lines
   S3.stage({ id: 'stg-card', list: 'sx-card', fig: 'Fig. 3 · one cube per time series', cam: [.6, .62], bounds: V[5], aspect: .62, dur: 1600, hold: 4800, draw,
     margin: w => w < 520 ? [34, 10, 14, 10] : [40, 18, 22, 18],
     view: k => ({ cam: k >= 4 ? [.6, .82] : [.6, .55], bounds: V[k] }) });

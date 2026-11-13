@@ -46,5 +46,7 @@
   const full = { cam: [.1, .7], bounds: [[-5.2, 0, -1.7], [4.8, .8, 1.9]] };
   S3.stage({ id: 'stg-trace', list: 'sx-trace', fig: 'Fig. 2 · one trace, two processes', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4600, draw,
     margin: w => w < 520 ? [20, 8, 14, 8] : [30, 90, 18, 16],
-    view: k => k === 2 ? { cam: [.5, .42], bounds: [[-4.9, 0, -1.6], [-3.7, 1.7, 1.6]] } : k === 4 ? { cam: [.15, .5], bounds: [[-4.8, 0, -1.2], [2.4, .9, 4.0]] } : null });
+    // on a phone (under 520 px) the camera looks along the time axis, as Fig. 1 does, so the long band fills the tall card (the close views keep their angle)
+    view: k => { const v = k === 2 ? { cam: [.5, .42], bounds: [[-4.9, 0, -1.6], [-3.7, 1.7, 1.6]] } : k === 4 ? { cam: [.15, .5], bounds: [[-4.8, 0, -1.2], [2.4, .9, 4.0]] } : null;
+      return innerWidth < 520 && !v ? { cam: [1.5708, .78], bounds: full.bounds } : v; } });
 })();

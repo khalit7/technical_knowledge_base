@@ -20,7 +20,7 @@
     const aI=k===0?1:k===1?.8:.3;R.glass([XI,.05,-.45],[0,0,.9],[0,1.0,0],{c:P.c1,a:aI,nu:2,nv:5});
     lab(R,[XI,1.05,0],'the issue',{b:1,dy:-10,wide:k!==1&&k!==2,a:k===3||k===4?0:aI});lab(R,[XI,0,.45],'trailing newline in usernames',{fs:12,dy:14,c:P.mute,a:k===0?aI:0,wide:1});
     // the container and the repository inside it
-    const cA=k===0?win(e,0,.6):1;
+    const cA=k===0?win(e,0,.6):k===3||k===4?.18:1;   // steps 4 and 5 move in on the tests, so the container (cut by the crop) recedes
     R.glass([XR-1.05,.0,-.8],[2.1,0,0],[0,1.35,0],{c:P.c6,a:cA*.7,nu:4,nv:3});R.glass([XR-1.05,0,-.8],[0,0,1.6],[0,1.35,0],{c:P.c6,a:cA*.6,nu:3,nv:3});R.glass([XR+1.05,0,-.8],[0,0,1.6],[0,1.35,0],{c:P.c6,a:cA*.6,nu:3,nv:3});
     lab(R,[XR,1.35,-.8],'container · Django '+T.version+' @ '+T.base_commit.slice(0,10),{fs:12,b:1,mono:true,dy:-10,c:P.c6,wide:k===5,a:k===3||k===4?0:cA});
     const pA=k>=1?(k===1?win(e,.55,.9):1):0,tA=k>=2?(k===2?win(e,.55,.9):1):0;
