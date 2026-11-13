@@ -4,7 +4,12 @@ plus data/annotations.json (tabs, dates, tags, numbers, checks, corrections, fol
 Writes parts/03_issue.html (the issue, readable without JavaScript) and parts/11_data.js (the same data for
 the week strip). Adapted from the 2026-08-24 issue: items are grouped into tabs by subject, whatever part of
 the issue they came from (the original run, the merged concurrent run, the backfill), and each card says which
-part that was. Visual parts named in "viz_after" are included from parts/v_<name>.html. Run from src/."""
+part that was. Visual parts named in "viz_after" are included from parts/v_<name>.html. Run from src/.
+The split layout (2026-11-06): an item with a visual becomes a split, its text left and the visual right. A visual part
+is one or more blocks separated by <!--split-->; each block is <!--left--> (the visual's explanation: heading, lede,
+step list, sources) then <!--right:anim--> (an animation or 3D stage: first in the DOM, so on a phone it sits at the
+top of its section) or <!--right:fig--> (a chart or widget: after the text, in .s3side). The item's card opens the
+first block's left column. The week strip splits the same way under the At a glance lead."""
 import json, html, re, os
 
 I = json.load(open('data/items.json'))
@@ -45,6 +50,18 @@ def TL(x):  # [[text|tab|target]] -> in-page tab link
         t, tab, to = (m.group(1).split('|') + [''])[:3]
         return f'<a href="#" data-tab="{tab}"' + (f' data-to="{to}"' if to else '') + f'>{t}</a>'
     return re.sub(r'\[\[([^\]]+)\]\]', r, x)
+def split(lead, part):
+    """Wrap lead (the item's card, or the glance lead) and a visual part into split blocks (see the docstring)."""
+    out = []
+    for i, b in enumerate(part.split('<!--split-->')):
+        m = re.match(r'\s*<!--left-->(.*)<!--right:(anim|fig)-->(.*)$', b, re.S)
+        if not m: raise SystemExit('visual part without <!--left--> and <!--right:...-->')
+        L = (lead if i == 0 else '') + m.group(1).strip(); R = m.group(3).strip()
+        if m.group(2) == 'anim':  # a 3D stage is sticky itself; a 2D animation card sits in .s3side, sticky from 1100 px up
+            if 'id="stg-' not in R: R = f'<div class="s3side">{R}</div>'
+            out.append(f'<div class="s3sp"><div class="s3R">{R}</div><div class="s3L">\n{L}\n</div></div>')
+        else: out.append(f'<div class="s3sp"><div class="s3L">\n{L}\n</div><div class="s3R"><div class="s3side">{R}</div></div></div>')
+    return '\n'.join(out)
 G = A['glance']
 items = I['items']
 for it in items: it['tab'] = tab_of(it)
@@ -54,8 +71,9 @@ out.append('<div class="tabs" role="tablist" id="tabs">' + f'<button role="tab" 
            '<button role="tab" data-t="t-more" aria-selected="false">Further reading</button></div>')
 fu_sorted = sorted(A['followups'], key=lambda f: (f['d'], f['id']))
 # ---- At a glance
-g = [f'<div class="tab" id="{G["tab"]}" role="tabpanel">', f'<p class="lead">{TL(G["lead"])}</p>', f'<p>{TL(G["theme"])}</p>']
-if os.path.exists('parts/v_strip.html'): g.append(open('parts/v_strip.html').read())
+g = [f'<div class="tab" id="{G["tab"]}" role="tabpanel">']
+gl = f'<p class="lead">{TL(G["lead"])}</p>\n<p>{TL(G["theme"])}</p>\n'
+g.append(split(gl, open('parts/v_strip.html').read()) if os.path.exists('parts/v_strip.html') else gl)
 g.append('<h2>This week, tab by tab</h2><div class="secrows">')
 for q in SEC:
     cnt = sum(1 for x in items if x['tab'] is q)
@@ -111,10 +129,11 @@ for q in SEC:
         if an.get('feeds'):
             h.append('<div class="fd">Feeds ' + ', '.join(L(esc(FEEDS[k][0]), 'n:' + FEEDS[k][1]) for k in an['feeds']) + '</div>')
         h.append('</article>')
-        out.append('\n'.join(h))
         v = an.get('viz_after')
         if v and os.path.exists(f'parts/v_{v}.html'):
-            out.append(TL(open(f'parts/v_{v}.html').read()))
+            out.append(split('\n'.join(h) + '\n', TL(open(f'parts/v_{v}.html').read())))
+        else:
+            out.append('\n'.join(h))
         data.append({'n': n, 'id': an['id'], 'd': an.get('d'), 'dnote': an.get('dnote'), 'also': an.get('also', []), 'sec': q['id'],
                      'prov': it['prov'], 't': title, 'x': it['text'], 'src': it['sources'] + it['inline'], 'hn': hn, 'tags': an.get('tags', []),
                      'fu': an.get('follow')})

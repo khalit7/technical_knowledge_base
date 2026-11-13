@@ -81,7 +81,7 @@
     const tpp=s.tp?s.tok/s.tp:0;
     $('dfCnt').innerHTML=stat('Target passes',fmt(s.tp),'one per token without a drafter')+stat('Drafter passes',fmt(s.dp),m==='ar'?'seven per cycle':m==='plain'?'no drafter':'one per cycle')+stat('Tokens out',s.tok+' of 16','identical text in every mode')+stat('Tokens per target pass',s.tp?fmt(tpp,2):'0','card, GSM8K: MTP 5.02, DFlash 2 5.46')+stat('Time',fmt(s.ms,0)+' ms','derived, see below');
   }
-  stepAnim({card,pre:'df',modes,dur:1500,render});
+  stepAnim({card,pre:'df',modes,lists:{plain:'sx-df-plain',ar:'sx-df-ar',d1:'sx-df-d1',d2:'sx-df-d2'},dur:4600,render});
   // ---- measured throughput (card tables)
   const T={'1':{GSM8K:[68.9,178.5,185.3,236.1],'MATH-500':[69.0,172.8,174.5,230.7],HumanEval:[69.0,151.9,159.9,214.6],MBPP:[69.0,153.1,163.3,226.9],'MT-Bench':[68.9,134.9,137.6,184.0]},
     '8':{GSM8K:[467.2,1022.1,1040.8,1328.7],'MATH-500':[480.0,1023.5,1025.8,1368.3],HumanEval:[483.4,934.2,956.5,1291.5],MBPP:[478.0,938.1,974.1,1328.0],'MT-Bench':[480.5,835.2,802.3,1090.2]},
@@ -97,5 +97,5 @@
       stat('DFlash 2 speed-up here',sp[3]==null?'n/a':fmt(sp[3],2)+'x',conc==='32'?'MTP '+fmt(sp[1],2)+'x: below 1 means drafting slows a busy GPU':'against plain decoding');
   }
   const seg=$('dfC');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});conc=b.dataset.m;bars()}));
-  $('dfTask').addEventListener('change',bars);onTab(card.closest('.tab').id,bars);bars();
+  $('dfTask').addEventListener('change',bars);onTab($('v-dflash-m').closest('.tab').id,bars);bars();
 })();

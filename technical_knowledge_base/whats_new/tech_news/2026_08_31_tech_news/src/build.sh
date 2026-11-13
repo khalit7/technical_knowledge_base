@@ -1,27 +1,32 @@
 #!/bin/sh
-R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
+# Pin the repo Python (3.12) and locale (glob order): page hashes depend on both. The repo root is found by walking up to .venv or html_utils.
+R=$(cd "$(dirname "$0")" && pwd); while [ "$R" != "/" ] && [ ! -d "$R/.venv" ] && [ ! -d "$R/html_utils" ]; do R=$(dirname "$R"); done
+[ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8
 # Build ../index.html for one tech-news issue.
 # 0. data/annotations.py writes data/annotations.json (dates, notes, follow-ups, tabs).
 # 1. mk_items.py parses live.md (the verbatim Notion fetch) into data/items.json.
 # 2. mk_issue.py merges it with data/annotations.json into parts/03_issue.html and parts/11_data.js,
-#    including the visual parts parts/v_<name>.html where annotations say "viz_after".
-# 3. The parts are concatenated: head and CSS, header (with the week strip), the issue, Further reading,
+#    including the visual parts parts/v_<name>.html where annotations say "viz_after": an item with a visual
+#    becomes a split (its text and the visual's explanation left, the visual right; parts/02_split.html).
+# 3. The parts are concatenated: head and CSS, the split CSS, header, the issue, Further reading,
 #    the hidden error box, then each script in its own <script>, tabs last.
 # Links in any part are written {{text|url}}; url may be n:<notion id>. They expand to target="_blank" links.
 set -e
 cd "$(dirname "$0")"
+# Scripts, each in its own <script>: helpers, the 2D step controller, data, visuals, the 3D renderer (S3 v2) and its scene, the tab wiring last.
+JS="parts/10_js_common.js parts/10b_js_anim.js parts/11_data.js parts/11b_js_jump.js parts/12_js_strip.js parts/14_js_dflash.js parts/15_js_params.js parts/16_js_wiki.js parts/18_js_traffic.js parts/25_js_s3.js parts/31_js_sc_mcp.js parts/99_js_tabs.js"
 python3 data/annotations.py
 python3 mk_items.py
 python3 mk_issue.py
-{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_header.html parts/03_issue.html parts/07_more.html
+{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_split.html parts/02_header.html parts/03_issue.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/10b_js_anim.js parts/11_data.js parts/11b_js_jump.js parts/12_js_strip.js parts/14_js_dflash.js parts/15_js_params.js parts/16_js_wiki.js parts/17_js_mcp.js parts/18_js_traffic.js parts/90_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in $JS; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; exit 1; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; exit 1; fi
+if grep -q "$(printf '\342\200\224')" ../index.html; then echo "EM DASH FOUND"; exit 1; fi
 wc -c ../index.html
 # Reading time (230 words per minute over the issue tab's visible text) and the resources total
 python3 - <<'PY'

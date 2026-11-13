@@ -29,7 +29,7 @@
       if(sel&&pon[sel.prov]===false)sel=null;draw();detail()}))}
   function draw(){
     const narrow=box.clientWidth<560;
-    const W=narrow?Math.max(300,Math.round(box.clientWidth||340)):760,lw=narrow?66:132,cols=nDays+1,cw=(W-lw-8)/cols,rh=30,top=narrow?34:40;
+    const W=narrow?Math.max(300,Math.round(box.clientWidth||340)):Math.min(760,Math.round(box.clientWidth||760)),lw=narrow?66:132,cols=nDays+1,cw=(W-lw-8)/cols,rh=30,top=narrow?34:40;
     const H=top+secs.length*rh+26;
     const x=c=>lw+cw*(c+.5),y=r=>top+rh*(r+.5);
     let s='';
