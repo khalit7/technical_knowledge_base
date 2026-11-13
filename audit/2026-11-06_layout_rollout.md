@@ -288,8 +288,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
 - [x] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
 - [x] `whats_new/papers/re_grading_six_physics_benchmarks` Re-grading six physics benchmarks: most model failures were the test's fault
-- [ ] `whats_new/papers/react` ReAct: Synergizing Reasoning and Acting in Language Models
-- [ ] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
+- [~] `whats_new/papers/react` ReAct: Synergizing Reasoning and Acting in Language Models
+- [~] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
 - [ ] `whats_new/papers/rocketeval` RocketEval: Efficient Automated LLM Evaluation via Grading Checklist
 - [ ] `whats_new/papers/roformer` RoFormer: Enhanced Transformer with Rotary Position Embedding
 - [ ] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
