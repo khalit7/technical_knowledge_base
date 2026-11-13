@@ -40,7 +40,7 @@
     let moved=0,used=0,nsec=0;if(r){moved=r.fetched;used=r.used;nsec=r.nSec}else if(rand){moved=1024;used=128;nsec=32}
     const ca=k===0?.25:1;
     R.box([BW,0,ZM],[.42,Math.max(.02,moved*BS*e),.42],{fill:P.c1,a:ca});R.box([BU,0,ZM],[.42,Math.max(.02,used*BS*e),.42],{fill:P.c2,a:ca});
-    if(k>0){R.label([BW,moved*BS*e,ZM],'moved '+moved.toLocaleString('en-GB')+' B',{mono:true,fs:12,al:'right',dx:-14,dy:-4,c:P.c1,b:1,wide:1});
+    if(k>0){R.label([BW,moved*BS*e,ZM],'moved '+moved.toLocaleString('en-GB')+' B',{mono:true,fs:12,dy:-12,c:P.c1,b:1,wide:1});   // above its column, so a short column's label stays off the sector strip
       R.label([BU,used*BS*e,ZM],'used '+used+' B',{mono:true,fs:12,al:'left',dx:18,dy:-4,c:P.c2,b:1,wide:1});
       R.label([(BW+BU)/2,0,ZM+.3],nsec+' sectors'+(k===4?' · 1 instruction':''),{mono:true,fs:12.5,b:1,dy:16,c:P.ink,wide:1})}
     // on a phone the side labels hide; one line at the top says what the step fetched

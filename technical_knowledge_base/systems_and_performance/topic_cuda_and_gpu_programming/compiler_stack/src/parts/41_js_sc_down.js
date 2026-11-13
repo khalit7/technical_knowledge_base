@@ -49,7 +49,7 @@
       const cA=k===4&&!main?e:1;
       regCubes(R,x,nr,P.c2,cA,fade,fa);
       R.box([x+.55,.02,0],[.34,colH(n),.34],{fill:mix(P.paper,P.c2,.55),a:cA});
-      if(k<4){lab([x+.72,.02+colH(n),0],Math.round(n)+' slots',{mono:true,fs:12,al:'left',dx:6,a:cA,c:P.ink});
+      if(k<4){lab([x+.72,.02+colH(n),0],Math.round(n)+' slots',{mono:true,fs:12,al:k===2?'center':'left',dx:k===2?0:6,dy:k===2?-10:0,a:cA,c:P.ink});   // step 3: above the tall bar, clear of ptxas beside it
         lab([x,.02,.7],t+' · '+(k===3?Math.round(lerp(LV[0][1],LV[3][1],e)):nr)+' regs',{mono:true,fs:12.5,b:1,dy:12,c:P.c2})}
       else{lab([x,.02,.7],t,{mono:true,fs:12.5,b:1,dy:12,c:P.c2,a:cA});lab([x,.02,.7],nr+' regs · '+n+' slots',{mono:true,fs:12,dy:28,c:P.ink,a:cA,wide:1});
         lab([x,.02,.7],'ncols: c[0x0]['+off0+']',{mono:true,fs:12,dy:44,c:P.mute,a:e,wide:1})}
@@ -60,6 +60,6 @@
   const st=S3.stage({id:'stg-down',list:'sx-down',fig:'Fig. 4 · the row softmax on its way down',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[20,16,20,16],
     // step 1 frames the source, step 2 looks down on the PTX's registers, steps 3 and 4 follow the code to sm_90a, step 5 the four targets
-    view:k=>k===0?{cam:[.18,.6],bounds:[[-2.4,2.2,-1],[3.8,3.3,1]]}:k===1?{cam:[.1,.95],bounds:[[-3.2,1.9,-1],[4.6,3.1,1]]}:k<=3?{cam:[.2,.5],bounds:[[-3.0,0,-1],[3.4,2.4,1]]}:{cam:[.12,.75],bounds:[[-4.3,0,-1],[4.3,1.4,1.2]]}});
+    view:k=>k===0?{cam:[.18,.6],bounds:[[-2.4,2.2,-1],[3.8,3.3,1]]}:k===1?{cam:[.1,.95],bounds:[[-3.2,1.9,-1],[4.6,3.1,1]]}:k<=3?{cam:[.2,.5],bounds:[[-3.0,0,-1],[3.4,3.45,1]]}:{cam:[.12,.75],bounds:[[-4.3,0,-1],[4.3,1.4,1.2]]}});
   (window.CSSTG=window.CSSTG||{})['stg-down']=st;
 })();

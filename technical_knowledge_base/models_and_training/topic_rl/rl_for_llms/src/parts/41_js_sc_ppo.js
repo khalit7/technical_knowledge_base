@@ -16,7 +16,7 @@
   // a model: a glass plate (its weights) standing on a white plinth
   function model(R,key,c,a,big){const [x,z]=POS[key];if(a<=.01)return;R.box([x,0,z],[1.4,.09,.4],{a});R.glass([x-.62,.12,z],[1.24,0,0],[0,big?1.3:1.05,0],{c,a,nu:6,nv:6})}
   function draw(R,k,e){const P=R.P,nar=R.W<520;R.grid(-5.4,3.4,-3.4,3.6,.5);
-    const ACT=[['pol'],['rm'],['ref'],['val'],[],['pol','val']][k],al=key=>ACT.indexOf(key)>=0?1:.22;
+    const ACT=[['pol'],['rm'],['ref'],['val'],[],['pol','val']][k],al=key=>ACT.indexOf(key)>=0?1:k===4&&key==='val'?.07:.22;   // step 5: the idle critic stands large in front of the close view, so it recedes further
     const C={pol:P.c1,ref:P.mute,rm:P.c5,val:P.c4};
     model(R,'pol',C.pol,al('pol'),1);model(R,'ref',C.ref,al('ref'));model(R,'rm',C.rm,al('rm'));model(R,'val',C.val,al('val'));
     // the critic stands in front of the answer, so its name sits under its plinth

@@ -10,9 +10,9 @@
   window.PM_WAVE={a_before:WQ.before.tiles,a_after:WQ.after.tiles,a_tail:WQ.after.tiles-smA,a_idle:smA-(WQ.after.tiles-smA),a_util:WQ.after.util,
     h_sms:smH,h_k:kH,h_wave:perWave,h_waves:Math.ceil(RS.rows/perWave),h_last:full3,h_lastSMs:lastSMs,h_fill:Math.round(1000*full3/perWave)/10};
   const CS=.36,LH=.36,pos=(i,cols)=>[((i%cols)-(cols-1)/2)*CS+.8,0,(Math.floor(i/cols)-4.5)*CS];
-  function layer(R,n,cols,total,y,col,a,P,t){for(let i=0;i<total;i++){const p=pos(i,cols);
+  function layer(R,n,cols,total,y,col,a,P,t,hi){for(let i=0;i<total;i++){const p=pos(i,cols);
       if(i<n)R.box([p[0],y,p[2]],[.3,LH*.86*t,.3],{fill:mix(P.paper,col,.6),a:a*Math.min(1,t*1.5),shadow:false,lw:.45});
-      else R.box([p[0],y,p[2]],[.3,LH*.86,.3],{fill:P.paper,a:a*.4,fa:.12,shadow:false,lw:.5,dz:-.01})}}
+      else R.box([p[0],y,p[2]],[.3,LH*.86,.3],(hi?{fill:mix(P.paper,col,.15),a:a*.75*Math.min(1,t*1.5),fa:.3,ec:col,ea:.85,shadow:false,lw:.7,dz:-.01}:{fill:P.paper,a:a*.4,fa:.12,shadow:false,lw:.5,dz:-.01}))}}   // hi: the last wave's empty slots, a clear outline in its colour
   function floor(R,total,cols,P,a){for(let i=0;i<total;i++){const p=pos(i,cols);R.box(p,[.3,.05,.3],{fill:P.paper,a,shadow:false,lw:.4})}}
   function queue(R,n,col,P,a){if(n<=0||a<=.01)return;const h=Math.min(1.3,.12+n/90);R.box([-3.6,0,0],[.7,h,.7],{fill:mix(P.paper,col,.45),a});
     R.label([-3.6,h,0],n.toLocaleString('en-US')+' waiting',{mono:true,fs:12.5,b:1,dy:-14,a})}
@@ -33,7 +33,7 @@
     if(aH>0){const cols=12,rows=11;floor(R,smH,cols,P,aH);
       const nl=k===3?3:4;
       for(let w=0;w<nl;w++){const t=k===3?Math.max(0,Math.min(1,e*3.2-w*1.0-.2)):(w<3?1:e);
-        layer(R,w<3?smH:lastSMs,cols,smH,w*LH,w===3?P.c2:TAB(w),aH,P,t)}
+        layer(R,w<3?smH:lastSMs,cols,smH,w*LH,w===3?P.c2:TAB(w),aH,P,t,w===3)}
       queue(R,k===3?Math.round(RS.rows-perWave*3*Math.min(1,e)):Math.round(full3*(1-e)),P.c1,P,aH);
       if(e<1)for(let j=0;j<5;j++)R.flowArc([-3.3,.5,0],[pos(j*25+5,cols)[0],(k===3?1:3)*LH,pos(j*25+5,cols)[2]],1,{c:k===3?P.c1:P.c2,a:aH*.85,r:.06,n:5,speed:1.6});
       lab([.8,LH*4,-1.9],'H100 · '+smH+' SMs × '+kH+' blocks = '+perWave.toLocaleString('en-US')+' per wave',{dy:-46,b:1,a:aH,wide:1});
@@ -43,6 +43,6 @@
   }
   const vA={cam:[.35,.62],bounds:[[-4.2,0,-1.9],[3.2,.8,1.6]]},vH={cam:[.35,.58],bounds:[[-4.2,0,-1.9],[3.2,1.5,2.2]]};
   const st=S3.stage({id:'stg-wave',list:'sx-wave',fig:'Fig. 4 · blocks fill the SMs in waves',cam:vA.cam,bounds:vA.bounds,aspect:.62,dur:1800,hold:5000,draw,
-    margin:w=>w<520?[40,10,16,10]:[64,24,24,20],view:k=>k<=2?vA:vH});
+    margin:w=>w<520?[40,10,16,10]:[64,24,24,20],view:k=>{const v=k<=2?vA:vH;return document.getElementById('stg-wave').clientWidth<520?{cam:[.8,.75],bounds:v.bounds}:v}});   // on a phone the camera looks down more, so the SM floor fills more of the card
   (window.PMSTG=window.PMSTG||{})['stg-wave']=st;
 })();

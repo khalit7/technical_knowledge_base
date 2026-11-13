@@ -44,10 +44,11 @@
         [XW,'shuffles, votes, __syncwarp()','one instruction for 32 lanes'],[XT,'only its own registers','runs as one lane']];
       t.forEach(([x,a1,a2],j)=>{const d=j%2?62:0;lab([x,0,PZ+.05],a1,{dy:12+d,fs:12,c:P.ink,a:e,wide:1});lab([x,0,PZ+.05],a2,{dy:28+d,fs:12,c:P.mute,a:e,wide:1})})}
   }
+  const phone=()=>document.getElementById('stg-hero').clientWidth<520;   // on a phone the full view turns the row into depth, so the four levels draw larger
   const full={cam:[.18,.72],bounds:[[-6.4,0,-1.9],[6.0,.6,2.3]]};
   const close=(x0,x1)=>({cam:[.2,.68],bounds:[[x0,0,-1.9],[x1,.6,2.0]]});
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one launch, unpacked',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:4600,draw,
     margin:w=>w<520?[14,10,14,10]:[22,16,96,16],
-    view:k=>k===0?close(-6.4,-2.6):k===1?close(-6.2,.1):k===2?close(-2.9,3.4):k===3?close(.1,6.0):full});
+    view:k=>k===0?close(-6.4,-2.6):k===1?close(-6.2,.1):k===2?close(-2.9,3.4):k===3?close(.1,6.0):phone()?{cam:[.75,.9],bounds:full.bounds}:full});
   (window.PMSTG=window.PMSTG||{})['stg-hero']=st;
 })();

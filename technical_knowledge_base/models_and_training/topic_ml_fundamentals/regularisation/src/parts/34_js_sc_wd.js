@@ -18,7 +18,7 @@
   // the frame shown for row m at step k, progress e
   function frameOf(m,k,e){if(k===0)return 0;if(k===1)return m==='adamw'?20*e:0;if(k===2)return m==='l2'?20*e:20;return 20+10*e}
   function draw(R,k,e){const P=R.P,cL=P.c2,cW=P.c1,cD=P.c3;R.grid(-4.6,4.6,-2.8,2.8,.5);
-    const fL=frameOf('l2',k,e),fW=frameOf('adamw',k,e),aL=k===1?.25:1,aW=k===2?.3:1;
+    const fL=frameOf('l2',k,e),fW=frameOf('adamw',k,e),aL=k===1?.1:1,aW=k===2?.3:1;
     // decay alone, as a glass sheet across both rows at (1 − ηλ)^t, t the back row's step (the front row's in step 3)
     const tD=100*(k===2?fL:fW),yD=HT*pure(tD);
     R.glass([x(0)-.6,yD,ZF+.55],[x(n-1)-x(0)+1.2,0,0],[0,0,ZB-ZF-1.1],{c:cD,a:.42,nu:6,nv:2,th:.01});

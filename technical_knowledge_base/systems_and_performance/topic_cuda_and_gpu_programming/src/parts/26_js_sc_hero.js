@@ -70,7 +70,7 @@
       R.label([5.3,2.1,-1.15],nar?ROWS+' blocks':'grid: '+ROWS+' blocks, one per row',{al:'left',dx:8,fs:12.5,b:1,c:P.c2,a:e})}
     // ---- one SM up close: warps of 32 lanes; a branch split inside one warp ----
     if(k===5){for(let j=0;j<4;j++){const z=FS[2]-.39+.26*j,y=FS[1]+FSZ[1],sp=j===3;
-        for(let l=0;l<32;l++)R.box([FS[0]-.56+1.12*(l+.5)/32,y,z],[.027,sp?(l%2?.05:.12):.05,.13],{fill:sp?(l%2?mix(P.paper,P.c2,.65):mix(P.paper,P.c6,.65)):mix(P.paper,P.c1,.45),a:e,shadow:false,lw:.35})}
+        for(let l=0;l<32;l++)R.box([FS[0]-.56+1.12*(l+.5)/32,y,z],[.027,sp?(l%2?.05:.12):.05,.13],{fill:sp?(l%2?mix(P.paper,P.c2,.65):mix(P.paper,P.c6,.65)):mix(P.paper,P.c1,.45),a:e,shadow:false,lw:.35,dz:-3})}   // dz: the lanes stand on the SM's top face, so they sort in front of it
       R.label([FS[0]+.65,FS[1]+FSZ[1],FS[2]-.13],nar?'warp: 32 lanes':'a warp: 32 lanes, one instruction',{al:'left',dx:8,fs:12.5,b:1,c:P.c1,a:e});
       R.label([FS[0]+.65,FS[1]+FSZ[1],FS[2]+.39],nar?'split: '+DIV+'× slower':'a branch split inside it: '+DIV+'× slower (M1 Pro)',{al:'left',dx:8,dy:14,fs:12.5,b:1,c:P.c2,a:e})}
     // ---- the memory ladder: fetched once from HBM, reused on chip ----
@@ -116,7 +116,7 @@
   const V=[{cam:[.35,.38],bounds:[[-7,0,-1.2],[-3.8,1.9,1.4]]},{cam:[.4,.42],bounds:[[-7.1,0,-1.5],[-3.8,1.9,1.4]]},{cam:[.45,.42],bounds:[[-7,0,-1.5],[-1.2,2.1,1]]},
     {cam:[.35,.44],bounds:[[-6.6,0,-1],[3.2,1.2,2.1]]},{cam:[.35,.6],bounds:[[0,0,-1.8],[6.5,2.3,2]]},{cam:[.25,.95],bounds:[[1,0,.2],[4.4,.4,1.5]]},
     {cam:[.3,.48],bounds:[[0,0,-.4],[3.8,1.1,1.55]]},{cam:[.3,.55],bounds:[[.9,0,.1],[4.2,1.1,1.5]]},{cam:[.75,.6],bounds:[[0,0,Z2-1.8],[6.5,1.1,1.9]]},
-    {cam:[.25,.3],bounds:[[-7,0,-2.4],[6.6,2.4,1.0]]}];
+    {cam:[.3,.6],bounds:[[-7,0,-2.2],[6.6,2.2,.8]]}];
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one kernel\'s life, and the page that owns each part',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5200,draw,
     view:k=>V[k]||full,margin:w=>w<520?[16,8,14,8]:[20,16,16,16]});
 })();

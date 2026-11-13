@@ -74,6 +74,7 @@
       RD.stat('Copy instructions per K slice',c.copy||'0',c.ldsm?'+ '+c.ldsm+' ldmatrix':'')}
   const full={cam:[.12,.5],bounds:[[-5.2,0,-1.0],[5.4,1.6,4.2]]};
   const st=S3.stage({id:'stg-pipe',list:'sx-pa',fig:'Fig. 3 · one tile, one K slice at a time',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
+    view:()=>document.getElementById('stg-pipe').clientWidth<520?{cam:[.7,.75],bounds:full.bounds}:null,   // on a phone the row turns into depth, so the parts draw larger
     margin:w=>w<520?[16,10,16,10]:[24,18,30,18],onStep:k=>{try{counters(k)}catch(err){}}});
   (window.LTSTG=window.LTSTG||{})['stg-pipe']=st;
   RD.seg($('lt-pipeMode'),m=>{mode=m;['ampere','hopper','blackwell'].forEach(g=>$(SEQ[g].list).hidden=g!==m);st.list(SEQ[m].list)});

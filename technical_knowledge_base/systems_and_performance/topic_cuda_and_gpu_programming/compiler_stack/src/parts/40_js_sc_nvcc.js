@@ -51,11 +51,11 @@
       if(id==='F'){const imgs=(S[s].img||[]);R.box([x,0,z],[.9,.62,.8],{fill:mix(P.paper,c,.28),a});
         // the images packed: one thin coloured layer each, on top of the box
         imgs.forEach(([t,l2],j)=>R.box([x,.62+j*.11,z],[.8,.09,.7],{fill:col[l2],a:a*(s<=k?at(k,e,s):0),shadow:false}));
-        if(s<=k&&a>.1){lab([x,.62+imgs.length*.11,z-.4],'fatbinary',{mono:true,fs:12.5,b:1,dy:-10,a:Math.max(a,.6)});
+        if(s<=k&&a>.1){lab([x,.62+imgs.length*.11,z-.4],'fatbinary',{mono:true,fs:12.5,b:1,dy:-17,a:Math.max(a,.6)});
           if(s===k)imgs.forEach(([t,l2],j)=>lab([x+.45,.66+j*.11,z],t,{mono:true,fs:12,al:'left',dx:8,c:col[l2],grp:'img',a:e}))}
         return}
       R.box([x,0,z],[.84,.46,.62],{fill:mix(P.paper,c,.22),a});
-      if(s===k&&a>.1)lab([x,.46,z-.31],nm,{mono:true,fs:12.5,b:1,dy:-10,a:Math.max(a,.6)})});
+      if(s===k&&a>.1)lab([x,.46,z-.31],nm,{mono:true,fs:12.5,b:1,dy:-17,a:Math.max(a,.6)})});
     Object.entries(FILES).forEach(([id,[x,z,nm,kf,l]])=>{const s=firstStep(id);if(s<0)return;const b=kf&&keep[kf],h=fh(b),y=0,a=alpha(s)*edge([x,0,z],[.56,h,.46]);
       R.box([x,y,z],[.56,h,.46],{fill:l==='f'?P.c5:col[l],a:a*.9});
       if(s===k&&a>.1)lab([x,0,z+.23],nm+(b&&mode==='a'?' · '+kb(b):''),{mono:true,fs:12,dy:12,c:l==='f'?P.c5:col[l],a:e,wide:S[k].f[S[k].f.length-1]===id?0:1})});

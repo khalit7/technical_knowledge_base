@@ -14,7 +14,7 @@
     const aB=k===0?1:k===1?Math.max(0,1-2.2*e):0;
     if(aB>0){for(let w=0;w<8;w++){const hi=w===1&&k===1,cx=WX(w),cz=WZ(w);
         for(let l=0;l<32;l++)R.box(lane(l,cx,cz),[.23,.2,.23],{fill:mix(P.paper,TAB[w],.55),a:aB*(k===1&&!hi?.5:1),shadow:false,lw:.5});
-        lab([cx,0,cz+(w<4?-TD/2-.05:TD/2+.05)],'warp '+w+' · '+(32*w)+' to '+(32*w+31),{dy:w<4?-12:14,fs:12,c:P.ink,a:aB})}
+        lab([cx,0,cz+(w<4?-TD/2-.05:TD/2+.05)],'warp '+w+(R.W<520?'':' · '+(32*w)+' to '+(32*w+31)),{dy:w<4?-12:14,fs:12,c:P.ink,a:aB})}
       lab([0,0,2.05],'blockDim.x = 256 · warp w = threads 32w to 32w + 31',{dy:20,b:1,a:aB,wide:1})}
     // 2 to 5. warp 1's issue slots: lit lanes execute, masked lanes wait (drawn flat); slots still to come are faint outlines
     const aS=k===1?Math.max(0,2.2*e-1.2):k>1?1:0;
@@ -26,13 +26,14 @@
         if(now)for(let l=0;l<32;l+=3)if(act(l)){const p=lane(l,cx,0);R.flow([[p[0],1.25,p[2]],[p[0],.42,p[2]]],{c:col,a:aS*.85,r:.05,n:3,speed:1})}
         lab([cx,0,TD/2+.05],nm,{dy:14,b:1,c:future?P.mute:col,a:aS*(future?.5:1),fs:12.5});
         if(!future)lab([cx,0,TD/2+.05],sub,{dy:30,fs:12,c:P.mute,a:aS*(now?1:.7),wide:1})});
-      lab([SX(1.5),0,-TD/2-.05],'if (lane < 16)',{dy:-14,b:1,a:k>=2?(k===2?e:1):0});
+      lab([SX(1.5),0,-TD/2-.05],'if (lane < 16)',{dy:R.W<520?-36:-14,b:1,a:k>=2?(k===2?e:1):0});
       R.line([[SX(0)-TW/2,.01,-TD/2-.35],[SX(3)+TW/2,.01,-TD/2-.35]],{c:P.mute,w:1.5,head:7,a:aS*.8});
       lab([SX(0)-TW/2,0,-TD/2-.35],'issue slots, in time order',{al:'left',dy:-12,fs:12,c:P.mute,a:aS,wide:1});
       if(k===4)R.line([[SX(1)-TW/2,.02,TD/2+.2],[SX(2)+TW/2,.02,TD/2+.2]],{c:H,w:3,a:e})}
   }
-  const vB={cam:[.1,.82],bounds:[[-5.6,0,-2.2],[5.6,.3,2.4]]},vS={cam:[.1,.62],bounds:[[-5.6,0,-1.4],[5.6,1.2,1.4]]};
+  const vB={cam:[.1,.82],bounds:[[-5.6,0,-2.2],[5.6,.3,2.4]]},vS={cam:[.1,.62],bounds:[[-5.6,0,-1.4],[5.6,1.2,1.4]]},
+    vSp={cam:[.55,1.0],bounds:vS.bounds};   // on a phone the issue slots run into depth, so they draw larger (and the warp labels drop their thread ranges)
   const st=S3.stage({id:'stg-warp',list:'sx-warp',fig:'Fig. 2 · a block in warps, a branch in a warp',cam:vB.cam,bounds:vB.bounds,aspect:.5,dur:1500,hold:4600,draw,
-    margin:w=>w<520?[14,10,14,10]:[24,16,34,16],view:k=>k===0?vB:vS});
+    margin:w=>w<520?[14,10,14,10]:[24,16,34,16],view:k=>k===0?vB:document.getElementById('stg-warp').clientWidth<520?vSp:vS});
   (window.PMSTG=window.PMSTG||{})['stg-warp']=st;
 })();

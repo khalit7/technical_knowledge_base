@@ -77,12 +77,12 @@
     if(k===5){const rp=rpath.map(b=>F3(b,.02)),lp=lpath.map(b=>F3(b,.02));
       R.line(rp,{c:ri,w:2.6,a:e,top:1});R.line(lp,{c:la,w:2.6,a:e,top:1});R.flow(rp,{c:ri,a:e,r:.06,speed:1.1,top:1});R.flow(lp,{c:la,a:e,r:.06,speed:1.1,top:1});
       R.ball(F3(knots[1].b,.03),.09,{c:la,a:e,top:1});
-      R.label(F3(knots[1].b),'bp leaves at λ = '+f3(knots[1].lam),{fs:12.5,mono:true,b:1,c:la,dy:16,a:e});
+      R.label(F3(knots[1].b),'bp leaves at λ = '+f3(knots[1].lam),{fs:12.5,mono:true,b:1,c:la,al:'left',dx:-4,dy:18,a:e});
       R.label(F3(rpath[14]),'ridge path: both shrink',{fs:12.5,b:1,c:ri,al:'right',dx:-10,dy:-12,a:e,wide:1});
       R.label(F3([(ols[0]+knots[1].b[0])/2,(ols[1]+knots[1].b[1])/2]),'lasso path',{fs:12.5,b:1,c:la,al:'left',dx:12,dy:8,a:e,wide:1})}
   }
-  const full={cam:[.5,.62],bounds:[[-4.1,0,-3.5],[4.1,HT,3.5]]},top={cam:[0.0001,1.4],bounds:[[-4.1,0,-3.6],[4.4,.1,3.6]]};
+  const full={cam:[.5,.62],bounds:[[-4.1,0,-3.5],[4.1,HT,3.5]]},top={cam:[0.0001,1.4],bounds:[[-4.1,0,-3.6],[5.8,.1,3.6]]};
   S3.stage({id:'stg-ge',list:'sx-ge',fig:'Fig. 2 · two diabetes coefficients, one penalty at a time',cam:full.cam,bounds:full.bounds,aspect:.72,dur:1500,hold:4800,draw,
-    view:k=>k>=4?top:k>=2?{cam:[.42,.7],bounds:[[-4.1,0,-3.5],[4.1,HT*.8,3.5]]}:full,
+    view:k=>k>=4?top:k>=2?{cam:[.42,.7],bounds:[[-4.1,0,-3.5],[5.6,HT,3.5]]}:full,
     margin:w=>w<520?[14,10,14,10]:[18,24,18,24]});
 })();

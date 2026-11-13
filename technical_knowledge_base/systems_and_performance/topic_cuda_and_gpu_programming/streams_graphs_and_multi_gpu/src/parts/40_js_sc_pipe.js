@@ -68,9 +68,10 @@
       (sc.eng===1?RD.stat('Copy engine',pc(busy(iv('in'),t)+busy(iv('out'),t)),'busy so far, both directions'):RD.stat('Copy in',pc(busy(iv('in'),t)),'engine busy so far')+RD.stat('Copy out',pc(busy(iv('out'),t)),'engine busy so far'))+
       RD.stat('SMs',pc(busy(iv('ker'),t)),'busy so far');
     if(h!==last){last=h;$('sg-pipe3-cnt').innerHTML=h}}
+  // on a phone (view below) the host-to-GPU row turns into depth, so it draws larger
   const full={cam:[.22,.62],bounds:[[-5,0,-2.4],[4.4,.9,2.4]]};
   const st=S3.stage({id:'stg-pipe',list:'sx-pipe',fig:'Fig. 1 · 256 MiB in 8 chunks through the copy engines',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1300,hold:4600,draw,
     // the last step is about the SMs: move in close on the GPU
-    view:k=>k===5?{cam:[.4,.6],bounds:[[.8,0,-2.4],[4.3,.9,2.5]]}:full,margin:w=>w<520?[14,8,10,8]:[16,14,12,14]});
+    view:k=>k===5?{cam:[.4,.6],bounds:[[.8,0,-2.4],[4.3,.9,2.5]]}:document.getElementById('stg-pipe').clientWidth<520?{cam:[.7,.8],bounds:full.bounds}:full,margin:w=>w<520?[14,8,10,8]:[16,14,12,14]});
   (window.SGSTG=window.SGSTG||{})['stg-pipe']=st;window.SG_PIPE3={SCH,STEPS};
 })();

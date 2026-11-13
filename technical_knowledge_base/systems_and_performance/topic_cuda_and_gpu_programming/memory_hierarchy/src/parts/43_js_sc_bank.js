@@ -22,12 +22,13 @@
     r.laneWords.forEach((ws,l)=>{if(l%2&&k!==1)return;const b=ws[0]%32;R.flow([[bx(b),.1+CU,.1],[bx(l),YL-.02,ZL]],{c:P.c1,a:.6*e,r:.045,n:2,speed:1.1})});
     // the verdict over the busiest bank
     const top=r.passes,bb=r.counts.indexOf(top);
-    R.label([R.W<520?1.2:0,YL+.14,ZL],top+(top===1?' pass':' passes')+(r.ideal>1?' · ideal '+r.ideal:'')+(top>r.ideal?' · '+top/r.ideal+'-way conflict':''),{mono:true,fs:13,b:1,dy:R.W<520?-40:-20,c:r.passes>r.ideal?P.c2:P.c1,a:e});
+    R.label([R.W<520?1.2:0,YL+.14,ZL],top+(top===1?' pass':' passes')+(r.ideal>1?' · ideal '+r.ideal:'')+(top>r.ideal?' · '+top/r.ideal+'-way conflict':''),{mono:true,fs:13,b:1,dy:R.W<520?-40:-34,c:r.passes>r.ideal?P.c2:P.c1,a:e});
   }
   // tall towers (steps 2 and 5) need a taller frame; flat layouts lean in close
   const tall=k=>RES[k].passes*CU+.3;
   const st=S3.stage({id:'stg-bank',list:'sx-bank',fig:'Fig. 4 · one warp on 32 banks',cam:[.12,.42],bounds:[[-4.7,0,-1.6],[4.7,1.4,.4]],aspect:.5,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[22,90,22,16],
-    view:k=>({cam:[.12,tall(k)>2?.3:.75],bounds:[[-4.7,0,-1.6],[4.7,Math.max(1.1,tall(k)),.4]]})});
+    view:k=>({cam:tall(k)>2?[.12,.3]:[.3,1.0],   // the flat steps look down at an angle, so the strip fills more of the card
+     bounds:[[-4.7,0,-1.6],[4.7,Math.max(1.1,tall(k)),.4]]})});
   (window.MHSTG=window.MHSTG||{})['stg-bank']=st;
 })();

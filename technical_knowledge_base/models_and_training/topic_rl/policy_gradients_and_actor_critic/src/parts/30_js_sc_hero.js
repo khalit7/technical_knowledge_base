@@ -23,7 +23,8 @@
     const pk=k===5?pi.map((p,j)=>lerp(p,pi1[j],e)):pi,ca=k===4?.3:1;
     for(let j=0;j<3;j++){const hl=j===SA&&k>=1&&k<=3,last=j===2&&k===5;
       R.box([X(j),0,ZP],[1.05,pk[j]*HP,1.05],{fill:hl?mix(P.paper,P.c2,.5):last?mix(P.paper,P.acc,.45):P.paper,a:ca});
-      R.label([X(j),pk[j]*HP,ZP],(nar?'':'action '+(j+1)+' · ')+'π '+pk[j].toFixed(2),{mono:true,fs:12.5,dy:-12,b:hl||last,c:hl?P.c2:last?P.acc:P.ink,a:Math.max(.45,ca)});
+      R.label([X(j),pk[j]*HP,ZP],'π '+pk[j].toFixed(2),{mono:true,fs:12.5,dy:-12,b:hl||last,c:hl?P.c2:last?P.acc:P.ink,a:Math.max(.45,ca)});   // the action's name on a line above its probability, so the three columns' labels stay apart
+      if(!nar)R.label([X(j),pk[j]*HP,ZP],'action '+(j+1),{mono:true,fs:12.5,dy:-27,b:hl||last,c:hl?P.c2:last?P.acc:P.ink,a:Math.max(.45,ca)});
       R.label([X(j),pk[j]*HP*.45,ZP+.53],'r = '+REW[j],{fs:13,b:1,c:hl?P.c2:P.mute,a:Math.max(.45,ca)})}
     // 2. the sampled action: a stream from action 1's column to the score row
     if(k===1){const t=Math.min(1,e*1.6);R.glow([X(SA),pi[SA]*HP+.05,ZP],.5,{c:P.c2,a:t*.8});
@@ -48,7 +49,7 @@
     if(k===5){for(let j=0;j<3;j++)R.flowArc([X(j),YP+.4,ZB],[X(j),pk[j]*HP*.5,ZP+.55],1,{c:P.acc,a:(.25+.75*Math.min(1,Math.abs(S.grad[j])))*(1-e*.6),r:.08,speed:1.6,n:9});
       const p3=pi[2]*HP;[[1-EPS,'1 − ε'],[1+EPS,'1 + ε']].forEach(([m,l])=>{R.glass([X(2)-.85,p3*m,ZP-.85],[1.7,0,0],[0,0,1.7],{c:P.c5,a:e,nu:3,nv:3});
         R.label([X(2)+.85,p3*m,ZP+.85],l,{al:'left',dx:6,mono:true,fs:12.5,c:P.c5,b:1,a:e})});
-      R.label([X(2),pk[2]*HP,ZP],'ratio '+(pk[2]/pi[2]).toFixed(2),{mono:true,fs:12.5,dy:-30,b:1,c:P.acc,a:e})}
+      R.label([X(2),pk[2]*HP,ZP],'ratio '+(pk[2]/pi[2]).toFixed(2),{mono:true,fs:12.5,dy:nar?-30:-45,b:1,c:P.acc,a:e})}
   }
   const full={cam:[-.2,.62],bounds:[[-4.4,0,-2.4],[2.6,2.1,2.5]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one update of a softmax policy',cam:full.cam,bounds:full.bounds,aspect:.72,dur:1500,hold:4800,draw,
