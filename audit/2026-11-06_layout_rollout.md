@@ -313,8 +313,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
 - [x] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
 - [~] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
-- [~] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
-- [ ] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
+- [x] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
+- [~] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
 - [ ] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
 
 ## Polish notes (cosmetic, for a pass at the end)
@@ -606,6 +606,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/tech_news/2026_09_07_tech_news`: routing stage turns 4 and 5 columns run off the right edge at step 4; the 08-31 and 09-14 issues link this issue with "(time not yet measured)" and could now quote 49 min.
 - `whats_new/tech_news/2026_09_14_tech_news`: the CED stage's "decoder: not run on the prompt" label is pushed in at the canvas edge at 1400; the V4-Flash tower is cut at the top left in close-up steps.
 - `whats_new/tech_news/2026_09_21_tech_news`: KV stage has empty space above the scene at 1400; step 2 flow dots read as scattered rather than arcs; "Checked" boxes still say "below". Issues quote each other's times as "(~N min)" in 07_more.html, which check_times does not see ("no header"); fixed 09-14's quote of 09-21 by hand (70 to 74).
+- `whats_new/tech_news/2026_10_19_tech_news`: on phones the ARC step list sits well below the chart (card first, then item, then list); the 09-28 issue quotes this issue as "(~35 min)" (now 37; fix after 09-28's rebuild).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -763,3 +764,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Tech news 2026-09-07: one 3D stage on the Portal routing session (illustrative session, per-call numbers asserted in recompute.py), replacing the 2D lanes; the At a glance annotation for Dev tools now says the session is "drawn in 3D". Keep?
 - Tech news 2026-09-14: the V4-Flash / V4.1-Flash toggle merged into one 3D stage showing both models in one eight-step list; the SSD blocks use the report's "nearly half" and "about 1/8" (not recomputed, stated); the stage has its own colours (grey sliding-window, orange cache writers, teal reuse, purple replay, blue new token). Keep?
 - Tech news 2026-09-21: the KV stage uses an illustrative 16-token window and draws each V4.1 layer reading the nearest source layer before it (sources name the four source layers, not the map); the phone camera looks down more steeply. Keep?
+- Tech news 2026-10-19: no 3D stage (the three visuals are a timeline, a log scatter and paired bars; nothing spatial); the ARC card is not sticky on phones (about 400 px). Keep?

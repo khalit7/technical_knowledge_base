@@ -19,7 +19,7 @@
     M.forEach((m,i)=>{if(!vis(m))return;const cx=X(m[2]),cy=Y(m[1]),c=m[3]?'var(--open)':'var(--closed)';
       s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(sel===i?8:6)+'" fill="'+c+'" stroke="var(--bg)" stroke-width="1.5" data-i="'+i+'" style="cursor:pointer"/>';
       const lab=narrow?m[0].replace('Claude ','').replace('DeepSeek ','').replace(' (preview)','').replace('V4.1-Flash-','').replace('MiniMax ',''):m[0];
-      const right=cx<W*0.62;s+='<text x="'+(cx+(right?10:-10))+'" y="'+(cy+4)+'" font-size="'+(narrow?10:11)+'" text-anchor="'+(right?'start':'end')+'" pointer-events="none">'+lab+'</text>'});
+      const right=cx<W*0.62;const dy={'GPT-6 Astra':-4,'Muse Wonder':6}[m[0]]||0;s+='<text x="'+(cx+(right?10:-10))+'" y="'+(cy+4+dy)+'" font-size="'+(narrow?10:11)+'" text-anchor="'+(right?'start':'end')+'" pointer-events="none">'+lab+'</text>'});
     box.innerHTML=svgEl(W,H,s,'Index score against cost per task');
     box.querySelectorAll('circle[data-i]').forEach(c=>c.addEventListener('click',()=>{sel=+c.dataset.i;draw();detail()}));
   }
