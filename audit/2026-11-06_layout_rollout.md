@@ -298,10 +298,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
 - [x] `whats_new/papers/seq_vs_seq` Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
 - [x] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
-- [~] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
+- [x] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
 - [x] `whats_new/papers/statem` StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
 - [~] `whats_new/papers/switch_transformers` Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
-- [ ] `whats_new/papers/t5` Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
+- [~] `whats_new/papers/t5` Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
 - [ ] `whats_new/papers/terminal_universe` Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments
 - [ ] `whats_new/papers/trained_persistent_memory` Trained Persistent Memory for Frozen Encoder-Decoder LLMs: Six Architectural Methods
 - [ ] `whats_new/papers/vit` An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
@@ -593,6 +593,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/sharpening_tax`: its build.sh still calls git rev-parse on its first line (read-only, pre-existing; other pages now walk up to .venv instead).
 - `whats_new/papers/seq_vs_seq`: hero step 4 the model stacks are cut at the bottom edge and the 1B bar sits by "drag to turn"; 17M and 32M stacks a few pixels wide at 390 px; empty space above overview views at 1400.
 - `whats_new/papers/statem`: replay stage close-up cuts the runbook graph at both side edges ("solve" and "handoff" at the edge); stage labels hide on phones.
+- `whats_new/papers/sol_pi`: Tables tab stays full width (table-tab exception); Fig. 1 step 1 family cubes small at 390 px; check_occ.mjs needs Node 22 (--experimental-strip-types) and was not rerun here (build.sh now skips it with a note, keeping the last inputs/check_occ.json, 50,000 of 50,000 identical).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -737,3 +738,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Sharpening Tax: never-solved tasks drawn as dark tiles and lost tasks purple (the page's red equals post-trained orange); step lists for all three cells sit in the page (about 330 words counted but seen only after switching cells); corrected "0.08 to 0.27" to "0.075 to 0.265". Keep?
 - Seq vs Seq (Ettin): the 3D suite stage replaced the paper's Figure 1 image at the top (image moved to a closed block in Results 2); both stages draw all three tasks on one points scale, so generation bars are much taller; header 26 min counts hidden mode lists (one pass about 24). Keep?
 - StateM: the gw stage opens on the StateM harness rather than the soft plan and stays illustrative (labelled); the leaderboard card now states review costs derived from tables.json (Sol max comparator 7.19 points; Terra and Luna max 7.19 and 7.41; GPT-5.5 reference 0.22). Keep?
+- SoL-Pi: the 3D loop stage replaces the static SVG hero; Fig. 2 uses simulator session B (seed 21) with a 1M window, independent of the replay tab (labelled illustrative); the search section's family counts moved into the hero list. Keep?

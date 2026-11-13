@@ -26,7 +26,7 @@ function simSession(seed,steps){
       else A.push({k:'think',out:U(300,900),res:U(200,900),u:R()})}
     A.push({k:'plan',out:120,res:60,u:R()});S.push(A)}
   return S}
-function simRun(S,mode){
+function simRun(S,mode,opt){opt=opt||{};
   const on={af:mode==='af'||mode==='all',occ:mode==='occ'||mode==='all',epr:mode==='epr'||mode==='all',op:mode==='op'||mode==='all'};
   const K=SIM_K,P=SIM_P;let msgs=[],nid=0,prev=[];
   const T={req:0,read:0,write:0,input:0,out:0,sideIn:0,sideOut:0,compact:0,fused:0,stubbed:0,reduced:0,recalls:0,occEval:0,occYes:0};
@@ -37,12 +37,12 @@ function simRun(S,mode){
   function request(outTok,step,ev,noState){
     // the prompt the provider sees, as (message id, displayed size) segments; the cached prefix is what matches the previous prompt
     if(on.op&&msgs.some(m=>m.big&&m.sends===K.OP_FULL))ev=(ev?ev+' ':'')+'stub';
-    const seg=[['sys',K.SYS]].concat(msgs.map(m=>[m.id+(disp(m)!==m.tok?'s':''),disp(m)]));
+    const seg=[['sys',K.SYS,'sys']].concat(msgs.map(m=>[m.id+(disp(m)!==m.tok?'s':''),disp(m),m.kind,m.big?1:0]));
     let i=0,read=0;while(i<seg.length&&i<prev.length&&seg[i][0]===prev[i][0]){read+=seg[i][1];i++}
     let total=0;seg.forEach(x=>total+=x[1]);const write=total-read;
     prev=seg;T.req++;T.read+=read;T.write+=write;T.out+=outTok;
     msgs.forEach(m=>{if(m.big)m.sends++});
-    series.push({read,write,out:outTok,step,ev:ev||''});
+    series.push(opt.trace?{read,write,out:outTok,step,ev:ev||'',seg:seg.map(x=>x.slice(1)),pre:i}:{read,write,out:outTok,step,ev:ev||''});
     if(noState)return total;
     // Online Context Compact's bookkeeping (state.ts recordProviderRequest)
     const c=total,d=st.lastContextTokens===null?0:c-st.lastContextTokens;

@@ -1,5 +1,5 @@
 #!/bin/sh
-R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
+R=$(cd "$(dirname "$0")" && pwd); while [ "$R" != / ] && [ ! -d "$R/html_utils" ]; do R=$(dirname "$R"); done; [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both; the repo root is found by walking up to html_utils
 # Build ../index.html for a paper page. Fail-safe: every JS part in its own <script>, tab wiring last,
 # the hidden #jsErr box and global error handler before any script.
 # Link macros in the HTML parts:
@@ -13,15 +13,15 @@ set -e
 cd "$(dirname "$0")"
 python3 mk_tables.py > /dev/null
 python3 recompute.py > /dev/null
-node --experimental-strip-types --no-warnings check_occ.mjs > /dev/null
+if node --experimental-strip-types --no-warnings -e 0 2>/dev/null; then node --experimental-strip-types --no-warnings check_occ.mjs > /dev/null; else echo 'check_occ.mjs skipped: it needs Node 22 (--experimental-strip-types); inputs/check_occ.json is kept from its last run'; fi
 python3 mk_paper.py
 python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
 ANC = {'v1': set(open('inputs/anchors_v1.txt').read().split())}
-HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_occ.js', '15_js_sim.js', '12_js_read.js', '16_js_run.js', '13_js_hero.js', '24_js_tables.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_occ.js', '15_js_sim.js', '12_js_read.js', '16_js_run.js', '13_js_hero.js', '24_js_tables.js', '25_js_s3.js', '31_js_sc_loop.js', '32_js_sc_cache.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)

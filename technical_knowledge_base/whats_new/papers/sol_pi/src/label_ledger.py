@@ -15,7 +15,7 @@ HT = 'agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training'
 FAT = {1: 'old header reading line, replaced by the measured one', 7: 'navigation bar',
        204: 'restated the evidence section (nothing to rerun; search cost not reported)'}
 OWNED = {}
-KEYS = {}
+KEYS = {221: 'try: watch pi play, then pick sol-pi', 244: 'the four mechanisms as an opt-in extension for pi', 35: 'context 24, progress 26, tools 26, delegation 15'}  # 2026-11-13: the Try line was reworded for the autoplaying replay
 NEW = [
  ('core', 'Core sentence: point an automated research loop at the harness, select only changes that cut cost within score tolerance; four mechanisms kept; 44.7 to 49.0% fewer tokens (mostly re-read cache), about a third less cost than Pi on EdgeBench, at 93.7 to 94.3% of its score, single runs.', 'point an automated research loop at the'),
  ('core', 'Hero: 152 directions, loops on 535 environments, four survivors; where each acts in the agent loop (context, tool call, observation); the full stack against Pi as a share of Pi for tokens, cost and score, both models.', '152 ideas in, four mechanisms out'),
@@ -25,6 +25,9 @@ NEW = [
  ('owned:' + BH, 'The agent loop: the harness sends the model a request, runs the action it asks for and hands back a result; every request re-sends the context.', 'a harness is a loop that sends the model a request'),
  ('owned:' + CE, 'Prompt caching: the provider reuses work on an identical prefix; changing a message rewrites the cache from there on.', 'so the provider reuses its work on the repeated prefix'),
  ('owned:' + HT, 'Self-improving harness search in general and how to judge it (single search arms, transfer to a model the search never saw, search cost).', 'sol-pi checked with opus 5, which its search never saw'),
+ ('core', 'Fig. 1 (3D stage, layout rollout 2026-11-13): the search from 152 directions by family to the 535 environments, the two gates in order, the four survivors placed where they act in the agent loop, and the stack against Pi as signed bars on plinths for both models (Tables 1 and 2).', 'one cube per proposed direction', 'layout rollout 2026-11-13'),
+ ('core', 'Fig. 2 (3D stage, layout rollout 2026-11-13): the simulator on session B request by request: Pi re-sends everything (98.7% cache reads); the ObservationPack stub shortens the prompt but rewrites the cache after it; Action Fusion removes a request (31 fewer); the reducer swaps a log for a receipt; Online Context Compact collapses the prompt at a plan step when the gate says it pays; the session bill against Table 2.', 'what each one does to the prompt and its cache', 'layout rollout 2026-11-13'),
+ ('core', 'Replay tab (layout rollout 2026-11-13): the step list generated from the simulator, one item per plan step saying what fired, replaces the caption box.', 'plan step by plan step, in the mode on screen', 'layout rollout 2026-11-13'),
 ]
 F = HERE / 'ledger.json'
 u = json.loads(F.read_text())
@@ -38,7 +41,7 @@ def find_key(text):
     for n in (8, 6, 4):
         for i in range(0, max(1, len(w) - n + 1)):
             k = ' '.join(w[i:i + n])
-            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k):
+            if len(k) >= 18 and k in vis and not re.fullmatch(r'[\W\d ]+', k) and not re.search(r'\d+ ?min\b', k):  # never a reading time (2026-11-13)
                 return k
     return ''
 bad = 0
@@ -60,10 +63,10 @@ for x in u:
         x['label'], x['key'] = 'owned:' + OWNED[x['id']][0], OWNED[x['id']][1]
 have = {x['text'] for x in u if x.get('added')}
 n = max(x['id'] for x in u)
-for lab, text, key in NEW:
+for lab, text, key, *sec in NEW:
     if text in have:
         continue
-    n += 1; u.append({'id': n, 'tab': 't-read', 'section': 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
+    n += 1; u.append({'id': n, 'tab': 't-run' if text.startswith('Replay tab') else 't-read', 'section': sec[0] if sec else 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
 F.write_text(json.dumps(u, indent=1, ensure_ascii=False) + '\n')
 c = {}
 for x in u: c[x['label'].split(':')[0]] = c.get(x['label'].split(':')[0], 0) + 1

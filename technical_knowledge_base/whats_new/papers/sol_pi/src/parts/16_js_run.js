@@ -17,7 +17,7 @@ function run(){S=simSession(seed,STEPS);SIM_MODES.forEach(([m])=>{R[m]=simRun(S,
         if(e.k==='gate'){const d=e.dec;bits.push('at the step boundary the gate '+(d.compact?'<b>compacts</b>':'waits')+': rewriting pays back in '+(d.breakevenRequests==null?'n/a':d.breakevenRequests.toFixed(1))+' requests, '+(d.effectiveHorizonRequests==null?'':(d.compact?'within':'beyond')+' the '+fmt(d.effectiveHorizonRequests,0)+' expected')+' ('+d.reason.replace(/_/g,' ')+')')}
         if(e.k==='compact'&&e.why==='window')bits.push('the context reached the window minus the 16,384-token reserve, so Pi\'s native compaction ran');});
       modes[m].push({t:'plan step '+(k+1)+': '+(b-a)+' requests'+(m==='pi'?'':' (Pi: '+(pb-pa)+')')+', largest prompt '+fmt(mxp/1000,0)+'K tokens',
-        c:(bits.length?bits.join('; ')+'.':(m==='pi'?'Pi re-sends the whole conversation on every request; only the new text at the end is a cache write.':'No mechanism fired in this step.'))})}})}
+        c:(bits.length?bits.join('; ')+'.':(m==='pi'?(k?'No mechanism; the prompt keeps growing.':'Pi re-sends the whole conversation on every request; only the new text at the end is a cache write.'):'No mechanism fired in this step.'))})}})}
 function axes(){let mxR=0,mxY=0;SIM_MODES.forEach(([m])=>{mxR=Math.max(mxR,R[m].series.length);R[m].series.forEach(x=>{mxY=Math.max(mxY,x.read+x.write)})});return {mxR,mxY}}
 function draw(m,k,e,W){const r=R[m],p=R.pi,{mxR,mxY}=axes(),H=Math.max(230,Math.min(300,W*.5)),pl=46,pr=10,pt=18,pb=30;
   const bw=(W-pl-pr)/mxR,Y=v=>pt+(H-pt-pb)*(1-v/mxY);
@@ -51,12 +51,14 @@ function totals(){const p=R.pi;let h='<table><thead><tr><th>Mode</th><th class="
   const w=+$('ssWin').value;$('ssTotNote').innerHTML='Illustrative session '+$('ssSeed').selectedOptions[0].text+', '+(w>=1e6?'1M':(w/1000)+'K')+'-token window. The last two columns are the paper\'s measured changes against Pi on EdgeBench (Table 4), for comparison of direction only: the simulated session is not an EdgeBench task. '+(w===200000?'With a 200K window Pi compacts on its own when the context fills, which already removes old large results; a mechanism that keeps the context smaller can postpone that compaction and so save less, or even cost more, over the session. That interaction is real but its size depends on the task.':'With a 1M window Pi never compacts in this session, so every mechanism that shrinks the context saves.');}
 SIM_K.WINDOW=+$('ssWin').value;
 run();
-const A=makeAnim({id:'ss',modes,mode:'pi',draw,counters,dur:2600});
+// the mode buttons first, so makeAnim binds them; the step list (one item per plan step) is written for the mode on screen before every reset
 const seg=$('ssM');
-// build the mode buttons once (makeAnim binds them when it starts, so add them before it binds: rebind here)
-SIM_MODES.forEach(([m,n],i)=>{const b=document.createElement('button');b.dataset.m=m;b.textContent=m==='pi'?'Pi':n.replace('+ ','');if(!i)b.classList.add('on');b.setAttribute('aria-pressed',i?'false':'true');seg.appendChild(b);
-  b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});A.st.m=m;A.st.k=0;A.st.t=1;A.st.play=false;A.st.lk=-1;A.draw();A.kick()})});
-function rerun(){run();A.st.lk=-1;A.draw();totals()}
+SIM_MODES.forEach(([m,n],i)=>{const b=document.createElement('button');b.dataset.m=m;b.textContent=m==='pi'?'Pi':n.replace('+ ','');if(!i)b.classList.add('on');b.setAttribute('aria-pressed',i?'false':'true');seg.appendChild(b)});
+function list(m){$('sx-ss').innerHTML=modes[m].map(x=>'<li><b>'+x.t.replace(/^plan step (\d+): /,'Plan step $1.</b> ')+'. '+x.c+'</li>').join('')}
+const lists={};SIM_MODES.forEach(([m])=>lists[m]='sx-ss');
+list('pi');
+const A=makeAnim({id:'ss',modes,mode:'pi',lists,before:list,draw,counters,dur:4200,move:.8});
+function rerun(){run();A.reset();totals()}
 $('ssSeed').addEventListener('change',e=>{seed=+e.target.value;rerun()});
 $('ssWin').addEventListener('change',e=>{SIM_K.WINDOW=+e.target.value;rerun()});
 onTab('t-run',()=>{totals();refit($('ssSvg'));drawGate()});
