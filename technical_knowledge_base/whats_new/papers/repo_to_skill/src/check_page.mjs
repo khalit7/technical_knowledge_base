@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the 3D stages playing in view and stepping end to end.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/repo_to_skill/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,11 +42,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
-    for (const id of ['mt', 'rp']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
+    // since 2026-11-13 each 3D stage plays by itself once scrolled into view (the 2026-10-25 never-autoplay rule is retired)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // open every closed block and audit what it shows
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true)); await audit(t + ' details open');
@@ -86,26 +85,16 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       for (let i = 0; i < n; i++) { await p.evaluate((sel, i) => { const x = document.querySelectorAll(sel)[i]; if (x) x.dispatchEvent(new MouseEvent('click', { bubbles: true })) }, sel, i); actions++ }
       if (n) await audit(t + ' ' + sel);
     }
-    for (const id of ['rp', 'mt']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const eps = await p.$$eval(`#${id}Ep option`, os => os.map(o => o.value)).catch(() => []);
-      for (const ep of (eps.length ? eps : [null])) {
-        if (ep) { await p.evaluate((id, ep) => { const e = document.getElementById(id + 'Ep'); e.value = ep; e.dispatchEvent(new Event('change', { bubbles: true })) }, id, ep); actions++ }
-        const modes = await p.$$eval(`#${id}M button`, bs => bs.filter(b => !b.hidden).map(b => b.dataset.m)).catch(() => []);
-        for (const m of (modes.length ? modes : [null])) {
-          if (m) await clk(`#${id}M button[data-m="${m}"]`);
-          await clk(`#${id}Play`); await clk(`#${id}Play`);
-          await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-          const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2) && (id !== 'tr' || ['apple', 'keys', 'web'].includes(ep))) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${(m || 'x').replace(':', '-')}-${scheme}-${width}.png` }) } }
-          await audit(`${t} ${id} ${m} stepped`);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
-        }
+    // step each stage end to end with its own controls (both forms of the method stage); check_stages.mjs checks the lists and the motion
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      const modes = id === 'stg-meth' ? ['ag', 'to'] : [null];
+      for (const m of modes) {
+        if (m) await clk(`#mtM button[data-m="${m}"]`);
+        const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+        for (let k = 0; k < n; k++) { await clk(`#${id}-f`); actions++ }
+        await audit(`${t} ${id} ${m || ''} stepped`);
+        for (let k = 0; k < n; k++) { await clk(`#${id}-b`); actions++ }
       }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);

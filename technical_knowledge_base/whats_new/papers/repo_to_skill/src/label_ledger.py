@@ -12,7 +12,8 @@ PAGE = 'whats_new/papers/repo_to_skill'
 CC = 'agents_and_retrieval/topic_agentic_harnesses/claude_code'
 FAT = {4: 'the card no longer quotes the database property verbatim; the takeaway_note now says what was softened and why'}
 OWNED = {}
-KEYS = {}
+# keys re-pointed by hand in the 2026-11-13 layout rollout (wording moved into step lists, controls replaced; no key holds a reading time)
+KEYS = {32: 'beside this is a real one from the release', 43: 'the released creator run on huggingface_hub', 44: 'task-agnostic: a repository task-oriented: an mle-bench competition', 45: 'the two forms differ in more than the anchor', 94: 'the chart sorts the 20 papers', 204: 'every file a tile whose width is its size in bytes', 205: 'the same reads against the two alternatives the design avoids', 206: 'tokens are estimated at 4 bytes per token', 236: 'for the readme, the router and one repository graph'}
 NEW = [
  ('core', 'Core sentence: DisCo distils a repository, papers or a task into a checked skill graph; the 1,000-repository library (5,353 skills) counts out, but the four gains (MLE-bench 31.1% to 72.9%) come from skills built for each benchmark.', 'come from skills built for each benchmark, not from that library'),
  ('core', 'Hero: the four benchmark results as dumbbells, each labelled with where its skills came from; none is the library.', 'every benchmark improved, and every one used skills built for it'),

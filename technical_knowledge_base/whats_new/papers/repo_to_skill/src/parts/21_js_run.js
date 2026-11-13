@@ -1,46 +1,23 @@
-// ---- Run tab: replay of the released session's skill reads (to scale), the router walker, the FrontierCS graph ----
-const SQ=512; // bytes per square in the replay
-(function(){
-  const R=LIB.reads.filter(r=>r[3]),out=LIB.reads.filter(r=>!r[3]);
-  const short=p=>p.replace('repositories/repo-skills-router/','router/').replace('repositories/repo-skills/','');
-  const groups=[];R.forEach(r=>{let g=groups.find(x=>x.t===r[0]);if(!g){g={t:r[0],f:[]};groups.push(g)}g.f.push({p:short(r[1]),b:r[2]})});
-  const cat=p=>p.startsWith('router/')?'r':/SKILL\.md$/.test(p)?'s':'x';
-  const S=LIB.session,desc=LIB.meta.description_chars_total,vs=LIB.repos.filter(r=>r[0]==='vllm-project/vllm'||r[0]==='sgl-project/sglang');
-  const whole=vs.reduce((a,r)=>a+r[3],0);
-  const CAPR=['The router\'s own SKILL.md: the routing procedure and the 20-area map. It is the only library file visible to the model at the start.',
-    'One area page, Model Deployment and Optimization: its 4 families.','One family page, Inference Serving, listing its repositories with descriptions. At 13 KB it is the largest single read.',
-    'The two repository entry skills. The agent also read one skill from outside the library (karpathy-guidelines, 2,506 characters), not counted here.',
-    'Two sub-skills per framework (deployment performance and OpenAI serving for vLLM; benchmarking and serving runtime for SGLang) and both provenance files.',
-    'Five references: vLLM\'s configuration, performance and troubleshooting notes; SGLang\'s workflow map and troubleshooting. This is the last skill file the session opens.',
-    'Then about five hours of installing, serving, tuning and measuring. SGLang came out 2.96% faster at concurrency 32; the session made '+S.tool_calls+' tool calls in all.'];
-  const TT=['Router','Area page','Family page','Entry skills','Sub-skills','References','The work'];
-  const mk=(fs,t,c,tt)=>({files:fs,t:tt,c,at:t});
-  const steps={routed:groups.map((g,i)=>mk(g.f,g.t,CAPR[i],TT[i])).concat([mk([],S.seconds,CAPR[6],TT[6])])};
-  const flatG=groups.slice(3);
-  steps.flat=[mk([{p:'1,000 repository descriptions',b:desc}],null,'Without a router, a flat list shows the agent every repository\'s one-line description before it starts: '+desc.toLocaleString('en-GB')+' characters, '+(desc/R.reduce((a,r)=>a+r[2],0)).toFixed(1)+' times everything the routed session read.','All descriptions')]
-    .concat(flatG.map((g,i)=>mk(g.f,null,'The same files as the routed session from here on: '+['entry skills','sub-skills and provenance','references'][i]+'.',TT[3+i])));
-  steps.whole=[mk([{p:'router/SKILL.md',b:R[0][2]}],null,'Start the same way, from the router.','Router'),
-    mk([{p:'vllm (whole graph)',b:vs.find(r=>r[0].startsWith('vllm'))[3]},{p:'sglang (whole graph)',b:vs.find(r=>r[0].startsWith('sgl'))[3]}],null,'Without progressive disclosure, both graphs load at once: every SKILL.md, reference and script, '+whole.toLocaleString('en-GB')+' bytes. vLLM\'s graph alone is '+(vs.find(r=>r[0].startsWith('vllm'))[3]/1000).toFixed(0)+' KB, mostly references; the session read '+(100*R.filter(r=>r[1].includes('/vllm/')).reduce((a,r)=>a+r[2],0)/vs.find(r=>r[0].startsWith('vllm'))[3]).toFixed(0)+'% of it.','Both graphs whole')];
-  const tot=m=>steps[m].reduce((a,s)=>a+s.files.reduce((b,f)=>b+f.b,0),0);
-  const maxB=Math.max(...Object.keys(steps).map(tot));
-  const COL={r:'var(--c3)',s:'var(--c1)',x:'var(--c2)'};
-  const modes={};Object.keys(steps).forEach(m=>modes[m]=steps[m].map(s=>({t:s.t,c:s.c})));
-  makeAnim({id:'rp',mode:'routed',modes,dur:2600,
-    draw(m,k,e,w){const cs=w<520?7:9,gap=1,per=Math.floor((w-4)/(cs+gap)),nMax=Math.ceil(maxB/SQ),rows=Math.ceil(nMax/per);
-      let s='',idx=0;const st=steps[m];
-      st.forEach((stp,i)=>{if(i>k)return;stp.files.forEach(f=>{const n=Math.max(1,Math.round(f.b/SQ)),c=f.p.includes('description')||f.p.includes('whole')?'var(--mute)':COL[cat(f.p)]||'var(--c2)';
-        const op=i<k?1:e;for(let j=0;j<n;j++){const q=idx+j,x=(q%per)*(cs+gap),y=Math.floor(q/per)*(cs+gap);s+='<rect x="'+x+'" y="'+y+'" width="'+cs+'" height="'+cs+'" fill="'+c+'"'+(op<1?' opacity="'+op.toFixed(2)+'"':'')+(i===k&&i>0?' stroke="var(--ink)" stroke-width=".6"':'')+'/>'}idx+=n})});
-      for(let q=idx;q<rows*per&&q<nMax;q++){const x=(q%per)*(cs+gap),y=Math.floor(q/per)*(cs+gap);s+='<rect x="'+x+'" y="'+y+'" width="'+cs+'" height="'+cs+'" fill="none" stroke="var(--line)" stroke-width=".6"/>'}
-      let y=rows*(cs+gap)+14;
-      const L=legend([['router pages','var(--c3)'],['SKILL.md','var(--c1)'],['references','var(--c2)'],['descriptions or whole graphs','var(--mute)']],0,y,w);s+=L.s;y+=L.h;
-      wrapT('One square = '+SQ+' bytes (about 128 tokens). Empty squares fill the largest of the three strategies.',Math.floor(w/6.4)).forEach((l,i)=>{s+=tx(0,y+4+i*14,l,{fs:11,c:'var(--mute)'})});y+=12+14*(wrapT('One square = '+SQ+' bytes (about 128 tokens). Empty squares fill the largest of the three strategies.',Math.floor(w/6.4)).length-1);
-      const cur=st[k].files,nm=p=>w<560&&p.includes('/')?p.split('/')[0]+' · '+p.split('/').slice(-2).join('/').replace(/^(references|sub-skills)\//,''):p;cur.forEach(f=>{y+=16;s+=tx(0,y,nm(f.p)+'  '+f.b.toLocaleString('en-GB')+' B',{fs:12,c:'var(--ink)'})});
-      return svgW(w,y+6,s,'Bytes in context, step '+(k+1))},
-    counters(m,k){const st=steps[m].slice(0,k+1),b=st.reduce((a,s)=>a+s.files.reduce((c,f)=>c+f.b,0),0),nf=st.reduce((a,s)=>a+s.files.length,0);
-      const t=steps[m][k].at;
-      return stat('Bytes loaded',b.toLocaleString('en-GB'))+stat('About tokens',Math.round(b/4).toLocaleString('en-GB'),'bytes ÷ 4, rough')+stat('Share of the library',(100*b/LIB.meta.library_bytes).toFixed(3)+'%','of '+(LIB.meta.library_bytes/1e6).toFixed(0)+' MB')+stat(m==='routed'?'Session clock':'Items loaded',m==='routed'?(t>=3600?(t/3600).toFixed(1)+' h':t.toFixed(0)+' s'):nf)}});
-  const rb=tot('routed');
-  $('rpOut').innerHTML='<b>Same scale, three strategies:</b> router '+rb.toLocaleString('en-GB')+' bytes; every description up front '+tot('flat').toLocaleString('en-GB')+' ('+(tot('flat')/rb).toFixed(1)+'×); both graphs whole '+tot('whole').toLocaleString('en-GB')+' ('+(tot('whole')/rb).toFixed(1)+'×). Against the whole library ('+LIB.meta.library_bytes.toLocaleString('en-GB')+' bytes) the routed reads are '+(LIB.meta.library_bytes/rb).toFixed(0)+' times smaller. The session itself sent '+S.uncached_input_tokens.toLocaleString('en-GB')+' uncached input tokens and wrote '+S.output_tokens.toLocaleString('en-GB')+' output tokens over '+S.assistant_turns+' turns, so the skill reads are a small part of what it spent.';
+// ---- Run tab: what the router saved (the replay itself is the 3D stage in 32_js_sc_rt.js), the router walker, the FrontierCS graph ----
+const SQ=512; // bytes per square
+// What the router saved: the session's library reads against two loading strategies it avoided, as squares of 512 bytes on one scale
+(function(){if(!$('rpcSvg'))return;
+  const R=LIB.reads.filter(r=>r[3]),S=LIB.session,desc=LIB.meta.description_chars_total,vs=LIB.repos.filter(r=>r[0]==='vllm-project/vllm'||r[0]==='sgl-project/sglang');
+  const T=t=>R.filter(r=>r[0]>=t).reduce((a,r)=>a+r[2],0),rb=T(0),graphFiles=T(64.8);
+  const ST=[{n:'Router (what the agent did)',parts:[['router pages',R.filter(r=>r[1].includes('router')).reduce((a,r)=>a+r[2],0),'var(--c3)'],['graph files read',graphFiles,'var(--c1)']]},
+    {n:'Every description up front',parts:[['1,000 descriptions',desc,'var(--mute)'],['the same graph files',graphFiles,'var(--c1)']]},
+    {n:'Both graphs whole',parts:[['router SKILL.md',R[0][2],'var(--c3)'],['vLLM and SGLang graphs, every file',vs.reduce((a,r)=>a+r[3],0),'var(--mute)']]}];
+  ST.forEach(s=>s.t=s.parts.reduce((a,p)=>a+p[1],0));
+  window.R2S_CMP=ST.map(s=>s.t);
+  fit($('rpcSvg'),w=>{const cs=w<520?5:6,gap=1,per=Math.floor((w-2)/(cs+gap));let y=0,s='';
+    ST.forEach(st=>{s+=tx(0,y+13,st.n,{fs:12.5,w:'700'})+tx(w,y+13,st.t.toLocaleString('en-GB')+' bytes',{fs:12,a:'end',c:'var(--mute)'});y+=20;let q=0;
+      st.parts.forEach(([n,b,c])=>{const m=Math.max(1,Math.round(b/SQ));for(let j=0;j<m;j++,q++)s+='<rect x="'+((q%per)*(cs+gap))+'" y="'+(y+Math.floor(q/per)*(cs+gap))+'" width="'+cs+'" height="'+cs+'" fill="'+c+'"/>'});
+      y+=Math.ceil(q/per)*(cs+gap)+6;
+      let lx=0;st.parts.forEach(([n,b,c])=>{const t=n+' '+b.toLocaleString('en-GB');if(lx+t.length*6.5+16>w&&lx>0){lx=0;y+=15}s+=rc(lx,y+3,9,9,c,{r:2})+tx(lx+13,y+12,t,{fs:11.5});lx+=t.length*6.5+30});y+=26});
+    s+=tx(0,y+4,'One square = '+SQ+' bytes (about 128 tokens).',{fs:11.5,c:'var(--mute)'});
+    $('rpcSvg').innerHTML=svgW(w,y+10,s,'Bytes in context for three loading strategies')});
+  $('rpOut').innerHTML='<b>Same scale, three strategies:</b> router '+rb.toLocaleString('en-GB')+' bytes; every description up front '+ST[1].t.toLocaleString('en-GB')+' ('+(ST[1].t/rb).toFixed(1)+'×); both graphs whole '+ST[2].t.toLocaleString('en-GB')+' ('+(ST[2].t/rb).toFixed(1)+'×). Against the whole library ('+LIB.meta.library_bytes.toLocaleString('en-GB')+' bytes) the routed reads are '+(LIB.meta.library_bytes/rb).toFixed(0)+' times smaller. vLLM\'s graph alone is '+(vs.find(r=>r[0].startsWith('vllm'))[3]/1000).toFixed(0)+' KB, mostly references; the session read '+(100*R.filter(r=>r[1].includes('/vllm/')).reduce((a,r)=>a+r[2],0)/vs.find(r=>r[0].startsWith('vllm'))[3]).toFixed(0)+'% of it. The session itself sent '+S.uncached_input_tokens.toLocaleString('en-GB')+' uncached input tokens and wrote '+S.output_tokens.toLocaleString('en-GB')+' output tokens over '+S.assistant_turns+' turns, so the skill reads are a small part of what it spent.';
+  onTab('t-run',()=>refit($('rpcSvg')));
 })();
 
 // Router walker
