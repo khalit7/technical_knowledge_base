@@ -34,6 +34,9 @@ Rejected: redrawing Figures 6 and 7's FSDP2 curves (no printed values; reading c
 | P-moe_training_memory_bottlenecks.8 | Predict: SCO's 8 GiB budget and the peak drop, bars of Table 3 with the boundary payload still on device | Reading, Checkpoints | Table 3 |
 | P-moe_training_memory_bottlenecks.9 | End-to-end panels from Figures 6 and 7's printed labels only, baseline shown as its out-of-memory region | Reading, Results | Figures 6, 7 (e-print PNG labels) |
 | P-moe_training_memory_bottlenecks.10 | Figure 2 rebuilt from Table 6 (shape and metric toggles); all ten tables sortable; 57 checks with verdict filter | Tables tab | Tables 2 to 14, recompute.py |
+| P-moe_training_memory_bottlenecks.11 | **2026-11-13: .5 as a 3D stage** (`31_js_sc_pk.js`): one GPU at two moments of a step (inside an MoE layer, at the head) as towers of slabs to scale against a 141 GB glass plane, the four operators switched on one per step (Ring-DTP, offload, SCO, PipelinedLLEP), offloaded bytes streaming to a host stack; model and tokens per rank under the steps | Reading, Four live sets | Table 1, liveSets() |
+| P-moe_training_memory_bottlenecks.12 | **2026-11-13: .1 as a 3D stage** (`32_js_sc_dsx.js`): the 8 × 8 send matrix as a bar field per chunk, receive towers behind it with highest-so-far rings, chunks 2 to 5 and 6 to 10 played within one step each, then rescaled to LLEP's whole batch with Eq. 1's guarantee as a glass plane; strided and contiguous share one step list | Reading, Dispatch | B.2, Table 8, rtData() |
+| P-moe_training_memory_bottlenecks.13 | **2026-11-13: .2 as a 3D stage** (`33_js_sc_rgx.js`): four rank boards on a ring, each with its batch as signed bars, its shard as a glass plate and its strip as signed bars; shards (or batches and states) hop along the ring arcs; the state values in a table under the steps | Reading, Vocabulary | Algorithm 2, Eq. 3 |
 
 ## Defaults that reproduce
 

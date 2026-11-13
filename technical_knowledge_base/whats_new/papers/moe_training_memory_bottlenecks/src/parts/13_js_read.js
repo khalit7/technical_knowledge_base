@@ -1,29 +1,6 @@
 // ---- The paper tab: which peak runs out first, chunk membership replay, the three-scalar fold, SCO bars, end-to-end labels ----
 (function(){
-const GB=v=>v>=1e12?(v/1e12).toFixed(2)+' TB':(v/1e9).toFixed(v<10e9?1:0)+' GB';
-// 1. Which peak runs out first
-const NS=[2048,4096,8192,16384,32768,65536,131072,262144];
-function pk(){const m=$('pkM').value,N=NS[+$('pkN').value];$('pkNv').textContent=fmt(N);
-  const on={};['disp','logit','bnd','state'].forEach(id=>on[id]=$('pk_'+id).checked);
-  const S=liveSets(m,N),peak=roughPeak(S,on);
-  fit($('pkSvg'),w=>{const lw=w<600?84:150,pr=8,gw=w-lw-pr,rh=30,top=18;
-    const vals=S.map(s=>on[s.id]?s.a:s.b);
-    const mx=Math.max(HBM*1.25,peak*1.05,...S.map(s=>s.b));const X=v=>lw+gw*Math.min(1,v/mx);
-    let s='';const rows=S.concat([{id:'peak',n:'Rough peak',sn:'Rough peak',c:'var(--ink)'}]);
-    rows.forEach((r,i)=>{const y=top+i*rh,isP=r.id==='peak',v=isP?peak:vals[i],full=isP?null:r.b;
-      s+=tx(lw-6,y+15,w<600?r.sn:r.n,{fs:12,a:'end',w:isP?600:null});
-      if(!isP&&on[r.id])s+=rc(lw,y+4,X(full)-lw,16,r.c,{op:.18,r:2});
-      s+=rc(lw,y+4,X(v)-lw,16,r.c,{op:isP?.55:.9,r:2});
-      const lab=GB(v),lx=X(v)+4;
-      s+=lx+70<w?tx(lx,y+16,lab,{fs:11}):tx(X(v)-4,y+16,lab,{fs:11,a:'end',c:'var(--bg)'});
-      if(!isP)s+='<rect x="'+lw+'" y="'+(y+2)+'" width="'+gw+'" height="20" fill="transparent"><title>'+(on[r.id]?'With '+r.op+': '+r.ha.replace(/<[^>]+>/g,''):r.hb.replace(/<[^>]+>/g,''))+'</title></rect>'});
-    const hx=X(HBM),H0=top+rows.length*rh;
-    s+=ln2(hx,top-6,hx,H0,'var(--bad)',{da:'4 3',sw:1.5})+tx(hx+(hx>w-90?-4:4),top-6,'H200: 141 GB',{fs:11,c:'var(--bad)',a:hx>w-90?'end':null});
-    $('pkSvg').innerHTML=svgW(w,H0+6,s,'Per-GPU size of the four live sets')});
-  const order=S.map((s,i)=>[s.n,on[s.id]?s.a:s.b]).sort((a,b)=>b[1]-a[1]);
-  $('pkTxt').innerHTML='Largest now: <b>'+order[0][0]+'</b> ('+GB(order[0][1])+'), next '+order[1][0]+' ('+GB(order[1][1])+'). Rough peak '+GB(peak)+(peak>HBM?', <span class="no">over the H200\'s 141 GB</span>':', <span class="ok">fits in 141 GB</span>')+'. '+MODELS[m].src+'.'}
-['pkM','pkN','pk_disp','pk_logit','pk_bnd','pk_state'].forEach(id=>{$(id).addEventListener('input',pk);$(id).addEventListener('change',pk)});
-onTab('t-read',pk);
+// 1. Which peak runs out first: now the towers stage, parts/31_js_sc_pk.js
 
 // 2. Chunk membership: Table 8 against the replay
 PRED_REVEAL['pr-chunk']=function(){const T8={'Balanced':[1.00,1.02],'95% / 16':[1.35,2.63],'80% / 16':[2.40,4.00],'50% / 4':[2.29,6.00]},names=Object.keys(T8);

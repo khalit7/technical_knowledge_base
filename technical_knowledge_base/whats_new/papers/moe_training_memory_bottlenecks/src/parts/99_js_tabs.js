@@ -1,4 +1,5 @@
-// ---- Tabs ---- (the skill template, storage key mm-tab; links may carry data-to to scroll to an element)
+// ---- Tabs ---- (the skill template, storage key mm-tab; plus: a data-to link opens the closed block that holds its target;
+// #t-run, the old "Run the four schedules" tab, now opens the first of its four step-throughs in the Reading tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -17,6 +18,7 @@
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);if(to){const d=to.closest('details');if(d)d.open=true}(to||bar).scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('mm-tab');if(v&&document.getElementById(v))start=v}catch(e){}
   // a link may name a tab in the URL (page/#t-kv): open it
-  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  let scrollTo=null;try{const h=decodeURIComponent(location.hash.slice(1));if(h==='t-run'){start='t-read';scrollTo='dsx'}else if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
+  if(scrollTo){const el=document.getElementById(scrollTo);if(el)el.scrollIntoView({block:'start'})}
 })();

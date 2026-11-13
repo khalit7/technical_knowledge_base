@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the 3D stages and 2D animations stepping end to end (motion rules: check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/moe_training_memory_bottlenecks/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,12 +42,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.$eval(`#tabs button[data-t=${t}]`, e => e.click()); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view, wait, count frames
-    for (const id of ['dsx', 'rgx', 'scx', 'osx']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
-    }
+    // motion (autoplay once in view, none under reduced motion) is checked by check_stages.mjs since the 2026-11-13 rollout
     // the hero figure is drawn on the reading tab
     if (t === 't-read' && !(await p.$eval('#heroSvg', e => !!e.querySelector('svg rect')))) problems.push(`${scheme} ${width}: hero figure empty`);
     // open every closed block and audit what it shows
@@ -81,28 +76,39 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const segs = await p.$$(`#${t} .seg button`);
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
-    // step the animations through every step and screenshot the middle
-    for (const id of ['dsx', 'rgx', 'scx', 'osx']) {
+    // the 3D stages: every mode stepped to the end with the forward button (a reader control), every dispatch profile, the towers' every model
+    for (const [id, seg] of [['stg-pk', null], ['stg-dsx', 'dsxM'], ['stg-rgx', 'rgxM']]) {
+      if (!(await p.$(`#${t} #${id}`))) continue;
+      const modes = seg ? await p.$$eval(`#${seg} button`, bs => bs.map(b => b.dataset.m)) : [null];
+      for (const m of modes) {
+        if (m) { await clk(`#${seg} button[data-m=${m}]`); actions++ }
+        await p.evaluate(id => { const e = document.getElementById(id + '-r'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
+        const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+        for (let k = 1; k < n; k++) { await clk(`#${id}-f`); actions++; await wait(60); if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1600); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
+        await audit(`${t} ${id} ${m} stepped`);
+        if (id === 'stg-dsx') for (const pv of ['0', '1', '2', '4', '3']) { await p.select('#dsxP', pv); actions++; await audit(`${t} ${id} ${m} profile ${pv}`) }
+        if (id === 'stg-pk') for (const mv of ['oss20', 'm120', 'm241', 'm667']) { await p.select('#pkM', mv); actions++; await audit(`${t} ${id} model ${mv}`) }
+      }
+    }
+    // the 2D step animations: every mode stepped through, then a second of play
+    for (const id of ['scx', 'osx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
         if (m) await clk(`#${id}M button[data-m=${m}]`);
-        await clk(`#${id}Play`); await clk(`#${id}Play`);
         await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
         const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
         for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
         await audit(`${t} ${id} ${m} stepped`);
-        if (id === 'dsx') for (const pv of ['0', '1', '2', '4', '3']) { await p.select('#dsxP', pv); await clk(`#${id}Fwd`); actions++; await audit(`${t} ${id} ${m} profile ${pv}`) }
         for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
       }
-      // let it play for a second
       await clk(`#${id}Play`); await wait(1200);
       const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
       await clk(`#${id}Play`);
     }
   }
   // element shots of the inline visuals, after the tab's controls have run
-  for (const [t, sel] of [['t-read', '#pkCard'], ['t-read', '#ckSvg'], ['t-read', '#lsT'], ['t-read', '#scoSvg'], ['t-read', '#e2eSvg'], ['t-tables', '#f2Svg'], ['t-tables', '#tbT'], ['t-read', '#hero']]) {
+  for (const [t, sel] of [['t-read', '#stg-pk'], ['t-read', '#ckSvg'], ['t-read', '#lsT'], ['t-read', '#scoSvg'], ['t-read', '#e2eSvg'], ['t-tables', '#f2Svg'], ['t-tables', '#tbT'], ['t-read', '#hero']]) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(200);
     const el = await p.$(sel); if (!el) { problems.push('missing ' + sel); continue }
     await el.evaluate(e => e.scrollIntoView()); await wait(100);
