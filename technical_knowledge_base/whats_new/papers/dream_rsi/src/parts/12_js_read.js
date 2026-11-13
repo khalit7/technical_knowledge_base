@@ -30,7 +30,7 @@ function stepChart(w,series,o){const H=o.H||220,pl=50,pr=12,pt=14,pb=34,W=w;
   function caption(t,k){const D=data(t),f=D.f[Math.min(k,D.f.length-1)],d=D.d[Math.min(k,D.d.length-1)],pf=per(D.f),pd=per(D.d);
     const v=x=>D.low?nf(x,1)+' ms':nf(x,4)+' per ms';
     let c='';
-    if(k<D.f.length&&k<D.d.length)c='Fixed exploration spends '+pf[k]+' '+D.unit+' (total '+nf(f[0],0)+') and its best program reaches '+v(f[1])+'; Dream-RSI spends '+pd[k]+' (total '+nf(d[0],0)+') and reaches '+v(d[1])+'.';
+    if(k<D.f.length&&k<D.d.length)c='Fixed exploration: '+pf[k]+' '+D.unit+' ('+nf(f[0],0)+' in all), best '+v(f[1])+'. Dream-RSI: '+pd[k]+' ('+nf(d[0],0)+'), best '+v(d[1])+'.';
     else if(k<D.f.length)c='Dream-RSI has finished ('+D.d.length+' rounds, '+nf(D.d[D.d.length-1][0],0)+' '+D.unit+'). Fixed exploration spends another '+pf[k]+' and reaches '+v(f[1])+'.';
     else c='Fixed exploration has finished. Dream-RSI spends '+pd[k]+' and reaches '+v(d[1])+'.';
     if(k===0)c+=' Round 1 is identical by construction: both start from the same hand-written parallel-refine policy.';
@@ -43,7 +43,9 @@ function stepChart(w,series,o){const H=o.H||220,pl=50,pr=12,pt=14,pb=34,W=w;
     return c+((N[t]||{})[k]||'')}
   function steps(){const D=data(T()),n=Math.max(D.f.length,D.d.length);return [...Array(n)].map((_,k)=>({t:'Round '+(k+1),c:caption(T(),k)}))}
   const modes={both:[],fixed:[],dream:[]};
-  const fill=()=>{const s=steps();['both','fixed','dream'].forEach(m=>{modes[m].length=0;s.forEach(x=>modes[m].push(x))})};fill();
+  // the step list (one item per round, written from the decoded runs; it replaces the old per-step caption)
+  const fill=()=>{const s=steps();['both','fixed','dream'].forEach(m=>{modes[m].length=0;s.forEach(x=>modes[m].push(x))});
+    $('sx-rc').innerHTML=s.map(x=>'<li><b>'+x.t+'.</b> '+x.c+'</li>').join('')};fill();
   function draw(m,k,e,w){const D=data(T()),xmax=Math.max(D.f[D.f.length-1][0],D.d[D.d.length-1][0]);
     const sf=m!=='dream',sd=m!=='fixed';
     // budget lanes
@@ -61,8 +63,8 @@ function stepChart(w,series,o){const H=o.H||220,pl=50,pr=12,pt=14,pb=34,W=w;
     return top+ch}
   function counters(m,k){const D=data(T()),f=D.f[Math.min(k,D.f.length-1)],d=D.d[Math.min(k,D.d.length-1)];const v=x=>D.low?nf(x,1)+' ms':nf(x,4);
     return stat('Fixed: '+D.unit,nf(f[0],0),'value '+v(f[1]))+stat('Dream-RSI: '+D.unit,nf(d[0],0),'value '+v(d[1]))+stat('Dream-RSI cost ÷ fixed',nf(d[0]/f[0],2)+'×','so far')+stat(D.low?'Dream-RSI runtime ÷ fixed':'Dream-RSI speed ÷ fixed',nf(d[1]/f[1],2)+'×',D.low?'below 1 is better':'above 1 is better')}
-  const A=makeAnim({id:'rc',modes,mode:'both',draw,counters,dur:2600});
-  $('rcTask').addEventListener('change',()=>{fill();A.st.k=0;A.st.t=1;A.st.lk=-1;A.draw()});
+  const A=makeAnim({id:'rc',modes,mode:'both',lists:{both:'sx-rc',fixed:'sx-rc',dream:'sx-rc'},draw,counters,dur:3600});
+  $('rcTask').addEventListener('change',()=>{fill();A.reset()});
 })();
 
 // ---- predict 1: per-dataset ratios, Dream-RSI ÷ fixed exploration ----

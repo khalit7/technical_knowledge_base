@@ -17,17 +17,16 @@ python3 check_sim.py > /dev/null
 python3 check_score.py > /dev/null
 python3 recompute.py > /dev/null
 python3 mk_paper.py
-python3 mk_hero.py > /dev/null
 python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
 ANC = {v: set(open('inputs/anchors_%s.txt' % v).read().split()) for v in ('v1', 'v2')}
 AX1 = 'https://arxiv.org/html/%sv1' % P['arxiv']
-HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_simcore.js', '12_js_read.js', '15_js_run.js', '24_js_tables.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_simcore.js', '12_js_read.js', '15_js_run.js', '24_js_tables.js', '25_js_s3.js', '31_js_sc_loop.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
-body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html')).replace('@@HERO@@', rd('03a_hero.svg.html'))
+body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)
 def link(m):
     t, u = m.group(1), m.group(2)
@@ -63,7 +62,7 @@ tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-RDT = json.load(open('reading.json'))  # measured by html_utils/audit_pages.mjs after a build, written by hand (2026-10-25; 2026-10-26: 30.6 and 8.1 min)
+RDT = json.load(open('reading.json'))  # measured by html_utils/audit_pages.mjs after a build, written by hand (2026-10-25; 2026-10-26: 30.6 and 8.1 min; 2026-11-13: 35.2 and 8.1 min)
 out = out.replace('RD_CORE', str(RDT['core'])).replace('RD_DET', str(RDT['details'])).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
 print('reading words', w, 'minutes', mins, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))

@@ -41,3 +41,10 @@ What the methodology lacked for this page: a rule for **ratios chosen at a favou
 | P-dream_rsi.v3 | Table 2 drawn on Figure 3's ConvDiv curve: the all-history run at 437 calls against the current-history run's 1.59 at 430 | 4 / 5 / 1 | Tables | built |
 | P-dream_rsi.v4 | Score toggle in the dream sweep (v2 released score, v1 Eq. 1) and the deployment budget preference | 4 / 5 / 1 | Dream tab | built |
 | P-dream_rsi.v5 | PACEvolve's final value as a dashed line on the kernel chart, at its printed value | 3 / 5 / 1 | Tables | built |
+
+## 2026-11-13 layout rollout
+| id | idea | score | placement | status |
+|---|---|---|---|---|
+| P-dream_rsi.l1 | **The loop as a 3D stage** (Fig. 1): recorded worlds as 10 × 11 bar fields (bar = attempt, height = recorded score, red = failed); the starting policy growing world 1 with flows from the coding agent; the history of three worlds; the dream winner's replay revealing 26 of 110 cells under a purple glass "policy code" plate; the gold glass ceiling at the recorded best; four versions as signed bars of V on plinths (fixed −0.005 hangs below); the winner's next online round on a new world (33 calls). All numbers from SIM on the default history | 5 / 5 (every number computed live and checked by check_stages.mjs) / 1 | Reading, top (replaces the static SVG hero) | built |
+| P-dream_rsi.l2 | The replay of one world in 3D (bars rising as cells are revealed) | 3 / 4 / 2 | Method | rejected: the hero stage already shows a replay in 3D; the Method replay is a branch × attempt heatmap with per-cell scores, which reads best flat, and its selects (policy, world, ρ) make it a tool |
+| P-dream_rsi.l3 | Kernel and Lasso race as 3D lanes of round bars | 2 / 4 / 2 | Setup | rejected: the message is values on a cumulative-cost axis; stays a 2D chart |

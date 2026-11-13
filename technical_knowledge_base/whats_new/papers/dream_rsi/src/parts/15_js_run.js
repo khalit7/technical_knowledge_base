@@ -15,18 +15,28 @@
   function fillWorlds(){const cur=+wsel.value||0;wsel.innerHTML=hist.map((h,i)=>'<option value="'+i+'">'+(i+1)+' of '+hist.length+' (seed '+h.seed+')</option>').join('');wsel.value=String(Math.min(cur,hist.length-1))}
   fillWorlds();
   const W0=()=>hist[+wsel.value||0];
-  const tr={fixed:null,dream:null};
+  const tr={fixed:null,dream:null},SX={fixed:[],dream:[]};
   const dpol=()=>SIM.sched(win.pol,ST.rho);
-  const retrace=()=>{tr.fixed=SIM.replay(W0(),SIM.FIXED,ST.W);tr.dream=SIM.replay(W0(),dpol(),ST.W)};retrace();
-  function cap(m,k){const T=tr[m],R=T.rounds[k];if(!R)return '';const nr=R.opened.length,nf2=R.batch.length-nr,P=dpol();
-    let c='The policy asks for '+R.batch.length+' cell'+(R.batch.length>1?'s':'')+': '+(nf2?(nf2>1?nf2+' refinements of open branches':'1 refinement of an open branch'):'')+(nf2&&nr?' and ':'')+(nr?nr+' new branch'+(nr>1?'es':'')+' from the root':'')+'. Replay reveals each one\'s recorded child; nothing is executed. ';
-    if(R.closedNow.length)c+='It closes branch'+(R.closedNow.length>1?'es ':' ')+R.closedNow.map(([b,why])=>(b+1)+(why==='stale'?' (no gain for '+P.p+' attempt'+(P.p>1?'s':'')+')':' (well below the best seen)')).join(', ')+'. ';
-    if(k===T.rounds.length-1)c+=m==='fixed'?'Every cell is revealed: this is the run that recorded the world (110 attempts in 11 rounds), whatever the budget preference.':'Nothing is left to ask for, so the replay stops: '+T.N+' attempts in '+T.k+' rounds instead of 110 in 11.';
-    return c}
+  // the long-replay rule (2026-11-06): a replay is never one step per round; round 1 is its own step and the rest are grouped into
+  // stretches of at most three rounds, each played round by round during its step and explained by one item of the step list
+  const stretch=n=>{const out=[[0,0]];if(n<2)return out;const m=Math.ceil((n-1)/3);let r=1;for(let i=0;i<m;i++){const len=Math.floor((n-1)/m)+(i<(n-1)%m?1:0);out.push([r,r+len-1]);r+=len}return out};
+  const retrace=()=>{tr.fixed=SIM.replay(W0(),SIM.FIXED,ST.W);tr.dream=SIM.replay(W0(),dpol(),ST.W);['fixed','dream'].forEach(m=>{SX[m]=stretch(tr[m].rounds.length)})};retrace();
+  const pc=(v,best)=>Math.round(100*v/best)+'%';
+  function item(m,k){const T=tr[m],[r0,r1]=SX[m][k],wd=W0(),P=dpol();let nr=0,nf2=0;const cl=[];
+    for(let i=r0;i<=r1;i++){const R=T.rounds[i];nr+=R.opened.length;nf2+=R.batch.length-R.opened.length;R.closedNow.forEach(x=>cl.push(x))}
+    const E=T.rounds[r1],tt=r0===r1?'Round '+(r0+1):'Rounds '+(r0+1)+' to '+(r1+1);
+    let c='The policy asks for '+(nf2?(nf2>1?nf2+' refinements of open branches':'1 refinement of an open branch'):'')+(nf2&&nr?' and ':'')+(nr?nr+' new branch'+(nr>1?'es':'')+' from the root':'')+(r0===r1?'':' over these '+(r1-r0+1)+' rounds')+'. ';
+    if(k===0)c+='Replay reveals each cell\'s recorded outcome; nothing is executed or paid for. ';
+    if(cl.length)c+='It closes branch'+(cl.length>1?'es ':' ')+cl.map(([b,why])=>(b+1)+(why==='stale'?' (no gain for '+P.p+' attempt'+(P.p>1?'s':'')+')':' (well below the best seen)')).join(', ')+'. ';
+    c+='So far: '+E.N+' attempts, best '+(E.best*100).toFixed(1)+' ('+pc(E.best,wd.best)+' of the recorded best).';
+    if(k===SX[m].length-1)c+=m==='fixed'?' Every cell is revealed: this is the run that recorded the world (110 attempts in 11 rounds), whatever the budget preference.':' Nothing is left to ask for, so the replay stops: '+T.N+' attempts in '+T.k+' rounds instead of 110 in 11.';
+    return '<li><b>'+tt+(m==='fixed'?'':' (ρ = '+ST.rho+')')+'.</b> '+c+'</li>'}
   const modes={fixed:[],dream:[]};
-  const fill=()=>{['fixed','dream'].forEach(m=>{modes[m].length=0;tr[m].rounds.forEach((R,k)=>modes[m].push({t:'Round '+(k+1)+(m==='fixed'?' of the fixed policy':' of the dreamed policy at ρ = '+ST.rho),c:cap(m,k)}))})};fill();
-  function drawGrid(m,k,e,w){const wd=W0(),T=tr[m],B=wd.B,D=wd.D;
-    const revealed={},batch={},closed={};T.rounds.forEach((R,i)=>{if(i<=k)R.batch.forEach(([b,j])=>{revealed[b+','+j]=1});if(i===k)R.batch.forEach(([b,j])=>{batch[b+','+j]=1});if(i<=k)R.closedNow.forEach(([b])=>{closed[b]=1})});
+  const fill=()=>{['fixed','dream'].forEach(m=>{modes[m].length=0;SX[m].forEach((x,k)=>modes[m].push({t:'Stretch '+(k+1)}));$('sx-rp-'+m).innerHTML=SX[m].map((x,k)=>item(m,k)).join('')})};fill();
+  // the round shown: within step k, e runs through the stretch's rounds one at a time
+  const roundAt=(m,k,e)=>{const [r0,r1]=SX[m][k],len=r1-r0+1;return r0-1+Math.min(len,Math.floor(e*len+1e-9)+(e>=1?0:1))};
+  function drawGrid(m,k,e,w){const wd=W0(),T=tr[m],B=wd.B,D=wd.D,kr=roundAt(m,k,e);
+    const revealed={},batch={},closed={};T.rounds.forEach((R,i)=>{if(i<=kr)R.batch.forEach(([b,j])=>{revealed[b+','+j]=1});if(i===kr)R.batch.forEach(([b,j])=>{batch[b+','+j]=1});if(i<=kr)R.closedNow.forEach(([b])=>{closed[b]=1})});
     const pl=26,pt=22,cw=Math.min(40,(w-pl-6)/B),ch=Math.min(24,Math.max(17,cw*0.62)),H=pt+D*ch+28;let s='';
     for(let b=0;b<B;b++){s+=tx(pl+b*cw+cw/2,pt-7,'b'+(b+1),{fs:11,a:'middle',c:'var(--mute)'});
       for(let j=0;j<D;j++){const x=pl+b*cw+1,y=pt+j*ch+1,key=b+','+j,v=wd.s[b][j];
@@ -36,9 +46,9 @@
       if(closed[b])s+=tx(pl+b*cw+cw/2,pt+D*ch+15,'✕',{fs:13,a:'middle',c:'var(--bad)'})}
     for(let j=0;j<D;j+=2)s+=tx(pl-4,pt+j*ch+ch/2+4,String(j+1),{fs:11,a:'end',c:'var(--mute)'});
     return svgW(w,H,s,'Recorded world: branches across, attempts down')}
-  function counters(m,k){const T=tr[m],R=T.rounds[Math.min(k,T.rounds.length-1)],wd=W0(),kk=k+1;
+  function counters(m,k,e){const T=tr[m],kr=Math.max(0,roundAt(m,k,e)),R=T.rounds[kr],wd=W0(),kk=kr+1;
     return stat('Decision rounds k',String(kk),'of '+T.k)+stat('Attempts revealed n',String(R.N),'the fixed policy: 110')+stat('Best score so far',(R.best*100).toFixed(1),'share of recorded best '+Math.round(100*R.best/wd.best)+'%')+stat('Rounds per call so far',(kk/R.N).toFixed(3),'serial: 1; full batches: 0.1')}
-  const A=makeAnim({id:'rp',modes,mode:'fixed',draw:drawGrid,counters,dur:1700});
+  const A=makeAnim({id:'rp',modes,mode:'fixed',lists:{fixed:'sx-rp-fixed',dream:'sx-rp-dream'},draw:drawGrid,counters,dur:3600,move:.7});
   function showPol(){$('rpPol').innerHTML='<b>Dreamed winner ('+(ST.v===2?'v2 score':'v1 Eq. 1')+'):</b> '+SIM.label(win.pol)+'. <b>Fixed:</b> 10 open at once, each refined to the end, no closing, no budget knob.'+(SIM.same(win.pol,SIM.FIXED)?' <span class="no">With these coefficients the fixed policy itself wins the dream.</span>':'')}
   showPol();
   // ---- the area of one world (Reading, under the replay score) ----
@@ -59,7 +69,7 @@
       s+=tx(X(B)-9,Y(1)+18,'fixed: all 5',{fs:11,a:'end',c:CF,w:600});
       $('hvSvg').innerHTML=svgW(w,H,s,'Budget sweep of one recorded world: calls against attainment, with the dominated area shaded');
       $('hvCap').innerHTML='World '+(+wsel.value+1)+' (seed '+wd.seed+'), illustrative. Dreamed winner\'s five replays: '+s1.pts.map(p=>'ρ '+p.rho+': '+p.N+' calls, '+Math.round(100*p.a)+'%').join('; ')+'. Shaded area '+s1.hv.toFixed(3)+' of the box; penalty '+s1.pen.toFixed(3)+' rounds per call; V = '+s1.hv.toFixed(3)+' − '+lam+' × '+s1.pen.toFixed(3)+' = '+s1.V.toFixed(4)+'. The fixed policy\'s five replays all sit at '+B+' calls and 100%: area 0, V = '+s0.V.toFixed(4)+'. Faded points are dominated. Same computation as the released eval.py.'})}
-  const reset=()=>{retrace();fill();A.st.k=0;A.st.t=1;A.st.lk=-1;A.draw();drawHV()};
+  const reset=()=>{retrace();fill();A.reset();drawHV()};
   wsel.addEventListener('change',reset);
   $('rpR').addEventListener('change',e=>{ST.rho=+e.target.value;reset()});
   // ---- 2. the dream sweep ----

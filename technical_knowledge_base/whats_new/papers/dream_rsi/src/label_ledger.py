@@ -20,10 +20,12 @@ KEYS = {20: 'optimises the search strategy online and pays exactly this cost', 2
         82: 'gemini cli, or claude code for the harness task', 108: 'a call is not a generation', 164: 'the baseline is controlled',
         186: 'not fully reproducible yet', 187: 'no recorded trees or discovered programs are released',
         198: 'the most reusable part of the paper', 244: "under v1's eq. 1 the coefficients decide",
-        263: 'held the pdf, figures and a readme', 264: 'with no licence file'}
+        263: 'held the pdf, figures and a readme', 264: 'with no licence file',
+        # 2026-11-13 (layout rollout): the pq3 answer now points at this section's replay
+        230: 'replay: the "share of recorded best" counter never'}
 NEW = [
  ('core', 'Core sentence: a finished run is an exact record; revised policies scored by replay at no new calls; replay can only re-order what was recorded; better results must come from the next online run.', 'anything better has to come from the next online run'),
- ('core', 'Hero (redrawn; arXiv non-exclusive, repository figures unlicensed): record, dream, redeploy on an illustrative 6 x 6 grid (18 of 36 attempts, same best), the ceiling, and the Lasso and VGG16 numbers with their caveats.', 'same best node, fewer paid attempts'),
+ ('core', "Hero (since 2026-11-13 a 3D stage, Fig. 1, replacing the static SVG; arXiv non-exclusive, repository figures unlicensed): record, dream, ceiling, select, redeploy on the page's simulator (26 of 110 cells, 96% of the recorded best, scores -0.005, 0.390, 0.603, 0.818, then 33 calls online), with the Lasso and VGG16 numbers in its note.", 'dreaming buys fewer attempts, never a better result'),
  ('core', 'You need (model-based RL) and new terms: discovery loop, exploration policy, discovery tree or world, dreaming, development agent, Recursive Fixed Exploration, discovery cost.', 'discovery-agent calls, not counting the development agent'),
  ('core', 'The replay stepper moved from the Dream tab into Method, with its illustrative-world caption.', 'watch the rule work'),
  ('core', 'Open summary of the policy prompt rules.', 'trades width and patience'),
@@ -48,6 +50,17 @@ NEW = [
  ('depth', 'What changed from v1: the old Eq. 1 and its missing coefficients, the claims v2 dropped, what v1 left unstated, what v2 adds, the renumbering, the toy under v1.', 'what changed from v1 (14 september 2026)'),
  ('core', 'Run tab: the score toggle (v2 released, v1 Eq. 1), lambda, the deployment budget preference.', 'v2 score (released code)'),
  ('core', 'Tables tab: Table 3, Table 2 on the ConvDiv curve, PACEvolve on the kernel chart, the v1-claims filter.', 'figure 5 and table 3: the harness run and every task'),
+ # 2026-11-13 (layout rollout): the hero stage's step list, the replay's stretches, the Tables tab notes moved out of the charts
+ ('core', 'Fig. 1 step 1: the starting policy grows a 10 x 11 world, 110 calls, every one executed, scored and paid for.', 'every one executed, scored and paid for'),
+ ('core', "Fig. 1 step 2: the record joins the history; here three worlds recorded in full (seeds 1 to 3), in the paper each later world is recorded by that round's policy.", 'in the paper each later world is recorded by that round'),
+ ('core', 'Fig. 1 step 3: replay reveals a cell only when the policy asks for it; the toy winner at rho = 1 asks for 26 of 110 cells in 5 rounds.', 'asks for 26 of world 1'),
+ ('core', 'Fig. 1 step 4: no replayed policy rises above the recorded best (92.2); this one closes branch 9 two attempts short of it and keeps 96% for 26 of 110 attempts.', 'two attempts short of the best node'),
+ ('core', 'Fig. 1 step 5: M = 4 versions replayed on all worlds at five budget preferences; fixed -0.005, rewrites 0.390, 0.603 and 0.818; the current policy is in the pool.', '0.390, 0.603 and 0.818'),
+ ('core', 'Fig. 1 step 6: the winner runs the next online round on a new world, 33 calls in 10 rounds; anything better than the record only comes from such rounds.', '33 calls in 10 rounds'),
+ ('depth', 'The replay plays round 1 as its own step and later rounds in stretches of up to three, each explained in the step list.', 'stretches of up to three'),
+ ('core', "Table 2 on Figure 3's ConvDiv curve: at 437 generations the all-history run stood at 1.4881, below the current-history-only run's final 1.59 at 430.", 'At 437 generations it stood at 1.4881'),
+ ('core', 'Figure 6 rebuilt: both guided runs lead early; the guided Dream-RSI run has 11 rounds, the others 9 (fixed + guidance 8).', 'fixed + guidance 8'),
+ ('core', "Figure 7 rebuilt from its printed labels: the attempts add up to 786, Figure 3's ConvDiv budget.", 'The attempts add up to 786, Figure 3'),
 ]
 F = HERE / 'ledger.json'
 u = json.loads(F.read_text())

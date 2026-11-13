@@ -253,9 +253,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
 - [x] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
 - [x] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
-- [~] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
+- [x] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
 - [~] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
-- [ ] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
+- [~] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
 - [ ] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
 - [ ] `whats_new/papers/envharness` EnvHarness: Awakening Static Worlds for Agent Learning
 - [ ] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
@@ -546,6 +546,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/deepseekmath`: PPO stage step 1 close-up cuts the reward plate at the right edge; corpus stage is 48 small columns (spread is the point, but busy).
 - `whats_new/papers/diffusiongemma_technical_report`: at 920 px the canvas-2 cache cells sit near the "drag to turn" hint; step 1 of the stage is sparse (prompt and cache only).
 - `whats_new/papers/dpo`: both stages small on phones with labels hidden; Fig. 1 step 4 is sparse (three plates and the pair stack). Figures tab charts stay full width (verify_layout flags them; table-tab exception). check_times misses quotes under a shortened title (Alignment quoted DPO as "Direct Preference Optimization"; fixed by hand).
+- `whats_new/papers/dream_rsi`: Fig. 1 step 4 the "coding agent + evaluator" label runs off the right edge and world 2 crowds the right side; replay and race cards sit above their step lists on phones.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -644,3 +645,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - DeepSeekMath: each stage keeps a step list per mode (the hidden one counts toward 27 min; sharing would save about 2 min); value model teal and flagged domains dark-outlined for colour reasons; the GRPO equations stay full width above the Fig. 2 split. Keep?
 - DiffusionGemma: the masked-diffusion twin is not a mode of the 3D stage (the demo problem is one it fails on, 10 of 24 bits, unrepresentative over 512 problems; it stays on Run the toy); the hero stays 2D; the Run-tab decoder is a widget opening on the finished answer. Keep?
 - DPO: no optimum surface (the toy policy has 444 logits, no honest two-parameter surface); RLHF reward-model bars centred on their mean under pi_ref (stated); the Figures tab stays full width (could be split caption-left, chart-right); the Train tab's two big tables moved to full width. Keep?
+- Dream-RSI: the brief's "worlds get harder" reading was wrong; the page's version (worlds are recorded discovery trees, dreaming replays rewritten policy code over them, no weights trained) drives the stage. Two of the four policy versions in the stage are the agent's picks from the toy policy family (labelled); the static hero is replaced by the 3D loop; the Lasso table moved full width. Keep?
