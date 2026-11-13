@@ -30,41 +30,7 @@ const MINE=(function(){const r=mulberry32(2024),ND=48,NPG=30,MD=[[0,1],[0,2],[1,
       R=new Set([0,1,2,3,4,5].filter(s=>pos[s]>=TH||s===0))}
     return rounds}
   return {dom,ND,NPG,total,dd:simulate('dd'),self:simulate('self')}})();
-(function(){const M=MINE;
-  const stepsDD=[{t:'A web to mine',c:'48 domains of 30 pages. Hollow dots are math pages (288 of 1,440); grey dots are everything else. Twelve domains are mostly math, each written mostly in one style; the other 36 hold one stray math page each.'},
-    {t:'Seed and first classifier',c:'Only the seed style is known: the classifier is trained on OpenWebMath-like positives and random pages, so it recognises one style of math (blue).'},
-    {t:'Round 1: recall and rank',c:'The classifier finds the seed-style pages everywhere, including stray pages in general domains, and misses every other style. The paper kept the top 40B tokens at this point.'},
-    {t:'Find math domains',c:'Any domain with over 10% of its pages collected is flagged as math-related (outlined). People mark its math URL patterns; the uncollected pages under them become new positives, in new styles.'},
-    {t:'Round 2',c:'Retrained on the richer seed, the classifier now recognises the styles it was shown enough of. More domains cross 10% and are flagged in turn.'},
-    {t:'Round 3',c:'The cascade reaches every style. Almost every math page is found.'},
-    {t:'Round 4: time to stop',c:'Nothing new to recognise: almost everything collected was already collected in round 3. The paper stopped here, at 98% overlap, with 35.5M pages and 120B tokens.'}];
-  const stepsSelf=stepsDD.map((s,i)=>i===3?{t:'Retrain on its own finds',c:'Without domain discovery the only new positives are the pages the classifier already found, all in the style it already knows. Nothing teaches it a new style.'}:
-    i===4?{t:'Round 2',c:'The same classifier finds the same pages: recall is stuck at the seed style. This is the failure the paper names: positives that lack "sufficient diversity".'}:i===5?{t:'Round 3',c:'Still stuck. More rounds of self-training do not add styles.'}:i===6?{t:'Round 4',c:'Recall has not moved since round 1. Domain discovery plus human URL annotation is what broke the loop in the paper.'}:s);
-  const roundAt=k=>k<2?-1:k<4?0:k-3; // which simulated round is shown at step k
-  // domains flagged so far: round j's flags appear at step 3 (round 1) and with each later round
-  function flaggedAt(m,k){const R=M[m],f=new Set();if(m!=='dd'||k<3)return f;const upto=k===3?0:roundAt(k);for(let j=0;j<=Math.min(upto,R.length-1);j++)R[j].newFlag.forEach(d=>f.add(d));return f}
-  makeAnim({id:'mine',mode:'dd',modes:{dd:stepsDD,self:stepsSelf},dur:2600,
-    draw(m,k,e,w){const R=M[m],cols=w<520?6:8,rows=M.ND/cols,gap=4,cw=(w-gap*(cols-1))/cols,dc=6,dr=5,dx=cw/(dc+0.5),dy=Math.min(dx,9),ch=dy*dr+10;
-      const ri=roundAt(k),cur=ri>=0?R[ri]:null,prev=ri>0?R[ri-1]:null;let s='';
-      const flaggedNow=flaggedAt(m,k);
-      const newlyFlag=m==='dd'&&k===3?R[0].newFlag:new Set();
-      M.dom.forEach((d,di)=>{const cx=(di%cols)*(cw+gap),cy=Math.floor(di/cols)*(ch+gap);
-        const fl=flaggedNow.has(di);s+=rc(cx,cy,cw,ch,'var(--soft)',{r:4,s:fl?'var(--acc)':'var(--line)',sw:fl?2:1,op:fl&&newlyFlag.has(di)?Math.max(0.35,e):1});
-        d.pages.forEach((p,pi)=>{const x=cx+dx*(0.75+pi%dc),y=cy+6+dy*(0.5+Math.floor(pi/dc)),id=di*M.NPG+pi;
-          const got=cur&&cur.got.has(id),was=prev&&prev.got.has(id),op=got?(was||k!==2&&k<4?1:Math.max(0.15,e)):1;
-          if(got&&p.math)s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.9" fill="'+STYLE_C[p.st]+'" opacity="'+op.toFixed(2)+'"/>';
-          else if(got)s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.6" fill="var(--bad)" opacity="'+op.toFixed(2)+'"/>';
-          else if(p.math)s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.4" fill="none" stroke="'+(k>=1?STYLE_C[p.st]:'var(--mute)')+'" stroke-width="1" opacity="'+(k>=1?0.55:0.8)+'"/>';
-          else s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="1.3" fill="var(--dim)"/>'})});
-      const H=rows*(ch+gap);let lg='',lx=0,ly=H+14;
-      STYLES.forEach((n,i)=>{const t=n.replace('&amp;','&'),lw=t.length*6.2+18;if(lx+lw>w){lx=0;ly+=15}lg+='<circle cx="'+(lx+5)+'" cy="'+(ly-4)+'" r="3.5" fill="'+STYLE_C[i]+'"/>'+tx(lx+12,ly,n,{fs:11,c:'var(--mute)'});lx+=lw});
-      return svgW(w,ly+6,s+lg,'Synthetic web: math pages found by round')},
-    counters(m,k){const R=MINE[m],ri=roundAt(k),cur=ri>=0?R[ri]:null;
-      const styles=k===0?0:cur?cur.R.size:1;
-      return stat('math pages found',cur?cur.found+' of '+MINE.total:'0 of '+MINE.total,cur?Math.round(100*cur.found/MINE.total)+'% recall':'')+
-        stat('styles recognised',styles+' of 6','')+
-        stat('domains flagged',m==='dd'?String(flaggedAt(m,k).size):'not used','over 10% collected')+
-        stat('overlap with last round',cur&&ri>0?Math.round(100*cur.overlap)+'%':'','share of this round\'s finds already found')}})})();
+// the 3D stage that runs MINE is parts/31_js_sc_mine.js
 
 // ===== 2. Table 1 bars, the data mix, the arXiv reveal =====
 (function(){const T=TB.T1,cols=T.cols.slice(1);let b=0;
@@ -98,50 +64,7 @@ const READTOY=(function(){let cache=null;const f=function(){if(cache)return cach
   const Rg=outs.map(o=>T.correct(q,o)),mu=Rg.reduce((a,b)=>a+b,0)/8,sd=Math.sqrt(Rg.reduce((a,b)=>a+(b-mu)*(b-mu),0)/7),Ag=Rg.map(v=>sd>0?(v-mu)/sd:0);
   const pg=outs.map(o=>[0,1,2].map(t=>T.probs(base,q[0],q[1],t,o[0],o[1])[o[t]]));
   cache={q,cfg,cp,outs,po,V,rt,adv,pp,R:T.correct(q,po),Rg,mu,sd,Ag,pg};return cache};f.ready=()=>!!cache;return f})();
-(function(){
-  const S={ppo:[{t:'Sample an output',c:'The policy writes three tokens for 7 + 8: a scratch digit, then the answer as two digits. Bars under each token: its probability. (The toy gives PPO the same 8 samples per question as GRPO; one is followed here.)'},
-      {t:'Score the end',c:'The reward arrives only at the last token: 1 if the answer is 15, else 0. In the paper a reward model gives the score; the toy uses the rule.'},
-      {t:'KL penalty in the reward',c:'Every token is charged −β log(π/π_ref) inside the reward (Eq. 2), so the KL changes the per-token rewards that GAE will add up.'},
-      {t:'The value model guesses',c:'A second network, as large as the policy, predicts at each token the reward still to come. From a half-written answer it must guess whether the final answer will be right.'},
-      {t:'GAE: per-token advantages',c:'δ_t = r_t + V_{t+1} − V_t, and A_t = Σ (γλ)^k δ_{t+k}. Early tokens see the final reward only through λ and the critic; a wrong critic means a wrong advantage.'},
-      {t:'Update two networks',c:'The policy moves by A_t ∇log π on each token; the value model is trained towards the returns. Two networks trained, two frozen (reference and reward model).'}],
-    grpo:[{t:'Sample a group',c:'Eight outputs for the same question, from the same policy. This is the base model: three of its four demonstrations for sums of 15 forgot the carry, so it answers 7 + 8 correctly only about one time in four.'},
-      {t:'Score each output',c:'One reward per output (1 right, 0 wrong). No per-token rewards, no value model.'},
-      {t:'Normalise within the group',c:'Â_i = (r_i − mean) / std over the eight: right answers get a positive advantage, wrong ones negative, and the sizes depend on how many of the eight were right.'},
-      {t:'Same advantage on every token',c:'All three tokens of an output share its Â_i. The scratch digit of a wrong answer is pushed down even when it was right: no critic remains to tell the steps apart.'},
-      {t:'KL in the loss, not the reward',c:'The gradient coefficient becomes Â_i + β(π_ref/π − 1) (Eq. 21). At the start π = π_ref and the KL term is exactly zero; it grows as the policy moves.'},
-      {t:'Update one network',c:'Only the policy is trained. The group mean replaced the critic as the baseline, at the price of G samples per question.'}]};
-  makeAnim({id:'ppo',mode:'ppo',modes:S,dur:3000,
-    draw(m,k,e,w){if(!READTOY.ready())return '<p class="small mute">Training the toy\'s PPO for 100 steps in your browser…</p>';const D=READTOY();let s='';const narrow=w<520;
-      if(m==='ppo'){const bx0=narrow?8:70,tw=narrow?(w-120)/3:Math.min(110,(w-300)/3),th=34,y0=42;
-        s+=tx(4,16,'question: 7 + 8 = ?',{fs:12,w:'700'});
-        D.po.forEach((d,t)=>{const x=bx0+t*(tw+8);s+=rc(x,y0,tw,th,'var(--soft)',{s:'var(--line)'})+tx(x+tw/2,y0+22,String(d),{fs:16,a:'middle',w:'700'});
-          s+=tx(x+tw/2,y0-4,['scratch','tens','units'][t],{fs:11,a:'middle',c:'var(--mute)'});
-          s+=rc(x,y0+th+4,tw*D.pp[t],5,'var(--c1)',{r:1})+tx(x,y0+th+20,'π '+D.pp[t].toFixed(2),{fs:11,c:'var(--mute)'})});
-        const xr=bx0+3*(tw+8)+6;
-        if(k>=1)s+=G(k===1?e:1,rc(xr,y0,narrow?60:84,th,D.R?'var(--open2)':'var(--closed2)',{s:D.R?'var(--good)':'var(--bad)'})+tx(xr+(narrow?30:42),y0+22,'r = '+D.R,{fs:13,a:'middle',w:'700'}));
-        const rowY=[y0+th+44,y0+th+80,y0+th+116],lab=['r_t (with KL)','V_t (critic)','A_t (GAE)'],vals=[D.rt,D.V,D.adv],sh=[2,3,4];
-        rowY.forEach((y,ri)=>{if(k<sh[ri])return;const op=k===sh[ri]?e:1;let r2=tx(narrow?4:4,y-6,lab[ri],{fs:11,c:'var(--mute)'});
-          vals[ri].forEach((v,t)=>{const x=bx0+t*(tw+8)+tw/2,hh=Math.max(-14,Math.min(14,v*14));r2+=ln2(x-tw/2+4,y+8,x+tw/2-4,y+8,'var(--line)')+rc(x-8,hh>0?y+8-hh:y+8,16,Math.abs(hh),v>=0?'var(--good)':'var(--bad)',{r:1})+tx(x+12,y+12,(v>=0?'+':'')+v.toFixed(3),{fs:11})});
-          s+=G(op,r2)});
-        if(k>=5){const y=y0+th+140;s+=G(k===5?e:1,tx(4,y,'trained: policy and value model · frozen: reference, reward model',{fs:11.5,w:'700'}))}
-        return svgW(w,y0+th+150,s,'PPO on one output')}
-      // GRPO: eight rows
-      const rh=narrow?22:24,y0=30,tw=narrow?26:34,x0=narrow?4:70;s+=tx(4,16,'question: 7 + 8 = ?  eight samples',{fs:12,w:'700'});
-      const xa=x0+3*(tw+4)+(narrow?44:70),aw=Math.max(40,w-xa-60);
-      D.outs.forEach((o,i)=>{const y=y0+i*rh;
-        o.forEach((d,t)=>{s+=rc(x0+t*(tw+4),y,tw,rh-4,'var(--soft)',{s:'var(--line)',r:3})+tx(x0+t*(tw+4)+tw/2,y+rh-9,String(d),{fs:12.5,a:'middle',w:'700'})});
-        if(k>=1)s+=G(k===1?e:1,tx(x0+3*(tw+4)+6,y+rh-9,'r='+D.Rg[i],{fs:12,c:D.Rg[i]?'var(--good)':'var(--bad)',w:'700'}));
-        if(k>=2){const a=D.Ag[i],mid=xa+aw/2,len=aw/2*a/2.5;s+=G(k===2?e:1,ln2(mid,y,mid,y+rh-4,'var(--line)')+rc(len>=0?mid:mid+len,y+3,Math.abs(len),rh-10,a>=0?'var(--good)':'var(--bad)',{r:1})+tx(xa+aw+4,y+rh-9,(a>=0?'+':'')+a.toFixed(2),{fs:11}))}
-        if(k>=3){const a=D.Ag[i];o.forEach((d,t)=>{s+=G(k===3?e:1,rc(x0+t*(tw+4),y+rh-6,tw,2.5,a>=0?'var(--good)':'var(--bad)',{r:0}))})}});
-      const yb=y0+8*rh+16;
-      if(k>=2)s+=G(k===2?e:1,tx(4,yb,'mean '+D.mu.toFixed(3)+' · std '+D.sd.toFixed(3)+' (unbiased, as torch.std)',{fs:11.5,c:'var(--mute)'}));
-      if(k>=4)s+=G(k===4?e:1,tx(4,yb+16,'KL term β(π_ref/π − 1) = 0 for every token here (π = π_ref at the start)',{fs:11.5,c:'var(--mute)'}));
-      if(k>=5)s+=G(k===5?e:1,tx(4,yb+32,'trained: policy only · frozen: reference, reward model',{fs:11.5,w:'700'}));
-      return svgW(w,yb+40,s,'GRPO on a group of eight')},
-    counters(m,k){if(!READTOY.ready())return '';const D=READTOY();return m==='ppo'?
-      stat('networks in memory','4','policy, value, reference, reward')+stat('trained','2','policy and value model')+stat('advantage source','critic + GAE','λ = 0.95, γ = 1')+stat('first token sees the reward with weight',(0.95**2).toFixed(4),'λ² at 3 tokens; 10⁻²³ at 1,024'):
-      stat('networks in memory','3','policy, reference, reward')+stat('trained','1','policy')+stat('advantage source','group of 8','right: '+D.Rg.reduce((a,b)=>a+b,0)+' of 8')+stat('first token sees the reward with weight','1','every token shares Â_i')}})})();
+// the 3D stage that runs READTOY (PPO against GRPO) is parts/32_js_sc_ppo.js
 
 // ===== 4. GAE reach =====
 (function(){const LS=[3,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768],LAM=[0.9,0.95,0.99,0.995,0.999,1];
@@ -236,4 +159,4 @@ function figChart(el,fig,bench,o){o=o||{};fit(el,w=>{const P=FIGS[fig].panels[be
 (function(){let b5='GSM8K',b6='GSM8K',b7='MATH';const d5=()=>figChart($('f5Svg'),'combined_figure_rl',b5,{band:'GRPO+OS'}),d6=()=>figChart($('f6Svg'),'iter_rl',b6),d7=()=>figChart($('f7Svg'),'combined_MAJ_PASS',b7,{cat:true});
   segOn('f5M',m=>{b5=m;d5()});segOn('f6M',m=>{b6=m;d6()});segOn('f7M',m=>{b7=m;d7()});d5();d6();d7()})();  // Figure 7 sits inline after its predict question since 2026-10-25
 // compute the toy runs the PPO animation and the coefficient widget need, after first paint
-setTimeout(()=>{try{READTOY();refit($('ppoSvg'));window.__gcDraw()}catch(e){__jsErr(e.message)}},60);
+setTimeout(()=>{try{READTOY();if(window.__ppoStage)window.__ppoStage.draw();window.__gcDraw()}catch(e){__jsErr(e.message)}},60);
