@@ -44,7 +44,7 @@ const lvColor=v=>v<=0?'var(--line)':v>=1.149?'var(--c3)':v>=1?'var(--c6)':v>=.5?
   onTab('t-run',()=>{out();fit($('rsGrid'),grid);fit($('rsRank'),rank);find()});
 })();
 
-// replay two scorecards game by game (always ARC's rule)
+// replay two scorecards game by game (always ARC's rule): a widget the reader drives
 (function(){if(!$('rp'))return;const PAIR={ch:'Continual Harness',hum:'Human Intelligence Harness',top:'Tycho'};
   const order=GAMES.map((g,i)=>i);
   const steps=order.map(i=>({t:'Game '+(order.indexOf(i)+1)+' of 25: '+GAMES[i][0],c:''}));
@@ -70,5 +70,13 @@ const lvColor=v=>v<=0?'var(--line)':v>=1.149?'var(--c3)':v>=1?'var(--c6)':v>=.5?
   function counters(m,k){const i=order[k],A=cardBy(PAIR[m]),B=PRIME,base=GAMES[i][1];
     const run=c=>{let t=0;for(let j=0;j<=k;j++)t+=envScore(c.g[order[j]],GAMES[order[j]][1],ARCRULE);return 100*t/(k+1)};
     return stat('Game',(k+1)+' of 25',GAMES[i][0]+', '+base.length+' levels')+stat(short(A.name).slice(0,20),(100*envScore(A.g[i],base,ARCRULE)).toFixed(1)+'%','running '+run(A).toFixed(1)+'%')+stat('Prime Agent',(100*envScore(B.g[i],base,ARCRULE)).toFixed(1)+'%','running '+run(B).toFixed(1)+'%')}
-  makeAnim({id:'rp',modes,mode:'ch',draw,counters,dur:2400});
+  // a widget, not an animation (the long-replay rule, 2026-11-06: 25 games are not stepped one per frame): the reader picks the pairing and the game;
+  // it opens on lf52, the one game Prime Agent lost, and never moves by itself.
+  let m='ch',k=Math.max(0,order.findIndex(i=>GAMES[i][0]==='lf52'));
+  function show(){const host=$('rpSvg'),w=host.clientWidth;if(!w)return;host.innerHTML=draw(m,k,1,w);
+    $('rpStep').innerHTML=modes[m][k].t;$('rpCap').innerHTML=modes[m][k].c;$('rpCnt').innerHTML=counters(m,k);$('rpScrub').value=k}
+  $('rpBack').addEventListener('click',()=>{k=Math.max(0,k-1);show()});$('rpFwd').addEventListener('click',()=>{k=Math.min(order.length-1,k+1);show()});
+  $('rpScrub').addEventListener('input',e=>{k=+e.target.value;show()});
+  const seg=$('rpM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});m=b.dataset.m;show()}));
+  onTab('t-run',()=>fit($('rpSvg'),()=>show()));
 })();

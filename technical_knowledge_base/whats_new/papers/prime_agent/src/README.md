@@ -6,8 +6,8 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card; the core sentence, the hero (the paper's Figure 2, CC BY 4.0, over ARC-AGI-3 bars from `mk_hero.py`), You need and New terms; Problem, Idea (clickable state hierarchy; blocking tool call against `rlm()` animation), Method, Results 1 to 5 (Figure 5 rebuilt, three predict-then-reveal questions, Factorio replay), How much to believe, What it takes to use this, Why it matters, Connections. |
-| Rescore the ARC-AGI-3 run | `t-run` | The live ingredient: RHAE recomputed from the released median run's scorecard and ten community scorecards, rule controls, level grid, game-by-game replay, ranking. |
+| The paper | `t-read` | (split layout and one 3D stage since 2026-11-13) Card; the core sentence, You need and New terms beside the hero (the paper's Figure 2, CC BY 4.0, over ARC-AGI-3 bars from `mk_hero.py`); Problem; Idea (the state hierarchy and the Appendix B orchestration task as a 3D stage, rlm() against a blocking tool call); Method beside Figure 1; Results 1 to 5 (Figure 5 rebuilt beside the ARC text, three predict-then-reveal questions, the Factorio replay with its step list), How much to believe, What it takes to use this, Why it matters, Connections. |
+| Rescore the ARC-AGI-3 run | `t-run` | (split since 2026-11-13) The live ingredient: RHAE recomputed from the released median run's scorecard and ten community scorecards, rule controls, level grid, a game-by-game replay widget, ranking. |
 | The paper's tables and figures, rebuilt | `t-tables` | Table 1 (paper and blog versions), Figure 5 as numbers, Figures 6, 7, 8, 10 rebuilt, 45 checks. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
@@ -27,7 +27,8 @@
 - `mk_hero.py`: the hero's ARC-AGI-3 bars from `tables.json` and `inputs/recompute.json`, to `parts/_gen_hero.html`.
 - `label_ledger.py`: labels `ledger.json` (see the light pass below).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the three animations stepped.
+- `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the stage, the Factorio replay and the scorecard widget stepped; since 2026-11-13 it asserts that the stage and the Factorio replay play once scrolled into view (it used to forbid it).
+- `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, both step lists of the stage, the Factorio list, the scorecard replay staying a widget, and the totals the stage's lists state against `window.PAORC`.
 
 ## Checks (3 October 2026)
 
@@ -45,3 +46,25 @@
 - Privacy and dashes: the two author emails in `inputs/paper_v1.txt` are redacted, the blog extract's one long dash is saved as `--`, and `extract_paper.py` now does both on any rerun.
 
 Rechecked 2026-10-25: `checkpage.sh` 4 tabs, 231 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 562 actions, 0 problems.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after `01_css.html`). The paper: the top (core sentence, You need, New terms) beside the hero figure and bars; Idea beside the 3D stage (its toggle and two step lists on the left); Method beside the paper's Figure 1 (sticky while the long section is read); the ARC-AGI-3 text beside the rebuilt Figure 5; the Factorio text and step list beside the replay. Problem, the Results intro, the three predict questions (their charts open in the reveal), Long context, nanoGPT, Emulators and kernels (no figure on this tab), the safety finding and MazeBench, How much to believe, Use it, Why it matters and Connections stay full width. Rescore tab: three splits (intro and rule left, rescoring card right; the replay paragraph left, its widget right; the ranking notes and finding left, the ranking chart right). Tables tab: Table 1 stays full width (a table); Figures 6, 7 and 10 split with their headings and notes left and the chart (with its toggles) right; the closed blocks unchanged. Further reading unchanged.
+- **One 3D stage** (template `25_js_s3.js`, renderer v2, unchanged): `31_js_sc_orc.js`, Figure 2 in 3D, replacing two 2D visuals of the Idea section (the clickable hierarchy and the orchestration animation `makeAnim` `orc`). Rows on the floor, front to back: the clock (14 cells, blue while the parent works, red while it waits), L0 as a glass plate, L1 as a tray of context blocks with the parent model at its end, the model-context boundary as a red glass wall, the daemon queue, L2 (REPL values on the left, subagent pods on the right), L3 (stacks of event records). Flows carry each call, pasted result, message, compaction and serialisation across the wall. Two step lists of eight, swapped by the toggle (`S3.stage(...).list`); the camera moves in close on the first call (step 2 of rlm, step 3 of the blocking call). Data: illustrative, the same per-step contents and counters as the 2D animation it replaces (built only from §2.2 to §2.4 and Appendix B; labelled under the lists); the old captions became the step lists and the counters went into their text.
+- **Factorio replay**: `makeAnim` replaced by the JIT-Agent copy (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, a click on a list item plays that step once). Its caption box went; the nine captions are the static step list `sx-fac` (nine stretches of the run, within the long-replay limit).
+- **Scorecard replay** (Rescore tab, 25 games): under the long-replay rule it is now a widget, not an animation: no play button, no autoplay, no step list; the reader picks the pairing and the game, and it opens on lf52, the one game Prime Agent lost. Its per-game caption stays as a live caption under the bars.
+- **Kept 2D**: Figure 5 (log axes), the predict reveals (bars and a gap scatter on one axis), the Factorio replay (curves over a token axis), the rescoring grid (a heatmap the reader clicks), the ranking, every table and the Tables tab's charts (curves and bars on one axis). The paper's Figures 1 and 2 stay as the real images.
+- `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `pa-tab`), keeping one page line: a `data-to` target inside a closed block opens it. `11_js_ui.js` is the JIT-Agent copy (only `makeAnim` differed). `build.sh` finds the repository's Python by walking up to the nearest `.venv` instead of asking git.
+
+## Length judgement (2026-11-13)
+| | Before (audit, pre-pass) | After |
+|---|---|---|
+| The paper, core | 27.6 min (6,355 words) | 30.8 min (7,076) |
+| The paper, closed | 4.0 min (929) | 4.0 min (929) |
+| Rescore tab | 3.4 min (792) | 3.5 min (813) |
+| Tables; Further reading | 2.6 plus 3.6 closed; 3.7 min | unchanged |
+
+The growth is the step lists: the stage's two lists (eight steps each) and the Factorio list replace captions that script drew one at a time (invisible to the word count before) and now state the counters in their text. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 31 min, plus 4 in closed details." from `reading.json`.
+
+Ledger: 288 units (core 249, depth 31, owned 4, volatile 1, fat 3); six units re-keyed where a sentence was reworded for the layout (26, 27, 32, 33, 78, 134) and three added for the step lists. `ledger.py check` problems 0. `mk_coverage.py` 38 of 38; `recompute.py` 31 of 31; the generated parts are byte-identical.

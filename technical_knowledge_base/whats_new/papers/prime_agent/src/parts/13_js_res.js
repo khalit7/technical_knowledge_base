@@ -60,7 +60,7 @@ PRED_REVEAL.pq3=function(){const host=$('pq3Svg');const F=PT.fig6,P=RC.fig6;
       s+=rc(lw,y,bx(r[4])-lw,bh,pr?'var(--c2)':'var(--dim)',{r:3})+tx(bx(r[4])+4,y+13,r[4]+' ('+r[2]+'/'+r[3]+')',{fs:11})});
     host.innerHTML=svgW(w,H,s,'Figure 6 rebuilt')+'<p class="small">'+P.map(p=>p.model+' against '+p.vs+': rate ratio '+p.rate_ratio+'×, raw count ratio '+p.count_ratio+'×, one-sided p '+(p.p_one_sided<0.001?'< 0.001':p.p_one_sided.toFixed(3))).join('; ')+'.</p>'})};
 
-// Factorio replay (Figure 9 decoded)
+// Factorio replay (Figure 9 decoded): nine stretches of the run, each explained by its item in the step list #sx-fac (the captions below are kept only as titles)
 (function(){if(!$('fac'))return;const F=PT.fig9;
   const MS=[[3.0,'The run starts','A seven-day Claude Sonnet 5 run: the root spawns subagents, up to four at a time at first, while one technology is researched. The clock is cumulative output tokens across the root and every descendant.'],
     [4.39,'Five technologies','The count jumps to five technologies after about 4.4M output tokens.'],
@@ -93,5 +93,5 @@ PRED_REVEAL.pq3=function(){const host=$('pq3Svg');const F=PT.fig6,P=RC.fig6;
     s+=ln2(X(x),8,X(x),yx-12,'var(--acc)',{sw:1.2,op:.6});
     return svgW(w,H1+H2+4,s,'Factorio run replay')}
   function counters(m,k){const x=MS[k][0],A=F.active.filter(p=>p[0]<=x);return stat('Output tokens',x.toFixed(1)+'M','root and descendants')+stat('Technologies',String(at(F.tech,x)),'of 196')+stat('Active now',String(A.length?A[A.length-1][1]:0),'subagents')+stat('Subagents so far',String(Math.min(633,at(F.cumulative,x))),'depth one')+stat('Peak active so far',String(A.length?Math.max(...A.map(p=>p[1])):0),'max 7 in the run')}
-  makeAnim({id:'fac',modes:{run:steps},mode:'run',draw,counters,dur:3200});
+  makeAnim({id:'fac',modes:{run:steps},mode:'run',lists:{run:'sx-fac'},draw,counters,dur:4200});
 })();

@@ -282,9 +282,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
 - [x] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
 - [x] `whats_new/papers/phi_bench` Φ-Bench: Can Large Language Models Engineer the Infrastructure That Powers Them?
-- [~] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
+- [x] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
 - [~] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
-- [ ] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
+- [~] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
 - [ ] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
 - [ ] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
 - [ ] `whats_new/papers/re_grading_six_physics_benchmarks` Re-grading six physics benchmarks: most model failures were the test's fault
@@ -575,6 +575,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/olmo_2`: Fig. 1 step 5 leaves much empty grid on the left (the stage-1 plate sits at the edge).
 - `whats_new/papers/pagedattention`: stage close views small on phones with the floor behind faint.
 - `whats_new/papers/phi_bench`: categories stage step 4 the "Claude Opus 5 . leads 5 of 9" label touches the left edge and "Qwen3.7 5.4" overlaps its bar; step 6 Full column looks partly stacked.
+- `whats_new/papers/prime_agent`: stage has empty space above L3 at 1400 and is small on phones; 13_js_res.js still carries unused old Factorio caption strings; Factorio step 3 and the paragraph after the list both state the reset.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -702,3 +703,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - OLMo 2: Fig. 1's step list quotes the 7B with 13B and 32B in brackets (one shared list; counters follow the chosen model); anneal token axes stretched 43x and 7x (computed, stated); the spike replay cut from 8 sweep steps to 3 explained stretches; "Why the new initialisation is better" moved from a closed block into the open text. Keep?
 - PagedAttention: the new 3D hero (waste to scale, iteration 3,000 of a ShareGPT run, seed 1) replaced the paper's Figs 3 and 7 at the top (moved into Problem); the Orca (Oracle) predict question became a plain paragraph (the stage gives the answer); the closed Fig. 6 walk-through trimmed to "What one iteration does". Keep?
 - Phi-Bench: removed the third predict question ("How many tasks is Hardware and Edge based on?"; the autoplaying categories stage would show the answer; its heatmap is now Figure 4 on the Tables tab); Figure 7 moved from Tables to beside Errors; the formats stage's repository (18 files, a bottleneck file) is illustrative (labelled). Keep?
+- Prime Agent: the clickable 2D hierarchy is gone (its content is in stage step 1 plus the Figure 2 image); the stage opens in rlm() mode and is illustrative (from sections 2.2 to 2.4 and Appendix B, labelled); the 25-game scorecard replay is a widget opening on lf52 (the one game lost). Keep?

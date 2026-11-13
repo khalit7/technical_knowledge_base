@@ -1,6 +1,8 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end. Since 2026-11-13 (split layout, autoplay):
+// the Factorio replay and the 3D stage play by themselves once scrolled into view (they used to be forbidden to); the scorecard
+// replay is a widget that never moves by itself; the layout and motion rules in full are in check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/prime_agent/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -10,7 +12,7 @@ const file = 'file://' + path.resolve(here, '../index.html');
 const shots = process.argv[2] || path.resolve(here, '../.shots');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -40,15 +42,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
-  // no autoplay (2026-10-25): scroll each Reading animation into view, wait: none may draw a frame; nor after a mode switch
-  for (const id of ['orc', 'fac']) {
-    await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-    const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} played before the reader acted (${fr} frames)`);
-  }
-  {
-    await clk('#orcM button:not(.on)'); await wait(1000);
-    const fr = await p.$eval('#orc', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: orc played after a mode switch (${fr} frames)`);
-    await clk('#orcM button[data-m=new]');
+  // autoplay (2026-11-06): scrolled into view, the Factorio replay and the stage play by themselves; the scorecard replay (a widget) does not
+  await clk('#tabs button[data-t=t-read]'); await wait(300); // the last tab is remembered across pages of one browser
+  for (const id of ['fac', 'stg-orc']) {
+    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+    const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
   }
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250);
@@ -83,27 +81,38 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     const segs = await p.$$(`#${t} .seg button`);
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
-    // step the animations through every step and screenshot the middle; the replay is stepped for every episode
-    for (const id of ['orc', 'fac', 'rp']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const eps = await p.$$eval(`#${id}Ep option`, os => os.map(o => o.value)).catch(() => []);
-      for (const ep of (eps.length ? eps : [null])) {
-        if (ep) { await p.evaluate((id, ep) => { const e = document.getElementById(id + 'Ep'); e.value = ep; e.dispatchEvent(new Event('change', { bubbles: true })) }, id, ep); actions++ }
-        const modes = await p.$$eval(`#${id}M button`, bs => bs.filter(b => !b.hidden).map(b => b.dataset.m)).catch(() => []);
-        for (const m of (modes.length ? modes : [null])) {
-          if (m) await clk(`#${id}M button[data-m="${m}"]`);
-          await clk(`#${id}Play`); await clk(`#${id}Play`);
-          await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-          const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2) && (!ep || ['0', '1', '4', '8'].includes(ep))) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${ep || 'x'}-${(m || 'x').replace(':', '-')}-${scheme}-${width}.png` }) } }
-          await audit(`${t} ${id} ${m} stepped`);
-          for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
-        }
-      }
-      // let it play for a second
+    // step the Factorio replay through every step and screenshot the middle
+    if (await p.$(`#${t} #fac`)) {
+      const id = 'fac';
+      await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
+      const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
+      for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${scheme}-${width}.png` }) } }
+      await audit(`${t} ${id} stepped`);
+      for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
       await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
+      if (!(await p.$eval('#' + id, e => e.hasAttribute('data-playing')))) problems.push(`${scheme} ${width}: ${id} did not play on the play button`);
       await clk(`#${id}Play`);
+    }
+    // the 3D stage, both modes, stepped to the end
+    if (await p.$(`#${t} #stg-orc`)) {
+      for (const m of ['old', 'new']) {
+        await clk(`#orcM button[data-m=${m}]`); await wait(200);
+        const n = await p.$eval('#stg-orc-r', e => +e.max + 1);
+        for (let k = 1; k < n; k++) { await clk('#stg-orc-f'); actions++ }
+        await wait(1600);
+        if (await p.$eval('#stg-orc .stg-st', e => e.textContent) !== `step ${n} of ${n}`) problems.push(`${scheme} ${width}: stg-orc ${m} did not reach its last step`);
+        await audit(`${t} stg-orc ${m} stepped`);
+      }
+    }
+    // the scorecard replay widget, every game in every pairing
+    if (await p.$(`#${t} #rp`)) {
+      for (const m of ['ch', 'hum', 'top']) {
+        await clk(`#rpM button[data-m=${m}]`);
+        await p.evaluate(() => { const e = document.getElementById('rpScrub'); e.value = 0; e.dispatchEvent(new Event('input')) });
+        for (let k = 0; k < 24; k++) { await clk('#rpFwd'); actions++; if (k === 12) { const el = await p.$('#rp'); await el.screenshot({ path: `${shots}/x-rp-${m}-${scheme}-${width}.png` }) } }
+        if (await p.$eval('#rpStep', e => !/^Game 25 of 25/.test(e.textContent))) problems.push(`${scheme} ${width}: rp ${m} did not reach game 25`);
+        await audit(`${t} rp ${m} stepped`);
+      }
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
