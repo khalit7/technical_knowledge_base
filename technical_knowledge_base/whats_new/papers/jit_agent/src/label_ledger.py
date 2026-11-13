@@ -12,7 +12,13 @@ H = 'agents_and_retrieval/topic_agentic_harnesses'
 FAT = {1: 'old reading-time line, replaced by the measured subtitle', 39: 'old autoplay note, replaced by "never plays by itself"', 156: 'a bare link label; the noise table is linked from the margins block'}
 VOLATILE = {}
 OWNED = {}
-KEYS = {}
+KEYS = {  # 2026-11-13 rollout: sentences reworded or moved beside a stage or figure
+ 35: 'runs one turn of the protocol for react and for turnstile',
+ 36: 'react (seed harness) turnstile (generated)',
+ 79: 'none of the hyperparameters are given',
+ 127: 'the gains are smaller off deepsearchqa',
+ 133: 'streaming finishes ahead on all three',
+}
 NEW = [
  ('core', '', 'Core sentence: train a 27B model to write a four-module harness per task just in time; about +8 on the nine-benchmark average for two backbones; 14.9 to 54.1% cheaper than fixed harnesses on three benchmarks.', 'the idea in one sentence: instead of tuning one agent harness'),
  ('core', '', "Hero: the paper's Figure 1 (CC BY 4.0), different tasks get different harnesses from one trained writer.", 'different tasks get different harnesses from one trained writer'),
@@ -23,6 +29,9 @@ NEW = [
  ('owned:models_and_training/topic_rl/rl_for_llms', '', "GRPO's group-relative advantage is taught on RL for LLMs; Stage III keeps GDPO's change (separate normalisation per channel) and links it.", 'group relative policy optimization is ppo minus the value model'),
  ('owned:models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr', '', 'DPO itself is taught on the Alignment page; Stage I keeps the weighted pair rule and links it.', 'dpo family directly on pairs'),
  ('owned:measurement/topic_evaluation_and_llm_judges/eval_statistics', '', 'Binomial standard errors and paired comparisons in general are on Eval statistics; this page keeps its own z values and links it.', 'p(1 − p)/n), or s/√n for any score'),
+ ('core', '', '2026-11-13: the protocol stage\'s step list for ReAct: full history (13 entries, then 15), no planner, all ten tools offered including final_answer.', 'all ten tools are offered at every step, final_answer included'),
+ ('core', '', '2026-11-13: the protocol stage\'s step list for Turnstile: one bucket per evidence class (three of five full, then four), three tools offered, six hidden, final_answer locked until is_complete().', 'offers the three restaurant and location tools and withholds final_answer'),
+ ('core', '', '2026-11-13: the Evo-GDPO stage\'s step list on Table 3\'s DeepSearchQA group: NanoBot 80.4 as incumbent, JIT 85.1 becomes 87.45, gates, z-scores, advantages +1.91 to -1.16, one of six kept.', 'one group through evo-gdpo, step by step'),
  ('volatile', '', 'As of 25 October 2026 the repository is still at ababa06 (27 August) and arXiv still at v2: dated closed block "Later, as of 25 October 2026".', 'the repository\'s last commit is still ababa06'),
 ]
 F = HERE / 'ledger.json'

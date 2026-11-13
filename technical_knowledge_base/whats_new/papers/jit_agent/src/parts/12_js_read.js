@@ -1,66 +1,9 @@
-// ---- The paper tab: protocol animation, seed bank, stages, predict reveals, Table 2 / Table 3 / Figure 4 / Figure 6 charts ----
+// ---- The paper tab: seed bank, stages, predict reveals, Table 2 / Table 3 / Figure 4 / Figure 6 charts ----
 const PT=window.PAPER.tables, RC=window.PAPER.rc;
 const MC={M:'var(--c1)',P:'var(--c4)',A:'var(--c3)',F:'var(--c2)'};
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-// ---------- one turn of the protocol: ReAct against Turnstile (illustrative) ----------
-const TOOLS=['query_train_info','query_flight_info','query_hotel_info','recommend_attractions','query_attraction_details','recommend_restaurants','query_restaurant_details','search_location','query_road_route_info','final_answer'];
-const BUCKETS=[['transport',[0,1]],['hotel',[2]],['attractions',[3,4]],['restaurants',[5,6,7]],['routes',[8,7]]];
-const PTS={
- react:[
-  {t:'The task arrives',c:'A travel request: dates, four travellers, two rooms, a train window, a newly renovated hotel, named sights, a meal near a landmark, daily routes. We join at turn 7; six tool calls have already run.',mod:null},
-  {t:'M: full history becomes the view',c:'FullHistory keeps everything: the task, six calls and six observations, 13 entries, all go into the prompt. Nothing is summarised or dropped, so the view grows by two entries every turn.',mod:'M'},
-  {t:'P: no planner',c:'ReAct has no planning module; P returns the null directive ∅, which the protocol allows so that a harness without a planner is still type-consistent.',mod:'P'},
-  {t:'F: the full registry',c:'All ten tools are exposed at every step, including final_answer. Nothing in the harness knows that restaurants and routes have not been checked yet.',mod:'F'},
-  {t:'A: the model picks the next call',c:'The ReAct loop asks the model for a thought and one call. Here it checks the hotel again; it could equally call final_answer now and write an itinerary with no restaurant and no route.',mod:'A'},
-  {t:'The kernel runs the call',c:'The shared kernel executes query_hotel_info and appends the observation: 15 entries now. Whether the plan is complete is left entirely to the model\'s judgement.',mod:'K'}],
- turn:[
-  {t:'The task arrives',c:'The same request. Turnstile was written for it: its planner has already compiled the request into a typed travel_spec and a collection checklist, one item per kind of evidence. We join at turn 7.',mod:null},
-  {t:'M: one bucket per evidence class',c:'DataStoreMemory keeps the history but renders a different view: a bucket for transport, hotel, attractions, restaurants and routes, each holding the facts collected so far. Three of five are full; the view is the spec plus five buckets, not the transcript.',mod:'M'},
-  {t:'P: the next missing item',c:'TravelPlanning reads the checklist against the buckets and emits a directive for the first gap: find a restaurant near the landmark that offers the requested service.',mod:'P'},
-  {t:'F: only the tools for that gap',c:'DynamicToolPolicy exposes the restaurant and location tools for the missing bucket and withholds final_answer, because is_complete() is false. Six tools are hidden at this step.',mod:'F'},
-  {t:'A: the model picks the next call',c:'The model chooses among three tools, not ten; it cannot end the task early because the stop action is not on offer.',mod:'A'},
-  {t:'The kernel runs it; the bucket fills',c:'recommend_restaurants returns candidates and the restaurants bucket fills. Routes are still missing, so final_answer stays hidden; it appears only when all five buckets are full. Memory here is "an executable coverage contract", in Appendix C\'s words, not a way to save context.',mod:'K'}]};
-function ptDraw(m,k,e,w){
-  const S=PTS[m][k],act=S.mod,pad=6,narrow=w<520,bw=narrow?(w-2*pad-24)/2:Math.min(150,(w-2*pad-3*24)/4),bh=46;
-  let s='';const names={M:['M','Memory'],P:['P','Planning'],F:['F','Capability'],A:['A','Action']};
-  const lab=m==='react'?{M:'FullHistory',P:'∅ (none)',F:'Full registry',A:'ReAct loop'}:{M:'DataStoreMemory',P:'TravelPlanning',F:'DynamicToolPolicy',A:'ReAct loop'};
-  const pos=narrow?{M:[pad,8],P:[pad+bw+24,8],F:[pad,8+bh+18],A:[pad+bw+24,8+bh+18]}:{M:[pad,8],P:[pad+bw+24,8],F:[pad+2*(bw+24),8],A:[pad+3*(bw+24),8]};
-  const arrow=(x1,y1,x2,y2)=>{const a=Math.atan2(y2-y1,x2-x1),h=5;return ln2(x1,y1,x2,y2,'var(--mute)',{sw:1.4})+'<path d="M'+x2.toFixed(1)+','+y2.toFixed(1)+' L'+(x2-h*Math.cos(a-.5)).toFixed(1)+','+(y2-h*Math.sin(a-.5)).toFixed(1)+' L'+(x2-h*Math.cos(a+.5)).toFixed(1)+','+(y2-h*Math.sin(a+.5)).toFixed(1)+'z" fill="var(--mute)"/>'};
-  ['M','P','F','A'].forEach(q=>{const on=act===q,op=act&&!on?.45:1,[x,y0]=pos[q];const L=lab[q],mx=Math.floor((bw-8)/6.4);
-    s+=G(op,(on?rc(x,y0,bw,bh,MC[q],{op:.18+.17*e}):rc(x,y0,bw,bh,'var(--soft)'))+rc(x,y0,bw,bh,'none',{s:MC[q],sw:on?2.4:1.2})+tx(x+bw/2,y0+19,names[q][0]+' · '+names[q][1],{fs:12,a:'middle',w:600})+tx(x+bw/2,y0+36,L.length>mx?L.slice(0,mx-1)+'…':L,{fs:11,a:'middle',c:'var(--mute)'}))});
-  const R=q=>pos[q][0]+bw,Y=q=>pos[q][1]+bh/2;
-  s+=arrow(R('M')+3,Y('M'),pos.P[0]-3,Y('P'));
-  s+=narrow?arrow(pos.P[0]+bw*.3,pos.P[1]+bh+2,pos.F[0]+bw*.7,pos.F[1]-2):arrow(R('P')+3,Y('P'),pos.F[0]-3,Y('F'));
-  s+=arrow(R('F')+3,Y('F'),pos.A[0]-3,Y('A'));
-  const bottom=Math.max(...Object.values(pos).map(p=>p[1]))+bh;
-  let y=bottom+22;
-  // tool shelf
-  const filled=m==='turn'?(k>=5?4:3):0;
-  const exposed=i=>{if(m==='react')return true;if(k<3)return null;return [5,6,7].includes(i)};
-  s+=tx(pad,y,'Tools offered to the model at this step'+(m==='turn'&&k<3?' (decided at the F step)':''),{fs:11,c:'var(--mute)'});y+=8;
-  let cx=pad,cy=y;
-  TOOLS.forEach((t,i)=>{const tw=t.length*6.3+14;if(cx+tw>w-pad){cx=pad;cy+=24}
-    const ex=exposed(i),fa=t==='final_answer';
-    const on=ex===true,hid=ex===false;const op=hid?(k===3?1-.6*e:.4):1;
-    s+=G(op,rc(cx,cy,tw,19,on?(fa?'var(--acc2)':'var(--soft)'):'none',{s:on?(fa?'var(--acc)':'var(--mute)'):'var(--dim)',da:hid?'3 3':null,r:9})+tx(cx+tw/2,cy+13.5,t,{fs:11,a:'middle',c:on?'var(--ink)':'var(--mute)'}));cx+=tw+6});
-  y=cy+19+24;
-  // memory view
-  if(m==='react'){const n=k>=5?15:13,shown=k>=5?13+2*e:13;s+=tx(pad,y,'View the model reads (M): '+(k>=5?15:13)+' entries, the whole transcript',{fs:11,c:'var(--mute)'});y+=8;
-    const cw=Math.max(14,Math.min(26,(w-2*pad)/16));
-    for(let i=0;i<n;i++){const op=i<13?1:cl01(shown-i);const kind=i===0?'task':(i%2?'call':'obs');
-      s+=G(op,rc(pad+i*(cw+3),y,cw,26,kind==='task'?'var(--acc2)':kind==='call'?'var(--soft)':'var(--hl)',{s:k===1?MC.M:'var(--line)',sw:k===1?1.6:1}))}
-    y+=26+16;s+=tx(pad,y,'blue: task · grey: tool call · yellow: observation',{fs:11,c:'var(--mute)'});y+=10}
-  else{s+=tx(pad,y,'View the model reads (M): the spec and five buckets',{fs:11,c:'var(--mute)'});y+=8;
-    const bw2=Math.max(64,Math.min(120,(w-2*pad-4*6)/5));let bx=pad,by=y;
-    BUCKETS.forEach(([b],i)=>{if(bx+bw2>w-pad+1){bx=pad;by+=42}
-      const full=i<3||(i===3&&k>=5),fl=i===3&&k===5?e:(full?1:0),need=m==='turn'&&k>=2&&i===3;
-      s+=rc(bx,by,bw2,34,'var(--soft)',{s:need?MC.P:'var(--line)',sw:need?2:1})+rc(bx+2,by+2,(bw2-4)*fl,30,'var(--open2)',{r:3})+tx(bx+bw2/2,by+15,b,{fs:11,a:'middle'})+tx(bx+bw2/2,by+29,full?(i===3&&k===5&&e<1?'filling':'collected'):'missing',{fs:11,a:'middle',c:full?'var(--open)':'var(--bad)'});bx+=bw2+6});
-    y=by+34+14}
-  return svgW(w,y,s,'One turn of the four-module protocol')}
-function ptCnt(m,k,e){const ex=m==='react'?10:(k>=3?3:10),fa=m==='react'?'yes, at every step':'no, until all five buckets are full';
-  return stat('Tools offered',m==='turn'&&k<3?'10 (before F)':ex+' of 10','')+stat('View size',m==='react'?(k>=5?'15':'13')+' entries':'spec + 5 buckets','')+stat('Buckets full',m==='react'?'not tracked':(k>=5?'4':'3')+' of 5','')+stat('final_answer allowed?',fa,'')}
-makeAnim({id:'pt',modes:PTS,mode:'react',draw:ptDraw,counters:ptCnt,dur:3200});
+// (one turn of the protocol, ReAct against Turnstile, is the 3D stage in 31_js_sc_turn.js since 2026-11-13)
 
 // ---------- Table 1 seed bank ----------
 (function(){const host=$('seedPlot');if(!host)return;const dflt={M:'FullHistory',P:'No explicit planner',A:'ReAct',F:'Full registry'};
@@ -80,8 +23,8 @@ makeAnim({id:'pt',modes:PTS,mode:'react',draw:ptDraw,counters:ptCnt,dur:3200});
  3:[['Task; retrieve prior harnesses from bank B<sub>n</sub>','in'],['Sample G candidates from the current policy','t'],['Run candidates and the incumbent: same executor, budget, seeds','v'],['Three channel rewards, gated (Eq. 6)','v'],['Normalise each channel, then mix (Eq. 7)','v'],['Clipped PPO + KL to the Stage II model; update bank','o']]};
  const T={1:'Adaptivity: learn to write a harness that fits the task and passes validation, then prefer harnesses that win on reward without paying for it in latency or cost.',2:'Reliability: learn short repairs from real diagnostics. The two-round cap restricts the data to failures a small patch can fix.',3:'Evolvability: learn to write harnesses that overtake the best one already in the bank, and more cheaply when they match it.'};
  const col={in:'var(--soft)',t:'var(--acc2)',v:'var(--soft)',o:'var(--open2)'};
- function draw(m){$('stgSvg').innerHTML='<div class="flow">'+S[m].map((x,i)=>(i?'<span class="fa" aria-hidden="true">→</span>':'')+'<span class="fb2" style="background:'+col[x[1]]+'">'+x[0]+'</span>').join('')+'</div>';$('stgTxt').innerHTML='<p class="small">'+T[m]+'</p>'}
- segBind('stgM',m=>{$('stgM').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));draw(m)});draw('1')})();
+ function draw(m){$('trnSvg').innerHTML='<div class="flow">'+S[m].map((x,i)=>(i?'<span class="fa" aria-hidden="true">→</span>':'')+'<span class="fb2" style="background:'+col[x[1]]+'">'+x[0]+'</span>').join('')+'</div>';$('trnTxt').innerHTML='<p class="small">'+T[m]+'</p>'}
+ segBind('trnM',m=>{$('trnM').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));draw(m)});draw('1')})();
 
 // ---------- predict 1: the gate ----------
 PRED_REVEAL.pr1=function(){const go=()=>{const r=+$('pr1R').value,b=80,lam=.5,ck=.04,bk=.10;$('pr1Rv').textContent=r.toFixed(1);

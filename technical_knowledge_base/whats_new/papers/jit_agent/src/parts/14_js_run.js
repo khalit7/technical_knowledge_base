@@ -15,18 +15,9 @@ function gdCompute(){const P=GDP[GD.pre](),b={r:GD.br,l:P.inc.l,k:P.inc.k},wl=(1
   const zS=zs(c.map(x=>x.S));c.forEach((x,i)=>x.Ao=zS[i]);
   return {P,b,c,wl,wc}}
 const f2=v=>(v<0?'−':'')+Math.abs(v).toFixed(2);
-const GDS={gdpo:[
- {t:'Measure the group',c:'Each candidate harness ran under the same executor, budget and seeds as the incumbent, the best harness retrieved from the bank. Bars: score r, latency ℓ and cost κ; the line in each column is the incumbent.'},
- {t:'Three channel rewards (Eq. 6)',c:'Reward channel: the score plus a bonus λ<sub>evo</sub>·[r − b<sub>r</sub>]<sub>+</sub> for beating the incumbent. Latency and cost channels: the saving against the incumbent, paid only if the candidate at least matches its score; greyed rows are gated off.'},
- {t:'Normalise each channel separately',c:'Each channel becomes a z-score within the group, (x − mean) / (std + ε). A channel measured in dollars and one measured in thousands of tokens now sit on the same scale, so neither can drown the other.'},
- {t:'Mix with reward dominant (Eq. 7)',c:'A<sup>Σ</sup> = w<sub>rew</sub>A<sup>rew</sup> + w<sub>lat</sub>A<sup>lat</sup> + w<sub>cost</sub>A<sup>cost</sup>, with w<sub>rew</sub> &gt; w<sub>lat</sub> + w<sub>cost</sub>. This is the advantage the PPO update pushes each candidate\'s tokens up or down by.'},
- {t:'Update the bank',c:'Independently of the gradient, a candidate joins the bank if it matches or beats the incumbent\'s score and is strictly better on score, latency or cost. Kept harnesses become references for later tasks.'}],
- grpo:[
- {t:'Measure the group',c:'The same group and the same incumbent.'},
- {t:'The same three channel rewards',c:'Identical to Evo-GDPO up to here: the gate and the bonus are part of the rewards, not of the normalisation.'},
- {t:'Mix the raw channels first',c:'GRPO-style training adds the weighted channel rewards into one number per candidate before any normalisation. The stacked bars show what each channel contributes; whichever channel has the biggest raw scale dominates.'},
- {t:'Normalise once',c:'The single sum becomes a z-score within the group. Candidates whose sums differ only through a small-scale channel end up with nearly the same advantage: the collapse GDPO describes.'},
- {t:'Update the bank',c:'The bank rule does not depend on the advantages, so the same candidates are kept; only the training signal differs.'}]};
+// the steps of each method; their explanations are the step lists sx-gd-gdpo and sx-gd-grpo in 04_run.html
+const GDS={gdpo:['Measure the group','Three channel rewards','Normalise each channel','Mix','Update the bank'].map(t=>({t})),
+ grpo:['Measure the group','The same rewards','Mix the raw channels first','Normalise once','Update the bank'].map(t=>({t}))};
 function gdDraw(m,k,e,w){const D=gdCompute(),c=D.c,n=c.length,nw=Math.min(118,Math.max(84,w*.26)),pad=4,rh=32,top=34,H=top+n*rh+8;
   let cols;const raw=[['score r','r',D.b.r,'var(--c1)'],['latency ℓ ('+D.P.lu+')','l',D.b.l,'var(--c4)'],['cost κ ($)','k',D.b.k,'var(--c2)']];
   if(k===0)cols=raw.map(x=>({h:x[0],f:q=>q[x[1]],ref:x[2],col:x[3],pos:true}));
@@ -48,7 +39,7 @@ function gdDraw(m,k,e,w){const D=gdCompute(),c=D.c,n=c.length,nw=Math.min(118,Ma
 function gdCnt(m,k,e){const D=gdCompute(),c=D.c,top=a=>c.reduce((p,q)=>q[a]>p[a]?q:p),Ag=top('Ag'),Ao=top('Ao'),byR=top('Rr');
   const spread=a=>{const v=c.map(q=>q[a]).sort((x,y)=>y-x);return v[0]-v[1]};
   return stat('Top advantage, Evo-GDPO',Ag.n,'gap to second '+spread('Ag').toFixed(2))+stat('Top advantage, GRPO-style',Ao.n,'gap to second '+spread('Ao').toFixed(2))+stat('Best score in the group',byR.n,'r = '+byR.r)+stat('Kept in the bank',c.filter(q=>q.bank).length+' of '+c.length,'incumbent b<sub>r</sub> = '+D.b.r)}
-const gdA=makeAnim({id:'gd',modes:GDS,mode:'gdpo',draw:gdDraw,counters:gdCnt,dur:3400});
+const gdA=makeAnim({id:'gd',modes:GDS,mode:'gdpo',lists:{gdpo:'sx-gd-gdpo',grpo:'sx-gd-grpo'},draw:gdDraw,counters:gdCnt,dur:4200});
 function gdTable(){const D=gdCompute();$('gdTab').innerHTML='<thead><tr><th>Candidate</th><th class="num">r</th><th class="num">ℓ</th><th class="num">κ</th><th class="num">R rew</th><th class="num">R lat</th><th class="num">R cost</th><th class="num">A, Evo-GDPO</th><th class="num">A, GRPO-style</th><th>Bank</th></tr></thead><tbody>'+
   D.c.map(q=>'<tr><td>'+esc(q.n)+'</td><td class="num">'+q.r+'</td><td class="num">'+q.l+'</td><td class="num">'+q.k.toFixed(3)+'</td><td class="num">'+q.Rr.toFixed(1)+'</td><td class="num">'+(q.g?q.Rl.toFixed(q.Rl>=10?0:1):'gated')+'</td><td class="num">'+(q.g?q.Rc.toFixed(3):'gated')+'</td><td class="num"><b>'+f2(q.Ag)+'</b></td><td class="num">'+f2(q.Ao)+'</td><td>'+(q.bank?'kept':'')+'</td></tr>').join('')+
   '<tr class="basec"><td>'+esc(D.P.inc.n)+'</td><td class="num">'+D.b.r+'</td><td class="num">'+D.b.l+'</td><td class="num">'+D.b.k.toFixed(3)+'</td><td colspan="6" class="small mute">incumbent (b<sub>r</sub>, b<sub>ℓ</sub>, b<sub>κ</sub>); ℓ in '+D.P.lu+'; weights w<sub>rew</sub> '+GD.w.toFixed(2)+', w<sub>lat</sub> '+D.wl.toFixed(2)+', w<sub>cost</sub> '+D.wc.toFixed(2)+'</td></tr></tbody>';

@@ -6,8 +6,8 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card; the core sentence, the hero (the paper's Figure 1, CC BY 4.0, over Table 2 averages and Table 3 costs as bars from `mk_hero.py`), You need and New terms; Problem, Idea (the four-module protocol, a ReAct against Turnstile protocol-turn animation, the seed bank), Training (three stages, Evo-GDPO, predict question on the gate), Inference, Results 1 to 5 (two predict questions: harnessed V4-Flash against GPT-5.6, best score in how many of six settings; Figure 4 and Figure 6 decoded), How much to believe, What it takes to use this, Why it matters, Connections. |
-| Score a group of harnesses | `t-run` | The live ingredient: Evo-GDPO's Eq. 6 and 7 on a group, animated against GRPO-style mixing, with the bank rule and Stage I's Eq. 4 pair rule; the released training harnesses counted and browsable. |
+| The paper | `t-read` | (split layout and two 3D stages since 2026-11-13) Card; the core sentence, the hero (the paper's Figure 1, CC BY 4.0, over Table 2 averages and Table 3 costs as bars from `mk_hero.py`), You need and New terms; Problem, Idea (the four-module protocol beside the protocol-turn stage, ReAct against Turnstile; the real Turnstile figure; the seed bank), Training (three stages; Stage III beside the Evo-GDPO stage, predict question on the gate), Inference, Results 1 to 5 (two predict questions: harnessed V4-Flash against GPT-5.6, best score in how many of six settings; Figure 4 and Figure 6 decoded), How much to believe, What it takes to use this, Why it matters, Connections. |
+| Score a group of harnesses | `t-run` | (split since 2026-11-13: notes and the step lists left, the calculator right) The live ingredient: Evo-GDPO's Eq. 6 and 7 on a group, animated against GRPO-style mixing, with the bank rule and Stage I's Eq. 4 pair rule; the released training harnesses counted and browsable. |
 | The paper's tables and figures, rebuilt | `t-tables` | Tables 2, 3, 4, Figure 4 and all nine Figure 6 panels, the noise and granularity checks, the training-against-test checks, all 68 checks. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
@@ -33,7 +33,9 @@
 - `label_ledger.py`: labels `ledger.json` (see the light pass below).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
 - `mk_coverage.py` writes `coverage.json` (42 items, this paper's own, verified against the built page).
-- `check_page.mjs` (run from the repo root with node): every control in both themes and widths, both animations stepped for every preset and mode.
+- `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the Evo-GDPO animation stepped for every preset and mode; since 2026-11-13 it asserts that the protocol stage plays once scrolled into view (it used to forbid any autoplay).
+- `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, both stage step lists (and the turn stage's second list) against `window.JITTURN` and `window.JITEVO`, and the Evo-GDPO stage against the Score tab's own calculator at its defaults.
+- `parts/31_js_sc_turn.js`, `parts/32_js_sc_evo.js` (2026-11-13): the two 3D scenes on the template renderer `parts/25_js_s3.js`.
 
 ## Checks (3 October 2026)
 
@@ -51,3 +53,27 @@
 - Privacy and dashes: no email in any saved source; the 34 long dashes in `inputs/paper_v1.txt`, `paper_v2.txt`, `tables_v1.txt` and `release_extracts.txt` are saved as `--`, and `extract_paper.py` and `fetch_release.sh` now redact emails and convert dashes on any rerun.
 
 Rechecked 2026-10-25: `checkpage.sh` 4 tabs, 255 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 400 actions, 0 problems.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after `01_css.html`). The paper: the top (core sentence, You need, New terms) beside Figure 1 and the hero bars; Idea beside the protocol-turn stage (its toggle and two step lists sit in the left column after the module list); the real Turnstile (Figure C.3) beside a short paragraph on what it adds and the v1 Position block; Training's Stage I and II beside the three-stage card; Stage III, Eq. 6, the predict question and Eq. 7 beside the Evo-GDPO stage; Results 3 beside its Figure 4 card; Results 4 beside its Figure 6 card. Problem, the seed bank (a table), Inference, Results 1 and 2 (their charts are inside predict reveals), Results 5 (a table), How much to believe, Use it, Why it matters and Connections stay full width. Score tab: the intro, Try and the two generated step lists left, the calculator card right (sticky); the per-candidate table and Stage I's pair rule full width; the released-harness bars beside their paragraph. Tables tab: all tables and the nine-panel Figure 6 grid stay full width (curves and tables; the grid needs the full width for three panels a row, and its interactive version is in a split in Reading). Further reading unchanged.
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged):
+  - `31_js_sc_turn.js`, one turn of the protocol (Idea), six steps per harness, two lists (`sx-turn-react`, `sx-turn-turn`, swapped by the ReAct and Turnstile toggle with `S3.stage(...).list`): the four module cases in execution order M, P, F, A, the view behind them (13 then 15 transcript entries for ReAct; the spec and five evidence buckets, three then four full, for Turnstile), the ten DeepPlanning-Travel tools in front (all offered for ReAct; three offered, six hidden and final_answer under a glass lock for Turnstile) and the kernel; flows carry the view into M, the directive to F, the offered tools to A, the call to the kernel and its result back. The camera moves in on the view at M and on the tool shelf at F. Illustrative, labelled as before. Replaces the 2D protocol-turn animation (`makeAnim` `pt`); its captions became the two step lists and its counters went into their text.
+  - `32_js_sc_evo.js`, one Evo-GDPO group (Stage III), six steps (`sx-evo`): Table 3's six harnesses on DeepSearchQA with DeepSeek-V4-Flash as the group, NanoBot (80.4, 924K tokens, $0.131) as the incumbent; the bank and the policy, then score, tokens and cost on plinths with the incumbent as glass sheets, the Eq. 6 channel rewards with the gate, the per-channel z-scores as signed bars, the mixed advantage as a front row fed by flows weighted 0.6, 0.2, 0.2, and the bank rule (JIT-Agent kept, 1 of 6). Same defaults as the Score tab (λ_evo 0.5, w_rew 0.6, latency share 50%), labelled illustrative; `check_stages.mjs` asserts the scene and the Score tab's `gdCompute` agree. New: the Reading tab had only the three-stage chips card for Training.
+- **Kept 2D**: the hero (Figure 1 is the canonical image; the bars are numbers on one axis), the three-stage card (a short flow per stage), the seed table, the predict reveals (dumbbells, the cost-against-score scatter), Figure 4 bars, Figure 6 curves, the generated-harness table, the Score tab's calculator (a tool with sliders and a GRPO comparison) and every table.
+- **Score tab animation**: `makeAnim` (`11_js_ui.js`) replaced by the HarnessDev copy (Dream-RSI and Agora lineage: plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, one `ol.sx` per method, `reset()` on a method change). The per-step caption box went; its texts are the static step lists `sx-gd-gdpo` and `sx-gd-grpo`. Five steps per method, within the long-replay limit.
+- `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `jit-tab`). One page-specific line is kept in `99_js_tabs.js`: a `data-to` link whose target is or sits in a closed block opens it (the trust section links to the closed noise, granularity and checks blocks of the Tables tab).
+- The three-stage card's ids changed from `stg` to `trn`, since the template uses the `stg` class for stages.
+
+## Length judgement (2026-11-13)
+| | Before (audit, pre-pass) | After |
+|---|---|---|
+| The paper, core | 28.1 min (6,463 words) | 32.0 min (about 7,350) |
+| The paper, closed | 5.6 min (1,298) | 5.6 min (1,298) |
+| Score tab | 4.8 min (1,096) | 6.1 min (1,400; the two step lists replace the script-drawn caption box) |
+| Tables; Further reading | 3.6 plus 5.9; 2.8 min | unchanged |
+
+The growth is the three stage step lists (about 800 words) that explain the two stages and replace the protocol animation's script-drawn captions and counters (invisible to the word count before), plus one paragraph on what the real Turnstile figure adds. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 32 min, plus 6 in closed details." from `reading.json`.
+
+Ledger: 293 units (core 241, depth 44, owned 4, volatile 1, fat 3); `label_ledger.py` re-keyed units 35, 36, 79, 127 and 133 by hand (`KEYS`: reworded or moved beside a stage or figure) and added three units for the stage lists. `ledger.py check` problems 0. `mk_coverage.py` 42 of 42.

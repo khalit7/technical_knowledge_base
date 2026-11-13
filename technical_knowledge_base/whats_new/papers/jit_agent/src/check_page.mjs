@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end (the 3D stages: check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/jit_agent/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -40,13 +40,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
-  // no autoplay (2026-10-25): scroll the protocol animation into view, wait: it must not have drawn a frame; nor after a mode switch
+  // autoplay (2026-11-06, inverting the 2026-10-25 rule): the protocol stage plays by itself once scrolled into view (check_stages.mjs checks every stage and animation in full)
   {
-    await p.$eval('#pt', e => e.scrollIntoView()); await wait(1200);
-    let fr = await p.$eval('#pt', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: pt played before the reader acted (${fr} frames)`);
-    await clk('#ptM button:not(.on)'); await wait(1000);
-    fr = await p.$eval('#pt', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: pt played after a mode switch (${fr} frames)`);
-    await clk('#ptM button[data-m=react]');
+    await p.$eval('#tabs button[data-t=t-read]', e => e.click()); await wait(300);
+    await p.$eval('#stg-turn', e => e.scrollIntoView({ block: 'center' })); await wait(2000);
+    const fr = await p.$eval('#stg-turn', e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: stg-turn did not play when scrolled into view`);
   }
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250);
@@ -82,7 +80,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle; the replay is stepped for every episode
-    for (const id of ['pt', 'gd']) {
+    for (const id of ['gd']) {
       const epId = id === 'gd' ? 'gdPre' : id + 'Ep';
       if (!(await p.$(`#${t} #${id}`))) continue;
       const eps = await p.$$eval(`#${epId} option`, os => os.map(o => o.value)).catch(() => []);

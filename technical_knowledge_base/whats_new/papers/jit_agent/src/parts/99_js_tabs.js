@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page template; storage key jit-tab; a data-to link scrolls to its target and opens the closed block that holds it)
+// ---- Tabs ---- (the explainer-page template; storage key jit-tab; this page adds one thing: a data-to link whose target is or sits in a closed block opens it)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
