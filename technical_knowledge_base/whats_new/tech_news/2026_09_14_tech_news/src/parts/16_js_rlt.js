@@ -8,18 +8,19 @@
   const range=(a,b)=>Array.from({length:b-a},(_,i)=>a+i);
   const M={
     tf:{name:'Decoder-only Transformer',steps:[
-      {t:'The prompt arrives',c:'Five prompt tokens, 96 layers each. Nothing has run yet.',u:[]},
-      {t:'Prefill: every prompt token, one layer at a time',c:'All five tokens go through layer 1 together, then layer 2, and so on: 96 sequential layer steps for the whole prompt, however long it is. Tokens exchange information only through attention to each other\'s cached keys and values, sideways at the same layer.',u:rows(0,R,range(0,PR))},
-      {t:'Generate token 6',c:'The new token runs all 96 layers. Its output depends on earlier tokens only through attention, so the longest chain of computation behind it is still 96 blocks: what token 5 computed at its top layer never feeds token 6\'s first layer.',u:rows(0,R,[5])},
-      {t:'Generate tokens 7 and 8',c:'Each new token adds another 96 sequential layer steps of latency, but the depth behind any single output never grows past 96. Switch to RLT and run the same eight tokens.',u:rows(0,R,[6]).concat(rows(0,R,[7]))}]},
+      {t:'The prompt arrives',u:[]},
+      {t:'Prefill: every prompt token, one layer at a time',u:rows(0,R,range(0,PR))},
+      {t:'Generate token 6',u:rows(0,R,[5])},
+      {t:'Generate tokens 7 and 8',u:rows(0,R,[6]).concat(rows(0,R,[7]))}]},
     rlt:{name:'RLT',steps:[
-      {t:'The same prompt arrives',c:'Same five tokens, same 96 blocks per token, now split into a 48-layer causal encoder and a 48-layer recurrent decoder with shared weights.',u:[]},
-      {t:'Encoder: the prompt in parallel',c:'The causal encoder runs over all known tokens together, like a normal Transformer, and builds the global key-value memory the decoder will read: 48 sequential layer steps.',u:rows(0,8,range(0,PR))},
-      {t:'Decoder, token 1',c:'The decoder starts from a learned initial state and runs its 48 layers on token 1, reading the encoder memory. Its final output s1 is kept.',u:rows(8,R,[0])},
-      {t:'Decoder, tokens 2 to 5: one after another',c:'Token 2\'s decoder input merges its own embedding with s1, token 3\'s with s2, and so on. The chain of computation now runs through every earlier token\'s full decoder: 48, 96, 144, 192, 240 blocks. The price is that this cannot run in parallel: the decoder walks the prompt token by token.',u:[2,3,4,5].reduce((a,t)=>a.concat(rows(8,R,[t-1])),[])},
-      {t:'Generate token 6',c:'Generation looks as before: encode the new token, then run the decoder from s5. The deepest chain behind token 6\'s output is 6 x 48 = 288 decoder blocks, at the same 96 blocks of work per token.',u:rows(0,8,[5]).concat(rows(8,R,[5]))},
-      {t:'Generate tokens 7 and 8',c:'After t tokens the chain is t x 48 decoder blocks while the work per token stays fixed. The report is candid that this is structural depth, not proven reasoning: gates may suppress long paths, and no trained model of this size has shown the gain.',u:rows(0,8,[6]).concat(rows(8,R,[6])).concat(rows(0,8,[7])).concat(rows(8,R,[7]))}]}};
-  const st={m:'tf',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,P:1000};
+      {t:'The same prompt arrives',u:[]},
+      {t:'Encoder: the prompt in parallel',u:rows(0,8,range(0,PR))},
+      {t:'Decoder, token 1',u:rows(8,R,[0])},
+      {t:'Decoder, tokens 2 to 5: one after another',u:[2,3,4,5].reduce((a,t)=>a.concat(rows(8,R,[t-1])),[])},
+      {t:'Generate token 6',u:rows(0,8,[5]).concat(rows(8,R,[5]))},
+      {t:'Generate tokens 7 and 8',u:rows(0,8,[6]).concat(rows(8,R,[6])).concat(rows(0,8,[7])).concat(rows(8,R,[7]))}]}};
+  const HOLD=3800; // ms each step stays on screen after drawing, so its explanation on the left can be read
+  const st={m:'tf',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,P:1000,hold:0,user:false,ended:false,lis:[]};
   const cl=x=>Math.max(0,Math.min(1,x));
   function done(){ // cells computed so far and units completed
     const S=M[st.m].steps,cells={};let units=0;
@@ -48,7 +49,7 @@
         s+='<path d="'+p+'" fill="none" stroke="var(--c2)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';depth=48*(newest+1)}}
     const H=H0+8;
     box.innerHTML=svgEl(W,H,s,'Eight tokens through '+mode.name);
-    if(st.lk!==st.k||st.lm!==st.m){$('rltStep').textContent=mode.name+', step '+(st.k+1)+' of '+S.length+': '+S[st.k].t;$('rltCap').innerHTML=S[st.k].c;st.lk=st.k;st.lm=st.m}
+    st.lis.forEach((li,i)=>{li.classList.toggle('on',i===st.k);li.classList.toggle('done',i<st.k);if(i===st.k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
     const seq=D.units*LPR,P=st.P;
     $('rltCnt').innerHTML=stat('Blocks run per token','96','the same in both')+
       stat('Sequential layer steps so far',fmt(seq),'one row = 6 layer steps')+
@@ -56,25 +57,37 @@
       stat('Sequential steps to prefill '+fmt(P)+' tokens',st.m==='tf'?'96':fmt(48+48*P),st.m==='tf'?'tokens run in parallel':'48 + 48 x '+fmt(P)+', derived');
     const sc=$('rltScrub');sc.max=S.length*100;sc.value=Math.round((st.k+st.t)*100);
     const end=st.k===S.length-1&&st.t>=1;const pb=$('rltPlay');pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
+    if(st.play)card.dataset.playing='1';else delete card.dataset.playing;
   }
   const dur=()=>Math.max(1200,M[st.m].steps[st.k].u.length*UNIT);
+  // motion rules (2026-11-06, as RD.anim in 21_js_rd_common.js): plays by itself once at least half in view, pauses off screen and resumes,
+  // holds each step so its explanation can be read, stops for good on any reader control or at the last step, never moves by itself under reduced motion
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    const S=M[st.m].steps;st.t+=dt*st.spd/dur();if(st.t>=1){if(st.k<S.length-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
+  function tick(now){st.raf=0;if(!st.play||!live()){st.last=0;return}const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
+    const S=M[st.m].steps;
+    if(st.t<1){st.t=Math.min(1,st.t+dt*st.spd/dur());card.dataset.frames=(+card.dataset.frames||0)+1;draw()}
+    else if(st.k>=S.length-1){st.play=false;st.ended=true;draw()}
+    else{st.hold+=dt*st.spd;if(st.hold>=HOLD){st.hold=0;st.k++;st.t=0;card.dataset.frames=(+card.dataset.frames||0)+1;draw()}}
+    if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
   const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('rltPlay').addEventListener('click',()=>{const S=M[st.m].steps;if(st.play){pause()}else{if(st.k===S.length-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<S.length-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('rltFwd').addEventListener('click',()=>{pause();const S=M[st.m].steps;if(st.t>=1&&st.k<S.length-1)st.k++;st.t=1;draw()});
-  $('rltBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('rltScrub').addEventListener('input',e=>{pause();const v=+e.target.value,S=M[st.m].steps;st.k=Math.min(S.length-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=S.length*100)st.t=1;draw()});
+  const user=()=>{st.user=true;pause()};
+  function auto(){if(RM||st.user||st.ended||st.play||!live())return;st.play=true;st.hold=0;draw();kick()}
+  function bindList(){st.lis=[...$('sx-rlt-'+st.m).children];document.querySelectorAll('ol[id^="sx-rlt-"]').forEach(o=>o.hidden=o.id!=='sx-rlt-'+st.m);
+    st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{user();st.k=i;st.t=1;draw()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+  $('rltPlay').addEventListener('click',()=>{const S=M[st.m].steps;st.user=true;if(st.play){pause()}else{if(st.k===S.length-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<S.length-1){st.k++;st.t=0}st.hold=0;st.play=true;kick()}draw()});
+  $('rltFwd').addEventListener('click',()=>{user();const S=M[st.m].steps;if(st.t>=1&&st.k<S.length-1)st.k++;st.t=1;draw()});
+  $('rltBack').addEventListener('click',()=>{user();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $('rltScrub').addEventListener('input',e=>{user();const v=+e.target.value,S=M[st.m].steps;st.k=Math.min(S.length-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=S.length*100)st.t=1;draw()});
   $('rltSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('rltP').addEventListener('change',e=>{st.P=+e.target.value;draw()});
+  // a mode toggle swaps the step list and replays from the start: the one exception to "stops for good"
   const seg=$('rltM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    pause();st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.hold=0;st.user=false;st.ended=false;bindList();draw();auto()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
+  bindList();
   let rw=card.clientWidth;addEventListener('resize',()=>{const w=card.clientWidth;if(w&&w!==rw){rw=w;draw()}});
-  onTab(card.closest('.tab').id,()=>{draw();kick()});
+  onTab(card.closest('.tab').id,()=>{draw();kick();setTimeout(auto,50)});
   draw();
 })();

@@ -310,9 +310,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
 - [x] `whats_new/tech_news/2026_08_31_tech_news` 2026-08-31: tech news
 - [x] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
-- [~] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
+- [x] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
 - [~] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
-- [ ] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
+- [~] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
 - [ ] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
 - [ ] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
 - [ ] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
@@ -604,6 +604,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/tech_news/2026_08_24_tech_news`: DiffusionGemma stage step 3 the autoregressive lane is cut at the left edge; tab leads still say "below" for visuals now beside their items.
 - `whats_new/tech_news/2026_08_31_tech_news`: MCP stage step 5 "restarted, nothing lost" touches the right edge; its mk_issue.py uses different split markers (<!--left-->/<!--right:anim-->) from the 08-24 issue (<!--L-->/<!--R-->), not unified; DFlash step lists are filled by script (empty without JavaScript).
 - `whats_new/tech_news/2026_09_07_tech_news`: routing stage turns 4 and 5 columns run off the right edge at step 4; the 08-31 and 09-14 issues link this issue with "(time not yet measured)" and could now quote 49 min.
+- `whats_new/tech_news/2026_09_14_tech_news`: the CED stage's "decoder: not run on the prompt" label is pushed in at the canvas edge at 1400; the V4-Flash tower is cut at the top left in close-up steps.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -759,3 +760,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Tech news 2026-08-24: the template tabs now remember the last tab (before, the page always opened At a glance); #v-diff now points at the stage's left-column text; full-width item cards capped at 60em; the "What the real runs measured" panel moved beside the harness item, above its animation; mk_issue.py builds the splits from markers in v_ parts (pattern for the later issues). Keep?
 - Tech news issues: the template tabs remember the last tab opened (old issues always opened At a glance); one line in 99_js_tabs.js would restore that if issues should always open on At a glance. Which do you want?
 - Tech news 2026-09-07: one 3D stage on the Portal routing session (illustrative session, per-call numbers asserted in recompute.py), replacing the 2D lanes; the At a glance annotation for Dev tools now says the session is "drawn in 3D". Keep?
+- Tech news 2026-09-14: the V4-Flash / V4.1-Flash toggle merged into one 3D stage showing both models in one eight-step list; the SSD blocks use the report's "nearly half" and "about 1/8" (not recomputed, stated); the stage has its own colours (grey sliding-window, orange cache writers, teal reuse, purple replay, blue new token). Keep?

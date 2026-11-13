@@ -33,3 +33,8 @@ The two animations follow the DeepSeek MLA explainer: the same input (one agent 
 - A rule for **sources that were rewritten after publication without a note** (Real-SWE twice, DeepSeek's changelog within three days, the RLT page within a week): check the issue against the Wayback capture nearest its date, show every later reading as data, and record each change as a dated follow-up.
 - A rule for **items with no source link**: search for the primary announcement, link only article-level addresses, and say so where only a site was found; a home-page link in the issue (Scientific American, The Intercept, WIRED) is flagged as such.
 - A rule for **"nothing new" claims about release feeds**: check the release APIs directly; the claim is falsifiable and was false here.
+
+## 2026-11-13: the layout rollout
+- The DeepSeek turn became a 3D stage: a layer stack with a cache plate per caching layer has real spatial structure (layer by prompt by bytes per token), and the before/after reads best as the two stacks side by side in depth rather than a toggle between two flat grids. The plates' area is each layer's cache, so the 4x shows as surface.
+- The RLT comparison stayed 2D: its message is one chain drawn through a token-by-layer grid, which a flat view shows exactly; depth would add nothing.
+- Real-SWE, the two calculators, the waterfall and the week strip stayed 2D (dots, a grid, a scatter, bars and a timeline on one axis).

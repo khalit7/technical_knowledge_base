@@ -1,12 +1,34 @@
+<!--RFIRST-->
+<!--R-->
+<div class="s3side">
 <div class="viz" id="v-rlt">
-<h3>Depth that grows with the sequence: a decoder-only Transformer against the Recurrent Looped Transformer</h3>
-<p class="lede">Eight tokens (five of prompt, three generated) through the same 96 blocks per token, drawn to the same scale: each column is a token, each row six layers. In a <b>decoder-only Transformer</b>, nothing computed at the top of one token feeds the bottom of the next; tokens meet only through attention, so the deepest chain of computation behind any output stays 96 blocks, and the whole prompt runs in parallel. In the <b>RLT</b> reference layout (48 encoder + 48 decoder layers with shared weights), the encoder runs the prompt in parallel, but each token's decoder starts from the previous token's final decoder state, so the chain grows by 48 blocks per token, and the decoder has to walk the prompt one token at a time. Watch the counters, then try a longer prompt.</p>
-<div class="an-top"><div class="seg" id="rltM"><button class="on" data-m="tf" aria-pressed="true">Decoder-only Transformer (96 layers)</button><button data-m="rlt" aria-pressed="false">RLT (48 + 48, recurrent decoder)</button></div>
-<label class="small">Prompt length for the prefill counter <select id="rltP" aria-label="Prompt length"><option value="1000" selected>1,000 tokens</option><option value="10000">10,000 tokens</option><option value="100000">100,000 tokens</option></select></label></div>
+<h3>Eight tokens, 96 blocks each, two ways</h3>
+<div class="an-top"><div class="seg" id="rltM"><button class="on" data-m="tf" aria-pressed="true">Decoder-only Transformer (96 layers)</button><button data-m="rlt" aria-pressed="false">RLT (48 + 48, recurrent decoder)</button></div></div>
 <div class="an-svg" id="rltSvg"></div>
 <div class="lgd"><span><i style="background:var(--acc)"></i>decoder-only layers</span><span><i style="background:var(--c3)"></i>RLT encoder (parallel over known tokens)</span><span><i style="background:var(--c4)"></i>RLT decoder (token by token)</span><span><i style="background:var(--c2);height:3px"></i>longest chain of computation behind the newest token</span></div>
 <div class="an-ctl"><button id="rltPlay" class="an-play">▶ Play</button><button id="rltBack" aria-label="Previous step">◀ Step</button><button id="rltFwd" aria-label="Next step">Step ▶</button><input type="range" id="rltScrub" min="0" max="600" value="0" aria-label="Scrub"><select id="rltSpd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
-<div class="an-cap"><div class="t" id="rltStep"></div><p id="rltCap"></p></div>
 <div class="an-cnt hs-cnt" id="rltCnt"></div>
+<label class="small">Prompt length for the prefill counter <select id="rltP" aria-label="Prompt length"><option value="1000" selected>1,000 tokens</option><option value="10000">10,000 tokens</option><option value="100000">100,000 tokens</option></select></label>
+</div>
+</div>
+<!--L-->
+<div class="viz-l">
+<h3 class="vz-h">Depth that grows with the sequence: a decoder-only Transformer against the Recurrent Looped Transformer</h3>
+<p class="vz-l">Eight tokens (five of prompt, three generated) through the same 96 blocks per token, drawn to the same scale: each column is a token, each row six layers. In a <b>decoder-only Transformer</b>, nothing computed at the top of one token feeds the bottom of the next; tokens meet only through attention, so the deepest chain of computation behind any output stays 96 blocks, and the whole prompt runs in parallel. In the <b>RLT</b> reference layout (48 encoder + 48 decoder layers with shared weights), the encoder runs the prompt in parallel, but each token's decoder starts from the previous token's final decoder state, so the chain grows by 48 blocks per token, and the decoder has to walk the prompt one token at a time. It plays the Transformer first; then switch (the buttons above the chart) and watch the orange chain and the counters.</p>
+<p class="sxh">Step by step</p>
+<ol class="sx" id="sx-rlt-tf">
+<li><b>The prompt arrives.</b> Five prompt tokens, 96 layers each. Nothing has run yet.</li>
+<li><b>Prefill: every prompt token, one layer at a time.</b> All five tokens go through layer 1 together, then layer 2, and so on: 96 sequential layer steps for the whole prompt, however long it is. Tokens exchange information only through attention to each other's cached keys and values, sideways at the same layer.</li>
+<li><b>Generate token 6.</b> The new token runs all 96 layers. Its output depends on earlier tokens only through attention, so the longest chain of computation behind it is still 96 blocks: what token 5 computed at its top layer never feeds token 6's first layer.</li>
+<li><b>Generate tokens 7 and 8.</b> Each new token adds another 96 sequential layer steps of latency, but the depth behind any single output never grows past 96. Switch to RLT and run the same eight tokens.</li>
+</ol>
+<ol class="sx" id="sx-rlt-rlt" hidden>
+<li><b>The same prompt arrives.</b> Same five tokens, same 96 blocks per token, now split into a 48-layer causal encoder and a 48-layer recurrent decoder with shared weights.</li>
+<li><b>Encoder: the prompt in parallel.</b> The causal encoder runs over all known tokens together, like a normal Transformer, and builds the global key-value memory the decoder will read: 48 sequential layer steps.</li>
+<li><b>Decoder, token 1.</b> The decoder starts from a learned initial state and runs its 48 layers on token 1, reading the encoder memory. Its final output s1 is kept.</li>
+<li><b>Decoder, tokens 2 to 5: one after another.</b> Token 2's decoder input merges its own embedding with s1, token 3's with s2, and so on. The chain of computation now runs through every earlier token's full decoder: 48, 96, 144, 192, 240 blocks. The price is that this cannot run in parallel: the decoder walks the prompt token by token.</li>
+<li><b>Generate token 6.</b> Generation looks as before: encode the new token, then run the decoder from s5. The deepest chain behind token 6's output is 6 x 48 = 288 decoder blocks, at the same 96 blocks of work per token.</li>
+<li><b>Generate tokens 7 and 8.</b> After t tokens the chain is t x 48 decoder blocks while the work per token stays fixed. The report is candid that this is structural depth, not proven reasoning: gates may suppress long paths, and no trained model of this size has shown the gain.</li>
+</ol>
 <p class="small mute">From the {{RLT project page|https://yifanzhang-pro.github.io/recurrent-looped-tranformer/}} and {{MarkTechPost|https://www.marktechpost.com/2026/09/13/a-princeton-researcher-proposes-recurrent-looped-transformer-rlt/}}: the 48 + 48 tied layout, 96 logical blocks per token, a path of t x 48 decoder blocks after t tokens, the encoder batched over known tokens and the decoder updated in token order during prefill. <span class="ill">Illustrative:</span> eight tokens and rows of six layers; no trained 48 + 48 model exists (the experiments published on 17 to 20 September use untied 8- and 16-layer models). <b>Derived:</b> sequential layer steps = 96 for a Transformer prompt of any length (layers run one after another, tokens in parallel), 48 + 48 x P for RLT, counting one layer of one token as one step and ignoring how a GPU would overlap them.</p>
 </div>
