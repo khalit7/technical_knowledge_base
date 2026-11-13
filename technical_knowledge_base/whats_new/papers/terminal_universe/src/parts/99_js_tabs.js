@@ -1,4 +1,4 @@
-// ---- Tabs ---- (the explainer-page skill template, 2026-10-25; storage key tu-tab; links may carry data-to, the element to scroll to)
+// ---- Tabs ---- (replace tu-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

@@ -31,10 +31,8 @@
     ['Round 5','extension','"The event history is finally durable, but right now alerts.json and alerts.jsonl are write-only, nothing ever reads them back, so when I come in Monday morning I still have to eyeball a growing history file to answer basic questions. I need a reporting command that turns that trail into an operational summary."','Reporting on top of the history.'],
     ['Round 6','extension','"The reconcile check has already caught me out once, it correctly flagged that state.json and the alerts.json history disagreed about what was open, but all it can do is tell me there\'s drift and exit non-zero. […] I need reconcile to be able to actually fix the drift, not just report it. Please add a repair capability on top of the existing reconcile logic."','The sixth follow-up, the maximum a session allows.']];
   const MC={start:'var(--mute)',extension:'var(--c3)',revision:'var(--c2)',conflict:'var(--c4)'};
-  $('mrChips').innerHTML=MR.map((r,i)=>'<button data-i="'+i+'"'+(i===0?' class="on"':'')+' style="border-left:4px solid '+MC[r[1]]+'">'+r[0]+'</button>').join('');
-  const mrShow=i=>{const r=MR[i];$('mrChips').querySelectorAll('button').forEach((b,j)=>b.classList.toggle('on',j===i));
-    $('mrBody').innerHTML='<p class="small"><b style="color:'+MC[r[1]]+'">'+(r[1]==='start'?'Initial request':r[1].charAt(0).toUpperCase()+r[1].slice(1))+'</b></p><p style="font-style:italic">'+r[2]+'</p><p class="small mute">'+r[3]+' Quotes abridged as printed in '+A(PAPER.meta.ax+'#A5.T18','Table 18')+'; the round outcomes are from '+A(PAPER.meta.ax+'#A5.SS3','Appendix E.3')+'.</p>'};
-  $('mrChips').querySelectorAll('button').forEach((b,i)=>b.addEventListener('click',()=>mrShow(i)));mrShow(0);
+  // all seven requests, abridged as printed, in a closed block under the stage's step list (the stage itself is parts/32_js_sc_mr.js)
+  $('mrBody').innerHTML=MR.map(r=>'<p class="small"><b style="color:'+MC[r[1]]+'">'+r[0]+(r[1]==='start'?'':': '+r[1])+'.</b> <i>'+r[2]+'</i></p>').join('')+'<p class="small mute">Quotes abridged as printed in '+A(PAPER.meta.ax+'#A5.T18','Table 18')+'; the round outcomes in the step list are from '+A(PAPER.meta.ax+'#A5.SS3','Appendix E.3')+'.</p>';
   // 4. Figure 3: session shapes
   function f3(w){const sh=FG.fig3.shapes,cs=['var(--c3)','var(--c1)','var(--c6)','var(--c5)','var(--dim)'];let s='',x=0;const W=w-4,H=26;
     sh.forEach((r,i)=>{const bw=W*r.share/100;s+=rc(2+x,4,bw-1,H,cs[i],{r:2});if(bw>34)s+=tx(2+x+bw/2,22,r.share.toFixed(1)+'%',{fs:11,a:'middle',c:i===4?'var(--ink)':'var(--bg)',w:600});x+=bw});

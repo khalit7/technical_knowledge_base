@@ -3,7 +3,7 @@
 replay and 22.4 after completion (Table 13), 37,273 task-sufficient workspaces (§4.2), the Full Mixture's 25,386 + 3,512 + 3,079
 records (Table 19), TB2.1 46.2 to 58.1 (Table 3), and the same-volume comparison 36.7 / 47.0 / 52.1 (Table 4, average of two scaffolds).
 The paper is under arXiv's non-exclusive licence, so its own figures are not embedded; this is a redraw.
-Run by build.sh. Text is at least 11.5 px at scale 1 (the SVG never shrinks below its 700 px viewBox width)."""
+Run by build.sh. Text is at least 11.5 px at scale 1 (the SVG never shrinks below its 660 px viewBox width; 2026-11-13: narrowed from 700 to fit the split layout's right column)."""
 import math
 from pathlib import Path
 
@@ -32,27 +32,27 @@ def arr(x1, y1, x2, y2, c=MUTE, da=None):
                 x2, y2, x2 - h * math.cos(a - .45), y2 - h * math.sin(a - .45), x2 - h * math.cos(a + .45), y2 - h * math.sin(a + .45), c))
 
 
-s = ('<svg viewBox="0 0 700 340" width="700" height="340" role="img" aria-label="The Terminal-Universe pipeline: 359,593 public agent '
+s = ('<svg viewBox="0 0 660 340" width="660" height="340" role="img" aria-label="The Terminal-Universe pipeline: 359,593 public agent '
      'trajectories are replayed into partial workspaces of 2.9 files on average, a completion agent grows them to 22.4 files, an LLM judge keeps '
      '37,273 as task-sufficient; new tasks are posed in one workspace, across two, and over several rounds, a teacher solves them and its own '
      'tests filter the solutions; supervised fine-tuning of Qwen3.5-27B on the result lifts Terminal-Bench 2.1 from 46.2 to 58.1. On the same '
      '35.8 thousand tasks, imitating the original traces scores 36.7, the untrained base 47.0, re-solving in rebuilt workspaces 52.1.">')
 s += text(8, 16, 'Rebuild: from a recorded run back to a workspace', fs=12, c=MUTE)
-row1 = [(8, 'Trajectories', ['359,593 public traces']),
-        (148, 'Replay', ['Ê₀: 2.9 files (mean)']),
-        (288, 'Completion agent', ['22.4 files, 87% written', 'by the teacher']),
-        (428, 'LLM judge', ['37,273 kept as', 'task-sufficient']),
-        (568, 'Environment', ['judged, not run'])]
+row1 = [(4, 'Trajectories', ['359,593 public', 'traces']),
+        (136, 'Replay', ['Ê₀: 2.9 files', '(mean)']),
+        (268, 'Completion agent', ['22.4 files (mean),', '87% written by it']),
+        (400, 'LLM judge', ['37,273 kept as', 'task-sufficient']),
+        (532, 'Environment', ['judged, not run'])]
 for i, (x, t, sub) in enumerate(row1):
-    s += box(x, 26, 124, 58, t, sub, stroke=ACC if i == 4 else 'var(--line)', sw=2 if i == 4 else 1)
+    s += box(x, 26, 118, 58, t, sub, stroke=ACC if i == 4 else 'var(--line)', sw=2 if i == 4 else 1)
     if i:
-        s += arr(x - 15, 55, x - 2, 55)
-s += text(612, 112, 'Re-query: new tasks, teacher solutions and tests', fs=12, c=MUTE, a='end')
-s += arr(630, 85, 630, 121, ACC)
-s += box(498, 122, 194, 64, 'Re-query', ['Single-WS 25,386 · Cross-WS 3,512', 'Multi-Round 3,079 records'], stroke=ACC, sw=2)
-s += box(268, 122, 200, 64, 'Teacher solves, tests filter', ['Qwen3.7-Max writes task,', 'tests and solution'])
-s += box(8, 122, 230, 64, 'SFT Qwen3.5-27B', ['Terminal-Bench 2.1: 46.2 → 58.1', '(31,977 records, 6 runs)'])
-s += arr(497, 154, 470, 154) + arr(267, 154, 240, 154)
+        s += arr(x - 13, 55, x - 2, 55)
+s += text(580, 112, 'Re-query: new tasks, teacher solutions and tests', fs=12, c=MUTE, a='end')
+s += arr(600, 85, 600, 121, ACC)
+s += box(462, 122, 194, 64, 'Re-query', ['Single-WS 25,386 · Cross-WS 3,512', 'Multi-Round 3,079 records'], stroke=ACC, sw=2)
+s += box(246, 122, 194, 64, 'Teacher solves, tests filter', ['Qwen3.7-Max writes task,', 'tests and solution'])
+s += box(4, 122, 216, 64, 'SFT Qwen3.5-27B', ['Terminal-Bench 2.1: 46.2 → 58.1', '(31,977 records, 6 runs)'])
+s += arr(461, 154, 442, 154) + arr(245, 154, 222, 154)
 s += arr(60, 121, 60, 86, MUTE, '4 3')
 s += text(68, 108, 'flywheel: the motivation, not run', fs=11.5, c=MUTE)
 # the decisive comparison

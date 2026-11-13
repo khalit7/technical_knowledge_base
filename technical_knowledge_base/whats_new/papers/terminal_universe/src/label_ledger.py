@@ -14,7 +14,10 @@ HT = 'agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training'
 AB = 'measurement/topic_benchmarks/agentic'
 EV = 'measurement/topic_evaluation_and_llm_judges/eval_statistics'
 FAT = {}
-KEYS = {230: 'now reports terminal-bench 4.0', 4: 'scoped on 25 october 2026', 38: 'the animation never plays by itself'}
+KEYS = {230: 'now reports terminal-bench 4.0', 4: 'scoped on 25 october 2026', 38: 'the stage plays by itself once in view',
+        # re-keyed by hand in the 2026-11-13 layout rollout (the Idea animation became a 3D stage, the replay a stage with one step per turn)
+        32: 'the stage runs one real trajectory from the', 35: "the replayed file boxes are this trace's own", 239: 'try: pick a trace and watch, turn by turn',
+        276: 'to browse a few rows in the dataset viewer'}  # no reading-time figure in a key
 NEW = [
  ('core', 'Core sentence: a recorded run shows enough of its workspace to rebuild it; teacher re-solves new tasks under its own tests; TB2.1 46.2 to 58.1; re-solving beats imitating by 15 points.', 'a recorded agent run shows enough of the workspace'),
  ('core', 'Hero (redrawn; arXiv non-exclusive): pipeline with printed counts (359,593 traces, 2.9 then 22.4 files, 37,273 sufficient, record counts, 46.2 to 58.1) and Table 4 bars 36.7 / 47.0 / 52.1.', 're-solving beats it by 15.4 points'),
@@ -26,7 +29,7 @@ NEW = [
  ('owned:' + EV, 'Unpaired standard error of a difference between two means, in general.', '±3.77 unpaired'),
  ('core', 'Reading: Table 13 bars (files, text lines, code lines) drawn by script.', 'means, with medians in the labels'),
  ('core', 'Reading: the funnel drawn by script.', 'the whole funnel, from the pipeline figure'),
- ('core', 'Reading: the multi-round stepper drawn by script.', 'step through the user agent'),
+ ('core', "Reading: the multi-round session as a 3D stage (one step per round, Table 18), with its step list.", 'step through the user agent'),
  ('core', 'Reading: Figure 3 bars drawn by script.', 'shares printed on figure 3'),
  ('core', 'Reading: Table 3 dot chart drawn by script.', 'filled dots were measured by the authors'),
  ('core', 'Replay tab and tables tab content drawn by script (traces, histogram, tables, checks), keyed to static headings.', 'replay a real trajectory'),
