@@ -3,4 +3,4 @@
 Notion: https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a (a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in the database)
 Site: https://khalit7.github.io/technical_knowledge_base/whats_new/papers/lora/
 
-`index.html` is the whole page (read it on the site): the paper with a core sentence and Figure 1 redrawn at the top, a live LoRA trainer, the tables rebuilt, Then and now (light pass to the teaching contract, 2026-10-24). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
+`index.html` is the whole page (read it on the site): the paper with a core sentence and Figure 1 redrawn at the top, a live LoRA trainer, the tables rebuilt, Then and now (light pass to the teaching contract, 2026-10-24; split layout, two 3D stages on the toy and autoplaying step lists, 2026-11-13). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.

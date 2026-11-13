@@ -33,10 +33,10 @@ node check_engine.mjs && uv run --with torch --with numpy python check_engine.py
 
 ## Files
 
-- `build.sh`, `mk_paper.py`, `parts/00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`: copied from the reference folder (mk_paper adds the verdict line); `11_js_ui` is the no-autoplay copy (as on DDPM). `99_js_tabs.js`: the skill template (storage key `lora-tab`). `14_js_hero.js`: the hero. `reading.json`: the measured reading time the header prints. `label_ledger.py`: labels `ledger.json`.
+- `build.sh`, `mk_paper.py`, `parts/00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`: copied from the reference folder (mk_paper adds the verdict line); `11_js_ui` carries `makeAnim` with the 2026-11-06 motion rules and step lists (copied from the DeepSeek-V3 page). `99_js_tabs.js`: the skill template (storage key `lora-tab`) plus opening a closed block just after a `data-to` target. `02_split.html`, `25_js_s3.js` (renderer v2), `05z_errbox.js.html`: skill templates, unchanged. `14_js_hero.js`: the hero. `reading.json`: the measured reading time the header prints. `label_ledger.py`: labels `ledger.json`.
 - `paper.json` (card, resources, connections); `tables.json` (written by `mk_tables.py` from `inputs/table_*.txt`, which `extract_paper.py` cut from the arXiv HTML v2); `recompute.py` (every derived number and the claim checks, writes `inputs/recompute.json`).
-- `parts/03_paper.html` + `13_js_read.js` (animation, calculator, merge check, Figure 2, Table 7); `04_run.html` + `23_js_run.js` (trainer and toy charts); `22_js_lora.js` (the engine: data, forward with split or merged LoRA, backward, Adam, Jacobi SVD, φ, amplification; also run by node); `05_tables.html` + `24_js_tables.js`; `06_then.html` + `25_js_then.js`; `20_model_data.js` (generated).
-- `check_engine.mjs` / `check_engine.py`: the browser engine replayed in PyTorch float64 (`model/check_engine.json`). `check_page.mjs`: every control in both themes and widths, a real 300-step training run of LoRA and of full fine-tuning, both animations stepped. `mk_coverage.py` writes `coverage.json` against `live.md` (saved by `save_live.py` from the session transcript).
+- `parts/03_paper.html` + `13_js_read.js` (animation, calculator, merge check, Figure 2, Table 7); `04_run.html` + `23_js_run.js` (trainer and toy charts); `22_js_lora.js` (the engine: data, forward with split or merged LoRA, backward, Adam, Jacobi SVD, φ, amplification; also run by node); `05_tables.html` + `24_js_tables.js`; `06_then.html` + `27_js_then.js` (was `25_js_then.js`, renamed for the renderer); `31_js_sc_lora.js` (Fig. 2) and `32_js_sc_sub.js` (Fig. 4), the 3D scenes; `20_model_data.js` (generated).
+- `check_engine.mjs` / `check_engine.py`: the browser engine replayed in PyTorch float64 (`model/check_engine.json`). `check_page.mjs`: every control at 1400 and 920 light and 390 dark, a real 300-step training run of LoRA and of full fine-tuning, both 2D animations stepped, every animation and stage playing once in view. `check_stages.mjs`: the 2026-11-06 layout and motion checks and the step lists' numbers against the data (below). `mk_coverage.py` writes `coverage.json` against `live.md` (saved by `save_live.py` from the session transcript).
 - `inputs/`: the paper text and tables, `hf_configs.json` (model shapes for the recount), `later_extracts.txt` (every beyond-the-paper quote: QLoRA, rsLoRA, DoRA, S-LoRA, LoRA Without Regret, Apple, Tinker, PEFT, vLLM, SGLang, loralib, fairseq, the repository README).
 - `model/`: base and teacher checkpoints, logs, `runs.jsonl`, `pretrain_report.json`, `check_engine.json`.
 - `viz_ideas.md`: the visualisations chosen and rejected, with scores and the new idea rows.
@@ -75,3 +75,55 @@ Why about 21 minutes is right: the minute added is the core sentence, the hero, 
 
 ## Checks (24 October 2026)
 `checkpage.sh`: tabs 5, 314 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 49 of 49 (the reading-time, rsLoRA and DoRA keys updated). The engine (`22_js_lora.js`) is unchanged, so `check_engine` was not rerun.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership: this page owns the paper (its method, numbers, evidence and the toy); LoRA as practised (rank, target modules, memory, QLoRA, DoRA, multi-LoRA serving) is the PEFT page's, whose Fig. 2 already draws LoRA on a real SmolLM2 matrix in 3D. So nothing here rebuilds that figure: the stages show what only this page has, a LoRA trained against a known true update.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| The paper | core sentence, You need, New terms | split | Fig. 1, the hero, 2D static (the paper's Figure 1 with GPT-3's numbers) | no |
+| The paper | Problem | full width | none | no |
+| The paper | Idea, Eq. 3 | split | **3D** `stg-lora` (Fig. 2) | yes, 5 |
+| The paper | Idea, LoRA against an adapter | split | Fig. 3, 2D `makeAnim`, two modes | yes, 7 and 6 |
+| The paper | Idea, predict (4.7M) | full width | predict widget | no |
+| The paper | Method | split | GPT-3 adapter calculator (2D widget) | no |
+| The paper | Merging | full width | none (Fig. 2's last step shows it; the live check is a sentence) | no |
+| The paper | Results | intro and predict full width, then split | Figure 2 rebuilt (2D chart) | no |
+| The paper | Inside the update, Which matrices, What rank | full width | none | no |
+| The paper | Inside the update, phi | split | **3D** `stg-sub` (Fig. 4) | yes, 6 |
+| The paper | Inside the update, Table 7 | predict full width, then split | Table 7 bars (2D, log scale) | no |
+| The paper | Believe?, Use it, Why it matters, Connections | full width | none | no |
+| Train a LoRA | intro and the toy, beside the trainer | split | trainer (lab: controls, loss chart, counters) | no |
+| Train a LoRA | sweep | split, then the two small charts full width | 2D charts | no |
+| Train a LoRA | Inside ΔW | split | phi heatmap and Table 7 bars on the toy (2D tool) | no |
+| Train a LoRA | full fine-tuning spectra | split | 2D log chart | no |
+| Train a LoRA | How far to trust the toy | full width | none | no |
+| The paper's tables, rebuilt | all | full width | tables and 2D charts | no |
+| Then and now | intro and steps beside the card | split, then the table full width | 2D `makeAnim` (recipe card) | yes, 8 |
+| Further reading | | unchanged | | |
+
+**Fig. 2, Equation 3 on a real matrix** (`31_js_sc_lora.js`): the toy's frozen `Wv` (32 x 32, the 8-bit base) as a glass plate with one signed bar per weight; `x` enters along the columns from the front and `h` leaves along the rows at the side, as h = Wx reads. A (4 x 32) and B (32 x 4) to scale, laid out as an outer product around the update's square; the parameter counts (1,024 frozen, 256 trained) as two columns in step 2. Step 3 grows the real trained adapter (task v4, seed 1, r = 4 on Wq and Wv, `LORA_DATA.adapters.v4['1']['4']`, alpha/r = 2) with gradient flows into A and B only; step 4 puts the task's true edit (`LORA_DATA.teachers.v4`, rank 4) behind it, both updates coloured by sign so their patterns can be compared (singular values 1.51, 1.39, 1.30, 1.01 against 1.53 x 4, cosine 0.81, 99.3% of changed sequences, mean of three seeds from the sweep summary); step 5 slides the update into W0. Every number is computed in the browser from the page's data by the engine (`LORA.svd`, `LORA.deltaW`) and exposed as `window.LORA_SC`.
+
+**Fig. 4, phi on the toy** (`32_js_sc_sub.js`): step 1 the 16 singular values of the learned update at r = 16 against the edit's four; steps 2 to 5 one plate each, phi(i, j) of Equation 4 as bar height and colour depth: r = 4 against r = 16 (Figure 3's question), seed 1 against seed 2 (Figure 4's), learned against the true edit (what the paper could not measure), two random Gaussian matrices (the floor, about 0.5 at (16, 16) because the toy's space has only 32 dimensions); step 6 all four. Computed with the same functions and adapters as the Train a LoRA tab's heatmap (`LORA.rightSV`, `LORA.subspaceSim`, random seed 77), exposed as `window.LORA_SUB`.
+
+**Kept 2D, and why**: the hero (a schematic of Figure 1 at GPT-3 scale, where A and B are 0.065% of the square and a perspective view would lose them; Fig. 2 does the same in 3D at the toy's scale), Fig. 3 (a dataflow drawn to scale at d = 1,024: the point is a 4-number strip against 1,024 and the order of products, which reads flat; given a step list and autoplay instead), the calculator (a widget), Figure 2 and Table 7 (numbers on axes, Table 7 on a log scale), every chart and tool of Train a LoRA and the tables tab, and Then and now (a recipe card that changes line by line). No photo or figure is embedded: the paper is not CC BY (as before).
+
+**Motion and lists**: `makeAnim` now plays once half in view, pauses off screen, stops for good on any control or at its last step, never moves under reduced motion, and marks its step list; the per-step caption boxes (`#mxStep`/`#mxCap`, `#tnStep`/`#tnCap`) are gone, their text is the step lists (`#sx-mx-lora`, `#sx-mx-adp`, `#sx-tn`), the only place it lives (13_js_read.js counts the steps from the lists; 27_js_then.js keeps only the per-step data the card draws). The predict questions stay where they were; Figure 2's chart sits beside the Results bullets, after its question.
+
+**CSS added** (in `01_css.html`, before the kb-look block ends): an equation in the left column wraps; a segmented control that wraps keeps round buttons (it stretched in the narrower columns).
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 20.6 min (4,746 words) | 26.0 min (5,978) |
+| The paper, closed | 1.2 min (283) | unchanged |
+| Train a LoRA | 5.3 min, plus 1.5 closed | unchanged |
+| The paper's tables, rebuilt | 9.8 min, plus 1.6 closed | unchanged |
+| Then and now | 1.3 min | 2.3 min (537) |
+| Visuals counted in Reading (audit) | 4 | 6 |
+
+The growth is the step lists: Fig. 3's thirteen captions and Then and now's eight were drawn by script and invisible to the audit (about 600 words that a reader always read), and the two new stages add about 800 words of steps and their two short introductions that each state the toy's own numbers. Nothing was cut; the paper's argument is unchanged in order. Why about 26 minutes is right: as before the page owns every number of the paper and its evidence, and the two stages now show, on a model with a known answer, the two claims the paper could only argue on GPT-3 (a low-rank BA finds the update; the top directions are shared across ranks and seeds). Header: "Reading: 26 min, plus 1 in closed details." (`reading.json`).
+
+**Ledger**: 241 units (core 214, depth 17, fat 3, owned 5, volatile 2); 12 added for the step lists (Fig. 2's five steps, Fig. 4's five measurement steps, Fig. 3's and Then and now's lists); keys re-pointed on units 192 and 194 (Then and now's intro, whose old keys ran into the removed caption controls). `ledger.py check`: problems 0.
+

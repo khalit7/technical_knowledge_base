@@ -4,13 +4,14 @@
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/lora/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = 'file://' + path.resolve(here, '../index.html');
-const shots = process.argv[2] || path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: true });
+const shots = process.argv[2] || path.resolve(here, '../.shots'); fs.mkdirSync(shots, { recursive: true });
+const b = await puppeteer.launch({ headless: 'shell' });
 let problems = [], actions = 0;
-for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
+for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -42,11 +43,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-24): scroll each animation into view and wait
-    for (const id of ['mx', 'tn']) {
+    // every animation and stage plays by itself once in view (2026-11-06 motion rules; check_stages.mjs also checks reduced motion)
+    for (const id of ['mx', 'tn', 'stg-lora', 'stg-sub']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // closed details hold controls and outputs too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');

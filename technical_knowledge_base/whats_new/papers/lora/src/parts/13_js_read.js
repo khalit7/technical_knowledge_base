@@ -3,23 +3,9 @@
 const PP=window.PAPER;
 // ---------- 1. one token through one matrix: LoRA (parallel, mergeable) against an adapter (sequential) ----------
 const D=1024;let R=4;
-const modes={lora:[
- {t:'the token arrives',c:'A vector <i>x</i> of <i>d</i> = 1,024 numbers enters a frozen pretrained weight <i>W</i><sub>0</sub> (1,024 × 1,024, about a million numbers).'},
- {t:'frozen path: W<sub>0</sub>x',c:'The pretrained product, exactly as before: <i>d</i>² = 1,048,576 multiply-adds. <i>W</i><sub>0</sub> gets no gradient and no optimiser state.'},
- {t:'down: Ax',c:'In parallel, <i>A</i> (<i>r</i> × <i>d</i>) squeezes <i>x</i> to <i>r</i> numbers. Drawn to scale: the thin strip is <i>A</i>.'},
- {t:'up: B(Ax), times α/r',c:'<i>B</i> (<i>d</i> × <i>r</i>) maps the <i>r</i> numbers back to <i>d</i>. <i>B</i> starts at zero, so at step 0 this path adds nothing and the model is exactly the pretrained one.'},
- {t:'sum: h = W<sub>0</sub>x + (α/r)BAx',c:'Both paths saw the same input; their outputs are added coordinate by coordinate. Only <i>A</i> and <i>B</i> train: 2<i>dr</i> numbers.'},
- {t:'after training: merge once',c:'<i>W</i> = <i>W</i><sub>0</sub> + (α/r)<i>BA</i> is again a 1,024 × 1,024 matrix. Computed once; to switch tasks, subtract <i>BA</i> and add another <i>B</i>′<i>A</i>′.'},
- {t:'serve: h = Wx',c:'One product, the same shape and cost as the base model: <b>zero added latency</b>, by construction (§4.1).'}],
- adp:[
- {t:'the token arrives',c:'The same <i>x</i> enters the same frozen <i>W</i><sub>0</sub>.'},
- {t:'the layer: W<sub>0</sub>x',c:'The pretrained product: <i>d</i>² multiply-adds.'},
- {t:'then down-project and nonlinearity',c:'The adapter is a small MLP inserted after the layer: down to <i>r</i> numbers, then a nonlinearity. It has to wait for <i>W</i><sub>0</sub>x: this is extra depth, in sequence.'},
- {t:'then up-project and add back',c:'Up to <i>d</i> numbers again, added to the residual. Trainable: 2<i>dr</i> + <i>r</i> + <i>d</i> numbers per adapter (§5.1).'},
- {t:'after training: cannot merge',c:'The nonlinearity between the two small matrices means they cannot be folded into <i>W</i><sub>0</sub>. The two extra sequential products stay at inference forever.'},
- {t:'serve: three products in a row',c:'On GPT-2 medium at batch 1 and 128 tokens, a forward pass takes 19.8 ms without adapters, 23.9 ms with Adapter<sup>L</sup> (+20.7%) and 25.8 ms with Adapter<sup>H</sup> (+30.3%) (Table 1).'}]};
-const fixLinks=s=>s.replace(/\{\{([^}]+)\}\}/g,(m,t)=>t);
-Object.values(modes).forEach(L=>L.forEach(S=>{S.c=fixLinks(S.c)}));
+// the steps are the step lists on the left (#sx-mx-lora, #sx-mx-adp): one item per step, the only place their text lives
+const items=id=>[...($(id)||{children:[]}).children];
+const modes={lora:items('sx-mx-lora'),adp:items('sx-mx-adp')};
 function drawMx(m,k,e,W){const H=Math.round(Math.max(110,Math.min(200,W-170,W*0.42))),sc=H/D,th=v=>Math.max(1.5,v*sc),col=10;
   const on=i=>k>i||(k===i&&e>0)?1:0.16,fade=i=>k>i?1:k===i?e:0;const L=m==='lora',merged=L&&k>=5;
   const cIn='var(--c1)',cA='var(--c2)',cOut='var(--c3)';const t=th(R);
@@ -54,7 +40,7 @@ function cnt(m,k){const dr=2*D*R;const merged=m==='lora'&&k>=5;
   const extra=m==='lora'?(merged?0:k>=2?dr:0):(k>=2?dr+D:0);
   const tr=m==='lora'?dr:dr+R+D;
   return stat('products in a row',String(seq),m==='lora'?'side path runs in parallel':'each waits for the last')+stat('extra multiply-adds per token',fmt(extra),'base product: '+fmt(D*D))+stat('trainable numbers',fmt(tr),(100*tr/(D*D)).toFixed(2)+'% of this matrix')+stat('mergeable',m==='lora'?'yes':'no',m==='lora'?'W = W₀ + (α/r)BA':'nonlinearity in between')}
-const an=makeAnim({id:'mx',modes,mode:'lora',draw:(m,k,e,w)=>drawMx(m,k,e,w),counters:cnt});
+const an=makeAnim({id:'mx',modes,mode:'lora',lists:{lora:'sx-mx-lora',adp:'sx-mx-adp'},draw:(m,k,e,w)=>drawMx(m,k,e,w),counters:cnt});
 $('mxR').addEventListener('change',e=>{R=+e.target.value;an&&an.draw()});
 // ---------- 2. parameter calculator ----------
 const RS=[1,2,4,8,16,32,64,128];

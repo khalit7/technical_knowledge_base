@@ -31,3 +31,13 @@ What the methodology lacked here: a rule for **toys with a known answer**. When 
 | P-lora.19 | Figure 2 and Table 7 bars out of the predict reveals, each in a card after its question | Reading | moved | the strongest result visuals were hidden until a click |
 | P-lora.20 | GPT-3 adapter calculator out of the 4.7M reveal, into Method beside the savings | Reading | moved | |
 | P-lora.21 | Embed the paper's own Figure 1 image | none | rejected | arXiv non-exclusive licence; the redraw carries the same content with the page's colours |
+
+## 2026-11-13 layout rollout
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-lora.22 | **3D: Equation 3 on the toy's Wv** (frozen W0 as a glass plate of 1,024 bars, A and B to scale as an outer product, the trained update rising over its square, the true edit behind it, the merge) | Reading, Idea (Fig. 2) | built | real weights and adapter; the comparison with the known edit is what only this page can show |
+| P-lora.23 | **3D: phi grids as bar fields** (r = 4 against 16, two seeds, against the true edit, random) after the update's spectrum | Reading, Inside the update (Fig. 4) | built | the paper's Figures 3 and 4 on the toy; height and colour depth both carry phi, since a uniform slab hid the corner |
+| P-lora.24 | 3D version of the GPT-3 hero (A and B to scale beside a 12,288 square) | none | rejected | at 0.065% the thin plates vanish in perspective; Fig. 2 does it at the toy's scale |
+| P-lora.25 | 3D LoRA against adapter (Fig. 3) | none | rejected | a to-scale dataflow at d = 1,024; reads flat; kept 2D with step lists and autoplay |
+| P-lora.26 | Rebuild PEFT's LoRA-on-a-real-matrix stage here | none | rejected | the PEFT page owns it; this page links to it and builds the known-answer comparison instead |
+| P-lora.27 | Both updates bars coloured by sign (blue positive, orange negative) | Fig. 2 step 4 | built | with white bars the learned and true edits could not be compared by eye |
