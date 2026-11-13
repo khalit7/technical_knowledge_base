@@ -40,10 +40,10 @@
         const lift=k>=3?(k===3?e:1):0,hh=g?CS*(1+2.2*lift*(k===4?1-.7*e:1)):CS*(1-.75*lift);
         let fill=r==='uh'||r==='ah'?mix(P.paper,P.ink,.55):r==='u'?mix(P.paper,cu,.35):r==='e'?mix(P.paper,ca,.85):mix(P.paper,ca,.35);
         if(k>=3)fill=g?mix(fill,P.good,.55*lift):mix(fill,P.paper,.5*lift);
-        const rw=Math.floor(i/COLS),near=rw===Math.floor(ahI/COLS),a=t*(k>=3&&!g?1-.45*lift:1)*(k===4&&!near?(1-.9*e):1);
+        const rw=Math.floor(i/COLS),near=rw===Math.floor(ahI/COLS),a=t*(k>=3&&!g?1-.45*lift:1)*(k===4&&!near?(1-e):1);
         R.box(pos(i),[CS,hh,CS],{fill,a,shadow:false,lw:.45})});
       const nG=PC.filter(p=>p[1]===1).length;
-      if(k===2)R.label([0,CS,pos(0)[2]],f(n)+' tokens · 28 a row',{mono:true,fs:12.5,b:1,dy:-16,c:P.ink,a:e});
+      if(k===2)R.label([0,0,pos(n-1)[2]+P0/2],f(n)+' tokens · 28 a row',{mono:true,fs:12.5,b:1,dy:18,c:P.ink,a:e});
       if(k===3){R.label([pos(COLS-1)[0]+.2,0,pos(firstA+COLS)[2]],f(nG)+' graded · '+Math.round(100*nG/n)+'%',{mono:true,fs:12.5,b:1,al:'left',dx:8,c:P.good,a:e});
         R.label([pos(0)[0]-.2,0,pos(COLS)[2]],f(n-nG)+' masked',{mono:true,fs:12.5,b:1,al:'right',dx:-8,c:P.mute,a:e})}
       if(k===3){const pe=pos(n-1);R.label([pe[0],CS*3.2,pe[2]],'<|endoftext|> · graded',{mono:true,fs:12,al:'right',dx:-10,dy:12,c:P.good,b:1,a:e,wide:1});R.glow([pe[0],CS*3.2,pe[2]],.25,{c:P.good,a:.8*e})}

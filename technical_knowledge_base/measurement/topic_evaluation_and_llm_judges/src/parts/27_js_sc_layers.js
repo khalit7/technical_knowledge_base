@@ -54,17 +54,18 @@
       if(i===3)lab(R,[x+PW/2,y,z],'100 to 500 items per surface',{fs:12,c:P.mute,al:'left',dx:10,a:late,wide:1});
       if(i===4)lab(R,[x+2.2,y+.55,z-.2],'live traffic',{fs:12.5,b:1,c:P.c6,al:'left',dx:6,a:late});
     }else{
-      for(let i=0;i<NL;i++)lab(R,top(i),LAY[i].s,{fs:12.5,b:1,c:C[i],dy:-22,a:late,grp:'nm'});
+      {const two=innerWidth>=1100;for(let i=0;i<NL;i++)lab(R,!two?top(i):i?[X(i),H(i),Z(i)-PD/2]:[X(0)-PW/2,H(0),Z(0)-PD/2],LAY[i].s,two?{fs:12.5,b:1,c:C[i],al:i?'center':'right',dy:-14,a:late,wide:1}:{fs:12.5,b:1,c:C[i],dy:-22,a:late,grp:'nm'})} // in the two-column card each name sits above its plate's back edge (the lowest at its back left corner), clear of the plates
       for(let i=0;i<NL;i++)lab(R,top(i),String(i+1),{fs:13,b:1,c:C[i],dy:-18,a:late*(R.W<520?1:0)});
       if(k===NL+1){const a=win(e,.3,.9),y0=H(0)+1.25,y1=H(NL-1)+1.25;
         R.line([[X(0)-.2,y0,Z(0)],[X(NL-1)-.4,y1,Z(NL-1)]],{c:P.mute,w:1.6,head:7,a});
-        lab(R,[X(0)-.2,y0,Z(0)],'cheapest',{fs:12.5,b:1,al:'right',dx:-8,c:P.mute,a:late});
+        lab(R,[X(0)-.2,y0,Z(0)],'cheapest',{fs:12.5,b:1,al:'right',dx:-8,dy:-16,c:P.mute,a:late});
         lab(R,[X(NL-1)-.4,y1,Z(NL-1)],'most faithful to real use',{fs:12.5,b:1,al:'right',dx:-10,dy:-12,c:P.mute,a:late})}
     }
   }
   const full={cam:[.4,.62],bounds:[[-6.7,0,-1.0],[5.6,3.1,1.1]]};
-  const V=k=>{if(k===0||k===NL+1)return full;const i=k-1;
+  const phone={cam:[.85,.72],bounds:[[-6.7,0,-1.2],[5.6,2.9,1.2]]}; // on a phone the overview turns the rising row into depth, so the pedestals are larger
+  const V=k=>{if(k===0||k===NL+1)return (document.getElementById('stg-layers').clientWidth||999)<520?phone:full;const i=k-1;
     return {cam:[.34,.44],bounds:[[X(i)-2.9,0,Z(i)-.8],[X(i)+(i===4?2.4:1.0),H(i)+1.35,Z(i)+.8]]}};
-  S3.stage({id:'stg-layers',list:'sx-layers',fig:'Fig. 1 · one change through the five layers',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1700,hold:5200,draw,
+  S3.stage({id:'stg-layers',list:'sx-layers',fig:'Fig. 1 · one change through the five layers',cam:full.cam,bounds:full.bounds,aspect:.45,dur:1700,hold:5200,draw,
     margin:w=>w<520?[26,10,16,10]:[34,18,20,18],view:V});
 })();

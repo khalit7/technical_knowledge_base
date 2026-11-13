@@ -76,9 +76,10 @@
       if(k===4){const xa=RX+RS;R.flowArc([FX+.5,.6,0],[xa,ST[mode].alpha_nominal*H*t+.05,0],1.3,{c:P.c4,a:.6*t,r:.05,n:10})}}
   }
   const full={cam:[-.18,.66],bounds:[[-5.9,0,-2.8],[5.9,2.5,2.9]]};
+  // on a phone the last two steps turn the row into depth, matrix in front, so it is larger
   const st=S3.stage({id:'stg-agr',list:'sx-agr-0',fig:'Fig. 1 · one set of labels, scored against chance',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5200,draw,
     margin:w=>w<520?[16,10,14,10]:[22,18,16,36],
-    view:k=>k===0?{cam:[-.12,.82],bounds:[[-5.9,0,-2.8],[-.2,.7,3.0]]}:k===1?{cam:[-.18,.66],bounds:[[-5.9,0,-2.8],[3.4,2.5,2.9]]}:k===2?{cam:[-.2,.5],bounds:[[-2.6,0,-1.6],[3.7,2.5,1.6]]}:k===3?{cam:[-.22,.42],bounds:[[-.3,0,-.8],[4.4,2.5,.9]]}:k>=4?{cam:[-.12,.72],bounds:[[-4.8,0,-2.2],[6.1,2.5,2.4]]}:full});
+    view:k=>k===0?{cam:[-.12,.82],bounds:[[-5.9,0,-2.8],[-.2,.7,3.0]]}:k===1?{cam:[-.18,.66],bounds:[[-5.9,0,-2.8],[3.4,2.5,2.9]]}:k===2?{cam:[-.2,.5],bounds:[[-2.6,0,-1.6],[3.7,2.5,1.6]]}:k===3?{cam:[-.22,.42],bounds:[[-.3,0,-.8],[4.4,2.5,.9]]}:k>=4?(innerWidth<520?{cam:[-.6,.85],bounds:[[-4.8,0,-2.2],[6.1,2.5,2.4]]}:{cam:[-.12,.72],bounds:[[-4.8,0,-2.2],[6.1,2.5,2.4]]}):full});
   const seg=document.getElementById('agr-mode');
   seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{mode=+b.dataset.m;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
     [0,1,2].forEach(m=>{document.getElementById('sx-agr-'+m).hidden=m!==mode});st.list('sx-agr-'+mode)});

@@ -23,15 +23,16 @@
     if(k===0)Object.entries(tiles).forEach(([key,[x,z,s]])=>{if(['fineweb_file0','rlvr'].includes(key))R.label([x,.08,z],SN[key]+' · '+f(C.find(c=>c.key===key).docs),{mono:true,fs:12,dy:-12,a:e,wide:1})});
     const nw=R.W<520;R.label([F.web.x,0,ZF+1.45],nw?'web · '+f(tot('web')):'web text · 8 sets · '+f(tot('web'))+' documents',{mono:true,fs:12,dy:10,c:P.c1});
     R.label([F.post.x,0,ZF+1.05],nw?'post · '+f(tot('post')):'post-training · 4 sets · '+f(tot('post'))+' rows',{mono:true,fs:12,dy:nw?24:10,c:P.c4});
+    let topW=0;
     // the rule columns: empty slots from the start, the current rule's columns rising out of the fields, earlier ones receding
     RULES.forEach(([key,nm],r)=>['web','post'].forEach(g=>{const x=F[g].cols[r],s=split(key,g),cur=k===r+1,done=k>r+1;
       if(!cur&&!done){R.box([x,0,ZC],[CW,.02,CW],{fill:P.paper,a:k===0?.12:.3,shadow:false});return}
-      const a=cur||k===5?1:.28,grow=cur?e:1,top=column(R,x,s,a,grow);
+      const a=cur||k===5?1:.16,grow=cur?e:1,top=column(R,x,s,a,grow);if(cur&&g==='web')topW=top;
       if(cur){const [fx,fz]=g==='web'?[F.web.x,ZF]:[tiles.rlvr[0],tiles.rlvr[1]];
         R.flowArc([fx,.1,fz],[x,top+.05,ZC],.5+.15*top,{c:s.cp?P.bad:P.mute,a:.85,r:.04+.05*Math.sqrt(s.tot/MX),n:Math.max(3,Math.round(3+10*s.tot/MX)),speed:1.3});
         R.label([x,top,ZC],f(s.tot),{mono:true,fs:12,dy:-12,c:P.ink,a:e})}
       if(cur||k===5)R.label([x,k===5?top:0,ZC],s.cp+(k===5?'':s.cp===1?' copy':' copies'),{mono:true,fs:12.5,b:1,dy:k===5?-12:16,c:P.bad,a:cur?e:1})}));
-    if(k>=1&&k<=4)R.label([0,1.6,ZC],RULES[k-1][1],{fs:13,b:1,c:P.ink});
+    if(k>=1&&k<=4)R.label([F.web.cols[k-1],topW,ZC],RULES[k-1][1],{fs:13,b:1,dy:-32,c:P.ink});
   }
   const full={cam:[.1,.62],bounds:[[-5.4,0,ZC-.5],[5.4,2.5,ZF+1.6]]};
   S3.stage({id:'stg-fld',list:'sx-fld',fig:'Fig. 2 · what each rule lifts out',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4800,draw,

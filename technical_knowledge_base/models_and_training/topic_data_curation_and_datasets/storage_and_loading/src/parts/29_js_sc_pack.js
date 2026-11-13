@@ -59,6 +59,6 @@
   }
   const full = { cam: [.35, .72], bounds: [[-2.6, 0, -3.0], [2.4, .3, 4.3]] };
   S3.stage({ id: 'stg-pack', list: 'sx-pack', fig: 'Fig. 6 · twelve documents into 2,048-token windows', cam: full.cam, bounds: full.bounds, aspect: .7, dur: 1600, hold: 4800, draw, margin: SLK.margin,
-    view: k => k === 0 ? { cam: [.2, 1.0], bounds: [[-2.6, 0, -3.0], [7.4, .3, 2.6]] } : k === 1 ? full : k === 2 ? { cam: [.3, .75], bounds: [[-2.6, 0, -3.0], [7.4, .3, 2.6]] }
-      : k === 5 ? { cam: [.08, .22], bounds: [[-2.4, 0, wz(AW) - .3], [2.4, 2.45, wz(AW) + .3]] } : { cam: [.3, .75], bounds: [[-2.6, 0, -3.0], [2.4, .3, wz(6) + .3]] } });
+    view: k => k === 0 ? { cam: [.2, 1.0], bounds: [[-2.6, 0, -3.0], [7.4, .3, 2.6]] } : k === 1 ? { cam: [.3, .92], bounds: full.bounds } : k === 2 ? { cam: [.3, .9], bounds: [[-2.6, 0, -3.0], [7.4, .3, 2.6]] }
+      : k === 5 ? { cam: [.3, .36], bounds: [[-2.4, 0, wz(AW) - .3], [2.4, 2.45, wz(AW) + .3]] } : { cam: [.3, .75], bounds: [[-2.6, 0, -3.0], [2.4, .3, wz(6) + .3]] } });
 })();

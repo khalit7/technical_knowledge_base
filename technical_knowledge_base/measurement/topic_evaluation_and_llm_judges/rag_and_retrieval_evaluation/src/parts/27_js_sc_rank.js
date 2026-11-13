@@ -54,7 +54,8 @@
     if(k===5){big([XB,0,ZP],(ph?'':'k = 10: ')+N.b10+(ph?' · ':' · k = 100: ')+N.b100,cB,1);big([XD,0,ZP],(ph?'':'k = 10: ')+N.d10+(ph?' · ':' · k = 100: ')+N.d100,cD,1)}
   }
   const full={cam:[.18,.68],bounds:[[-5.8,0,-2.4],[5.8,.6,3.3]]},left={cam:[.2,.58],bounds:[[-5.3,0,-2.3],[-.2,.6,3.2]]};
+  const phoneFull={cam:[.85,.8],bounds:full.bounds}; // on a phone the two side-by-side fields turn into depth, so they are larger
   S3.stage({id:'stg-rank',list:'sx-rank',fig:'Fig. 2 · one NFCorpus query, read at two depths',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1500,hold:5200,draw,
     margin:w=>w<520?[26,10,30,10]:[34,30,34,30],
-    view:k=>k===0||k===3?left:k===1||k===2?{cam:[.12,.62],bounds:[[-5.2,0,1.1],[-.3,.6,3.3]]}:full});
+    view:k=>k===0||k===3?left:k===1||k===2?{cam:[.12,.62],bounds:[[-5.2,0,1.1],[-.3,.6,3.3]]}:innerWidth<520?phoneFull:full});
 })();

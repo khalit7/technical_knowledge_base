@@ -23,7 +23,7 @@
       if(k===3&&j>0)R.flowArc([BX+.35,.5,0],[x,s.forget*HS+.1,z],.6,{c:P.c1,a:.8,r:.04+.06*rp*4,n:Math.round(3+rp*24),speed:1.3});
       // German loss above the best German run
       if(k>=4){const g=(s.de-best)*HS,a=(k===4?e:1)*(focus?1:.2);R.box([x+.2,0,z],[.34,Math.max(.012,g),.34],{fill:P.c2,a,shadow:false});
-        if(k===4||focus)R.label([x+.2,g,z],'+'+(s.de-best).toFixed(2),{mono:true,fs:12,dy:-10,c:P.c2,a,grp:k===4?'g'+i:null})}}));
+        if(k===4||focus)R.label([x+.2,g,z],'+'+(s.de-best).toFixed(2),{mono:true,fs:12,dy:-10,c:P.c2,a,grp:k===4?'g':null})}}));
     // axes
     RP.forEach((rp,j)=>R.label([X(j),0,Z(2)+.62],rp*100+'% replay',{mono:true,fs:12,dy:14,c:P.mute,a:k===5?.35:1}));
     PK.forEach((pk,i)=>R.label([X(2)+.7,0,Z(i)],'peak '+pk+'×',{al:'left',dx:6,mono:true,fs:12,c:P.mute}));

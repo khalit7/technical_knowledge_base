@@ -32,7 +32,14 @@
   const DOM=['web','Wikipedia','code','maths','papers'],DC=['c1','c5','c2','c4','c6'];
   let moving=false;
   const lab=(R,p,t,o)=>{if(!moving)R.label(p,t,o)};
-  function draw(R,k,e,st){const P=R.P,D=data(),pk=st&&st.pk!=null?st.pk:k,late=win(e,.55,1),grow=win(e,.05,.55);moving=e<.55&&k!==pk;
+  // the glide from step 9's close-up out to the whole pipeline: what was out of step 9's view fades in as the camera arrives,
+  // so nothing enters cut at the card's left edge (each drawing call's options, its last argument, get their alpha scaled)
+  function draw(R,k,e,st){const pk=st&&st.pk!=null?st.pk:k,g=k===NG&&pk===NG-1&&e<1?win(e,.35,.8):1;if(g>=1)return draw0(R,k,e,st);
+    const M=['box','glass','flow','flowArc','quad','line','glow','ball','label'],keep={},x0=X(NG-1)-1.1;
+    M.forEach(m=>{keep[m]=R[m];R[m]=function(...a){const p=a[0],x=Array.isArray(p[0])?p[0][0]:p[0],o=a[a.length-1];
+      if(x<x0&&o&&typeof o==='object'&&!Array.isArray(o))a[a.length-1]=Object.assign({},o,{a:(o.a==null?1:o.a)*g});return keep[m].apply(this,a)}});
+    try{draw0(R,k,e,st)}finally{M.forEach(m=>{R[m]=keep[m]})}}
+  function draw0(R,k,e,st){const P=R.P,D=data(),pk=st&&st.pk!=null?st.pk:k,late=win(e,.55,1),grow=win(e,.05,.55);moving=e<.55&&k!==pk;
     const all=k===NG,H=n=>HMAX*n/D.N0,wide=R.W>=520;
     R.grid(-8.2,7.8,-2.6,2.3,.5);
     // the source: one WARC file
@@ -115,7 +122,8 @@
 }
   }
   const full={cam:[.34,.62],bounds:[[-7.9,0,-2.1],[7.6,2.3,1.8]]};
-  const V=k=>{if(k===NG)return full;const D=data(),g=D.G[k],top=g[3]!=null?Math.max(1.35,HMAX*g[3]/D.N0+.25):1.35;
+  const phoneFull={cam:[.6,.62],bounds:full.bounds}; // on a phone the whole pipeline turns into depth, so the gates are larger
+  const V=k=>{if(k===NG)return (document.getElementById('stg-pipe').clientWidth||999)<520?phoneFull:full;const D=data(),g=D.G[k],top=g[3]!=null?Math.max(1.35,HMAX*g[3]/D.N0+.25):1.35;
     const x0=k===0?SRC[0]-.7:X(k)-1.1,x1=X(k)+(k===8?3.0:k>=5?2.4:2.0),z0=k===7?-2.2:k===5?-1.7:-1.0,z1=k<=4?TZ+.4:GZ1+.3;
     return {cam:[.46,.42],bounds:[[x0,0,z0],[x1,top,z1]]}};
   S3.stage({id:'stg-pipe',list:'sx-pipe',fig:'Fig. 1 · one Common Crawl file through the pipeline',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1600,hold:5000,draw,

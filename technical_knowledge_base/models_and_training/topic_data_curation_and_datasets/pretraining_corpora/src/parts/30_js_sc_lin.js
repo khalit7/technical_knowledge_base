@@ -19,9 +19,9 @@
   window.PCS=window.PCS||{};PCS.lin={gens:GEN.map(g=>g[2].map(([id])=>({id,name:short(C[id]),size:C[id].tokens_b?fmt(C[id].tokens_b):null}))),ratio:Math.round(C.fineweb.tokens_b/C.c4.tokens_b),crawls:(PC.crawls||[]).length};
   const top=id=>{const p=pos[id];return [p.x,p.y+.04+side(C[id]),0]},bot=id=>{const p=pos[id];return [p.x,p.y+.04,0]};
   function draw(R,k,e){const P=R.P,cur=k<4?k+1:0,all=k===4;R.grid(-5,5.4,-1.8,1.8,.5);
-    const ga=g=>all?1:g===cur?1:g===cur-1?.32:g<cur?.14:0; // the generation a step is about at full strength; earlier ones recede, later ones are not built yet
+    const ga=g=>all?1:g===cur?1:g===cur-1?.32:g<cur?.08:0; // the generation a step is about at full strength; earlier ones recede, later ones are not built yet
     // the crawl
-    const ca=all||cur<=2?.9:.45;R.glass([PX0,0.02,-PZ],[PX1-PX0,0,0],[0,0,2*PZ],{c:P.c1,a:ca,nu:12,nv:3,th:.06});
+    const ca=all||cur<=2?.9:.22;R.glass([PX0,0.02,-PZ],[PX1-PX0,0,0],[0,0,2*PZ],{c:P.c1,a:ca,nu:12,nv:3,th:.06});
     R.label([PX0,0,PZ],'Common Crawl · '+PCS.lin.crawls+' crawls since 2008',{fs:12.5,b:1,al:'left',dx:4,dy:16,c:P.c1});
     GEN.forEach(([nm,yr,cs],gi)=>{const g=gi+1,a=ga(g)*(g===cur?Math.max(.15,e):1);if(a<=.01)return;const y=g*DY;
       R.glass([PX0,y,-PZ],[PX1-PX0,0,0],[0,0,2*PZ],{c:P.c6,a:a*.8,nu:12,nv:3,th:.04});

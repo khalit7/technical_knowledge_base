@@ -64,8 +64,9 @@
         S.ea.worst.forEach(w=>{const j=rows[0].indexOf(w.i);L([X(j),YG+.9,Z(0)],'Q'+w.q+' · '+w.a+' → '+w.b,{mono:1,dy:-14,c:P.bad,grp:'wd'})})}}
   }
   const full={cam:[.3,.98],bounds:[[-5.6,0,-2.3],[3.8,1.1,2.3]]},gate={cam:[.05,.3],bounds:[[-4.8,0,2.4],[1.9,2.1,3.9]]};
+  // steps 2 and 3 (the grades as bars) look down more steeply, so the eight rows stay apart
   const st=S3.stage({id:'stg-gate',list:'sx-gate',fig:'Fig. 2 · one swap through two gate designs',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5200,draw,
-    margin:w=>w<520?[22,8,14,8]:[24,18,18,18],view:k=>k===4||k===5?gate:k<4?{cam:[.3,.98],bounds:[[-5.6,0,-2.3],[1.9,.8,2.3]]}:full});
+    margin:w=>w<520?[22,8,14,8]:[24,18,18,18],view:k=>k===4||k===5?gate:k===1||k===2?{cam:[.25,1.2],bounds:[[-5.6,0,-2.3],[1.9,.8,2.3]]}:k<4?{cam:[.3,.98],bounds:[[-5.6,0,-2.3],[1.9,.8,2.3]]}:full});
   const sg=document.getElementById('ga-mode');
   if(sg&&st)sg.addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]');if(!b||b.dataset.m===mode)return;mode=b.dataset.m;
     sg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));

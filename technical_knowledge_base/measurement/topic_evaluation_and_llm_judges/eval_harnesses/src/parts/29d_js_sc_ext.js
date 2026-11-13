@@ -32,18 +32,19 @@
     if(closeUp&&!ph)R.label([X(ci),0,ZO+.3],(C.run==='lmeval'?'lm-eval':'Inspect')+' output, problem '+(C.id+1)+' · gold '+C.target,{fs:12.5,b:1,dy:16,c:P.ink,a:e});
     // the rules' rows
     SHOW[k].forEach(ri=>{const [key,nm]=RU[ri],isNew=NEW[k].includes(ri),a=isNew?Math.min(1,e*1.3):k>=5?1:.35,z=Z(ri);
-      if(!ph&&!closeUp)R.label([X(0)-.4,0,z],nm,{al:'right',fs:12,mono:true,c:cc[ri],a,grp:'rules'});
+      if(!ph&&!closeUp)R.label([X(0)-.4,0,z],nm,{al:'right',fs:12,mono:true,c:cc[ri],a:Math.max(a,isNew?0:.75),grp:'rules'}); // earlier rules' names stay readable while their cubes recede
       cols.forEach((r,c)=>{const x=X(c),ac=a*fadeCol(c);
         if(isNew)R.flow([[x,.15,ZO-.2],[x,.15,z+.15]],{c:cc[ri],r:.04,n:3,speed:1.6,a:ac*.8});
         if(ok(r,key))R.box([x,0,z],[.3,.45,.3],{fill:P.good,a:ac,shadow:false});
         else if(read(r,key))R.box([x,0,z],[.3,.08,.3],{fill:P.paper,a:ac,shadow:false,lw:.6});
         else R.quad([[x-.15,.005,z-.15],[x+.15,.005,z-.15],[x+.15,.005,z+.15],[x-.15,.005,z+.15]],{a:ac*.6,ec:P.mute,dash:[2,2]})});
       if(closeUp&&!ph)R.label([X(ci)+.25,.1,z],SHORT[ri]+': '+shown(C,key),{al:'left',mono:true,fs:12,dx:8,b:ok(C,key),c:ok(C,key)?P.good:P.ink,a:e});
-      if(!closeUp&&!ph&&(k===6||!isNew||e>.6))R.label([X(19)+.35,0,z],tot[ri][0]+' · '+tot[ri][1],{al:'left',mono:true,fs:12.5,b:tot[ri][0]+tot[ri][1]>0,c:cc[ri],dx:4,a:k===6?1:a})});
+      if(!closeUp&&!ph&&(k===6||!isNew||e>.6))R.label([X(19)+.35,0,z],tot[ri][0]+' · '+tot[ri][1],{al:'left',mono:true,fs:12.5,b:tot[ri][0]+tot[ri][1]>0,c:cc[ri],dx:4,a:k===6?1:Math.max(a,isNew?0:.75)})});
     if(k===6&&!ph)R.label([X(19)+.35,0,Z(6)-.5],'correct: lm-eval · Inspect',{al:'left',fs:12,c:P.mute,dx:4,a:e});
   }
   const full={cam:[.14,.9],bounds:[[-4.9,0,-2.4],[7.3,.8,2.5]]};
   const close={cam:[.5,.62],bounds:[[X(ci)-1.6,0,-2.1],[X(ci)+2.6,1.1,2.5]]};
-  S3.stage({id:'stg-ext',list:'sxl-ext',fig:'Fig. 4 · seven rules, the same twenty outputs',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1400,hold:4800,draw,
-    view:k=>k===5?close:k===0?{cam:[.14,.7],bounds:[[-4.9,0,1.2],[5.8,1.2,2.7]]}:full,margin:w=>w<520?[14,10,14,10]:[16,14,14,190]});
+  S3.stage({id:'stg-ext',list:'sxl-ext',fig:'Fig. 4 · seven rules, the same twenty outputs',cam:full.cam,bounds:full.bounds,aspect:.4,dur:1400,hold:4800,draw,
+    // on a phone the twenty columns turn into depth, so the cubes are larger
+    view:k=>k===5?close:(document.getElementById('stg-ext').clientWidth||999)<520?{cam:[.62,.95],bounds:[[-4.9,0,-2.4],[5.8,.6,2.5]]}:k===0?{cam:[.14,.7],bounds:[[-4.9,0,1.2],[5.8,1.2,2.7]]}:full,margin:w=>w<520?[14,10,14,10]:[12,12,10,180]});
 })();

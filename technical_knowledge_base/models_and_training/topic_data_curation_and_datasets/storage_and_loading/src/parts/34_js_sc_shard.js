@@ -49,5 +49,7 @@
   }
   const full = { cam: [.1, .82], bounds: [[-5.8, 0, -2.8], [5.8, .5, 2.6]] };
   S3.stage({ id: 'stg-shard', list: 'sx-shard', fig: 'Fig. 7 · 11 shards, 2 ranks, 4 workers each', cam: full.cam, bounds: full.bounds, aspect: .6, dur: 1500, hold: 4800, draw, margin: SLK.margin,
-    view: k => k === 2 || k === 3 ? { cam: [.1, .72], bounds: [[-5.8, 0, -2.7], [5.8, .5, 2.6]] } : full });
+    // on a phone the long row of shards turns into depth, so the files and workers come out larger
+    view: k => { const nw = document.getElementById('stg-shard').clientWidth < 520;
+      return k === 2 || k === 3 ? { cam: nw ? [.62, .9] : [.1, .72], bounds: [[-5.8, 0, -2.7], [5.8, .5, 2.6]] } : nw ? { cam: [.62, 1.0], bounds: full.bounds } : full; } });
 })();

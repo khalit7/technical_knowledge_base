@@ -32,7 +32,7 @@
       let h=k===0?.18:k===1?lerp(.18,hs,e):hs,c=k>=3?vcol(x):P.paper,al=fa,pp=p,y=0;
       if(j>=0&&k>=2){const t=k===2?e:1,qp=qpos(j),hq=.28;pp=[lerp(p[0],qp[0],t),0,lerp(p[2],qp[2],t)];y=Math.sin(Math.PI*t)*.8;h=lerp(hs,hq,t)}
       else if(k>=2){al*=k===2?lerp(1,.5,e):.5;if(k===3&&x.t!=='o')al=fa*.9}
-      if(k===3&&j<0&&x.t==='o')c=mix(P.paper,P.good,.2);
+      if(k===3&&j<0&&x.t==='o'){c=mix(P.paper,P.good,.2);al=fa*.2} // sound questions recede so the flawed ones stand out
       R.box([pp[0],y,pp[2]],[j>=0&&k>=2?.19:CU,Math.max(.02,h),j>=0&&k>=2?.19:CU],{fill:c,a:al,shadow:false,lw:.6})});
     if(k===0)R.label([FX,0,2.3],R.W<520?'100 questions':'100 sampled '+S.SUBN[subj]+' questions · scored on the official key',{fs:12.5,b:1,dy:14});
     if(k===1)R.label([FX,0,2.3],R.W<520?'height: models\' doubt':'height: 1 − the models\' mean probability of the key',{fs:12.5,b:1,dy:14,c:P.c2,a:e});
@@ -55,7 +55,7 @@
   const full={cam:[-.15,.85],bounds:[[-4.9,0,-2.5],[.6,1.6,3.3]]};
   const st=S3.stage({id:'stg-find',list:'sx-find',fig:'Fig. 4 · models propose, people decide, then rescore',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1600,hold:5400,draw,
     margin:w=>w<520?[16,10,14,10]:[20,16,16,16],
-    view:k=>k===1?{cam:[-.3,.55],bounds:[[-4.9,0,-2.5],[.4,1.6,2.7]]}:k>=4?{cam:[0,.95],bounds:innerWidth<520?[[1.5,0,-2.6],[5.1,.4,2.9]]:[[-.4,0,-2.6],[6.2,.4,2.9]]}:full});
+    view:k=>k===3?{cam:[-.15,1.0],bounds:full.bounds}:k===1?{cam:[-.3,.55],bounds:[[-4.9,0,-2.5],[.4,1.6,2.7]]}:k>=4?{cam:[0,.95],bounds:innerWidth<520?[[1.5,0,-2.6],[5.1,.4,2.9]]:[[-.4,0,-2.6],[6.2,.4,2.9]]}:full});
   const seg=document.getElementById('fd-mode');
   seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{subj=b.dataset.m;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));I=info();fill(false);st.list('sx-find')});
   fill(true);

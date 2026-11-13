@@ -29,5 +29,5 @@
   const full={cam:[.18,.45],bounds:[[-5,0,-1],[6.1,3,1]]};
   S3.stage({id:'stg-rep',list:'sx-rep',fig:'Fig. 2 · repeated data, Muennighoff et al.',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1600,hold:4600,draw,
     margin:w=>w<520?[18,10,22,10]:[20,24,24,24],
-    view:k=>k<3?{cam:full.cam,bounds:[[-5,0,-1],[x(k===0?1:k===1?3:5)+.8,[.45,.8,1.95][k],1]]}:k===4?{cam:[.25,.4],bounds:[[PX-.6,0,-1],[x(2)+4.2,eff(4)*UH+.5,1]]}:full});
+    view:k=>k<3?{cam:full.cam,bounds:[[-5,0,-1],[x(k===0?0:k===1?2:4)+.9,[.45,.8,1.6][k],1]]}:k===4?{cam:[.25,.4],bounds:[[PX-.6,0,-1],[x(2)+4.2,eff(4)*UH+.5,1]]}:full});
 })();

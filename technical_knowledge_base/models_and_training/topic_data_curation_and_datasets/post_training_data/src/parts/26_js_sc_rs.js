@@ -54,7 +54,7 @@
     if(k>=1){R.label([KR0,.3,KZ],(k>=2?'kept '+f(KEEP+RES):'accepted '+f(KEEP)),{mono:true,fs:12.5,b:1,al:'left',dx:10,c:P.good,a:(k===1?e:1)*la});
       R.label([KR0,.2,RZ],'rejected '+f(k>=2?REJ-RES:REJ),{mono:true,fs:12.5,b:1,al:'left',dx:10,c:P.mute,a:(k===1?e:1)*la})}
     if(k===2){R.label([KX-1.35,1.0,JZ],'rescued '+f(RES)+' of '+f(JN)+' judged',{mono:true,fs:12.5,b:1,al:'right',dx:-6,dy:18,c:P.c5,a:e,grp:'jl'});
-      R.flowArc([RX,.45,RZ],[KX,.7,KZ],1.0,{c:P.c5,a:.85*e,r:.06,speed:1.2,n:10});R.label([KR0,0,RZ+.2],f(UNJ)+' never judged',{mono:true,fs:12,al:'left',dx:10,dy:16,c:P.mute,a:e})}
+      R.flowArc([RX,.45,RZ],[KX,.7,KZ],1.0,{c:P.c5,a:.85*e,r:.06,speed:1.2,n:10});R.label([KR0,0,RZ+.2],f(UNJ)+' never judged',{mono:true,fs:12,al:'left',dx:10,dy:R.W<520?30:16,c:P.mute,a:e})}
     // step 4: the 30 rescues read by hand, close up
     if(k===3){RD30.forEach((g,i)=>{const j=RD30.slice(0,i).filter(x=>x===g).length,x=gx0[g]+j*RP,t=stag(e,i,30);
         R.box([x,0,RDZ],[.18,.18*Math.max(.05,t)+(g===4?.14:0),.18],{fill:g===4?P.bad:cRes,a:Math.max(.05,t),shadow:t>.5,lw:.6})});

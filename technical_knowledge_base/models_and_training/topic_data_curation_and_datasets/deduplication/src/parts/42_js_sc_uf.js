@@ -42,7 +42,7 @@
     if(k===4)R.label([0,0,RR],'kept 1 · removed '+(n-1),{mono:true,fs:12.5,b:1,dy:30,c:P.c2,a:e});
     if(k===5){const p0=pos(minK);R.label([p0[0],A.jk[minK]*HJ,p0[2]],A.hosts[minK]+' · J '+A.jk[minK].toFixed(2),{mono:true,fs:12,dy:-14,c:P.c2,b:1,a:e})}
     if(k===6){R.glass([-RR-.5,TH*HJ,-RR-.5],[2*RR+1,0,0],[0,0,2*RR+1],{c:P.c1,a:.55*e,nu:6,nv:6,th:.02});
-      R.label([RR+.5,TH*HJ,RR+.5],'Jaccard 0.8 with the kept page',{al:'left',dx:6,mono:true,fs:12,c:P.c1,a:e,wide:1});
+      R.label([-RR-.5,TH*HJ,-RR-.5],'Jaccard 0.8 with the kept page',{al:'left',dy:-12,mono:true,fs:12,c:P.c1,a:e,wide:1});
       low.forEach((l,q)=>{if(!l)return;const p0=pos(q);R.label([p0[0],A.jk[q]*HJ,p0[2]],A.hosts[q].replace(/^www\./,'')+' '+A.jk[q].toFixed(2),{mono:true,fs:12,dy:-12,c:P.c1,a:e,grp:'back'})});
       R.label([0,0,RR],'back '+low.filter(Boolean).length+' · removed '+(n-1-low.filter(Boolean).length),{mono:true,fs:12.5,b:1,dy:30,c:P.ink,a:e})}
   }

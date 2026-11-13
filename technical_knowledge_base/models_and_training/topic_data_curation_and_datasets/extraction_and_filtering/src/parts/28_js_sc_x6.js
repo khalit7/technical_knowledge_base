@@ -42,5 +42,5 @@
   const full={cam:[.12,.62],bounds:[[-4.3,0,-1.5],[4.3,2.1,4.3]]};
   S3.stage({id:'stg-x6',list:'sx-x6',fig:'Fig. 2 · six extractors, the same filters',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,22,10]:[18,14,26,16],
-    view:k=>k===4?{cam:[.15,.42],bounds:[[-4.3,0,-1.5],[4.3,1.0,2.9]]}:full});
+    view:k=>k===4?{cam:[.15,.42],bounds:[[-4.3,0,-1.5],[4.3,1.0,2.9]]}:k===0?{cam:[.12,.85],bounds:[[-4.1,0,1.8],[4.1,.9,4.5]]}:full});
 })();

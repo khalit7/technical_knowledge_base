@@ -44,18 +44,19 @@
       [['plain',14],['solve first',6],['reference',3]].forEach(([t,n],c)=>{const h=Math.max(.02,n/20*H*(k===3?e:1)),hi=c===2;
         R.box([XO+.2+c*.8,0,z],[.5,h,.4],{fill:mix(P.paper,P.bad,hi?.75:.4),a});if(s)R.label([XO+.2+c*.8,h,z],String(n),{fs:12.5,b:hi,dy:-11,c:hi?P.bad:P.ink,a});
         if(s)R.label([XO+.2+c*.8,0,z+.3],t,{fs:12,dy:12,c:P.mute,a,grp:'refx'})});
-      if(s)R.label([XO+1,1.35,z],'wrong answers accepted, of 20',{fs:12,b:1,c:P.bad,a:k===3?e:1,wide:1})}
+      if(s)R.label([XO+1,1.75,z],'wrong answers accepted, of 20',{fs:12,b:1,c:P.bad,a:k===3?e:1,wide:1})}
     // lane 3, checklist: the answer and five yes/no questions, each answered alone, summed by a program (answers illustrative)
     {const z=Z[3],a=A(3),s=on(3),yes=[1,1,0,1,1];slab(R,-2.75,z,.85,mix(P.paper,P.c6,.35),a,'answer',s);
       for(let q=0;q<5;q++){const qz=z-.6+q*.3;R.box([-1.8,0,qz],[.5,.28,.22],{fill:mix(P.paper,P.c4,.4),a,shadow:false});if(s)R.flowArc([-1.8,.28,qz],[XP,.3+q*.12,z],.2,{c:P.c4,r:.045,n:4})}
       if(s)R.label([-1.8,.28,z-.6],'q1 to q5',{fs:12,dy:-10,c:P.c4,b:1,a});plate(R,z,a,s);
       yes.forEach((y,q)=>{const qz=z-.6+q*.3,t=k===4?Math.min(1,Math.max(0,e*1.6-q*.15)):1;R.box([XO+.4,0,qz],[.5,y?.18+.3*t:.06,.22],{fill:y?mix(P.paper,P.good,.7):mix(P.paper,P.bad,.6),a,shadow:false});
         if(s)R.flow([[XP,.4,z],[XO+.1,.25,qz]],{c:P.acc,r:.04,n:3})});
-      if(s){R.label([XO+.75,.5,z],'yes · yes · no · yes · yes',{al:'left',dx:8,fs:12,c:P.ink,a:e});R.label([XO+.75,.5,z],'4 of 5 (illustrative)',{al:'left',dx:8,dy:18,fs:12,b:1,c:P.good,a:e})}}
+      if(s){R.label([XO+.75,.5,z-.75],'yes · yes · no · yes · yes',{al:'left',dx:8,fs:12,c:P.ink,a:e});R.label([XO+.75,.5,z-.75],'4 of 5 (illustrative)',{al:'left',dx:8,dy:18,fs:12,b:1,c:P.good,a:e})}}
   }
   const lane=i=>[[-3.4,0,Z[i]-.75],[3.1,1.25,Z[i]+.75]];
   const full={cam:[.16,.78],bounds:[[-3.6,0,-3.2],[3.2,1.4,3.2]]};
   S3.stage({id:'stg-modes',list:'sx-modes',fig:'Fig. 1 · one MT-Bench comparison, four ways to judge it',cam:full.cam,bounds:full.bounds,aspect:.72,dur:1400,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[18,14,16,120],
-    view:k=>k===2?{cam:[.18,.6],bounds:[[-3.4,0,Z[1]-.8],[3.6,1.4,Z[0]+.8]]}:{cam:[.2,.62],bounds:lane(FOC[k][0])}});
+    // the one-lane close-ups turn the lane towards the reader, so it fills more of the card
+    view:k=>k===2?{cam:[.18,.6],bounds:[[-3.4,0,Z[1]-.8],[3.6,1.4,Z[0]+.8]]}:{cam:[.62,.72],bounds:lane(FOC[k][0])}});
 })();

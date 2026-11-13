@@ -65,9 +65,10 @@
       if(is('truth')){const j=mode==='corr'&&C.c.ok?2:1;bar(j,C.th,P.good,'humans',e);R.line([[XR-.3,C.th*H,ZR],[XR+.2+j*.75+.3,C.th*H,ZR]],{c:P.good,w:1.2,dash:[4,3],a:e})}}
   }
   const full={cam:[.15,.7],bounds:[[-4.6,0,-2.6],[4.9,2.3,2.6]]};
+  // on a phone the rates step moves in on the four counts, so their labels have room
   const stg=S3.stage({id:'stg-gold',list:'sx-gold-c',fig:'Fig. 3 · a judge\'s win rate, corrected with a gold slice',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1500,hold:5000,draw,
     margin:w=>w<520?[16,10,14,10]:[18,14,16,40],
-    view:k=>{const s=STEPS[mode][k];return s==='slice'||s==='label'?{cam:[.15,.62],bounds:[[-4.6,0,-2.6],[3.2,1.6,2.6]]}:s==='rates'?{cam:[.22,.62],bounds:[[-4.6,0,-2.6],[4.9,1.8,2.2]]}:full}});
+    view:k=>{const s=STEPS[mode][k];return s==='slice'||s==='label'?{cam:[.15,.62],bounds:[[-4.6,0,-2.6],[3.2,1.6,2.6]]}:s==='rates'?(innerWidth<520?{cam:[.2,.72],bounds:[[1.3,0,-1.4],[4.9,1.6,2.2]]}:{cam:[.22,.62],bounds:[[-4.6,0,-2.6],[4.9,1.8,2.2]]}):full}});
   function swap(){setup();fill(false);pub();['sx-gold-c','sx-gold-n'].forEach(id=>$(id).hidden=id!==(mode==='corr'?'sx-gold-c':'sx-gold-n'));stg.list(mode==='corr'?'sx-gold-c':'sx-gold-n')}
   RD.seg($('gd-mode'),m=>{mode=m;swap()});tSel.addEventListener('change',swap);mSel.addEventListener('change',swap);
 })();

@@ -39,7 +39,7 @@
     if(k<4)Lb([-4.2,0,1.2],'users',{dy:16,c:P.mute,a:1});
     if(k===0)Lb([CP[0],0,CP[2]+.2],'every answer comes from the champion',{b:1,dy:16,ph:1});
     if(k===1){Lb([LG[0],.3,LG[2]],'logged, never served',{dy:-14,b:1,c:cx,ph:1});Lb([-.6,0,.4],'same request to both',{dy:14,c:P.mute,wide:1})}
-    if(k===2){Lb([GU[0],.9,GU[2]],'guardrails, rollback line',{dy:-14,b:1,c:P.good});Lb([XP[0],.1,XP[2]+.55],'1 request in 10',{dy:14,b:1,c:cx,ph:1})}
+    if(k===2){{const two=innerWidth>=1100;Lb([GU[0]+(two?.3:0),.9,GU[2]],'guardrails, rollback line',{al:two?'right':'center',dy:-14,b:1,c:P.good})} /* in the two-column card, right-aligned to the block, clear of the card's edge */Lb([XP[0],.1,XP[2]+.55],'1 request in 10',{dy:14,b:1,c:cx,ph:1})}
     if(k===3)Lb([-4.2,.34,-1.4],'users split by arm',{dy:-12,b:1,ph:1});
     if(k===4){Lb([-1.4,0,1.1],'one merged list',{dy:16,b:1,ph:1});Lb([-2.05,.22,-.45],'clicked: credit to the challenger',{al:'right',dx:-8,c:P.good,b:1,wide:1})}
   }

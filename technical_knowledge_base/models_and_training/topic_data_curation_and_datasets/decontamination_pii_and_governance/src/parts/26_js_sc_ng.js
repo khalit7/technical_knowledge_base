@@ -20,14 +20,14 @@
   const v=a=>{const r=a.v;return [['GPT-3','any 13-gram',r.m13>0,r.m13+' shared 13-grams'],['Tulu 3','8-grams > 50%',r.cov8>.5,'coverage '+Math.round(r.cov8*100)+'% of all '+a.item_full_len+' tokens'],
     ['ConTAM','longest match',r.lm>=.5,'a run of '+r.run+' tokens, '+Math.round(r.lm*100)+'% of the item'],['datatrove','answer 12-gram',!!r.dt,r.dt?'an answer or answer-straddling 12-gram matched':'no answer 12-gram in the document']]};
   function draw(R,k,e){const P_=R.P,g=G||geo(),{it,dc,mi,md,tw}=g;R.grid(-6,7.5,-2,3.8,.5);
-    const rowA=k===4?.28:1,bh=.12,gC=mix(P_.paper,P_.good,.6);
+    const rowA=k===4?.28:1,bh=.12,fade=i=>Math.max(0,Math.min(1,1-(i-NL+1)*.4)),gC=mix(P_.paper,P_.good,.6);
     // the window's position along the item (step 2) or the document (step 3), in tokens
     const wI=k===1?e*(it.length-N):0,wD=k===2?e*(dc.length-N):k>2?dc.length:0;
     // 1. the two rows of token blocks
     it.forEach((t,i)=>{const cv=mi.m[i]&&k>=3,h=cv?lerp(bh,.42,k===3?e:1):bh;
-      R.box([g.xi(i),0,ZI],[tw*.82,h,.42],{fill:cv?gC:P_.paper,a:(k===0?at(k,e,0):1)*rowA,shadow:false,lw:.6})});
+      R.box([g.xi(i),0,ZI],[tw*.82,h,.62],{fill:cv?gC:P_.paper,a:(k===0?at(k,e,0)*fade(i):1)*rowA,shadow:false,lw:.6})});
     dc.forEach((t,j)=>{const lit=md.m[j]&&k>=2&&(k>2||j<wD+N);
-      R.box([g.xd(j),0,ZD],[tw*.82,bh,.42],{fill:lit?gC:P_.paper,a:(k===0?at(k,e,0):1)*(k>=3?.55:1)*rowA,shadow:false,lw:.6})});
+      R.box([g.xd(j),0,ZD],[tw*.82,bh,.62],{fill:lit?gC:P_.paper,a:(k===0?at(k,e,0)*fade(j):1)*(k>=3?.55:1)*rowA,shadow:false,lw:.6})});
     // step 1: the words themselves, close up on the first tokens (above and below in turn so they never collide)
     if(k===0){const nl=Math.min(NL,it.length,dc.length),la=1;
       for(let i=0;i<nl;i++){R.label([g.xi(i),bh,ZI],cut(it[i]),{mono:true,fs:12,dy:i%2?20:-12,a:la});R.label([g.xd(i),bh,ZD],cut(dc[i]),{mono:true,fs:12,dy:i%2?20:-12,a:la,c:P_.mute})}}
@@ -61,8 +61,8 @@
   const full={cam:[.04,.85],bounds:[[-5.4,0,ZD-.4],[8.4,.9,ZI+.4]]};
   const st=S3.stage({id:'stg-ng',list:'sx-ng',fig:'Fig. 1 · one real pair, four rules',cam:full.cam,bounds:full.bounds,aspect:.4,dur:1500,hold:4600,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,14,140],
-    view:k=>{const g=G||geo();if(k===0){const n=Math.min(NL,g.it.length,g.dc.length)-1,x0=Math.min(g.xi(0),g.xd(0))-.2,x1=Math.max(g.xi(n),g.xd(n))+.2;return {cam:[.04,.5],bounds:[[x0,0,ZD-.2],[x1,.2,ZI+.2]]}}
-      return k===4?{cam:[.04,.75],bounds:[[-6,0,ZD-.3],[6.2,1,ZV+.5]]}:full}});
+    view:k=>{const g=G||geo();if(k===0){const n=Math.min(NL,g.it.length,g.dc.length)-1,x0=Math.min(g.xi(0),g.xd(0))-.2,x1=Math.max(g.xi(n),g.xd(n))+.2;return {cam:[.04,.5],bounds:[[x0,0,ZD-.35],[x1,.2,ZI+.35]]}}
+      return k===4?{cam:[.04,.75],bounds:[[-6,0,ZD-.3],[6.2,1,ZV+.5]]}:{cam:[.32,.72],bounds:full.bounds}}});
   // the step list's numbers, the readout of the tokens, and the pair and n switches
   function chips(t,m){return '<div class="dg-tok">'+t.map((w,i)=>'<span'+(m[i]?' class="hit"':'')+'>'+E(w)+'</span>').join(' ')+'</div>'}
   function upd(){const g=geo(),a=g.a,r=v(a);

@@ -27,7 +27,7 @@
     if(k===0)[[PXc,'chosen',P.good],[PXr,'rejected',P.bad]].forEach(([x,nm,c])=>{R.box([x,0,ZF],[W+.2,.14,W*.8+.2],{a:.3,lw:.6});R.label([x,.14,ZF],nm+' · ?',{mono:true,fs:12.5,dy:-12,c,a:.55*e})});
     // the pair at the front: the previous rule's pair fades out before this one fades in
     if(k>=1&&k<=3){const show=(pk,a,lab)=>{if(a<=.01)return;const [ci,ri]=pk;[[ci,PXc,P.good,'chosen'],[ri,PXr,P.bad,'rejected']].forEach(([i,x,c,nm])=>{
-          col(R,x,ZF,hh(cs[i].tok),mix(P.paper,c,.6),a,1);R.label([x,.14+hh(cs[i].tok),ZF],nm+' · '+f(cs[i].tok),{mono:true,fs:12.5,b:1,dy:-11,c,a});
+          col(R,x,ZF,hh(cs[i].tok),mix(P.paper,c,.6),a,1);R.label([x,.14+hh(cs[i].tok),ZF],nm+' · '+f(cs[i].tok),{mono:true,fs:12.5,b:1,dy:R.W<520&&nm==='rejected'?-27:-11,c,a});
           if(lab)R.flowArc([CX[i],.14+hh(cs[i].tok)*.6,ZB],[x,.14+hh(cs[i].tok)*.6,ZF],.35,{c,a:a*.75,r:.055,speed:1.2,n:7})});
         R.label([0,0,ZF+.55],lab,{mono:true,fs:12.5,b:1,dy:14,c:P.ink,a})};
       const cur=PR[k-1],prev=k>=2?PR[k-2]:null;
