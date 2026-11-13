@@ -1,4 +1,4 @@
-// ---- FP8 in the Reading tab (formerly the Quantise and accumulate tab): the scaling animation (sx), the accumulation animation (ax) and the error-against-K chart (ak) ----
+// ---- FP8 in the Reading tab: the scaling widget (sx; since 2026-11-12 a widget the reader drives, the steps are on the 3D stage Fig. 2), the accumulation animation (ax, step list sx-ax) and the error-against-K chart (ak) ----
 (function(){
 const F=window.FP8;if(!F||!$('sx'))return;
 // theme colours as rgb triples, for the canvas heatmaps
@@ -9,19 +9,11 @@ const cvs=document.createElement('canvas');
 function img(T,K,pix){cvs.width=K;cvs.height=T;const c=cvs.getContext('2d'),im=c.createImageData(K,T);for(let t=0;t<T;t++)for(let k=0;k<K;k++){const p=pix(t,k),o=(t*K+k)*4;im.data[o]=p[0];im.data[o+1]=p[1];im.data[o+2]=p[2];im.data[o+3]=255}c.putImageData(im,0,0);return cvs.toDataURL()}
 
 // ===== 1. Scaling =====
-const SX={kind:'channels',mag:5,fmt:'e4m3',cache:{}};
+const SX={kind:'channels',mag:5,fmt:'e4m3',mode:'tensor',view:2,cache:{}};
 const MAGS=['1','10','100','10³','10⁴','10⁵'];
-const MODE_NAME={tensor:'one scale for the whole tensor',tile:'one scale per 1×128 tile (one token, 128 channels)',block:'one scale per 128×128 block (here all 32 tokens × 128 channels)'};
 function run(mode){const key=[SX.kind,SX.mag,SX.fmt,mode].join('|');if(!SX.cache[key])SX.cache[key]=F.scalingRun(1,SX.kind,10**SX.mag,SX.fmt,mode);return SX.cache[key]}
 const pct=v=>v===0?'0%':v<1e-5?(100*v).toPrecision(2)+'%':(100*v).toFixed(v<0.001?3:v<0.1?2:1)+'%';
-function steps(mode){const r=run(mode),n=r.n,FMX=F.FMT[SX.fmt].max,ns=r.Q.scales.length;
-  return [
-   {t:'The activations',c:'32 tokens × 512 channels. '+(SX.kind==='none'?'No outliers: every value is a unit-variance random number.':'Outliers '+MAGS[SX.mag]+' times the typical size sit on '+(SX.kind==='channels'?'channels 38 and 301 of every token':'tokens 6 and 22, in every channel')+'. Shade is log |x| on this matrix\'s own scale.')},
-   {t:'One scale per group',c:'Granularity: '+MODE_NAME[mode]+'. Each group\'s largest magnitude is found online and divided by '+FMX+' ('+SX.fmt.toUpperCase()+'\'s largest value), so '+ns+' scale'+(ns>1?'s are':' is')+' stored. '+(mode==='tensor'?'The outlier sets the scale for everything.':mode==='tile'?'An outlier only sets the scale of its own 128 values.':'An outlier sets the scale for every token in its 128 channels.')},
-   {t:'Divide and round to '+SX.fmt.toUpperCase(),c:'Each value is divided by its group\'s scale and rounded to the nearest '+SX.fmt.toUpperCase()+' number. Grey: kept with full precision. Yellow: below the smallest normal number ('+(SX.fmt==='e4m3'?'2⁻⁶':'2⁻¹⁴')+'), kept with fewer mantissa bits. Red: rounded to zero.'},
-   {t:'What was lost',c:'Shade is the relative error of each value after rounding and rescaling (white: 3% or less, ordinary FP8 rounding). '+r.zeros.toLocaleString('en-GB')+' of '+n.toLocaleString('en-GB')+' values became zero and '+r.sub.toLocaleString('en-GB')+' are subnormal; half the values are off by more than '+pct(r.median_rel)+', one in ten by more than '+pct(r.p90_rel)+'.'}]}
-const sxModes={tensor:steps('tensor'),tile:steps('tile'),block:steps('block')};
-function rebuildSteps(){['tensor','tile','block'].forEach(m=>{const s=steps(m);sxModes[m].length=0;s.forEach(x=>sxModes[m].push(x))})}
+// view k: 1 |x| with the groups (and, for one scale per tensor or block, the value that sets each scale circled), 2 the rounding outcome, 3 the relative error
 function sxDraw(mode,k,e,w){const r=run(mode),X=r.X,Q=r.Q,T=32,K=512,P=pal();
   const H=Math.max(140,Math.min(230,Math.round(w*0.34))),top=22,pl=4,W=w-8,ch=H-top-20;
   let amax=0;for(const row of X)for(const v of row)amax=Math.max(amax,Math.abs(v));const lo=-2,hi=Math.log10(amax);
@@ -53,9 +45,12 @@ function sxCounters(mode,k,e){const r=run(mode),show=k>=3||(k===2&&e>=1);const n
    stat('Became zero',show?r.zeros.toLocaleString('en-GB'):'·',show?pct(r.zeros/r.n)+' of the values':'')+
    stat('Subnormal',show?r.sub.toLocaleString('en-GB'):'·',show?'fewer mantissa bits':'')+
    stat('Median relative error',show?pct(r.median_rel):'·',show?'90th percentile '+pct(r.p90_rel):'')}
-const sxA=makeAnim({id:'sx',modes:sxModes,mode:'tensor',draw:sxDraw,counters:sxCounters,dur:2600});
-function sxCtl(){SX.kind=$('sxKind').value;SX.mag=+$('sxMag').value;SX.fmt=$('sxFmt').value;$('sxMagV').textContent=MAGS[SX.mag];rebuildSteps();if(sxA){sxA.st.lk=-1;sxA.draw()}}
+function sxRender(w){const host=$('sxSvg');host.innerHTML=sxDraw(SX.mode,SX.view,1,w);$('sxCnt').innerHTML=sxCounters(SX.mode,3,1)}
+fit($('sxSvg'),sxRender);
+function sxCtl(){SX.kind=$('sxKind').value;SX.mag=+$('sxMag').value;SX.fmt=$('sxFmt').value;$('sxMagV').textContent=MAGS[SX.mag];refit($('sxSvg'))}
 ['sxKind','sxFmt'].forEach(id=>$(id).addEventListener('change',sxCtl));$('sxMag').addEventListener('input',sxCtl);
+segBind('sxM',m=>{SX.mode=m;refit($('sxSvg'))});segBind('sxV',m=>{SX.view=+m;refit($('sxSvg'))});
+['sxM','sxV'].forEach(id=>$(id).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>$(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false')))));
 
 // ===== 2. Accumulation =====
 const AX={R:'A',K:4096,D:'uniform',tr:{}};
@@ -65,13 +60,8 @@ function trace(nc){const key=[AX.R,AX.K,AX.D,nc].join('|');if(AX.tr[key])return 
   F.accumulate(p,AX.R,nc,14,(n,acc,hi,lost)=>{const got=hi+acc,e=ex[n];pts.push({n,got,ex:e,acc,err:AX.D==='gauss'?Math.abs(got-e)/ab[n]:(e!==0?Math.abs(got-e)/Math.abs(e):0)})});
   const sorted=p.map(Math.abs).filter(v=>v>0).sort((a,b)=>a-b),med=sorted[Math.floor(sorted.length/2)];
   return AX.tr[key]={pts,p,med,final:pts[pts.length-1]}}
-const AXSTEPS=()=>{const K=AX.K;return [
-  {t:'Form the products',n:0,c:'K = '+K.toLocaleString('en-GB')+' pairs of inputs, each rounded to E4M3. The product of two E4M3 numbers has at most 8 significant bits, so every product is exact; only the adding can lose anything.'},
-  {t:'The first MMA: 32 products',n:32,c:'One tensor-core instruction adds 32 products. The 14-bit window sits at the largest of them; while the running sum is small, almost nothing falls outside it.'},
-  {t:'The first 128 elements',n:128,c:'Four instructions. With promotion, the partial sum is now copied into an FP32 register on the CUDA cores and the 14-bit sum restarts from zero (Figure 7b of the paper). Without it, the sum keeps growing inside the tensor core.'},
-  {t:'To 1,024',n:Math.min(1024,K),c:'Without promotion the running sum is now hundreds of times larger than a single product, so the window has moved up and each new product keeps only its top bits. Truncation always rounds toward zero, so the losses add up instead of cancelling.'},
-  {t:'To K = '+K.toLocaleString('en-GB'),n:K,c:'The rest of the dot product. Watch the error curve: steady growth without promotion, flat with it.'},
-  {t:'The result',n:K,c:'Compare the final relative errors of the two modes, and the chart under the card for every K.'}]};
+// the steps (their explanation is the step list sx-ax beside the card); n: elements summed by the end of the step
+const AXSTEPS=()=>{const K=AX.K;return [{t:'Form the products',n:0},{t:'The first MMA: 32 products',n:32},{t:'The first 128 elements',n:128},{t:'To 1,024',n:Math.min(1024,K)},{t:'To K',n:K},{t:'The result',n:K}]};
 const axModes={tc:AXSTEPS(),pr:AXSTEPS()};
 function rebuildAx(){['tc','pr'].forEach(m=>{const s=AXSTEPS();axModes[m].length=0;s.forEach(x=>axModes[m].push(x))})}
 rebuildAx();
@@ -104,8 +94,8 @@ function axDraw(mode,k,e,w){const tr=trace(mode==='pr'?128:0),other=trace(mode==
   return svgW(w,H,s,'Accumulator bits and error curve')}
 function axCounters(mode,k,e){const tr=trace(mode==='pr'?128:0),n=nAt(mode,k,e),pt=ptAt(tr,n);
   return stat('Elements summed',pt.n.toLocaleString('en-GB'),'of '+AX.K.toLocaleString('en-GB'))+stat('Exact sum',pt.ex.toFixed(3),'')+stat(mode==='pr'?'Promoted sum':'14-bit sum',pt.got.toFixed(3),'')+stat(AX.D==='gauss'?'Error ÷ Σ|products|':'Relative error',pct(pt.err),k===5?'other mode: '+pct(trace(mode==='pr'?0:128).final.err):'')}
-const axA=makeAnim({id:'ax',modes:axModes,mode:'tc',draw:axDraw,counters:axCounters,dur:2600});
-function axCtl(){AX.R=$('axR').value;AX.K=+$('axK').value;AX.D=$('axD').value;rebuildAx();if(axA){axA.st.lk=-1;axA.draw()}}
+const axA=makeAnim({id:'ax',modes:axModes,mode:'tc',lists:{tc:'sx-ax',pr:'sx-ax'},draw:axDraw,counters:axCounters,dur:4200});
+function axCtl(){AX.R=$('axR').value;AX.K=+$('axK').value;AX.D=$('axD').value;rebuildAx();if(axA)axA.draw()}
 ['axR','axK','axD'].forEach(id=>$(id).addEventListener('change',axCtl));
 
 // ===== 3. Error against K =====
@@ -125,6 +115,6 @@ function akDraw(w){const d=akData(),H=w<520?270:250;const all=[].concat(...Objec
   const rcA=window.PAPER&&PAPER.rc&&PAPER.rc.fp8&&PAPER.rc.fp8.acc;let same=0,tot=0;if(rcA)['A','B'].forEach(r=>[0,128].forEach(nc=>KS.forEach((K,i)=>{const v=rcA[AK.D+'|'+r+'|'+nc+'|'+K];if(v!=null){tot++;if(Math.abs(v-d[r+nc][i])<=1e-15*Math.max(1,v))same++}})));
   $('akNote').innerHTML='At K = 4,096: reading A '+pct(d.A0[4])+' falling to '+pct(d.A128[4])+' with promotion; reading B '+pct(d.B0[4])+' falling to '+pct(d.B128[4])+'. Computed in your browser just now; '+same+' of '+tot+' points identical to fp8_sim.py\'s run (inputs/fp8_sim.json).'}
 $('akD').addEventListener('change',()=>{AK.D=$('akD').value;refit($('akSvg'))});
-fit($('akSvg'),akDraw);onTab('t-read',()=>{refit($('akSvg'));if(sxA)sxA.draw();if(axA)axA.draw()});
+fit($('akSvg'),akDraw);onTab('t-read',()=>{refit($('akSvg'));refit($('sxSvg'));if(axA)axA.draw()});
 try{const c=window.PAPER&&PAPER.rc&&PAPER.rc.fp8check;if(c)$('fpN').textContent=c.compared}catch(e){}
 })();

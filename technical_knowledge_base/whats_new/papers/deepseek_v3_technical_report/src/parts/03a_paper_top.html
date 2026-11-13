@@ -1,14 +1,16 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> DeepSeek-V3 is cheap because a mixture of experts that runs 37B of its 671B parameters per token does a tenth of a dense 405B model's arithmetic, and FP8 training, the DualPipe schedule and custom all-to-all kernels stop the experts' cross-node communication from eating that saving: the whole official run took 2.788M H800 GPU hours.</p>
-<div class="card" id="hero2">
+<p class="small"><b>You need:</b> routing, top-k gates and expert parallelism are taught on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}; MLA as an attention design, with its cache animated, on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; FP8 formats and scaling granularity on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}; pipeline, expert and ZeRO data parallelism on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}. The {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}} animates MLA token by token, recomputes the KV cache across DeepSeek's generations and simulates DualPipe against 1F1B and ZB1P; this page builds what is specific to this report: its claims checked line by line, the training-cost arithmetic, FP8 run live, and what its own evidence says about multi-token prediction and auxiliary-loss-free balancing. <b>New terms:</b> <b>shared and routed experts</b> (one expert every token uses, and 256 a router chooses among); <b>auxiliary-loss-free balancing</b> (a per-expert bias that steers selection, instead of a loss); <b>MTP</b> (multi-token prediction, an extra module trained to predict the token after next); <b>DualPipe</b> (V3's pipeline schedule that overlaps one chunk's communication with another's compute); <b>1×128 tile, 128×128 block</b> (the groups that share one FP8 scale); <b>promoted accumulation</b> (moving partial sums to FP32 every 128 products); <b>H800</b> (the export version of the H100: same compute, NVLink cut to 160 GB/s).</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="hero2">
 <div class="t" style="font-weight:600;margin-bottom:4px">Seven co-designed pieces, two jobs, one bill</div>
 <div id="heroSvg"></div>
 <p class="small mute" style="margin:6px 0 0">Each box is a section below, with the number the paper gives for it: {{§2.1|ax:S2.SS1}} and {{§4.2|ax:S4.SS2}} (MoE, MLA), {{§2.1.2|ax:S2.SS1.SSS2}} (balancing), {{§5.4.3|ax:S5.SS4.SSS3}} (MTP's 1.8×), {{Appendix B|ax:A2.SS1}} (FP8), {{§3.2|ax:S3.SS2}} (DualPipe, kernels), {{Table 1|ax:S1.T1}} (the bill). The Llama ratios are derived on this page ({{The bill|tab:t-read:s-bill}}). The model row is mostly inherited from DeepSeek-V2 (MLA, DeepSeekMoE); what is new in V3 is the balancing rule, MTP, FP8 at this scale and the system row.</p>
 </div>
-<p class="small"><b>You need:</b> routing, top-k gates and expert parallelism are taught on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}; MLA as an attention design, with its cache animated, on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; FP8 formats and scaling granularity on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}; pipeline, expert and ZeRO data parallelism on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}. The {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}} animates MLA token by token, recomputes the KV cache across DeepSeek's generations and simulates DualPipe against 1F1B and ZB1P; this page builds what is specific to this report: its claims checked line by line, the training-cost arithmetic, FP8 run live, and what its own evidence says about multi-token prediction and auxiliary-loss-free balancing. <b>New terms:</b> <b>shared and routed experts</b> (one expert every token uses, and 256 a router chooses among); <b>auxiliary-loss-free balancing</b> (a per-expert bias that steers selection, instead of a loss); <b>MTP</b> (multi-token prediction, an extra module trained to predict the token after next); <b>DualPipe</b> (V3's pipeline schedule that overlaps one chunk's communication with another's compute); <b>1×128 tile, 128×128 block</b> (the groups that share one FP8 scale); <b>promoted accumulation</b> (moving partial sums to FP32 every 128 products); <b>H800</b> (the export version of the H100: same compute, NVLink cut to 160 GB/s).</p>
-</section>
+</div></div></div>
 <nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-arch">Architecture</a><a href="#s-bal">Balancing</a><a href="#s-mtp">MTP</a><a href="#s-infra">Infrastructure</a><a href="#s-fp8">FP8</a><a href="#s-pre">Pre-training</a><a href="#s-bill">The bill</a><a href="#s-post">Post-training</a><a href="#s-res">Results</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
 
 <section id="s-prob"><h2>Problem</h2>
@@ -17,18 +19,22 @@
 <p class="lead">The report's answer, in its own words: 671B total parameters, 37B active per token, 14.8T training tokens, "remarkably stable" training with no irrecoverable loss spikes and no rollbacks, and 2.788M H800 GPU hours for the whole thing ({{abstract|ax:S1}}).</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-arch"><h2>Architecture: MLA and DeepSeekMoE, as in V2</h2>
 [[S2.SS1|§2.1, §4.2]]
 <p>The block is a Transformer with two substitutions ({{§2.1|ax:S2.SS1}}, {{Figure 2|ax:S2.F2}}); everything not stated follows V2. The sizes ({{§4.2|ax:S4.SS2}}): 61 layers, hidden size 7,168, 128 attention heads of 128 dimensions, every learnable weight initialised with standard deviation 0.006. A byte-level BPE tokenizer with 128K tokens ({{§4.1|ax:S4.SS1}}).</p>
 <p><b>Multi-head latent attention.</b> Keys and values are generated from one low-rank latent per token: the input h<sub>t</sub> is down-projected to c<sub>t</sub><sup>KV</sup> of size d<sub>c</sub> = 512 ({{Eq. 1|ax:S2.E1}}), then up-projected per head for keys and values ({{Eq. 2|ax:S2.E2}}, {{Eq. 5|ax:S2.E5}}), plus a "decoupled" RoPE key k<sub>t</sub><sup>R</sup> of 64 dimensions shared by all heads ({{Eq. 3|ax:S2.E3}}, {{Eq. 4|ax:S2.E4}}; why RoPE needs it, the mechanism {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}} owns: RoPE cannot pass through the absorbed product). Only c<sup>KV</sup> and k<sup>R</sup> are cached: <b>576 numbers per token per layer</b>, against 2 × 128 × 128 = 32,768 for a standard 128-head, 128-dimension attention, about 57 times fewer (71 times against an MHA with V3's 192-dimension keys; <span class="mono">recompute.py</span>), "while maintaining performance comparable to standard Multi-Head Attention" ({{§2.1.1|ax:S2.SS1.SSS1}}; the evidence is V2's).</p>
 <details class="card"><summary><b>MLA's two smaller details</b> (queries, absorption)</summary><p class="small">Queries get their own low-rank compression to d<sub>c</sub>′ = 1,536 ({{Eq. 6 to 9|ax:S2.E6}}), only to cut activation memory in training. At inference the up-projections can be absorbed into the neighbouring matrices. The step-by-step animation, prefill against decode and the cache sizes are on the {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</p></details>
 <p><b>DeepSeekMoE.</b> Every feed-forward layer except the first three is an MoE layer of 1 shared expert and 256 routed experts, each with intermediate size 2,048; each token uses 8 routed experts ({{§4.2|ax:S4.SS2}}). Affinities are now a <b>sigmoid</b> of the token against each expert's centroid ({{Eq. 15|ax:S2.E15}}), not V2's softmax, and the top-8 scores are renormalised to sum to one to give the gates ({{Eq. 13 to 14|ax:S2.E13}}). Routing is node-limited: a token may reach experts on at most M = 4 nodes, chosen by the sum of the highest K<sub>r</sub>/M = 2 affinities on each node ({{§2.1.2|ax:S2.SS1.SSS2}}). The released config expresses the same rule as 8 expert groups of which 4 are kept per token (n_group, topk_group in {{config.json|https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json}}). V3 also keeps V2's extra RMSNorm after the compressed latents and scaling factors at the width bottlenecks ({{§4.2|ax:S4.SS2}}).</p>
-<p><b>Predict:</b> with 97% of the weights in routed experts, which share of the <i>active</i> parameters is attention? Then switch the bar. Where the parameters live, recounted from the released configuration (the paper prints only the two totals):</p>
+<p><b>Predict:</b> with 97% of the weights in routed experts, which share of the <i>active</i> parameters is attention? Then switch the chart beside this section, which recounts where the parameters live from the released configuration (the paper prints only the two totals).</p>
+
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Where the 671B parameters live</div>
 <div class="seg" id="parM" role="group" aria-label="Count"><button class="on" data-m="tot" aria-pressed="true">All 671B</button><button data-m="act" aria-pressed="false">Active per token</button></div>
 <div id="parSvg"></div>
-<p class="small mute" id="parNote"></p>
-</section>
+<p class="small mute" id="parNote"></p></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-bal"><h2>Load balancing without an auxiliary loss</h2>
 [[S2.SS1.SSS2|§2.1.2, §4.5.2, §4.5.3]]
 <p>An MoE whose router sends most tokens to a few experts collapses and, under expert parallelism, wastes the GPUs that hold the idle experts ({{§2.1.2|ax:S2.SS1.SSS2}}; routing collapse and the auxiliary-loss cure of Switch and GShard are taught on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}). The paper's objection to the cure: "too large an auxiliary loss will impair the model performance".</p>
@@ -40,11 +46,11 @@
 <div class="reveal" hidden>
 <p><b>The same.</b> The report's own conclusion is that the advantage comes from the batch-wise <b>scope</b>, which the bias rule happens to impose for free.</p>
 </div></div>
-<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Balance by batch, by any method, and the loss is the same</div>
-<div id="balSvg"></div>
-<p class="small mute" style="margin:6px 0 0">1B MoE models: 2.258 with the sequence-wise loss, 2.253 with the bias rule, 2.253 with a batch-wise loss. 3B MoE models: 2.085, 2.080 and 2.080 ({{§4.5.3|ax:S4.SS5.SSS3}}). Bars start at 2.0 so the differences are visible; they are 0.005 nats, and every number is a single run.</p></div>
 <p>Batch-wise balance has two costs the paper names ({{§4.5.3|ax:S4.SS5.SSS3}}): imbalance inside single sequences or small batches, handled by training with large expert- and data-parallel micro-batches, and domain shift at inference, handled by redundant experts in deployment (below). The serving side, a port of DeepSeek's EPLB, is on the {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</p>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Balance by batch, by any method, and the loss is the same</div>
+<div id="balSvg"></div>
+<p class="small mute" style="margin:6px 0 0">1B MoE models: 2.258 with the sequence-wise loss, 2.253 with the bias rule, 2.253 with a batch-wise loss. 3B MoE models: 2.085, 2.080 and 2.080 ({{§4.5.3|ax:S4.SS5.SSS3}}). Bars start at 2.0 so the differences are visible; they are 0.005 nats, and every number is a single run.</p></div></div></div></div>
 
 <section id="s-mtp"><h2>Multi-token prediction</h2>
 [[S2.SS2|§2.2, §4.5.1, §5.4.3]]

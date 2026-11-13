@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the accumulation animation stepping end to end and the scaling widget never moving by itself.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/deepseek_v3_technical_report/src/check_page.mjs [shots dir]
 // The FP8 simulator itself is checked against fp8_sim.py by check_fp8.mjs.
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
@@ -43,9 +43,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view and wait
-    for (const id of ['sx', 'ax']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // motion (2026-11-06): the accumulation animation plays by itself once scrolled into view; the scaling widget never moves by itself
+    // (the 3D stages are checked by check_stages.mjs)
+    if (await p.$(`#${t} #ax`)) { await p.$eval('#ax', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#ax', e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ax did not play when scrolled into view`) }
+    if (await p.$(`#${t} #sx`)) { await p.$eval('#sx', e => e.scrollIntoView({ block: 'center' })); await wait(800);
+      const fr = await p.$eval('#sx', e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: the sx widget moved by itself (${fr} frames)`) }
     // closed details hold controls and charts too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(400); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
@@ -78,7 +81,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const s of segs) { if (await s.evaluate(b => b.offsetParent !== null)) { await s.evaluate(b => b.click()); actions++; await wait(30) } }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle
-    for (const id of ['sx', 'ax']) {
+    for (const id of ['ax']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
@@ -88,7 +91,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
         const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
         for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
         await audit(`${t} ${id} ${m} stepped`);
-        for (const sel of (id === 'sx' ? ['sxKind', 'sxFmt'] : ['axR', 'axK', 'axD'])) {
+        for (const sel of ['axR', 'axK', 'axD']) {
           const nopt = await p.$eval('#' + sel, e => e.options.length);
           for (let i = 0; i < nopt; i++) { await p.evaluate((s, i) => { const e = document.getElementById(s); e.selectedIndex = i; e.dispatchEvent(new Event('change', { bubbles: true })) }, sel, i); await clk(`#${id}Fwd`); actions++; await audit(`${t} ${id} ${m} ${sel} ${i}`) }
           await p.evaluate(s => { const e = document.getElementById(s); e.selectedIndex = 0; e.dispatchEvent(new Event('change', { bubbles: true })) }, sel);

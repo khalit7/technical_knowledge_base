@@ -248,9 +248,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/context_language_models` Context Language Models
 - [x] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
 - [x] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
-- [~] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
+- [x] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
 - [~] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
-- [ ] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
+- [~] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
 - [ ] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
 - [ ] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
 - [ ] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
@@ -541,6 +541,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/constitutional_ai`: Fig. 1 small in a tall card on phones; step 7 the "reward" label sits on its flow; HH RLHF mode the "44,849 human harmlessness" label overlaps the dots.
 - `whats_new/papers/context_language_models`: the cache stage step 3 labels crowd the near corner (FLOPs value, "notes", "turn 4 re-prefilled"); the stage is small in the 390 px card.
 - `whats_new/papers/deepseek_r1`: GRPO stage is wide and shallow (empty space above at 1400; raise the camera or set aspect); "In the paper" margin labels squeeze the left column; Stage 1 prediction question sits after the paragraph that gives 59.0 (pre-existing; move the question up).
+- `whats_new/papers/deepseek_v3_technical_report`: the promoted-accumulation card is sticky and about 750 px tall (overflows short laptop windows); FP8 and cost predict prompts are spoiled by the visual beside them (move the questions above their splits).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -634,3 +635,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Context Language Models: the 3D stage uses "keep the newest 1 turn" (the Replay default 0 leaves SCR nothing to move; one-line switch); the replay (about 30 calls per policy) is a widget with no autoplay or step list, explained by the stage instead; the episode is illustrative, priced with the paper's Eq. 9. Keep?
 - DDPM: hero plates zoom out as t grows (dashed square marks [-1, 1]^2); the density surface is rescaled to the same peak at each t (the 9-fold drop stated in the steps); the 2D Idea animation stays beside the 3D hero (shows the mu-tilde chain and counters); header counts all three Idea step lists (about 1.3 min shown one at a time). Keep?
 - DeepSeek-R1: the R1 recipe is now drawn on the paper page as a 3D flow (rejected in October because the DeepSeek lab page draws a "recipe river"); proposal: OWNERS.md names the R1 recipe flow as owned by `whats_new/papers/deepseek_r1` and the lab page links to it (reversible: delete the `stg-pipe` split). Cold start drawn at 4,000 samples for "thousands" (stated). Page 31 to 34 min, all step lists. Keep?
+- DeepSeek-V3: routing example uses illustrative seeded affinities (seed 17, labelled) with the paper's node-limited rule; the scaling heatmap became a widget opening on per tensor; DualPipe stays Table 2 plus a link to the DeepSeek lab page's simulation. Keep?
