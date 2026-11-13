@@ -14,21 +14,32 @@
 
 <section id="s-mech"><h2>Mechanisms</h2>
 [[S5|§5 Core System Mechanisms]]
-<h3>1. Composable environment layers</h3>
-<p>A sandbox is three parts with separate lives: a base image (OS-level dependencies such as Ubuntu, Python 3.10 or Java 8), a workspace (the task's repository and its dependencies) and frequently updated toolkits (such as the DeepSeek Harness) ({{§4.2|ax:S4.SS2}}). Fused into one OCI image, they multiply: with <i>M</i> bases, <i>N</i> workspaces and <i>K</i> toolkits, upgrading <i>m</i> bases costs <span class="m">O(<i>m</i>·<i>N</i>)</span> rebuilds and upgrading <i>k</i> toolkits <span class="m">O(<i>k</i>·<i>N</i>)</span>. Unpacking workspace and toolkit archives inside each sandbox instead costs CPU and I/O across a burst and causes startup timeouts; bind-mounting read-only directories replaces paths rather than merging into them, and breaks tools that write into their own tree (Python's <code>__pycache__</code>) ({{§4.2|ax:S4.SS2}}).</p>
-<p>DSec stacks them as overlayfs layers at creation time: base at the bottom, the workspace as a read-only layer above, each toolkit on top, and a writable upper directory that absorbs runtime writes. A 30-line Go change to dockerd inserts the pre-mounted EROFS layers into the lower-directory stack. Upgrading <i>m</i> bases now rebuilds <i>m</i> layers, and <i>k</i> toolkits <i>k</i> layers ({{§5.1|ax:S5.SS1}}, {{§7|ax:S7}}). The layers are immutable, so they are stored in EROFS, a compact read-only filesystem that can decompress only the blocks a read touches, unlike a tar.gz that must be streamed and unpacked whole ({{§5.1|ax:S5.SS1}}). MicroVMs get the same model: EROFS images as read-only block devices, overlayfs inside the guest with an ext4 upper layer ({{§5.1|ax:S5.SS1}}).</p>
-<div class="card" id="ly">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ly">
 <div class="an-top"><div class="seg" id="lyM" role="group" aria-label="Packaging"><button class="on" data-m="layer" aria-pressed="true">Composable layers</button><button data-m="mono" aria-pressed="false">Monolithic images</button></div>
 <span class="small mute">Upgrade one toolkit, T1; image count to scale with Table 2.</span></div>
 <div id="lySvg" class="an-svg"></div>
 <div class="an-ctl"><button id="lyBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="lyPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="lyFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="lyScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="lySpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="lyStep"></div><p id="lyCap"></p></div>
 <div class="an-cnt" id="lyCnt"></div>
 <div class="ctl"><label>Share of the 102,171 container workspaces whose image embeds T1: <b id="lyShv">50%</b><input type="range" id="lySh" min="1" max="100" step="1" value="50"></label></div>
 <p class="small mute">The redrawing follows {{Figure 4|ax:S4.F4}}. The share is illustrative (the paper does not say how many images carry a given toolkit); the 102,171 workspaces are {{Table 2|ax:S4.T2}}'s week. Each square stands for 1,000 workspace images.</p>
-</div>
+</div></div></div><div class="s3L"><h3>1. Composable environment layers</h3>
+<p>A sandbox is three parts with separate lives: a base image (OS-level dependencies such as Ubuntu, Python 3.10 or Java 8), a workspace (the task's repository and its dependencies) and frequently updated toolkits (such as the DeepSeek Harness) ({{§4.2|ax:S4.SS2}}). Fused into one OCI image, they multiply: with <i>M</i> bases, <i>N</i> workspaces and <i>K</i> toolkits, upgrading <i>m</i> bases costs <span class="m">O(<i>m</i>·<i>N</i>)</span> rebuilds and upgrading <i>k</i> toolkits <span class="m">O(<i>k</i>·<i>N</i>)</span>. Unpacking workspace and toolkit archives inside each sandbox instead costs CPU and I/O across a burst and causes startup timeouts; bind-mounting read-only directories replaces paths rather than merging into them, and breaks tools that write into their own tree (Python's <code>__pycache__</code>) ({{§4.2|ax:S4.SS2}}).</p>
+<p>DSec stacks them as overlayfs layers at creation time: base at the bottom, the workspace as a read-only layer above, each toolkit on top, and a writable upper directory that absorbs runtime writes. A 30-line Go change to dockerd inserts the pre-mounted EROFS layers into the lower-directory stack. Upgrading <i>m</i> bases now rebuilds <i>m</i> layers, and <i>k</i> toolkits <i>k</i> layers ({{§5.1|ax:S5.SS1}}, {{§7|ax:S7}}). The layers are immutable, so they are stored in EROFS, a compact read-only filesystem that can decompress only the blocks a read touches, unlike a tar.gz that must be streamed and unpacked whole ({{§5.1|ax:S5.SS1}}). MicroVMs get the same model: EROFS images as read-only block devices, overlayfs inside the guest with an ext4 upper layer ({{§5.1|ax:S5.SS1}}).</p>
+<ol class="sx" id="sx-ly-layer">
+<li><b>Toolkit T1 has a new version.</b> Bases, workspaces and toolkits are separate, independently versioned EROFS layers.</li>
+<li><b>Rebuild one layer.</b> Only the T1 layer is rebuilt and published. Nothing else changes.</li>
+<li><b>The next sandbox composes it.</b> At creation the modified dockerd stacks base (bottom), workspace, then T1 v2 on top as overlayfs lower layers, with a writable upper layer for runtime writes.</li>
+<li><b>Upgrading <i>k</i> toolkits costs O(<i>k</i>).</b> Workspaces are untouched however many embed T1: the O(<i>k</i>·<i>N</i>) rebuild of the monolithic scheme becomes O(<i>k</i>) (§5.1).</li>
+</ol>
+<ol class="sx" id="sx-ly-mono" hidden>
+<li><b>Toolkit T1 has a new version.</b> Each image fuses a base, a workspace and its toolkits into one OCI image.</li>
+<li><b>Find every image that embeds T1.</b> Every image containing T1 is now stale, although its base and workspace did not change (Figure 4).</li>
+<li><b>Rebuild them all.</b> Each stale image is rebuilt and pushed again: O(<i>k</i>·<i>N</i>) work for <i>k</i> toolkits over <i>N</i> workspaces.</li>
+<li><b>And again at the next upgrade.</b> Toolkits such as the DeepSeek Harness are updated often, so the rebuild repeats with every release.</li>
+</ol>
+</div></div>
 
 <h3>2. On-demand image loading from 3FS</h3>
 <p>Sandboxes read only a small part of their images: 4.2% to 13.3% of the data in sampled container images ({{Table 3|ax:S4.T3}}). Pre-warming only moves the cost earlier, and under overcommit, pulling and unpacking full images steals CPU and I/O from running sandboxes ({{§4.4|ax:S4.SS4}}). So on-demand loading shrinks total I/O in proportion to what is used, not just its timing ({{§5.3|ax:S5.SS3}}).</p>

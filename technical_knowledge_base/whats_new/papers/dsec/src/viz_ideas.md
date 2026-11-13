@@ -27,3 +27,11 @@ What the methodology lacked here: a rule for papers whose most original contribu
 |---|---|---|---|
 | P-dsec.hero | Hero: five rows of workload pressure (§1, §4), mechanism (§5, §6) and measured effect (§8), the unevaluated RL co-design dashed, the self-reported scale beneath | Reading, top | built (mk_hero.py) |
 | P-dsec.fig1 | Embed the paper's Figure 1 (architecture) | | rejected: arXiv non-exclusive licence; the request-path animation already redraws it |
+
+## Layout rollout, 2026-11-13
+
+| id | Idea | Placement | Status |
+|---|---|---|---|
+| P-dsec.13 | Fig. 1 in 3D: one request through the components on a fleet of nodes with 3FS behind, flows for request, snapshot, image blocks and commands; FnCall mode | Reading, Architecture | built (replaces P-dsec.5's 2D animation) |
+| P-dsec.14 | Fig. 2 in 3D: the burst as a node-bar grid under a capacity plane, driven by placeSim, four policies, 8 stretches | Place a burst | built (replaces P-dsec.1's 2D bars) |
+| P-dsec.15 | Hero as a 3D fleet scene (burst, images, layers, memory, CPU, preemption) | | rejected: the hero is an argument map of measured against unmeasured; a fleet scene would foreground placement, which the paper does not measure |

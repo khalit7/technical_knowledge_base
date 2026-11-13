@@ -1,6 +1,6 @@
 // Exercise every control of the DSec page in both themes and widths: SVG text at least 11 px on screen,
 // no NaN/undefined/Infinity in visible text, no errors, no sideways scroll, every animation stepped end to end
-// in every mode, mid-animation screenshots. usage (repo root): node technical_knowledge_base/whats_new/papers/dsec/src/check_page.mjs
+// in every mode, mid-animation screenshots; each step animation plays once scrolled into view (2026-11-13). usage (repo root): node technical_knowledge_base/whats_new/papers/dsec/src/check_page.mjs
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,9 +43,9 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
   for (const t of tabs) {
     await clk(`#tabs button[data-t=${t}]`); await wait(300); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
-    for (const id of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) }
+    // every step animation plays by itself once scrolled into view (2026-11-06 motion rules; the 3D stages are checked in check_stages.mjs)
+    for (const id of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // closed details hold text too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     for (const pr of await p.$$(`#${t} .pred`)) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2; await wait(100) } }
@@ -71,11 +71,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const card of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) {
       const modes = await p.$$eval(`#${card}M button`, bs => bs.map(b => b.dataset.m));
       for (const m of modes) {
-        await clk(`#${card}M button[data-m="${m}"]`); await wait(50); // a mode switch pauses on step 1 (no autoplay since 2026-10-26)
+        await clk(`#${card}M button[data-m="${m}"]`); await wait(50); // a mode switch resets to step 1 and replays; the forward button stops it
         for (let i = 0; i < 12; i++) { await clk(`#${card}Fwd`); actions++ }
         await audit(`${t} ${card} ${m} end`);
-        const step = await p.$eval(`#${card}Step`, e => e.textContent);
-        if (!/Step (\d+) of \1/.test(step)) problems.push(`${scheme} ${width} ${card} ${m}: did not reach the last step: ${step}`);
+        const sc = await p.$eval(`#${card}Scrub`, e => [+e.value, +e.max]);
+        if (sc[0] !== sc[1]) problems.push(`${scheme} ${width} ${card} ${m}: did not reach the last step (${sc[0]} of ${sc[1]})`);
         for (let i = 0; i < 12; i++) await clk(`#${card}Back`);
         await clk(`#${card}Fwd`); await clk(`#${card}Fwd`);
         await clk(`#${card}Play`); await wait(700);

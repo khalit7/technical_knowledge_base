@@ -14,7 +14,8 @@
 | `mk_hero.py` | The hero figure (`parts/03_hero.svg.html`), run by `build.sh`. |
 | `reading.json` | The header's reading minutes, measured with `html_utils/audit_pages.mjs` after a build. |
 | `ledger.json`, `label_ledger.py` | The knowledge ledger and its labeller. |
-| `check_page.mjs` | Every control in both themes and widths, every animation mode stepped end to end, mid-play screenshots, text size, overflow. |
+| `check_page.mjs` | Every control in both themes and widths, every animation mode stepped end to end, mid-play screenshots, text size, overflow; each 2D step animation plays once scrolled into view. |
+| `check_stages.mjs` | The 2026-11-06 layout and motion checks (after DPO's): both 3D stages and both 2D step animations at 1400 light, 920 light and 390 dark, autoplay on view, one list item per step in every mode, flows stopping off screen, reduced motion, splits two columns at 1400 px, and 34 numbers the step lists state against `placeSim` and the request scene. |
 | `inputs/` | Paper text, decoded figures, the AgentENV README head, the Hacker News item (API, 3 October 2026). |
 
 ## Departures from `.claude/skills/explainer-page/page-kinds/paper.md`
@@ -56,3 +57,25 @@ Why about 25 minutes is right: the top added about 350 words, and about 780 word
 
 ## Checks (26 October 2026)
 `checkpage.sh`: tabs 4, about 214 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 438 actions, no problems (no frame before a click). `mk_coverage.py`: 27 of 27.
+
+## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged, after the page CSS). The paper tab: the top (core sentence, You need, New terms) beside the hero; Architecture beside the stage Fig. 1; Mechanism 1 (composable layers) beside the layers animation; the RL co-design beside the preemption animation. Full width (tables or no visual): Problem, Idea (Table 1 and its picker), the workload, mechanisms 2 to 4 (their visuals are predict reveals), misbehaviour, Results, Why it matters, Connections, How much to believe, What it takes. Place a burst: the intro, Try, policy toggle, step list, counters, sliders and note on the left, the stage Fig. 2 on the right; the four-policy table and "What this shows" full width. The figures tab: a figure picker and tables, full width (`verify_layout.mjs` lists its charts as outside a split; deliberate).
+- **Two 3D stages** (template `25_js_s3.js`, renderer v2, unchanged):
+  - `31_js_sc_req.js`, Fig. 1, one request through DSec (replaces the 2D request-path animation): the GPU server with libdsec, IAM, three placement-engine instances, the watcher, the apiserver, four CPU nodes each with its edge and running sandboxes, and 3FS behind them; flows for the request, the fleet snapshot, the image blocks read on demand and commands and output; the camera moves in close on the node for admission, image loading and stop. A FnCall mode with its own list. Components and order are the paper's (§3.1 to §3.3); the four nodes, their loads (5, 2, 6, 3) and the k = 2 sample are illustrative and labelled so. On a phone each step frames the part it is about.
+  - `32_js_sc_burst.js`, Fig. 2 on Place a burst (replaces the 2D bar animation): every node as a bar on a grid (grey: running before the burst; colour: added), a red glass plane at 3,200 a node, the placement engines at the front with flows to the nodes that gained most in each stretch. Driven by the page's own `placeSim` (30_js_place.js, now engine only, plus `rejAt`, refusals per stretch) on the sliders' inputs; the burst plays in its 8 stretches plus "before", one generated list item per step for each of the four policies, with each stretch's fullest and emptiest node and refusals. A slider or new draw is a reader control: it reruns and stops autoplay.
+- **Kept 2D**: the hero (a pressure, mechanism, effect table: reads best flat; replacing it with a 3D scene would hide that the placement and co-design are not what the paper measures); the layers animation (a count of 102 squares plus a four-layer stack; a 3D stack was considered, but the message is the count of rebuilt images); the preemption animation (two pools side by side and a memory bar, illustrative; flat reads as well); the predict reveals, Figure 13, every figure in the figures tab and every table (curves, bars and tables).
+- **Motion**: `makeAnim` in `11_js_ui.js` replaced by DeepSeek-V3's copy (the 2026-11-06 rules: plays once half in view, stops for good on a control, step lists per mode, `data-playing`); the layers and preemption captions moved into `ol.sx` lists (the per-step caption boxes removed). `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `dsec-tab`). `check_page.mjs` now asserts autoplay instead of forbidding it.
+
+## Length judgement (2026-11-13)
+| | Before | After |
+|---|---|---|
+| The paper, core | 24.7 min (5,680 words) | 28.0 min (6,440) |
+| The paper, closed | 5.7 min (1,307) | unchanged |
+| Place a burst | 3.6 min (820) | 7.8 min (1,800) |
+| The paper's figures, rebuilt; Further reading | 6.1; 2.6 min | unchanged |
+
+The growth is the step lists: the old captions, drawn by script and invisible to the audit, are now written out, and the audit counts hidden second-mode lists too (Fig. 1's FnCall list, the layers and preemption second modes: about 1.5 minutes; Place a burst's three hidden policies: about 3 minutes). A reader following one mode reads about 26 and 4.5 minutes. Nothing was cut. Header: "Reading: 28 min, plus 6 in closed details."
+
+Ledger: 273 units (core 228, depth 38, owned 2, volatile 4, fat 1); 5 added for the step lists and Fig. 2; keys re-pointed on units 39, 40, 71 and 266 (wording around the old request animation) and 261 (owned by Harnesses for training; its key had gone stale with that page's rewording: now "a task store, a sandbox fleet, the harness"). `ledger.py check`: problems 0.

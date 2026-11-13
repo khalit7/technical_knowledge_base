@@ -11,55 +11,13 @@ const dots=v=>{let s='';for(let i=0;i<3;i++)s+=v>=i+1?'●':v>=i+.5?'◐':'○';
   seg.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===btn);x.setAttribute('aria-pressed',x===btn?'true':'false')});
     const c=btn.dataset.m;$('t1tab').querySelectorAll('td[data-c],th').forEach(td=>{td.style.background=td.dataset.c===c?'var(--acc2)':''})}))})();
 
-// Request path (§3.1, Figure 1)
-const RQ={box:[
-  {t:'libdsec sends a create request',c:'Training code on a trusted GPU server asks for a sandbox: backend, image or environment, CPU and memory limits, lifetime, network rules (§2.1).',on:['sdk']},
-  {t:'IAM authenticates and authorises',c:'Every management request passes IAM: is this principal allowed to create here, and is it within its project\'s (possibly delegated) quota?',on:['sdk','iam']},
-  {t:'The placement engine picks a node',c:'Filter to healthy nodes with the right backend and hardware, sample a few at random, take the least loaded in the watcher\'s view plus this engine\'s own recent placements.',on:['iam','pl','wa']},
-  {t:'The apiserver forwards to that node\'s edge',c:'The ingress keeps no per-sandbox state; the sandbox ID will encode its edge, so any apiserver instance can route later requests.',on:['pl','api']},
-  {t:'The edge admits, or refuses',c:'The edge checks its own capacity (refusing sends the request to another node), provisions storage with EROFS metadata local, applies the eBPF network policy and launches the runtime.',on:['api','edge']},
-  {t:'The image loads on demand',c:'No full pull: the sandbox starts at once and file data is fetched from 3FS as it is read; writes go to the node\'s local disk.',on:['edge','box','fs']},
-  {t:'Commands reach a shell session',c:'Each command goes apiserver, edge, aether (the per-sandbox proxy, over a Unix socket or vsock), then a chronus shell session; output streams back the same way.',on:['sdk','api','edge','box']},
-  {t:'Stop, or time-to-live',c:'The caller stops the sandbox, or its time-to-live reclaims it; the edge releases storage and memory.',on:['edge']}],
- fn:[
-  {t:'libdsec submits a task',c:'A FnCall request is a task specification: task type, dependency files and the code or script to run (§2.3).',on:['sdk']},
-  {t:'Authorised like other requests',c:'IAM covers all management requests; the paper does not detail FnCall\'s path beyond what follows.',on:['sdk','iam']},
-  {t:'Runs in a precreated container',c:'No aether, no chronus, no image to load: the task executes directly in a reusable container that already exists (CPU or GPU).',on:['iam','fn']},
-  {t:'Best-effort cleanup, then reuse',c:'Task state is cleaned up on a best-effort basis and the container serves the next invocation.',on:['fn']}]};
-const ax=s=>s.replace(/\{\{(§[\d.]+)\}\}/g,'$1');
-Object.values(RQ).forEach(a=>a.forEach(x=>x.c=ax(x.c)));
-makeAnim({id:'rq',mode:'box',modes:RQ,dur:2600,
-  draw(m,k,e,w){const S=RQ[m][k],on=new Set(S.on),H=330,side=Math.min(170,w*.34),mw=Math.min(230,w-side-30),mx=(w-side-16-mw)/2+0;
-    const rows=m==='box'?[['sdk','libdsec (GPU server, trusted)'],['iam','IAM'],['pl','Placement engine'],['api','apiserver (only path in)'],['edge','edge (one per node)'],['box','sandbox: aether + chronus']]
-      :[['sdk','libdsec (GPU server, trusted)'],['iam','IAM'],['fn','precreated FnCall container']];
-    const rh=H/rows.length;let s='';const pos={};
-    rows.forEach(([id,t],i)=>{const y=i*rh+6,h=rh-16;pos[id]=[mx,y,mw,h];const a=on.has(id);
-      s+=rc(mx,y,mw,h,a?'var(--acc2)':'var(--soft)',{s:a?'var(--acc)':'var(--line)',sw:a?2:1,r:7})+tx(mx+mw/2,y+h/2+4,t,{fs:12,a:'middle',w:a?600:400});
-      if(i>0)s+=ln2(mx+mw/2,y-10,mx+mw/2,y-1,'var(--mute)')});
-    const sb=(id,t,ref)=>{const r=pos[ref];const x=mx+mw+16,y=r[1],h=r[3],a=on.has(id);s+=rc(x,y,side,h,a?'var(--acc2)':'var(--soft)',{s:a?'var(--acc)':'var(--line)',sw:a?2:1,r:7,da:'4 3'})+tx(x+side/2,y+h/2+4,t,{fs:12,a:'middle'})+ln2(mx+mw,y+h/2,x,y+h/2,'var(--mute)',{da:'3 3'})};
-    if(m==='box'){sb('wa','watcher (fleet view)','pl');sb('fs','3FS (image data)','box')}
-    // the moving token
-    const ids=S.on,last=pos[ids[ids.length-1]]||pos[ids[0]],first=pos[ids[0]]||last;const tx0=first[0]+14,ty0=first[1]+first[3]/2,tx1=last[0]+14,ty1=last[1]+last[3]/2;
-    s+='<circle cx="'+(tx0+(tx1-tx0)*e).toFixed(1)+'" cy="'+(ty0+(ty1-ty0)*e).toFixed(1)+'" r="6" fill="var(--c2)"/>';
-    return svgW(w,H,s,'Path of a sandbox request')},
-  counters(m,k){const n=RQ[m].length;
-    return m==='box'?stat('Components passed',[1,2,3,4,5,6,6,6][k]+' of 6')+stat('Per-sandbox state in the ingress','none','sandbox ID encodes its edge')+stat('Image bytes pulled before start','0','data fetched on read'):
-      stat('Components passed',[1,2,3,3][k]+' of 3')+stat('Per-invocation provisioning','none','container is precreated')+stat('Step',(k+1)+' of '+n)}});
+// The request path (§3.1, Figure 1) is the 3D stage in 31_js_sc_req.js.
 
 // Composable layers against monolithic images (§4.2, §5.1, Figure 4)
 const NW=102171;let share=.5;
-const LY={layer:[
-  {t:'Toolkit T1 has a new version',c:'Bases, workspaces and toolkits are separate, independently versioned EROFS layers.'},
-  {t:'Rebuild one layer',c:'Only the T1 layer is rebuilt and published. Nothing else changes.'},
-  {t:'The next sandbox composes it',c:'At creation the modified dockerd stacks base (bottom), workspace, then T1 v2 on top as overlayfs lower layers, with a writable upper layer for runtime writes.'},
-  {t:'Upgrading k toolkits costs O(k)',c:'Workspaces are untouched however many embed T1: the O(k·N) rebuild of the monolithic scheme becomes O(k) (§5.1).'}],
- mono:[
-  {t:'Toolkit T1 has a new version',c:'Each image fuses a base, a workspace and its toolkits into one OCI image.'},
-  {t:'Find every image that embeds T1',c:'Every image containing T1 is now stale, although its base and workspace did not change (Figure 4).'},
-  {t:'Rebuild them all',c:'Each stale image is rebuilt and pushed again: O(k·N) work for k toolkits over N workspaces.'},
-  {t:'And again at the next upgrade',c:'Toolkits such as the DeepSeek Harness are updated often, so the rebuild repeats with every release.'}]};
-Object.values(LY).forEach(a=>a.forEach(x=>x.c=x.c.replace(/\{\{([^}]+)\}\}/g,'$1')));
-const lyA=makeAnim({id:'ly',mode:'layer',modes:LY,dur:2400,
+// the step texts are the list items #sx-ly-layer and #sx-ly-mono in the HTML (one per step)
+const LY={layer:[0,1,2,3],mono:[0,1,2,3]};
+const lyA=makeAnim({id:'ly',mode:'layer',modes:LY,lists:{layer:'sx-ly-layer',mono:'sx-ly-mono'},dur:3200,
   draw(m,k,e,w){const cols=Math.max(10,Math.min(26,Math.floor((w-20)/18))),n=Math.ceil(NW/1000),sz=Math.min(14,(w-20)/cols-3),rows=Math.ceil(n/cols);
     const hit=Math.round(n*share),gh=rows*(sz+3);let s='';const top=36;
     s+=tx(0,16,m==='mono'?'Workspace images (each square = 1,000 images)':'Workspace layers (each square = 1,000 workspaces)',{fs:12,c:'var(--mute)'});
@@ -79,21 +37,9 @@ const lyA=makeAnim({id:'ly',mode:'layer',modes:LY,dur:2400,
 const lySh=$('lySh');if(lySh)lySh.addEventListener('input',()=>{share=lySh.value/100;$('lyShv').textContent=lySh.value+'%';lyA&&lyA.draw()});
 
 // Rollout through a preemption (§6.2, §6.3)
-const PE={new:[
-  {t:'A rollout starts',c:'The GPU job serves the policy model. On DSec, outside the preemptible pool, a worker container drives the scaffold (for example DeepSeek Harness) in an agent sandbox.'},
-  {t:'Turns 1 to 3',c:'The model proposes actions, the sandbox runs them; files, packages and services accumulate as state.'},
-  {t:'The GPU job is preempted',c:'Training stops, but the worker container and agent sandbox keep the complete rollout state: they are its single source of truth.'},
-  {t:'Pause: memory goes back',c:'The RL framework pauses every sandbox of the preempted job. A container is frozen, given swap and reclaimed (memory.reclaim); a microVM is snapshotted and its process killed.'},
-  {t:'The GPU job reconnects',c:'The restarted job reconnects to the worker container. Its next request resumes the sandbox transparently (prefetch with MADV_WILLNEED, then unpause; or restore the microVM snapshot).'},
-  {t:'Turns 4 to 6, reward',c:'The rollout continues where it stopped. No command-log replay, no recovery logic in the RL framework.'}],
- old:[
-  {t:'A rollout starts',c:'The agent loop runs inside the preemptible GPU training pod, together with model serving and the RL framework; the sandbox runs on DSec.'},
-  {t:'Turns 1 to 3',c:'The loop sends commands to the sandbox and logs each command and its result.'},
-  {t:'The GPU job is preempted',c:'The pod dies and the agent loop with it. The sandbox survives with its state, still holding its memory.'},
-  {t:'The job restarts',c:'The training framework restores its own rollout state, which no longer matches the sandbox: they must be reconciled.'},
-  {t:'Replay the command log',c:'Completed operations reuse their recorded results instead of running again, so non-idempotent commands (an install, a migration) do not take effect twice.'},
-  {t:'Turns 4 to 6, reward',c:'Only now does the rollout continue. Recovery logic lives in the RL framework.'}]};
-makeAnim({id:'pe',mode:'new',modes:PE,dur:2600,
+// the step texts are the list items #sx-pe-new and #sx-pe-old in the HTML (one per step)
+const PE={new:[0,1,2,3,4,5],old:[0,1,2,3,4,5]};
+makeAnim({id:'pe',mode:'new',modes:PE,lists:{new:'sx-pe-new',old:'sx-pe-old'},dur:3200,
   draw(m,k,e,w){const H=230,half=(w-14)/2,gx=0,dx=half+14;let s='';const pre=k>=2&&!(k>=4),dead=k===2||k===3;
     s+=rc(gx,6,half,H-12,'var(--soft)',{s:dead?'var(--bad)':'var(--line)',sw:dead?2:1,r:8,da:dead?'6 4':null})+tx(gx+half/2,24,'GPU pool (preemptible)',{fs:12,a:'middle',w:600});
     s+=rc(dx,6,half,H-12,'var(--soft)',{s:'var(--line)',r:8})+tx(dx+half/2,24,'DSec (CPU nodes)',{fs:12,a:'middle',w:600});

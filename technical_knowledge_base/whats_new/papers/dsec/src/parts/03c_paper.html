@@ -1,22 +1,36 @@
 
-<section id="s-rl"><h2>Co-design with the RL framework</h2>
-[[S6|§6 Co-design with the RL framework]]
-<p>DSec has served every sandbox workload of DeepSeek's RL training and evaluation from {{DeepSeek-V3.2|https://arxiv.org/abs/2512.02556}} to {{V4.1|https://arxiv.org/abs/2609.19969}} ({{§6|ax:S6}}). Three pieces of co-design go beyond running sandboxes efficiently.</p>
-<p><b>Environments built by agents.</b> Hand-building the environments agentic RL needs is impractical, so agents build them interactively on the same infrastructure. <code>pack_diff</code> checkpoints a live sandbox as an incremental disk snapshot that can be restored as a new sandbox, turning a session into a reusable environment with no separate image pipeline. Builders follow internal packing rules (given to them as instructions) that limit runtime impact; an internal platform quality-checks agent-built environments and exports them in standard formats. Builders and runtime agents use separate accounts, and build-time residue is wiped from the writable layer before packing, so reference answers do not leak into the image ({{§6.1|ax:S6.SS1}}).</p>
-<p><b>The rollout lives outside the GPU job.</b> GPU training jobs are routinely preempted to raise utilisation. In earlier pipelines the agent loop ran inside the preemptible GPU pod with model serving and the RL framework; a preemption killed the loop while its sandbox survived, and recovery replayed a command log to reconcile the two, reusing recorded results for completed operations so non-idempotent commands did not run twice. From DeepSeek-V4.1, rollout execution moved onto DSec as two parts outside the preemptible pool: an <i>agent sandbox</i> that hosts the scaffold (for example DeepSeek Harness) and its tools, and a <i>worker container</i> that manages the sandbox as a scaffold-agnostic control layer. Together they hold the complete rollout state, so a preempted GPU job reconnects and continues without replay ({{§6.2|ax:S6.SS2}}).</p>
-<p><b>Pause instead of hold.</b> Keeping state until the rollout finishes would leave many idle sandboxes holding memory while training is suspended, so the RL framework sends pause requests to all sandboxes of a preempted job. A container is frozen with <code>docker pause</code>, given swap through <code>memory.swap.max</code> and reclaimed with <code>memory.reclaim</code> (anonymous and file pages); resume prefetches with <code>MADV_WILLNEED</code>, then unpauses. A microVM is snapshotted (memory and execution state) and its Firecracker process killed; resume starts a new process from the snapshot. Any request to a paused sandbox resumes it transparently first ({{§6.3|ax:S6.SS3}}).</p>
-<div class="card" id="pe">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="pe">
 <div class="an-top"><div class="seg" id="peM" role="group" aria-label="Pipeline"><button class="on" data-m="new" aria-pressed="true">From V4.1: rollout on DSec</button><button data-m="old" aria-pressed="false">Earlier: loop in the GPU pod</button></div>
 <span class="small mute">One rollout through a preemption; an illustrative scenario built from §6.2 and §6.3.</span></div>
 <div id="peSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="peBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="pePlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="peFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="peScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="peSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="peStep"></div><p id="peCap"></p></div>
 <div class="an-cnt" id="peCnt"></div>
 <p class="small mute">The six-turn rollout and the memory bar are illustrative; the components, what each holds, and what happens at preemption, pause and resume are the paper's. The paper does not say whether earlier pipelines also paused sandboxes; this animation shows only what it describes. None of this is measured in the paper: section 8 states that the framework integration is outside its evaluation ({{§8|ax:S8}}).</p>
-</div>
-</section>
+</div></div></div><div class="s3L"><section id="s-rl"><h2>Co-design with the RL framework</h2>
+[[S6|§6 Co-design with the RL framework]]
+<p>DSec has served every sandbox workload of DeepSeek's RL training and evaluation from {{DeepSeek-V3.2|https://arxiv.org/abs/2512.02556}} to {{V4.1|https://arxiv.org/abs/2609.19969}} ({{§6|ax:S6}}). Three pieces of co-design go beyond running sandboxes efficiently.</p>
+<p><b>Environments built by agents.</b> Hand-building the environments agentic RL needs is impractical, so agents build them interactively on the same infrastructure. <code>pack_diff</code> checkpoints a live sandbox as an incremental disk snapshot that can be restored as a new sandbox, turning a session into a reusable environment with no separate image pipeline. Builders follow internal packing rules (given to them as instructions) that limit runtime impact; an internal platform quality-checks agent-built environments and exports them in standard formats. Builders and runtime agents use separate accounts, and build-time residue is wiped from the writable layer before packing, so reference answers do not leak into the image ({{§6.1|ax:S6.SS1}}).</p>
+<p><b>The rollout lives outside the GPU job.</b> GPU training jobs are routinely preempted to raise utilisation. In earlier pipelines the agent loop ran inside the preemptible GPU pod with model serving and the RL framework; a preemption killed the loop while its sandbox survived, and recovery replayed a command log to reconcile the two, reusing recorded results for completed operations so non-idempotent commands did not run twice. From DeepSeek-V4.1, rollout execution moved onto DSec as two parts outside the preemptible pool: an <i>agent sandbox</i> that hosts the scaffold (for example DeepSeek Harness) and its tools, and a <i>worker container</i> that manages the sandbox as a scaffold-agnostic control layer. Together they hold the complete rollout state, so a preempted GPU job reconnects and continues without replay ({{§6.2|ax:S6.SS2}}).</p>
+<p><b>Pause instead of hold.</b> Keeping state until the rollout finishes would leave many idle sandboxes holding memory while training is suspended, so the RL framework sends pause requests to all sandboxes of a preempted job. A container is frozen with <code>docker pause</code>, given swap through <code>memory.swap.max</code> and reclaimed with <code>memory.reclaim</code> (anonymous and file pages); resume prefetches with <code>MADV_WILLNEED</code>, then unpauses. A microVM is snapshotted (memory and execution state) and its Firecracker process killed; resume starts a new process from the snapshot. Any request to a paused sandbox resumes it transparently first ({{§6.3|ax:S6.SS3}}).</p>
+<ol class="sx" id="sx-pe-new">
+<li><b>A rollout starts.</b> The GPU job serves the policy model. On DSec, outside the preemptible pool, a worker container drives the scaffold (for example DeepSeek Harness) in an agent sandbox.</li>
+<li><b>Turns 1 to 3.</b> The model proposes actions, the sandbox runs them; files, packages and services accumulate as state.</li>
+<li><b>The GPU job is preempted.</b> Training stops, but the worker container and agent sandbox keep the complete rollout state: they are its single source of truth.</li>
+<li><b>Pause: memory goes back.</b> The RL framework pauses every sandbox of the preempted job. A container is frozen, given swap and reclaimed (memory.reclaim); a microVM is snapshotted and its process killed.</li>
+<li><b>The GPU job reconnects.</b> The restarted job reconnects to the worker container. Its next request resumes the sandbox transparently (prefetch with MADV_WILLNEED, then unpause; or restore the microVM snapshot).</li>
+<li><b>Turns 4 to 6, reward.</b> The rollout continues where it stopped. No command-log replay, no recovery logic in the RL framework.</li>
+</ol>
+<ol class="sx" id="sx-pe-old" hidden>
+<li><b>A rollout starts.</b> The agent loop runs inside the preemptible GPU training pod, together with model serving and the RL framework; the sandbox runs on DSec.</li>
+<li><b>Turns 1 to 3.</b> The loop sends commands to the sandbox and logs each command and its result.</li>
+<li><b>The GPU job is preempted.</b> The pod dies and the agent loop with it. The sandbox survives with its state, still holding its memory.</li>
+<li><b>The job restarts.</b> The training framework restores its own rollout state, which no longer matches the sandbox: they must be reconciled.</li>
+<li><b>Replay the command log.</b> Completed operations reuse their recorded results instead of running again, so non-idempotent commands (an install, a migration) do not take effect twice.</li>
+<li><b>Turns 4 to 6, reward.</b> Only now does the rollout continue. Recovery logic lives in the RL framework.</li>
+</ol>
+</section></div></div>
 
 <section id="s-mis"><h2>Agent misbehaviour, and what the sandbox can do about it</h2>
 [[S6.SS4|§6.4, §6.5]]
