@@ -35,7 +35,7 @@
     // the frozen model's states along the back: one white block per token
     for(let j=0;j<N;j++){const a=j>GR?lateA:1;R.box([x(j),0,zK()],[.3,.14,.3],{a,fill:j===row+1&&!ov&&k!==GEN?mix(P.paper,P.bad,.35):P.paper});
       R.label([x(j),0,zK()+.15],tokS(D.full[j]),{mono:true,fs:12,dy:13,a:Math.max(.35,a),c:P.ink,wide:1})}
-    R.label([x(0)-s*1.3,0,zK()],'frozen-model states',{al:'right',dx:-8,dy:-14,mono:true,fs:12,c:P.mute,grp:'side'});
+    R.label([x(0)-s*1.3,0,zK()],'frozen-model states',{al:'right',dx:-12,dy:-26,mono:true,fs:12,c:P.mute,grp:'side'});
     // the bars: one per (query, state) with weight above 1%; the row a step is about at full strength, the rest recede
     for(let i=0;i<N-1;i++){const rowA=ov?(k===0?e:1):i===row?1:.13,ra=i>GR?rowA*lateA:rowA;if(ra<=.01)continue;
       let w=Wm[i];if(gen&&i===GR){const g=D.G[m].w[GR];w=w.map((v,j)=>lerp(v,j<g.length?g[j]:0,e))}

@@ -45,7 +45,7 @@
     const ta=k>=3&&k<=4?0:1;drawField(R,TX,0,T.T,P.c3,ta);R.label([TX,1.25,-1.1],'teacher',{fs:13.5,b:1,c:P.c3,a:ta});routeLabels(R,TX,1.25,ta,{name:1});
     // the student's field before training
     const lit=k===1?T.off:k===2?T.on:null,lw=lit?lit.map(v=>Math.min(1,v*2.2)):null;
-    drawField(R,SX,0,T.S0,P.c1,one,{lit:lw});const pk=k===3||k===4;if(one>.01){if(!pk)R.label([SX,1.25,-1.1],'student, before training',{fs:13.5,b:1,c:P.c1,a:one});routeLabels(R,SX,pk?PZ+.3:1.25,one,{name:pk})}
+    drawField(R,SX,0,T.S0,P.c1,one,{lit:lw});const pk=k===3||k===4;if(one>.01){if(!pk)R.label([SX,1.25,-1.1],'student, before training',{fs:13.5,b:1,c:P.c1,a:one});routeLabels(R,SX,pk?PZ+.7:1.25,one,{name:pk})}
     // steps 2 and 3: 32 rollouts per step; the writer's route mass flows into a tray, then into the student's rows it grades
     if(k===1||k===2){const sh=k===1?T.off:T.on,src=k===1?TX:SX,col=k===1?P.c3:P.c1,a=Math.min(1,e*1.6),tx0=(TX+SX)/2;
       R.label([tx0,0,TRZ+.35],k===1?'rollouts the teacher writes':'rollouts the student writes',{fs:13,b:1,c:col,a,dy:14});

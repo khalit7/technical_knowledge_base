@@ -37,7 +37,7 @@ function comb(R,c,vals,m,col,a,hmax,wd){if(a<=.01)return;const nb=vals.length,bw
 // what each rank holds at round i (0-based; i = P is the end): batch j and shard q
 function hold(mode,i,r){if(mode==='dense')return {j:r,q:-1};const ii=Math.min(i,P-1);return mode==='wts'?{j:r,q:(r-ii+P)%P}:{j:(r-ii+P)%P,q:r}}
 const arcH=.45,lift=.32;
-function draw(R,k,e){const PL=R.P,mode=cur;R.grid(-3.2,3.2,-2.4,2.4,.5);
+function draw(R,k,e){const PL=R.P,mode=cur;let LA=1;R.grid(-3.2,3.2,-2.4,2.4,.5);
   // the ring: faint arcs from each rank to the next
   for(let r=0;r<P;r++){const a=POS[r],b=POS[(r+1)%P];R.arc([a[0],.1,a[2]],[b[0],.1,b[2]],arcH*.6,{c:PL.mute,w:1.2,a:mode==='dense'?.12:.35,dash:[4,4]})}
   const RR=mode==='wts'?RW:mode==='act'?RA:null;
@@ -45,13 +45,15 @@ function draw(R,k,e){const PL=R.P,mode=cur;R.grid(-3.2,3.2,-2.4,2.4,.5);
   const hop=mode!=='dense'&&k>=1&&(k<P||(mode==='act'&&k===P)),hp=hop?Math.min(1,e*2):1,sp=k===0?e:hop?Math.max(0,e*2-1):1;
   const BX=-.62,PX=.05,SX=.68;
   // pieces: the shard plate, the batch (two tokens of three numbers), the state chips (two green blocks, taller once the target's logit is in)
-  const plate=(x,z,lab)=>{R.glass([x-.27,.1,z],[.54,0,0],[0,.54,0],{c:PL.c4,a:1,nu:3,nv:3});R.label([x,.66,z],lab,{fs:12.5,b:1,c:PL.c4,dy:-6,al:'center'})};
-  const batch=(x,y,z,j,a)=>{for(let n=0;n<N;n++)comb(R,[x,y,z+(n-.5)*.36],X[j][n],mX,PL.c1,a,.4,.42);R.label([x,y+.3,z],'X'+SUB[j],{fs:12.5,b:1,c:PL.c1,dy:-8,al:'center',a})};
+  const plate=(x,z,lab)=>{R.glass([x-.27,.1,z],[.54,0,0],[0,.54,0],{c:PL.c4,a:1,nu:3,nv:3});R.label([x,.66,z],lab,{fs:12.5,b:1,c:PL.c4,dy:-6,al:'center',a:LA})};
+  const batch=(x,y,z,j,a)=>{for(let n=0;n<N;n++)comb(R,[x,y,z+(n-.5)*.36],X[j][n],mX,PL.c1,a,.4,.42);R.label([x,y+.3,z],'X'+SUB[j],{fs:12.5,b:1,c:PL.c1,dy:-8,al:'center',a:a*LA})};
   const chips=(x,y,z,st)=>{for(let n=0;n<N;n++){const got=st&&st[n]&&st[n].y!=null;R.box([x+(n-.5)*.22,y,z],[.16,got?.16:.08,.16],{fill:mix(PL.paper,PL.c3,got?.85:.4),shadow:false,lw:.6})}};
   const along=(from,to,u)=>R.arcPt(from,to,arcH,u);
   for(let r=0;r<P;r++){const c=POS[r],h=hold(mode,k,r),pr=POS[(r-1+P)%P],ZC=c[2]-.05,ZS=c[2]+.55;
+    // round 1 is a close-up on rank 0: the other ranks' labels stay hidden (they would sit clipped at the card's edges) and fade in as the camera pulls out
+    LA=r===0||mode==='dense'?1:k===0?0:k===1?Math.min(1,e*2):1;
     R.box([c[0],0,c[2]],[2.1,.06,1.5],{fill:PL.paper,dz:30});
-    R.label([c[0]-1.0,0,c[2]+.75],'rank '+r,{fs:12.5,b:1,dy:13,al:'left'});
+    R.label([c[0]-1.0,0,c[2]+.75],'rank '+r,{fs:12.5,b:1,dy:13,al:'left',a:LA});
     const st=stateOf(mode,k,r);
     if(mode==='wts'){
       batch(c[0]+BX,.32,ZC,r,1);chips(c[0]+SX,.06,ZS,st);

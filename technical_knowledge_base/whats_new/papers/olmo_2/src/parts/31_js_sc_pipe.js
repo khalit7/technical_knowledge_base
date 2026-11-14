@@ -31,10 +31,10 @@
     // 1-2. the pretraining mix and the learning-rate wall, drawn to scale up to where stage 1 ends
     const prog=k===0?.03+.02*e:k===1?.05+.95*e:1,tEnd=P.cut*prog;
     // the pretraining mix lies in front of the wall, 3.9T long on the same token axis (the 13B and 32B run past its end: more than one pass)
-    R.box([xt(3.9/2),0,ZD],[3.9*S1,.16,.45],{fill:mix(Pc.paper,Pc.c1,.35),a:k<=2?Math.max(.4,f[1]):.25});
+    R.box([xt(3.9/2),0,ZD],[3.9*S1,.16,.45],{fill:mix(Pc.paper,Pc.c1,.35),a:k<=2?Math.max(.4,f[1]):k===4?.1:.25});
     if(k<=1)R.label([xt(.1),0,ZD+.22],'OLMo 2 Mix 1124 · 3.9T tokens',{al:'left',mono:true,fs:12,c:Pc.c1,dy:20,a:Math.max(.5,f[1])});
     const wall=[[xt(0),0,0]];for(let i=0;i<=160;i++){const t=tEnd*i/160;wall.push([xt(t),H*lrAt(t,P),0])}wall.push([xt(tEnd),0,0]);
-    R.quad(wall,{fill:mix(Pc.paper,Pc.acc,.45),fa:.55,a:Math.max(.25,f[0]),edge:false});R.line(wall.slice(1,-1),{c:Pc.acc,w:2.2,a:Math.max(.3,f[0])});
+    R.quad(wall,{fill:mix(Pc.paper,Pc.acc,.45),fa:.55,a:k===4?.1:Math.max(.25,f[0]),edge:false});R.line(wall.slice(1,-1),{c:Pc.acc,w:2.2,a:k===4?.12:Math.max(.3,f[0])});   // step 5's close view cuts these at its left edge, so they recede further there
     if(k<=2){[0,1,2,3,4,5,6].forEach(t=>R.label([xt(t),0,ZD+.5],t+'T',{mono:true,fs:12,c:Pc.mute,dy:8,a:.9,wide:t%2?1:0}));
       R.label([xt(0)-.12,H,0],'100% of peak',{al:'right',mono:true,fs:12,c:Pc.mute,grp:'ax'});R.label([xt(0)-.12,H*.1,0],'10%',{al:'right',mono:true,fs:12,c:Pc.mute,grp:'ax'})}
     if(k===0){R.glow([xt(P.cut*prog),H,0],.4,{c:Pc.acc});R.label([xt(.15),H,0],'warm-up: 2,000 steps, '+P.warmB.toFixed(1)+'B tokens',{al:'left',fs:12.5,b:1,c:Pc.acc,dx:10,dy:-14})}
@@ -45,7 +45,7 @@
         if(k===2)R.label([xt(P.T),H*.1,0],'the cosine would end at '+P.T+'T',{al:'left',fs:12,c:Pc.mute,dx:6,dy:-10,a:e,wide:1})}
       R.line([[xc,0,0],[xc,H*1.05,0]],{c:Pc.bad,w:1.6,dash:[4,4],a:a3});
       if(k===2)R.label([xc,H*1.05,0],'stage 1 ends · '+P.cut.toFixed(2)+'T · '+Math.round(P.lrc*100)+'% of peak',{fs:12.5,b:1,c:Pc.bad,dy:-10});
-      plate(R,xc+.05,.35,.5,.62,Pc.c5,k===2?e:Math.max(.3,f[2]*.8),k===2?'stage-1 checkpoint':null)}
+      plate(R,xc+.05,.35,.5,.62,Pc.c5,k===2?e:k===4?.1:Math.max(.3,f[2]*.8),k===2?'stage-1 checkpoint':null)}
     // 4. mid-training: the same checkpoint restarted on Dolmino Mix 1124, each run a lane in depth, the learning rate falling linearly to zero
     if(k>=3){const a4=k===3?1:Math.max(.3,f[2]),pr=k===3?e:1,zd=-zl-.9,h0=H*P.lrc;
       R.box([XM0+MW/2,0,zd],[MW,.2,.45],{fill:mix(Pc.paper,Pc.c3,.4),a:a4});if(k===3)R.label([XM0,.2,zd],'Dolmino Mix 1124 · '+Math.min(...P.anneal)+'B'+(P.anneal.length>3?' and 300B':''),{al:'left',mono:true,fs:12,c:Pc.c3,dy:-12,a:a4});
@@ -85,7 +85,7 @@
     else if(k===1)v={cam:[.3,.55],bounds:[[-6.6,0,-.3],[xc+.4,1.7,1.4]]};
     else if(k===2)v={cam:[.35,.55],bounds:[[Math.min(xc,xt(P.T))-1.8,0,-1.3],[Math.max(xt(P.T),xc)+.9,1.75,.7]]};
     else if(k===3)v={cam:[.25,.85],bounds:[[xc-.3,0,-zl-1.2],[XM0+MW+.9,1.2,zl+.4]]};
-    else if(k===4)v={cam:[.2,.7],bounds:[[XM0+.5,0,-zl-.3],[XS+.9,1.4,zl+1.2]]};
+    else if(k===4)v=innerWidth>=1100?{cam:[-.2,.7],bounds:[[XM0+.2,0,-zl],[XS+.6,1.3,zl+1]]}:{cam:[.2,.7],bounds:[[XM0+.5,0,-zl-.3],[XS+.9,1.4,zl+1.2]]};   // the two-column card is taller: turned so the lanes and the soup fill it
     else if(k<=6)v={cam:[.15,.6],bounds:[[XS-.7,0,-.9],[7.3,1.5,1.4]]};
     else v={cam:[.2,.62],bounds:[[XM0+.3,0,-1.5],[8.1,1.6,zl+1.1]]};
     return innerWidth<600?{cam:[v.cam[0]+.15,Math.max(.8,v.cam[1]+.2)],bounds:v.bounds}:v}

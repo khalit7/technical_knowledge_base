@@ -76,7 +76,7 @@
   const stg=S3.stage({id:'stg-post',list:'sx-pt-l3',fig:'Fig. 2 · one prompt through one round',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:5200,draw,onStep:k=>counters(k),
     view:k=>{let v=full;if(MODE==='l3'){v=k<=1?{cam:[.3,.55],bounds:[[-5.7,0,-1.2],[-.1,1.4,1.4]]}:k<=3?{cam:[.15,.6],bounds:[[-4.3,0,-1.4],[.3,1.5,1.4]]}:k<=5?{cam:[0,.6],bounds:[[-2,0,-.9],[3.6,1.5,2]]}:k===6?{cam:[-.15,.6],bounds:[[1,0,-.9],[5.1,1.5,1.2]]}:{cam:[.05,.5],bounds:[[-4.6,0,-.9],[5,2.8,1]]}}
       else v=k===0?{cam:[.3,.55],bounds:[[-5.7,0,-1],[-2,1.4,1.2]]}:{cam:[.2,.62],bounds:[[-5.7,0,-1.6],[1.8,1.6,2]]};
-      return innerWidth<600?{cam:[v.cam[0]+.3,Math.max(.9,v.cam[1]+.3)],bounds:v.bounds}:v}});
+      return innerWidth<600?{cam:[v.cam[0]+.5,Math.max(.68,v.cam[1]+.1)],bounds:v.bounds}:v}});
   counters(0);
   const seg=document.getElementById('ptM');if(seg&&stg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
     MODE=b.dataset.m;['l3','ppo'].forEach(m=>{const L=document.getElementById('sx-pt-'+m);if(L)L.hidden=m!==MODE});stg.list('sx-pt-'+MODE);counters(0)}));

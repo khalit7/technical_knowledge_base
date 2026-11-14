@@ -26,7 +26,7 @@
   const TR={soft:trays('soft'),shuf:trays('shuf')};
   const tcols=()=>{const cs=getComputedStyle(document.body);return [0,1,2,3].map(k=>rgb(cs.getPropertyValue('--t'+k).trim()||'#888'))};
   // composition: the station a step is about at full strength, the ones already passed receding, the ones still to come faint
-  const fade=(k,s)=>k===s?1:k>s?.3:.13;
+  const fade=(k,s)=>k===s?1:k>s?(k===3&&MODE==='loop'?.12:.3):.13;   // step 4's close view cuts the harness row at its bottom edge, so that row recedes further there
   function plinth(R,c,w,d,a){R.box([c[0],c[1]-.04,c[2]],[w,.04,d],{a,shadow:false});if(c[1]>.1)[-1,1].forEach(sx=>R.box([c[0]+sx*(w/2-.04),0,c[2]],[.03,c[1]-.04,.03],{a:a*.9}))}
   // ---- the harness side ----
   // labels: only on the station a step is about (faint stations stay unlabelled, so no label floats over an empty spot); the overview step names a few itself
@@ -58,7 +58,7 @@
       R.flowArc([BX+.3,.3,BZ[0]],[VX-.45,.2,FZ+.1],.25,{c:P.good,a:flowA,r:.06,n:4});R.flowArc([BX+.3,.3,BZ[1]],[VX-.45,.2,FZ-.1],.25,{c:P.c5,a:flowA,r:.05,n:3})}}
   // ---- the training side ----
   function mixture(R,a,label){const P=R.P;R.box(MXP,[.9,.55,.7],{fill:mix(P.paper,P.c1,.3),a});R.box(PUB,[.6,.35,.5],{fill:mix(P.paper,P.ink,.12),a});
-    lb(R,a,[MXP[0],0,MXP[2]+.35],label,{mono:true,fs:12.5,b:1,dy:14,c:P.c1,a:Math.max(a,.35)});lb(R,a,[PUB[0]+.3,.2,PUB[2]],'public data',{mono:true,fs:12,al:'left',dx:8,c:P.mute,a:Math.max(a,.3),wide:1})}
+    lb(R,a,[MXP[0],0,MXP[2]+.35],label,{mono:true,fs:12.5,b:1,dy:14,c:P.c1,a:Math.max(a,.35)});lb(R,a,[PUB[0],.35,PUB[2]],'public data',{mono:true,fs:12,dy:-12,c:P.mute,a:Math.max(a,.3),wide:1})}
   function stages(R,a,m,grow,TC,flowA,showMeans){const P=R.P,sl=TR[m];
     [0,1,2].forEach(j=>{R.box([SX[j],0,SZ],[8*CELL+.16,.03,5*CELL+.16],{fill:mix(P.paper,P.ink,.05),a,shadow:false});
       lb(R,a,[SX[j],0,SZ+5*CELL/2+.1],'stage '+(j+1),{mono:true,fs:12.5,b:1,dy:15,c:P.ink,a:Math.max(a,.35)})});

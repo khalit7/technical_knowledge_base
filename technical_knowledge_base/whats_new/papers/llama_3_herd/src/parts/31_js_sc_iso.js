@@ -63,6 +63,6 @@
   const top={cam:[.3,.95],bounds:[[X(9.1),0,Z(18.6)],[X(12.7),.4,Z(22.5)]]};
   const full={cam:[.2,1.1],bounds:[[X(9),0,Z(18.6)],[X(13.7),.3,Z(26.6)]]};
   S3.stage({id:'stg-iso',list:'sx-iso',fig:'Fig. 1 · the scaling law that sized the 405B',cam:data.cam,bounds:data.bounds,aspect:.72,dur:1500,hold:5200,draw,
-    view:k=>{const v=k<=1?near:k<=3?data:k===4?top:full;return innerWidth<600?{cam:[v.cam[0],Math.max(.75,v.cam[1]+.2)],bounds:v.bounds}:v},
+    view:k=>{const v=k<=1?near:k<=3?data:k===4?top:full;return innerWidth<600?{cam:[v.cam[0],v===near?.62:Math.max(.75,v.cam[1]+.2)],bounds:v===near?[v.bounds[0],[v.bounds[1][0],v.bounds[1][1],v.bounds[1][2]-.4]]:v.bounds}:v},
     margin:w=>w<520?[14,10,14,10]:[18,16,16,70]});
 })();

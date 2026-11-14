@@ -33,7 +33,7 @@
   function tower(R,x,vals,ids,k,e,side){const P=R.P,C=COL(P),u=hk();let y=Y0;const changing=ORDER[k-1];
     vals.forEach((v,i)=>{const id=ids[i],h=v*u,a=k>=1&&k<=4?(id===changing?1:.5):1;
       if(h>.003)R.box([x,y,0],[TW,h,TW],{fill:mix(P.paper,C[id],.62),a,shadow:i===0,lw:.8});
-      if(h>.05)R.label([x+side*(TW/2+.12),y+h/2,0],NAME[id]+' · '+GB(v),{al:side>0?'left':'right',dx:side*8,mono:true,fs:12,c:C[id],b:id===changing,a:Math.max(.55,a),grp:side>0?'rB':'rA'});
+      if(h>.05)R.label([x+side*(TW/2+.12),y+h/2,0],NAME[id]+' · '+GB(v),{al:side>0?'left':'right',dx:side>0?8:-16,mono:true,fs:12,c:C[id],b:id===changing,a:Math.max(.55,a),grp:side>0?'rB':'rA'});
       y+=h});
     return y}
   function draw(R,k,e){const P=R.P,u=hk();R.grid(-4,4.4,-2.2,2.2,.5);
@@ -68,10 +68,12 @@
     document.getElementById('pkTxt').innerHTML=MODELS[model].src+'; tokens per rank '+fmt(N)+'.'}
   compute();
   const full={cam:[.4,.48],bounds:[[-2.9,0,-1.1],[3.5,TOP+.1,1.1]]};
-  const lowB=k=>{const u=hk(),t=towers(k,1),top=Math.max(HBM,t.A[0]+t.A[1]+t.A[2],t.B[0]+t.B[1]+t.B[2],hostAt(k,1)[0]+hostAt(k,1)[1])*u;return [[-2.9,0,-1.1],[3.5,Math.min(TOP+.1,top*1.08+.2),1.1]]};
+  const lowB=k=>{const u=hk(),t=towers(k,1),top=Math.max(HBM,t.A[0]+t.A[1]+t.A[2],t.B[0]+t.B[1]+t.B[2],hostAt(k,1)[0]+hostAt(k,1)[1])*u;return [[-3.9,0,-1.1],[3.5,Math.min(TOP+.1,top*1.08+.2),1.1]]};
   const stg=S3.stage({id:'stg-pk',list:'sx-pk',fig:'one GPU at two moments of a step · to scale',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1700,hold:5200,draw,
     // the camera moves in as the towers shrink, so the last steps are not lost at the bottom of the frame
-    view:k=>k===3||k===4?{cam:[.44,.44],bounds:lowB(k)}:k===1?{cam:[.34,.44],bounds:[[-2.9,0,-1.1],[1.4,TOP+.1,1.1]]}:full,
+    view:k=>{const v=k===3||k===4?{cam:[.44,.44],bounds:lowB(k)}:k===1?{cam:[.34,.44],bounds:[[-2.9,0,-1.1],[1.4,TOP+.1,1.1]]}:full;
+      // on a phone the side labels hide, so their room on the left is dropped
+      return innerWidth<600?{cam:v.cam,bounds:[[-2.5,0,-1.1],v.bounds[1]]}:v},
     margin:w=>w<520?[24,8,26,8]:[26,16,26,16],onStep:k=>{try{counters(k)}catch(e){}}});
   const upd=()=>{model=document.getElementById('pkM').value;N=NS[+document.getElementById('pkN').value];document.getElementById('pkNv').textContent=fmt(N);compute();if(stg){counters(stg.st.k);stg.draw()}};
   ['pkM','pkN'].forEach(id=>{const el=document.getElementById(id);el.addEventListener('input',upd);el.addEventListener('change',upd)});

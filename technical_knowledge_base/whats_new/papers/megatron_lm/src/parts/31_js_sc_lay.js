@@ -61,9 +61,9 @@
     if(S.dup)R.label([OX+U/2,.6,zl(0,t)],'dropout, residual: on every GPU',{fs:12.5,c:P.ink,a:e});
     if(S.gelu)R.label([AX+2*U,1.2,zl(0,t)],m==='meg'?'GeLU on '+fm(4*L.P().h/t)+' values per GPU':'GeLU on all '+fm(4*L.P().h)+', on every GPU',{fs:13,b:1,c:P.c1,a:e});
     // plate names (front lane) with the model's sizes
-    const h=L.P().h,z0=zl(0,t);
-    if(usedA&&cv!=='B'){const s=sliceA(m,0,t);R.label([s[0],s[2]+s[3],z0],'A'+sub[0]+': '+(m==='meg'?fm(h)+' × '+fm(4*h/t):fm(h/t)+' × '+fm(4*h)),{al:'left',fs:12.5,mono:true,b:1,c:P.c1,dy:-10,a:focA?1:.6})}
-    if(usedB&&cv!=='A'){const s=sliceB(m,0,t);R.label([BX,s[2]+s[3]/2,z0],'B'+sub[0]+': '+fm(4*h/t)+' × '+fm(h),{al:'right',fs:12.5,mono:true,b:1,c:P.c6||P.c4,dx:-8,a:focB?1:.6})}
+    const h=L.P().h,z0=zl(0,t),ph=R.W<520;
+    if(usedA&&cv!=='B'){const s=sliceA(m,0,t);R.label(ph?[s[0],s[2]+s[3],z0]:[s[0],0,z0+LD/2],'A'+sub[0]+': '+(m==='meg'?fm(h)+' × '+fm(4*h/t):fm(h/t)+' × '+fm(4*h)),{al:'left',fs:12.5,mono:true,b:1,c:P.c1,dx:ph?0:4,dy:ph?-10:14,a:focA?1:.6})}
+    if(usedB&&cv!=='A'){const s=sliceB(m,0,t);R.label(ph?[BX,s[2]+s[3]/2,z0]:[BX+U,0,z0+LD/2],'B'+sub[0]+': '+fm(4*h/t)+' × '+fm(h),{al:'right',fs:12.5,mono:true,b:1,c:P.c6||P.c4,dx:ph?-8:0,dy:ph?0:14,a:focB?1:.6})}
     // sent so far per GPU (in H per token), against the other split's whole block; drawn in the whole-block view only
     if(close(k))return;
     const oth=m==='meg'?'row':'meg',mx=Math.max(L.tot('meg',t,99),L.tot('row',t,99)),sc=2.4/mx,
@@ -79,8 +79,8 @@
   const st=S3.stage({id:'stg-lay',list:'sx-lay-meg',fig:'Fig. 2 · one MLP block, t GPUs, forward and backward',cam:full().cam,bounds:()=>full().bounds,aspect:.5,dur:1400,hold:4800,draw,
     // steps about A or B move in close to that plate; collectives and the output show the whole block
     view:k=>{const z=zm(L.P().t),c=close(k);if(c==='A')return {cam:[.28,.5],bounds:[[-6.3,0,-z],[-.9,1.3,z]]};
-      if(c==='B')return {cam:[.1,.42],bounds:[[-2.2,0,-z],[3.2,2.9,z]]};return full()},
-    margin:w=>w<520?[16,8,12,8]:[18,14,14,70],
+      if(c==='B')return {cam:[.1,.42],bounds:[[-2.2,0,-z],[3.2,2.9,z]]};const v=full();return innerWidth<600?{cam:[.3,.6],bounds:[[-6.3,0,v.bounds[0][2]+.3],[3.1,2.9,v.bounds[1][2]-.3]]}:v},
+    margin:w=>w<520?[16,8,12,8]:[18,110,14,70],
     onStep:k=>{L.k=k;L.counters()}});
   L.stage=st;
   const seg=document.getElementById('layM');
