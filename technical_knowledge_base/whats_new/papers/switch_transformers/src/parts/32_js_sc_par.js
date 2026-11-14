@@ -16,7 +16,7 @@
     const w=Math.max(.06,PW/st.m),nW=st.E>1?st.E:st.m,c=st.E===1&&st.m===1?P.c1:hue(195,290,wid(st,i),nW);
     R.glass([X-PW/2+(st.m>1?mi*w:0),.13,Z-.22],[w,0,0],[0,.8,0],{c,a,nu:Math.max(1,Math.round(8/st.m)),nv:6,th:.03});
     // tokens: height to scale with B / n; colour = which tokens
-    const h=TH/st.n,tc=st.n===1?P.c2:hue(12,48,ni%st.n,st.n);R.box([X+.12,.12,Z+.3],[.5,Math.max(.02,h),.3],{a,fill:tc,shadow:false});
+    const h=TH/st.n,tc=st.n===1?P.c2:hue(12,48,ni%st.n,st.n);R.box([X+.12,.12,Z+.3],[.5,Math.max(.02,h),.3],{a,fill:tc,fa:h>.5?.35:1,shadow:false}); // a tall token block is see-through, so the thin weight slice behind it shows
     if(hl){R.glow([X,.5,Z],1,{c:P.c2,a:.5*a});R.box([X,0,Z],[1.16,.125,1.16],{a,fill:mix(P.paper,P.c2,.35)})}}
   // a ring through cores in order (an all-reduce), drawn as a closed path just above the blocks
   function ring(R,ids,c,a){const pts=ids.map(i=>[cx(i),.2,cz(i)+.02]);pts.push(pts[0]);R.line(pts,{c,w:1.6,a:a*.5});R.flow(pts,{c,a,r:.07,speed:1.8,n:Math.max(4,ids.length*2)})}

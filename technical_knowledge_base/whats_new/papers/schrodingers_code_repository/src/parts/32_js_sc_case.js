@@ -37,7 +37,8 @@
       else{const y=.01,f=on?mix(P.paper,P.c2,.25+.45*e):was?mix(P.paper,P.c2,.18):P.paper;
         R.box([t[3],y,t[4]],BS,{fill:f,lw:.8});
         if(on)R.glow([t[3],y+BS[1]+.05,t[4]],.45,{c:P.c2,a:.35*e});
-        if(on||(i===8))R.label([t[3],y+BS[1],t[4]],name(i,M),{mono:true,fs:12,dy:-11,b:on,c:on?P.ink:P.mute,a:on?Math.max(.35,e):.75,grp:on?'f':undefined})}});
+        const fr=t[4]>-1;if(on||(i===8))R.label(fr?[t[3],y,t[4]+BS[2]/2]:[t[3],y+BS[1],t[4]],name(i,M),{mono:true,fs:12,dy:fr?13:-11,b:on,c:on?P.ink:P.mute,a:on?Math.max(.35,e):.75,grp:on?'f':undefined})}});
+    // (front-row files are labelled in front of their blocks, back-row ones above, so the two rows' names do not meet)
     // the agent and its reads: dots flow from each entry lit at this step back to the agent
     R.box(AG,[1.0,.48,.55],{fill:mix(P.paper,P.c1,.3)});R.label([AG[0],.48,AG[2]],M==='orig'?'agent · familiar view':'agent · renamed view',{fs:12.5,b:1,c:P.c1,dy:-11});
     if(k===0)R.label([AG[0],0,AG[2]],ISS[M],{mono:true,fs:12,dy:16,c:P.mute,a:e});

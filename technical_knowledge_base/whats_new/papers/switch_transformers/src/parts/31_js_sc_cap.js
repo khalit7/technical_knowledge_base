@@ -50,8 +50,8 @@
         R.label([X,0,.75],'error '+A.mse.toFixed(2),{mono:true,fs:12,dy:30,a:rise,c:P.mute})});
       R.label([gx(0)-.9,1.2,0],'dropped tokens',{al:'right',mono:true,fs:12.5,c:P.bad,a:rise,grp:'leg'});R.label([gx(0)-.9,.8,0],'padded slots',{al:'right',mono:true,fs:12.5,c:P.c6,a:rise,grp:'leg'})}
   }
-  const nar=()=>innerWidth<700,full=()=>({cam:nar()?[.62,.62]:[.2,.55],bounds:[[-4.9,0,-1.2],[4.9,2.1,2.6]]});
+  const nar=()=>innerWidth<700,full=()=>({cam:nar()?[.95,.7]:[.2,.55],bounds:[[-4.9,0,-1.2],[4.9,2.1,2.6]]});
   window.__capScene={stage:S3.stage({id:'stg-cap',list:'sx-cap',fig:'one held-out batch · toy Switch layer · 16 experts',cam:full().cam,bounds:full().bounds,aspect:.5,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,14,150],
-    view:k=>k===4?{cam:nar()?[.62,.55]:[.2,.5],bounds:[[-4.9,0,-1.2],[4.9,3.5,2.6]]}:k===5?{cam:nar()?[.45,.42]:[.3,.42],bounds:[[-4.6,0,-1],[4.6,3.3,1.6]]}:full()}),C,run};
+    view:k=>k===4?{cam:nar()?[.95,.62]:[.2,.5],bounds:[[-4.9,0,-1.2],[4.9,3.5,2.6]]}:k===5?{cam:nar()?[.45,.42]:[.3,.42],bounds:[[-4.6,0,-1],[4.6,3.3,1.6]]}:full()}),C,run};
 })();

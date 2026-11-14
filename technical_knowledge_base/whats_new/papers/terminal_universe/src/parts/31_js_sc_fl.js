@@ -28,7 +28,7 @@
   function draw(R0,k,e){const P=R0.P;R0.grid(-6,6,-3.6,3.6,.5);
     const ta=k===0?1:mode==='imit'?(k===1?1:.3):(k===1?.6:.22);
     strip(R0,P,ta);
-    if(k===0)R0.label([0,.2,ZT-.5],R0.W<520?'source trajectory · '+N+' commands':'source trajectory · '+N+' commands by DeepSeek-V3.2 in Terminus-2, one tile each',{fs:12.5,c:P.ink,dy:-58,a:e});
+    if(k===0)R0.label([TX(0)-.2,.2,ZT-.5],R0.W<520?'source trajectory · '+N+' commands':'source trajectory · '+N+' commands by DeepSeek-V3.2 in Terminus-2, one tile each',{al:'left',fs:12.5,c:P.ink,dy:-36,a:e});
     if(mode==='imit'){
       // the workspace is never rebuilt: an empty outline
       R0.quad([[WX-SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ+SD/2],[WX-SW/2,0,SZ+SD/2]],{fill:null,ec:P.mute,dash:[5,4],a:.8});
@@ -80,7 +80,8 @@
   }
   const full={cam:[.3,.62],bounds:[[-4.9,0,-2.0],[4.9,1.4,3.1]]},end={cam:[.3,.6],bounds:[[-4.9,0,-2.9],[4.9,2.2,3.1]]};
   const st=S3.stage({id:'stg-fl',list:'sx-fl-res',fig:'Fig. 1 · one real trace, imitated or rebuilt',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:4800,draw,
-    view:k=>mode==='resolve'&&(k===1||k===2)?{cam:[.3,.74],bounds:[[-4.8,0,-1.3],[4.8,.9,3.1]]}:k===(mode==='imit'?3:6)?end:full});
+    // step 1 is the trace alone: the camera comes in on it, turned a little so the long strip fills more of the card
+    view:k=>k===0?{cam:[.55,.62],bounds:[[-4.7,0,ZT-1.1],[4.7,.5,ZT+.5]]}:mode==='resolve'&&(k===1||k===2)?{cam:[.3,.74],bounds:[[-4.8,0,-1.3],[4.8,.9,3.1]]}:k===(mode==='imit'?3:6)?end:full});
   const seg=document.getElementById('flM');
   seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.m===mode)return;mode=b.dataset.m;
     seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});

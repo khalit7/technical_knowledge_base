@@ -28,12 +28,14 @@
   let ri=0;
   function draw(R,k,e){const P=R.P,narrow=R.W<520,r=RP[ri],S=r.steps[k],last=k===r.steps.length-1;R.grid(-6.2,6.2,-2.5,2.5,.5);
     const past=r.steps.slice(0,k+1),used={},refusedAt={};past.forEach((s,j)=>{if(s.kind==='goto'&&j<k)used[s.ev[2]+'>'+s.ev[3]]=1;if(s.kind==='refused')refusedAt[s.ev[2]+'>'+s.ev[3]]=(refusedAt[s.ev[2]+'>'+s.ev[3]]||0)+1});
+    // a refused request is shown in close-up: the states off its edge fade out with their names, so nothing is cut at the card's edges
+    const foc=S.kind==='refused'?[S.ev[2],S.ev[3]]:null,dim=foc?1-.85*(k===0?1:e):1;
     // the edges of the runbook, faint; edges already taken in green
-    EDGES.forEach(([a,b])=>{const A=POS(a),B=POS(b),u=used[a+'>'+b];R.line([[A[0],.03,A[2]],[B[0],.03,B[2]]],{c:u?P.good:P.mute,w:u?2.6:1,a:u?.95:.35})});
+    EDGES.forEach(([a,b])=>{const A=POS(a),B=POS(b),u=used[a+'>'+b];R.line([[A[0],.03,A[2]],[B[0],.03,B[2]]],{c:u?P.good:P.mute,w:u?2.6:1,a:(u?.95:.35)*(foc&&!(foc.includes(a)&&foc.includes(b))?dim:1)})});
     // the states
-    NODES.forEach(n=>{const p=POS(n),on=S.cur===n,seen=past.some(s=>s.cur===n);
-      R.box(p,[1.55,on?.24:.12,.78],{fill:on?mix(P.paper,P.acc,.35):seen?mix(P.paper,P.good,.18):P.paper,a:on?1:seen?.9:.6});
-      R.label([p[0],0,p[2]+.39],on&&!narrow?nice(n):SHORT[n],{mono:true,fs:12,dy:14,b:on,c:on?P.acc:seen?P.ink:P.mute,wide:on?0:1})});
+    NODES.forEach(n=>{const p=POS(n),on=S.cur===n,seen=past.some(s=>s.cur===n),fa=foc&&!foc.includes(n)?dim:1;
+      R.box(p,[1.55,on?.24:.12,.78],{fill:on?mix(P.paper,P.acc,.35):seen?mix(P.paper,P.good,.18):P.paper,a:(on?1:seen?.9:.6)*fa});
+      if(fa>.2)R.label([p[0],0,p[2]+.39],on&&!narrow?nice(n):SHORT[n],{mono:true,fs:narrow?11:12,dy:14,b:on,c:on?P.acc:seen?P.ink:P.mute,wide:on||narrow?0:1,a:(fa-.2)/.8})});
     // refused requests leave a red glass plate across their edge (the current one at full strength), a committed goto draws its edge with flowing dots
     Object.keys(refusedAt).forEach(key=>{const [a,b]=key.split('>'),A=POS(a),B=POS(b),dx=B[0]-A[0],dz=B[2]-A[2],L=Math.hypot(dx,dz)||1,nx=-dz/L,nz=dx/L,m=[A[0]+dx*.42,0,A[2]+dz*.42];
       const cur=S.kind==='refused'&&S.ev[2]===a&&S.ev[3]===b,a0=cur?(k===0?1:Math.min(1,.3+e)):.4;
@@ -46,11 +48,14 @@
     else ag=hp(S.cur);
     R.ball(ag,.2,{c:P.acc});R.glow(ag,.5,{c:P.acc,a:.35});
     // the clock and, at the last step, what the verifier said
-    R.label([-6,1.4,-1.9],'t = '+S.t+' s · committed '+S.go+' · refused '+S.bl,{mono:true,fs:12.5,al:'left',b:1,c:P.ink});
+    const cp=foc?(()=>{const A=POS(foc[0]),B=POS(foc[1]);return [Math.min(A[0],B[0])-1.3,1.3,Math.min(A[2],B[2])-.9]})():[-6,1.4,-1.9];
+    R.label(cp,'t = '+S.t+' s · committed '+S.go+' · refused '+S.bl,{mono:true,fs:12.5,al:'left',b:1,c:P.ink});
     if(last){const p=hp(S.cur),ok=!!r.reward;R.label(p,ok?'verifier: pass':r.exc?'verifier: fail (timeout)':'verifier: fail',{fs:14,b:1,dy:-30,c:ok?P.good:P.bad,a:k===0?1:e})}
   }
   const full={cam:[.1,.92],bounds:[[-6.2,0,-1.9],[6.2,1.3,1.9]]};
-  const viewOf=k=>{const S=RP[ri].steps[k];if(!S||S.kind!=='refused')return full;const A=POS(S.ev[2]),B=POS(S.ev[3]);
+  // on a phone the long graph turns into depth (the camera looks along it), so the states are large enough to carry their names
+  const PH=()=>{const h=document.getElementById('stg-rp');return !!h&&h.clientWidth<520},fullV=()=>PH()?{cam:[1.25,.82],bounds:full.bounds}:full;
+  const viewOf=k=>{const S=RP[ri].steps[k];if(!S||S.kind!=='refused')return fullV();const A=POS(S.ev[2]),B=POS(S.ev[3]);
     return {cam:[.16,.72],bounds:[[Math.min(A[0],B[0])-1.4,0,Math.min(A[2],B[2])-1],[Math.max(A[0],B[0])+1.4,1.2,Math.max(A[2],B[2])+1]]}};
   const st=S3.stage({id:'stg-rp',list:'sx-rp',fig:'a real StateM run · DeepSeek-V4-Flash',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1300,hold:4400,draw,view:viewOf,
     margin:w=>w<520?[14,10,14,10]:[20,16,16,16]});

@@ -28,7 +28,7 @@
       if(isF&&tw>.02)return;
       const lit=(k===2||k===3)&&isF,c=k===5&&isF?mix(P.paper,P.c5,.55*e):lit?mix(P.paper,P.c2,.35):P.paper;
       R.box([f.x,.01,ZR],[1.0,BH,.7],{fill:c,a:ra,lw:.8});
-      R.label([i===3?f.x-.5:f.x,.01+BH,ZR],f.real,{mono:true,fs:12,dy:i%2?-27:-12,al:i===3?'left':'center',wide:isF?0:1,c:k>=1?P.mute:P.ink,a:k===4?0:Math.max(.55,ra),b:(k===0||k===5)&&isF})});
+      R.label([f.x,.01+BH,ZR],f.real,{mono:true,fs:12,dy:i===3?-40:i%2?-27:-12,wide:isF?0:1,c:k>=1?P.mute:P.ink,a:k===4?0:Math.max(.55,ra),b:(k===0||k===5)&&isF})});
     R.label([-3.75,.1,ZR],'real container',{al:'right',dx:-8,fs:12.5,b:1,c:P.ink,grp:'row',a:k===4?0:Math.max(.5,ra)});
     // step 5: the field file as its 35 top-level definitions, heights in lines, sliding from file order to the order seed 1 draws
     if(tw>.02){let y0=.01;const ys=[],yn=[];let acc=0;TR.lines.forEach((l,i)=>{ys[i]=acc;acc+=l});let acc2=0;ORD.forEach(u=>{yn[u]=acc2;acc2+=TR.lines[u]});
@@ -81,5 +81,5 @@
   S3.stage({id:'stg-idea',list:'sx-idea',fig:'One task, a view drawn per run · Django case of Figure 4',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[18,14,14,150],
     // step 5 moves in close on the field file while it is reordered; the others show the whole pipeline
-    view:k=>k===4?{cam:[.42,.28],bounds:[[-1.5,0,ZR-.5],[1.9,TH+.15,ZR+.5]]}:k<4?{cam:full.cam,bounds:[[-3.8,0,-2.3],[3.1,1.3,3.35]]}:full});
+    view:k=>k===4?{cam:[.42,.28],bounds:[[-1.5,0,ZR-.5],[1.9,TH+.15,ZR+.5]]}:k<4?{cam:full.cam,bounds:[[-3.8,0,-2.3],[3.7,1.3,3.35]]}:full});
 })();

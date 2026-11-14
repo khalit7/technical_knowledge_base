@@ -50,7 +50,7 @@
     R0.label([TX(j),.3,ZT],'$ '+cmd,{mono:true,fs:12.5,b:1,dy:-14});
     R0.label([0,0,ZT+.4],'the session · '+N()+' commands · now turn '+R.events[j].t,{mono:true,fs:12,c:P.mute,dy:16,wide:1});
     // the workspace and the tray
-    R0.box([WX,0,SZ],[SW,.12,SD],{dz:4});R0.label([WX-SW/2,.12,R0.W<520?SZ-SD/2:SZ+SD/2],m==='early'?'replayed workspace Ê₀':'workspace replayed to the last version',{al:'left',dx:2,dy:R0.W<520?-12:16,fs:12.5,b:1});
+    R0.box([WX,0,SZ],[SW,.12,SD],{dz:4});R0.label([WX-SW/2,.12,R0.W<520?SZ-SD/2:SZ+SD/2],m==='early'?'replayed workspace Ê₀':'workspace replayed to the last version',{al:'left',dx:2,dy:R0.W<520?-12:16,fs:12.5,b:1,grp:R0.W<520?undefined:'t'});
     if(m==='early'){R0.box([TRX,0,SZ],[1.6,.08,2.3],{dz:2});R0.label([TRX,.1,SZ+1.15],'held back',{fs:12,c:P.c2,b:1,dy:16})}
     const kn=new Set(s.listed),e0=new Set(s.e0),cr=new Set(s.cr),held=new Set(s.held),fin=new Set(s.fin);let ti=0,si=0;const pos={};
     S.paths.forEach(p=>{const ag=S.agent.has(p);let where=null,fill=null,h=.16,da=0;
@@ -60,7 +60,8 @@
       const sp=ag&&m==='early'?tray(S.slots[p].t):slab(S.slots[p].s);pos[p]=sp;
       if(!where){R0.box(sp,[.5,.04,.5],{fill:P.line,a:.25,shadow:false});return}
       R0.box(sp,[.5,h,.5],{fill,fa:da?.12:1,a:1,shadow:false});
-      if(p===ev.path||e0.has(p)||(where==='t'&&m==='early')||(m==='late'&&ag&&where))R0.label(add(sp,[0,h,0]),short(p).split('/').pop(),{mono:true,fs:12,dy:-10,b:p===ev.path,grp:where==='t'?'t':'f',a:p===ev.path?1:.85})});
+      // names: on the slab above each box; on the tray in a column just left of it, so they do not cover the agent's files
+      if(p===ev.path||e0.has(p)||(where==='t'&&m==='early')||(m==='late'&&ag&&where))R0.label(where==='t'?[TRX-.85,h,sp[2]]:add(sp,[0,h,0]),short(p).split('/').pop(),{mono:true,fs:12,dy:where==='t'?0:-10,dx:where==='t'?-4:0,al:where==='t'?'right':'center',b:p===ev.path,grp:where==='t'?'t':'f',a:p===ev.path?1:.85})});
     // what the current command does, as a flow from its tile
     const from=[TX(j),.3,ZT];
     if(ev.path&&pos[ev.path])R0.flowArc(from,add(pos[ev.path],[0,.35,0]),.8,{c:KIND(P,ev.kind),n:8});

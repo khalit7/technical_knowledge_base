@@ -28,9 +28,9 @@
     R.label([p[0],p[1]+BH,p[2]],lab,{fs:12.5,mono:it.kind!=='tok',b:it.kind==='sent'||o.b,c:o.c||(it.kind==='rnd'?P.bad:it.kind==='sent'?P.acc:P.ink),dy:alt?-27:-11,a:Math.max(a,.001)>.05?Math.min(1,a+.15):0})}
   function draw(R,k,e){const P=R.P,W=RW[mode],red=mix(P.paper,P.bad,.6);R.grid(-6.5,6.5,-3.2,3.3,.5);
     // 1. the text, its picked tokens lifting and turning red
-    const ta=k<=1?1:k===2?lerp(1,.45,e):k===3?.45:k===4?.25:.25*(1-e);
+    const ta=k<=1?1:k===2?lerp(1,.45,e):k===3?.45:k===4?lerp(.45,.12,e):.12*(1-e);
     FIG_TOK.forEach((t,i)=>{const pk=W.mask[i],u=pk?(k===1?e:k>=1?1:0):0;
-      block(R,[x(i),.22*u,ZT],{t,kind:'tok'},ta,{idx:i,fill:pk&&u>0?mix(P.paper,P.bad,.6*u):P.paper,c:pk&&u>.5?P.bad:P.ink,b:pk&&u>.5})});
+      block(R,[x(i),.22*u,ZT],{t,kind:'tok'},ta,{idx:i,lab:k===4?'':undefined,fill:pk&&u>0?mix(P.paper,P.bad,.6*u):P.paper,c:pk&&u>.5?P.bad:P.ink,b:pk&&u>.5})});
     // 2. the input: each item slides down from where it came from (a run of picked tokens merges into one sentinel)
     const ia=k<2?0:k===2?e:k===3?.5:k===4?1:1-e;
     W.inp.forEach((it,j)=>{const sx=it.src.reduce((s,i)=>s+x(i),0)/it.src.length,u=k===2?e:1,p=[lerp(sx,x(j),u),lerp(.22,0,u)*(it.kind==='tok'?0:1),lerp(ZT,ZI,u)];
@@ -42,13 +42,14 @@
       const u=k===3?e:1,p=[lerp(s[0],x(j),u),0,lerp(s[1],ZG,u)],wr=k===4?(j+.5)/W.tgt.length<=e+.02:k>4;
       block(R,p,it,ga,{idx:j,fill:k===4||k>4?(wr?(it.kind==='sent'?mix(P.paper,P.acc,.42):mix(P.paper,P.c2,.3)):mix(P.paper,P.line,.4)):undefined});
       if(k===3){const a0=it.kind==='sent'?[s[0],.35,ZI]:[s[0],.45,ZT];R.flowArc(a0,[x(j),.35,ZG],.7,{c:it.kind==='sent'?P.acc:P.c2,a:Math.min(1,e*1.6)*.8,r:.05,speed:1.4,n:5})}});
+    // (at step 5 the text row fades to a trace without its words, so the encoder's name can sit above its plate)
     // 4. the encoder reads the whole input both ways, the decoder writes the target one token at a time, reading the encoder through cross-attention
     if(k===4){const ni=W.inp.length,ng=W.tgt.length,ea=Math.min(1,e*1.8),Y=1.0;
       R.glass([X0-.5,Y,ZI-.45],[ni,0,0],[0,0,.9],{c:P.c1,a:ea,nu:ni,nv:1,th:.04});R.glass([X0-.5,Y,ZG-.45],[ng,0,0],[0,0,.9],{c:P.c2,a:ea,nu:ng,nv:1,th:.04});
       W.inp.forEach((_,j)=>R.flow([[x(j),.35,ZI],[x(j),Y,ZI]],{c:P.c1,a:ea*.8,r:.045,n:3,speed:.8}));
       const ec=[X0-.5+ni/2,Y+.05,ZI],dc=[X0-.5+ng/2,Y+.05,ZG];[-1,0,1].forEach(d=>R.flowArc([ec[0]+d*ni/4,Y+.05,ZI],[dc[0]+d*ng/4,Y+.05,ZG],.55,{c:P.c3,a:ea*.75,r:.05,n:6,speed:1.2}));
       const wj=Math.min(ng-1,Math.floor(e*ng));R.flow([[x(wj),Y,ZG],[x(wj),.35,ZG]],{c:P.c2,a:ea,r:.05,n:3,speed:.8});
-      R.label([X0-.5+ni,Y,ZI-.45],'encoder · reads '+ni+', both ways',{al:'right',dy:-12,fs:12.5,b:1,c:P.c1,a:ea,wide:1});
+      R.label([X0-.5+ni/2,Y,ZI-.45],'encoder · reads '+ni+', both ways',{dy:-10,fs:12.5,b:1,c:P.c1,a:ea,wide:1});
       R.label([X0-.5+ng,Y,ZG+.45],'decoder · writes '+ng+', one at a time',{al:'left',dx:8,dy:6,fs:12.5,b:1,c:P.c2,a:ea,wide:1})}
     // row names (wide screens; on a phone the step text names the rows)
     if(k<5)[['text',ZT,ta],['input · encoder',ZI,Math.max(ia,.001)],['target · decoder',ZG,Math.max(ga,.001)]].forEach(([t,z,a])=>{if(a>.05)R.label([X0-.6,.15,z],t,{al:'right',dx:-6,mono:true,fs:12,c:P.mute,a:Math.min(1,a+.3),grp:'row'})});
@@ -63,8 +64,8 @@
   const full={cam:[.1,.95],bounds:[[-5.7,0,-2.5],[5.5,.6,2.5]]},enc={cam:[.1,.95],bounds:[[-5.7,0,-2.5],[5.5,1.15,2.5]]};
   const st=S3.stage({id:'stg-span',list:'sx-sp-iid',fig:'Fig. 2 · one sentence, three objectives',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4600,draw,
     margin:w=>w<520?[16,10,12,10]:[18,14,14,118],
-    // the last step looks at the three length bars from a little higher
-    view:k=>k===5?{cam:[.08,1.0],bounds:[[-5.7,0,-2.6],[6.4,.5,2.6]]}:k===4?enc:full});
+    // step 1 is the text row alone, seen a little lower; the last step looks at the three length bars from a little higher
+    view:k=>k===0?{cam:[.42,.62],bounds:[[-5.7,0,-2.6],[5.5,.6,-1.6]]}:k===5?{cam:[.08,1.0],bounds:[[-5.7,0,-2.6],[6.4,.5,2.6]]}:k===4?enc:full});
   segBind('spM',m=>{mode=m;$('spM').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));
     ['iid','bert','span'].forEach(q=>$('sx-sp-'+q).hidden=q!==m);if(st)st.list('sx-sp-'+m)});
 })();

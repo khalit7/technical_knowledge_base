@@ -43,8 +43,8 @@
     if(a>.5)R.label([p[0],.75,p[2]],'base model: edge u → v?',{mono:true,fs:12,c:P.c4,dy:-10,a,wide:1});
     const cur=Math.ceil(rv);if(cur<1||rv>=G.b.dist+.999)return;
     G.b.rounds[cur-1].frontier.forEach(u=>R.flowArc([G.pos[u][0],.25,G.pos[u][2]],[p[0]-.45,.4,p[2]],.7,{c:P.c4,a:a*.7,r:.05,n:6,speed:1.4}))}
-  function ceilAt(R,G,y,a,txt){const P=R.P;if(a<=.01)return;const x0=-G.xb-.7,z0=-G.zb-.7;
-    R.glass([x0,y,z0],[2*G.xb+1.4,0,0],[0,0,2*G.zb+1.4],{c:P.c2,a:a*.85,nu:8,nv:5});
+  function ceilAt(R,G,y,a,txt,ga=.85){const P=R.P;if(a<=.01)return;const x0=-G.xb-.7,z0=-G.zb-.7;
+    R.glass([x0,y,z0],[2*G.xb+1.4,0,0],[0,0,2*G.zb+1.4],{c:P.c2,a:a*ga,nu:8,nv:5});
     R.label([x0,y,G.zb+.7],txt,{al:'right',dx:-6,mono:true,fs:12,c:P.c2,a,grp:'h'})}
   function draw(R,k,e){const P=R.P;R.grid(-6,6,-4,4,.5);
     const aA=k<5?1:off(k,e*2>1?1:e*2,5),aB=k<5?0:Math.max(0,e*2-1);
@@ -56,10 +56,10 @@
       if(k>=3){const p=A.pos[A.g.t],yes=k===4&&e>.5;R.label([p[0],.1+A.b.dist*U,p[2]],yes?'7 hops ≤ 8: reader says yes':'7 hops > 4: reader says no',{fs:12.5,b:1,c:yes?P.good:P.bad,dy:-28,a:aA*(k===3?e:1)})}}
     // graph B: the harness runs all its rounds, the 3-layer ceiling stays at 8 hops
     if(aB>0){const rb=B.b.dist*Math.min(1,aB*1.3);graph(R,B,aB,rb,8*U,{seen:B.seen(3),a:aB});strip(R,B,aB*.35,rb,-B.zb-1.2);
-      ceilAt(R,B,8*U,aB,'reader, 3 layers: sees 8 hops');const p=B.pos[B.g.t];
+      ceilAt(R,B,8*U,aB,'reader, 3 layers: sees 8 hops',.4);const p=B.pos[B.g.t];
       R.label([p[0],.1+B.b.dist*U,p[2]],B.b.dist+' hops > 8: reader says no',{fs:12.5,b:1,c:P.bad,dy:-12,a:aB})}
   }
   const vA={cam:[.42,.62],bounds:[[-3.8,0,-3],[5.9,2.6,1.6]]},vB={cam:[.42,.66],bounds:[[-3.9,0,-3.2],[3.9,3.4,2]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the BFS harness against a fixed-depth reader (the lab\'s engine)',cam:vA.cam,bounds:vA.bounds,aspect:.62,
-    margin:w=>w<520?[14,10,14,10]:[16,14,14,190],dur:2400,hold:4600,draw,view:k=>k>=5?vB:vA});
+    margin:w=>w<520?[14,10,14,10]:[16,14,14,226],dur:2400,hold:4600,draw,view:k=>k>=5?vB:vA});
 })();

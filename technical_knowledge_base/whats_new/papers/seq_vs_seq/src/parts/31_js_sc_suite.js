@@ -34,7 +34,8 @@
   function draw(R,k,e){const P=R.P;R.grid(XL-1.2,XR+1.2,-2.6,2.6,.5);
     const CE=mix(P.paper,P.c1,.55),CD=mix(P.paper,P.c2,.55);
     // composition: the stacks are the subject of steps 1, 2 and 6; during the result steps they recede behind the bars
-    const rec=k>=2&&k<=4?.28:1,grow=k===0?e:1;
+    // (steps 3 and 4 look up at the plinth, where the stacks would be cut at the bottom edge, so there they fade out fully)
+    const rec=k===2?Math.max(0,1-1.6*e):k===3?0:k===4?.28*e:1,grow=k===0?e:1;
     for(let i=0;i<NS;i++){const ea=k===5?(i===3||i===4?1:.16):rec,da=k===5?(i===4||i===5?1:.16):rec;
       stack(R,XE(i),i,CE,ea*Math.min(1,grow*1.3));stack(R,XD(i),i,CD,da*Math.min(1,grow*1.3));
       if(k<2||k===5)R.label([X(i),0,wOf(i)/2+.1],SZ[i],{mono:true,fs:12.5,dy:15,b:1,a:k===5?(i>=3?1:.35):1});
@@ -61,7 +62,9 @@
       R.label([XD(4),0,wOf(5)/2+.3],'on MNLI, beats a decoder 2.7\u00d7 its size',{mono:true,fs:12.5,b:1,c:P.c1,a,dy:34})}
   }
   const V0={cam:[.8,.48],bounds:[[XL-.3,0,-.7],[XR+.3,1.75,.7]]},V1={cam:[.8,.55],bounds:[[XL-.3,0,-2.1],[XR+.3,1.75,.7]]};
-  S3.stage({id:'stg-suite',list:'sx-suite',fig:'The suite \u00b7 six exact pairs, to scale',cam:V0.cam,bounds:V0.bounds,aspect:.48,dur:1400,hold:4800,draw,
-    view:k=>k===0?V0:k===1?V1:k===2||k===3?VUP:k===4?VDN:{cam:[.4,.42],bounds:[[XE(3)-.5,0,-.7],[XD(5)+.7,2.3,1.2]]},
+  // on a phone the row of pairs turns into depth (a camera from further round the side), so the small models are not a few pixels wide
+  const PH=()=>{const h=document.getElementById('stg-suite');return !!h&&h.clientWidth<520},ph=v=>PH()?{cam:[v.cam[0]-1.1,v.cam[1]+.1],bounds:v.bounds}:v;
+  S3.stage({id:'stg-suite',list:'sx-suite',fig:'The suite \u00b7 six exact pairs, to scale',cam:V0.cam,bounds:V0.bounds,aspect:.42,dur:1400,hold:4800,draw,
+    view:k=>k===0?ph(V0):k===1?ph(V1):k===2||k===3?VUP:k===4?VDN:{cam:[.4,.42],bounds:[[XE(3)-.5,0,-.7],[XD(5)+.7,2.3,1.2]]},
     margin:w=>w<520?[14,10,14,10]:[22,14,14,205]});
 })();

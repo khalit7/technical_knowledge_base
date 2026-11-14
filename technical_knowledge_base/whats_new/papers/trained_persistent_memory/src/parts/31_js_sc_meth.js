@@ -12,9 +12,10 @@
   function draw(R,k,e){const P=R.P,frozen=mix(P.paper,P.mute,.28),RD=P.c1,WR=P.c2,BK=P.c5;R.grid(-5.8,4.4,-3.0,2.2,.5);
     // how strongly the frozen model shows: full in steps 1 and 8, receded while a step is about the bank
     const base=k===0||k===7?1:.32,bank=k===0?0:k===1?e:k===5?1-.85*e:k===6?.6:k===7?1:.85;
+    // (step 5 looks right of the encoder, at the bank and its rule, so the encoder, cut by that view, fades further)
     // 1. the frozen model: the turn's tokens, 24 encoder layers, Z, 24 decoder layers, the answer
     TZ.forEach(z=>R.box([TX,0,z],[.2,.2,.2],{fill:P.paper,a:base}));
-    for(let l=0;l<NL;l++){R.box([EX,l*PITCH,0],[SD,TH,SD],{fill:frozen,a:base,shadow:l===0,lw:.6});R.box([DX,l*PITCH,0],[SD,TH,SD],{fill:frozen,a:base,shadow:l===0,lw:.6})}
+    for(let l=0;l<NL;l++){R.box([EX,l*PITCH,0],[SD,TH,SD],{fill:frozen,a:k===4?.1:base,shadow:l===0,lw:.6});R.box([DX,l*PITCH,0],[SD,TH,SD],{fill:frozen,a:base,shadow:l===0,lw:.6})}
     ZZ.forEach(z=>R.box([ZX,0,z],[.22,.22,.22],{fill:mix(P.paper,P.ink,.12),a:Math.max(base,k===2||k===3||k===5?.9:0)}));
     for(let i=0;i<3;i++)R.box([AX,0,-.3+.3*i],[.2,.2,.2],{fill:P.paper,a:base});
     const la=k===0?e:k===7?1:0;
@@ -74,7 +75,7 @@
   }
   const full={cam:[.42,.6],bounds:[[-5.6,0,-2.6],[4.0,1.9,2.0]]};
   const VIEWS=[full,{cam:[.3,.55],bounds:[[-2.4,0,-2.6],[2.2,1.6,.9]]},{cam:[.55,.55],bounds:[[-6.4,0,-2.6],[-.6,1.7,.9]]},
-    {cam:[.3,.6],bounds:[[-2.0,0,-2.6],[2.6,1.7,1.8]]},{cam:[.3,.5],bounds:[[-2.2,0,-2.6],[2.8,1.6,1.6]]},{cam:[.3,.55],bounds:[[-2.4,0,-2.6],[1.0,1.5,1.8]]},
+    {cam:[.3,.6],bounds:[[-2.0,0,-2.6],[2.6,1.7,1.8]]},{cam:[.3,.5],bounds:[[-1.9,0,-2.6],[4.0,1.6,1.6]]},{cam:[.3,.55],bounds:[[-2.4,0,-2.6],[1.0,1.5,1.8]]},
     {cam:[.2,.55],bounds:[[-2.2,0,-2.6],[2.5,1.8,.8]]},full];
   window.METH={steps:8,rc:RC};
   S3.stage({id:'stg-meth',list:'sx-meth',fig:'Fig. 1 · where each method attaches the bank',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:5600,draw,
