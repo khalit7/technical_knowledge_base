@@ -44,5 +44,6 @@
   const full={cam:[.07,.8],bounds:[[-5.6,0,-2.1],[7.2,1.6,1.5]]};
   S3.stage({id:'stg-base',list:'sx-base',fig:'Fig. 2 · the routed baseline on one group of the toy',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[16,16,14,96],
-    view:k=>k===4?{cam:[.1,.74],bounds:[[-5.6,0,-4.9],[7.2,1.6,1.5]]}:full});
+    // on a phone the long row turns into depth (a rotated camera), so the answers draw larger in the tall card
+    view:k=>{const v=k===4?{cam:[.1,.74],bounds:[[-5.6,0,-4.9],[7.2,1.6,1.5]]}:full;return innerWidth<520?{cam:[v.cam[0]+.55,v.cam[1]+.05],bounds:v.bounds}:v}});
 })();

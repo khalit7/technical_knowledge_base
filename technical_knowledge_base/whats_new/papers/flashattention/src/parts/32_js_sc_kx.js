@@ -30,7 +30,7 @@
     R.glass([X.O,YT,Z0],[d*u,0,0],[0,0,N*u],{c:col.O,a:.15,nu:1,nv:1,th:.01});if(oRows>0)pl('O',oRows,.9,d,oRows);
     R.label([X.O+d*u/2,YT,Z0+N*u+.1],'O',{serif:true,fs:14,b:1,c:col.O,dy:12});
     if(!std){R.glass([X.l,YT,Z0],[2*u,0,0],[0,0,N*u],{c:col.l,a:.15,nu:1,nv:1,th:.01});if(oRows>0)pl('l',oRows,.9,2,oRows);
-      R.label([X.l+u,YT,Z0+N*u+.1],mode==='fa'?'ℓ, m':'L',{fs:12.5,c:P.mute,dy:12,dx:6})}
+      R.label([X.l+u,YT,Z0+N*u+.1],mode==='fa'?'ℓ, m':'L',{fs:12.5,c:P.mute,dy:28,dx:6})}
     ['S','P'].forEach(m=>{const has=std&&S.have[m];R.glass([X[m],YT,Z0],[N*u,0,0],[0,0,N*u],{c:col[m],a:has?.85:.14,nu:has?N:T,nv:has?N:T,th:has?.015:.01});
       R.label([X[m]+N*u/2,YT,Z0+N*u+.1],std?m+(m==='S'?' = QKᵀ':' = softmax(S)')+' · N × N':(m==='S'?'S: tiles computed on chip only':'P: 0 values in HBM'),{fs:12.5,b:1,c:col[m],dy:12,a:has||!std?1:.5,wide:1})});
     // FlashAttention: the tiles of S computed so far, the current one bright (column by column under Algorithm 1, row by row under FA-2's order)
@@ -67,7 +67,9 @@
   let lastSi=-1,lastMode='';
   const full={cam:[.1,.8],bounds:[[-5.4,0,-3.0],[4.4,2.3,2.0]]};
   const stg=S3.stage({id:'stg-kx',list:'sx-kx-std',fig:'Fig. 2 · HBM and SRAM, one forward pass (toy, N = 32, d = 4)',cam:full.cam,bounds:full.bounds,aspect:.62,dur:4400,hold:4200,draw,
-    margin:w=>w<520?[16,8,16,8]:[22,14,24,40]});
+    margin:w=>w<520?[16,8,16,8]:[22,110,24,40],
+    // on a phone the long row of plates turns into depth (a rotated, steeper camera), so the plates draw larger
+    view:()=>innerWidth<520?{cam:[-.5,.9],bounds:full.bounds}:null});
   const show=()=>{['std','stdmd','fa','fa2'].forEach(x=>{document.getElementById('sx-kx-'+x).hidden=('sx-kx-'+x)!==listId()});lastSi=-1;stg.list(listId())};
   const seg=document.getElementById('kxM');
   seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});mode=b.dataset.m;show()}));

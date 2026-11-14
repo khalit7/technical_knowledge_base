@@ -36,7 +36,7 @@
       R.flowArc([BANK[0]+.5,.9,BANK[2]],[CXp(0)-.9,PY+.6,RZc[0]],.4,{c:P.c1,a:e,r:.055,n:5,speed:1.1});
       R.label([CXp(0)-.9,PY+.6,RZc[0]],'incumbent: '+b.n+', '+b.r,{al:'left',dx:6,mono:true,fs:12.5,b:1,c:P.c1,a:e})}
     // candidate names along the front
-    C.forEach((c,i)=>R.label([CXp(i),0,(k>=4?AZ:RZc[2])+.45],narrow?c.n.replace('Claude Code','Claude').replace('JIT-Agent','JIT').replace('OpenCode','OpenC.'):c.n,{fs:12.5,b:c.n==='JIT-Agent'?1:0,dy:narrow&&i%2?30:14,c:c.n==='JIT-Agent'?P.c3:P.ink}));
+    C.forEach((c,i)=>R.label([CXp(i),0,(k>=4?AZ:RZc[2])+.45],narrow?c.n.replace('Claude Code','Claude').replace('JIT-Agent','JIT').replace('OpenCode','OpenC.'):c.n,{fs:12.5,b:c.n==='JIT-Agent'?1:0,dy:narrow&&i%2&&(k===0||k>=4)?30:14,c:c.n==='JIT-Agent'?P.c3:P.ink}));
     // the three channel rows
     const ca=k<=3?1:k===4?1-.7*e:.3;
     const head=k<=1?['score r','tokens (for latency)','cost $']:k===2?['R rew','R lat','R cost']:['A rew','A lat','A cost'];
@@ -49,7 +49,8 @@
         const top=(t,c2)=>R.label([x,PY+Math.max(0,h),z],t,{mono:true,fs:12.5,b:1,dy:-10,c:c2||col[j],a:e,wide:j===0?0:1});
         if(k===2&&c.n==='JIT-Agent')top(j===0?c.Rr.toFixed(2):j===1?'+'+Math.round(c.Rl)+'K':'+$'+c.Rc.toFixed(3));
         if(k===2&&j===1&&gated&&!narrow)R.label([x,PY,z],'gated',{mono:true,fs:12,dy:-10,c:P.mute,a:e});
-        if(k===3&&(c.n==='JIT-Agent'||c.n==='Hermes')){const v=[c.zr,c.zl,c.zc][j];if(j===0||c.n==='JIT-Agent'||!narrow)R.label([x,v>=0?PY+h:PY-.05+h,z],(v>=0?'+':'−')+Math.abs(v).toFixed(2),{mono:true,fs:12.5,b:1,dy:v>=0?-10:12,c:col[j],a:e,wide:j===0?0:1})}})});
+        if(k===3&&(c.n==='JIT-Agent'||c.n==='Hermes')){const v=[c.zr,c.zl,c.zc][j];if(j===0||c.n==='JIT-Agent'||!narrow){const J=c.n==='JIT-Agent'&&!narrow; // JIT-Agent's three tall bars stand behind one another: their values sit beside the bars' tops, not over the next bar (a phone shows only the first)
+          R.label(J?[x+.3,v>=0?PY+h:PY-.05+h,z]:[x,v>=0?PY+h:PY-.05+h,z],(v>=0?'+':'−')+Math.abs(v).toFixed(2),J?{mono:true,fs:12.5,b:1,al:'left',dx:6,c:col[j],a:e,wide:j===0?0:1}:{mono:true,fs:12.5,b:1,dy:v>=0?-10:12,c:col[j],a:e,wide:j===0?0:1})}}})});
     // the incumbent's values as glass sheets across each row (step 3: the efficiency sheets drop to the zero line, where the gate leaves the others)
     if(k>=1&&k<=2){const vals=[b.r/100*HMAX,b.l/mxl*HMAX,b.k/mxk*HMAX],x0=CXp(0)-.5,W=CXp(n-1)-CXp(0)+1;
       RZc.forEach((z,j)=>R.glass([x0,PY+vals[j],z-.34],[W,0,0],[0,0,.68],{c:P.c1,a:(k===1?e:1)*(j===0?1:k===2?1-e:1),nu:6,nv:1}));
@@ -66,5 +67,6 @@
   S3.stage({id:'stg-evo',list:'sx-evo',fig:'3D · one Evo-GDPO group · Table 3 numbers, weights illustrative',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1600,hold:5000,draw,
     margin:w=>w<520?[14,8,18,8]:[18,16,22,16],
     // running, gating and normalising move in close on the three channel rows; mixing adds the front row; sampling and the bank show everything
-    view:k=>k>=1&&k<=3?{cam:[.1,.66],bounds:[[-5.6,0,-2.2],[4.6,1.9,1.4]]}:k===4?{cam:[.1,.7],bounds:[[-5.6,0,-2.2],[4.6,1.9,2.9]]}:full});
+    // on a phone the bar steps turn the columns a little into depth (a rotated, steeper camera), so the bars draw larger
+    view:k=>{const v=k>=1&&k<=3?{cam:[.1,.66],bounds:[[-5.6,0,-2.2],[4.6,1.9,1.4]]}:k===4?{cam:[.1,.7],bounds:[[-5.6,0,-2.2],[4.6,1.9,2.9]]}:full;return innerWidth<520&&k>=1&&k<=3?{cam:[v.cam[0]+.5,v.cam[1]+.15],bounds:v.bounds}:v}});
 })();

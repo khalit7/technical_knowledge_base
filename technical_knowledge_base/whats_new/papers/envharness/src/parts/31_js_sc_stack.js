@@ -71,7 +71,7 @@
       if(k===5){ // f_A: the action stops at the Contract plate; the reason comes back up, the world untouched
         R.flow([[top[0],top[1],top[2]],[ax,YL,ZA],[ax,YC+.02,ZA]],{c:P.c1,a:.9,r:.07,speed:1.3});R.glow([ax,YC,ZA],.55,{c:P.bad,a:.85});
         R.flow([[ax+.25,YC+.02,ZA],[ax+.25,YL,ZA],[top[0]+.3,top[1],top[2]]],{c:P.bad,a:.9,r:.07,speed:1.3});
-        LAB([ax,YC+.1,ZA],'[blocked] '+act,P.bad,1)}
+        if(innerWidth<520)LAB([ax,YC,ZA+.65],'[blocked] '+act,P.bad,1,{dy:16});else LAB([ax,YC+.1,ZA],'[blocked] '+act,P.bad,1)}
       else{const yBot=inB?.55:.55,via=inB?[[ax,YL,ZB],[ax,yBot,ZB]]:[[ax,YL,ZA],[ax,yBot,ZA]];
         R.flow([[top[0],top[1],top[2]]].concat(via),{c:P.c1,a:.85,r:.065,speed:1.6});
         R.flow(via.slice().reverse().map(q=>[q[0]+.25,q[1],q[2]]).concat([[top[0]+.3,top[1],top[2]]]),{c:P.c6,a:.75,r:.055,speed:1.6});
@@ -90,5 +90,6 @@
   const full={cam:[.34,.27],bounds:[[-4.5,0,-3.3],[5.4,4.6,1.5]]},near={cam:[.36,.4],bounds:[[-4.4,0,-.9],[5.3,2.0,1.5]]};
   S3.stage({id:'stg-stack',list:'sx-stack',fig:'3D · one episode through the full stack',cam:full.cam,bounds:full.bounds,aspect:.52,dur:3200,hold:4600,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,14,150],
-    view:k=>k<=1?near:k===2||k===9?{cam:[.32,.26],bounds:[[-4.4,0,-1.6],[5.3,4.6,1.5]]}:full});
+    // on a phone the long row of places turns into depth (a rotated, steeper camera), so the plates and boxes draw larger
+    view:k=>{const v=k<=1?near:k===2||k===9?{cam:[.32,.26],bounds:[[-4.4,0,-1.6],[5.3,4.6,1.5]]}:full;return innerWidth<520&&k>1?{cam:[v.cam[0]+.55,v.cam[1]-.04],bounds:v.bounds}:v}});
 })();

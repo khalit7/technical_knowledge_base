@@ -49,7 +49,7 @@
       R.flowArc([X[1]+DP+.5,.95,ZP+.05],[X[2]+DP-.5,.95,ZP+.05],.7,{c:P.c4,a:a*.9,r:.06,n:9});
       R.arc([X[0]+DP+.6,1.1,ZP],[X[2]+DP-.6,1.1,ZP],1.0,{c:P.c3,w:1.6,dash:[6,5],a:a*.8});R.flowArc([X[0]+DP+.6,1.1,ZP],[X[2]+DP-.6,1.1,ZP],1.0,{c:P.c3,a:a*.6,r:.045,n:12,speed:.8});
       R.label([X[1]+DP-1,2.1,ZP],'KL penalty to SFT, β = '+RC.kl_default,{fs:12.5,mono:true,b:1,c:P.c3,a,wide:k===4});
-      R.label([sx,.38,sz],'one sampled answer',{fs:12,mono:true,dy:-12,c:P.mute,a,wide:1})}
+      R.label([sx,0,sz+.16],'one sampled answer',{fs:12,mono:true,dy:14,c:P.mute,a,wide:1})}  // under its box, clear of the policy plate's note
     // step 4: PPO-ptx, pretraining text mixed into every update (the stack is schematic, not to scale)
     if(k>=4){const a=k===4?1:.25,xp=X[2]+DP+1.9,zp=ZP-.2;for(let i=0;i<16;i++)R.box([xp+(i%2?.03:-.03),i*SH,zp],[.9,SH*.86,.8],{fill:mix(P.paper,P.c6,.35),a:a*(k===4?cl(e*16-i):1),lw:.5,shadow:i===0});
       if(k===4){R.flowArc([xp-.3,1.2,zp],[X[2]+DP+.4,.8,ZP+.05],.4,{c:P.c6,a:e*.9,r:.06,n:9});

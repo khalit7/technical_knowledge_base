@@ -52,7 +52,7 @@ $('osB').addEventListener('change',os);$('osSkip').addEventListener('change',os)
 function th(){const N=+$('thN').value,d=+$('thD').value,host=$('thSvg');
   const std=FA.stdF(N,d),fa=M=>FA.faF(N,d,Math.ceil(M/(4*d))),Ms=[];for(let k=10;k<=Math.log2(4*N*d)+.01;k+=.125)Ms.push(2**k);
   const a100=192*1024/2;const lo=Math.min(...Ms.map(fa),std)/3,hi=Math.max(std,fa(Ms[0]))*2;
-  fit(host,W=>{const H=230,ex=[];for(let e=Math.floor(Math.log10(lo));e<=Math.ceil(Math.log10(hi));e++)ex.push([10**e,exp10(e)]);
+  fit(host,W=>{const H=230,ex=[];for(let e=Math.ceil(Math.log10(lo));e<=Math.floor(Math.log10(hi));e++)ex.push([10**e,exp10(e)]);
     const f=logFrame({W,H,pl:50,pr:14,pt:14,pb:36,x:[Ms[0],4*N*d],y:[lo,hi],xt:[[1024,'1K'],[8192,'8K'],[65536,'64K'],[524288,'512K'],[4194304,'4M'],[33554432,'32M']].filter(t=>t[0]>=Ms[0]&&t[0]<=4*N*d),yt:ex,xl:'SRAM size M (values)',yl:'HBM accesses'});let s=f.s;
     s+=ln2(f.lx(Ms[0]),f.ly(std),f.lx(4*N*d),f.ly(std),'var(--c2)',{sw:2.2});s+=tx(W-16,f.ly(std)-6,'standard, Θ(Nd + N²)',{fs:11,a:'end',c:'var(--c2)'});
     let p='';Ms.forEach(M=>{p+=(p?'L':'M')+f.lx(M).toFixed(1)+' '+f.ly(fa(M)).toFixed(1)});s+='<path d="'+p+'" fill="none" stroke="var(--acc)" stroke-width="2.2"/>';

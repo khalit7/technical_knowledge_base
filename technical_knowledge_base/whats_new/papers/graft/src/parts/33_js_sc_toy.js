@@ -18,7 +18,7 @@
   function mixRow(R,cx,pi,a,name,hl){const P=R.P,C=cols(P);if(a<=.01)return;
     R.box([cx,0,ZM],[2.4,.06,.6],{fill:P.paper,a});
     pi.forEach((p,j)=>{const x=cx+(j-1.5)*.55,h=Math.max(.012,p*MS);R.box([x,.06,ZM],[.38,h,.38],{fill:C[j],a,shadow:false});
-      if(hl&&(p>.05||hl===2)&&!(hl===1&&R.W<520))R.label([x,.06+h,ZM],(100*p).toFixed(1)+'%',{mono:true,fs:12,b:1,dy:-11,a})});
+      if(hl&&(p>.05||hl===2)&&!(hl===1&&R.W<520))R.label(p>.5?[x+.19,.06+h*.6,ZM]:[x,.06+h,ZM],(100*p).toFixed(1)+'%',p>.5?{mono:true,fs:12,b:1,al:'left',dx:6,a}:{mono:true,fs:12,b:1,dy:-11,a})}); // a tall bar's share sits beside it, clear of the adapter's names behind
     R.label([cx,0,ZM+.35],name,{fs:12.5,b:1,c:P.ink,dy:14,a})}
   function draw(R,k,e){const P=R.P;R.grid(-4.6,4.6,-1.4,3.4,.5);
     const [i0,i1]=B[k],S=snap(k===4?i1:lerp(i0,i1,e)),fA=k===4?lerp(1,0,e):1;

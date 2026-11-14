@@ -44,7 +44,7 @@
   }
   const full={cam:[.12,.5],bounds:[[-3.9,0,ZR(n-1)-2.7],[4.6,1.4,ZR(0)+.7]]};
   S3.stage({id:'stg-rig',list:'sx-rig',fig:'3D · the EnvRigger loop on the toy household',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:4600,draw,
-    margin:w=>w<520?[14,10,14,10]:[16,14,14,160],
+    margin:w=>w<520?[14,10,14,10]:[16,14,14,200],
     // a validation step moves in close on its row; observing, diagnosing and writing show the designer and every row
     view:k=>{if(k===1||k===2*n||(k>0&&k%2===0))return full;const z=ZR(k===0?0:(k-1)/2);return {cam:[.1,.42],bounds:[[-3.9,0,z-1.1],[4.6,1.3,z+.9]]}}});
 })();

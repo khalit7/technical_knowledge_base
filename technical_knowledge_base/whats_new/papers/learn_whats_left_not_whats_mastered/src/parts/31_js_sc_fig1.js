@@ -39,7 +39,7 @@
       if(mode==='sa'&&k>=2){const ga=k===2?e:1;
         [[XG,F1.s[0],wf,P.c2,'format',-1],[XG+1.4,F1.s[1],wc,P.c3,'correct',1]].forEach(([x,s,w,c,nm,sd])=>{const al=sd<0?'right':'left',dx=sd*2;
           R.glass([x-.3,0,ZM],[.6,0,0],[0,1.5,0],{c,a:ga*.9,nu:2,nv:10});R.box([x,0,ZM+.02],[.5,Math.max(.02,s*1.5*(k===2?e:1)),.12],{fill:c,a:ga*.85,shadow:false});
-          R.label([x,1.5,ZM],nm,{fs:12.5,b:1,dy:-26,c,a:ga,al,dx,wide:1});R.label([x,1.5,ZM],'s = '+s.toFixed(2),{mono:true,fs:12,dy:-10,c,a:ga,al,dx});
+          R.label([x,1.5,ZM],nm,{fs:12.5,b:1,dy:-26,c,a:ga,al,dx,wide:1});R.label([x,1.5,ZM],'s = '+s.toFixed(2),{mono:true,fs:12,dy:R.W<520?-24:-10,c,a:ga,al,dx});   // a phone hides the names, so s rises into their place, clear of the plinth's end
           if(k>=3)R.label([x,0,ZM],'w = '+(w<.01?w.toExponential(1):w.toFixed(2)),{mono:true,fs:12,b:1,dy:16,c,a:k===3?e:1,al,dx})});
         if(k===2)for(let j=0;j<4;j++){R.flowArc([X(j)-DX,F1.f[j]/100*RS,ZR],[XG,1.3,ZM],.5,{c:P.c2,a:e*.6,r:.05,n:4});R.flowArc([X(j)+DX,.06,ZR],[XG+1.4,.3,ZM],.4,{c:P.c3,a:e*.6,r:.05,n:4})}
         if(k===3){R.flowArc([XG,1.55,ZM],[X(3)+.65,YA+.2,ZM],.4,{c:P.c2,a:e*.8,r:.05,n:3});R.flowArc([XG+1.4,1.55,ZM],[X(3)+.65,YA+.2,ZM],.6,{c:P.c3,a:e*.8,r:.06,n:7})}}

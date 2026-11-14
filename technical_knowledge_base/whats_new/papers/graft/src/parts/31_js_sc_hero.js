@@ -44,5 +44,6 @@
   }
   const full={cam:[.42,.62],bounds:[[-3.3,0,-3.4],[3.4,1.75,2.7]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one RL step under GRAFT',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1400,hold:5200,draw,
-    view:k=>k===2?{cam:[.55,.55],bounds:[[-.4,0,-3.4],[3.6,1.9,1.2]]}:k===4?{cam:[.42,.6],bounds:[[-3.3,0,-3.4],[5,1.9,2.7]]}:full});
+    // on a phone the full view looks straighter down the depth (the scene is about as deep as it is wide), so it draws larger in the tall card
+    view:k=>k===2?{cam:[.55,.55],bounds:[[-.4,0,-3.4],[3.6,1.9,1.2]]}:k===4?{cam:[.42,.6],bounds:[[-3.3,0,-3.4],[5,1.9,2.7]]}:innerWidth<520?{cam:[.1,.85],bounds:full.bounds}:full});
 })();

@@ -42,7 +42,7 @@
     vals.forEach((v,i)=>{const h=Math.max(.012,Math.abs(v)/m*hmax),bx=c[0]-wd/2+bw*(i+.5);R.box([bx,v>=0?c[1]:c[1]-.04-h,c[2]],[bw*.7,h,.09],{fill:col,a,shadow:false,lw:.6})})}
   function draw(R,k,e){const P=R.P,T=compute();R.grid(-6,6,-2,2.2,.5);
     // 1-2: the image, and the encoder squeezing it
-    const ia=k<=1?1:k===2?1-.75*e:.25;image(R,XP,T.img,ia);
+    const ia=k<=1?1:k===2?1-.75*e:k===3?.25*(1-e):k<=5?0:k===6?.25*e:.25;image(R,XP,T.img,ia);   // steps 4 to 6 frame the latent side, so the image leaves rather than sit cut at the edge
     if(k<=1||k>=6)R.label([XP,LY[2]+.15,-1.5],'x · 32 × 32 × 3 = 3,072 numbers',{mono:true,fs:12,c:P.ink,a:k>=6?.6:1,dy:-6});
     if(k===0)['R','G','B'].forEach((t,c)=>R.label([XP-1.36,LY[c],1.36],t,{mono:true,fs:12,b:1,c:HUE[c],al:'right',dx:-6}));
     const ea=k===1?Math.min(1,e*1.6):k>=2?.3:0;
