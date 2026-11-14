@@ -14,7 +14,7 @@
     const dimW=i=>k===0?1:k===1?.3:k===2?(i===1?1:.3):k===3||k===4?(i===1?1:.3):k===5?1:.45;
     G.slab(R,0,{tint:P.c4});
     R.box(G.GCS,[1.2,.55,.8],{fill:mix(P.paper,P.c4,.45),a:k===0?1:.3});
-    lab([G.GCS[0]-.62,.3,G.GCS[2]],'GCS',{al:'right',dx:-4,b:1,c:P.c4,a:k===0?1:.55});
+    lab([G.GCS[0]-.62,.3,G.GCS[2]],'GCS',{al:'right',dx:-4,dy:8,b:1,c:P.c4,a:k===0?1:.55});
     G.raylet(R,G.HRL,{a:k===0||k===2?1:.3});
     lab([G.HRL[0],.46,G.HRL[2]],'raylet',{a:k===0||k===2?1:.4,wide:1});
     R.box(G.DRV,[1.05,.5,.75],{fill:mix(P.paper,P.acc,.35),a:1});

@@ -62,7 +62,9 @@
       if(mode!=='job'){const js=f.objs.find(x=>x.k==='JobSet');R.flowArc([jb.x,YO+.3,ZP],[CX.jsctl,.5,ZC],.4,{c:OK,a:e,r:.06,speed:1.3})}}
     // the clock: the recorded time that closes this stretch
     const T=f.T[cur==='start'?'start':cur],txt=cur==='top'&&mode==='trainjob'?'you apply the TrainJob':cur==='done'?'t = '+f.T.done.toFixed(2)+' s · complete':'t = '+(T==null?0:T).toFixed(2)+' s';
-    R.label([-4.7,0,ZP+.4],txt,{al:'right',dx:-8,dy:14,mono:true,fs:13,b:1,c:cur==='done'?OK:P.acc,a:Math.max(.3,e)});
+    // on a phone there is no room left of the plate: the clock sits centred under the workers instead of clamped at the edge
+    const cl={mono:true,fs:13,b:1,c:cur==='done'?OK:P.acc,a:Math.max(.3,e)};
+    if(R.W<520)R.label([-1.2,0,3.2],txt,Object.assign({dy:50},cl));else R.label([-4.7,0,ZP+.4],txt,Object.assign({al:'right',dx:-8,dy:14},cl));
   }
   const full={cam:[.26,.78],bounds:[[-4.8,0,-3.5],[4.8,1.0,3.2]]};
   const st=S3.stage({id:'stg-loop',list:'sx-loop-job',fig:'The control loop · one job, recorded',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1500,hold:4600,draw,

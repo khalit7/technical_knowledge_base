@@ -55,8 +55,10 @@
     if(k===8){['A','B'].forEach(n=>fl([nd(n),via(NX[n],ZF),via(back.ctl[0],ZF),bk('ctl')],C.inb,{n:5,speed:1.4}));
       fl([bk('ctl'),[-8.3,.12,ZB],[-8.3,.12,ZO],[bmc('B')[0]+.45,.12,ZO],[bmc('B')[0]+.45,.12,-.95],up(bmc('B'))],C.oob,{r:.08});lab(up(bmc('B'),.2),'BMC: power-cycle',{al:'left',dx:10,dy:-10,b:1,c:C.oob,a:e})}
   }
+  const PHT=.7,PHP=1.0;
   const st=S3.stage({id:'stg-job',list:'sx-job',fig:'Fig. 2 · one job, four networks',cam:[.22,.86],bounds:[[-8.6,0,-4],[10.2,1.4,3.3]],aspect:.46,dur:1400,hold:5200,draw,
-    view:k=>k===1||k===2?{cam:[.25,.8],bounds:[[-8.4,0,-4],[4,1,-.4]]}:k===4||k===6?{cam:[.25,.8],bounds:[[-6.2,0,-1.6],[7.4,1,3.3]]}:null,
+    view:k=>{const v=k===1||k===2?{cam:[.25,.8],bounds:[[-8.4,0,-4],[4,1,-.4]]}:k===4||k===6?{cam:[.25,.8],bounds:[[-6.2,0,-1.6],[7.4,1,3.3]]}:null;
+      return innerWidth<520?{cam:[(v?v.cam[0]:.22)+PHT,PHP],bounds:v?v.bounds:[[-8.6,0,-4],[10.2,1.4,3.3]]}:v},
     margin:w=>w<520?[16,10,16,10]:[22,18,22,100]});
   (window.CASTG=window.CASTG||{})['stg-job']=st;
 })();

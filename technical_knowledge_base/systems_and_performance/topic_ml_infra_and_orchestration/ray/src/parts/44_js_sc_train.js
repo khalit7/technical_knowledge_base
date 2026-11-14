@@ -12,13 +12,14 @@
   const RK=k=>G.GPU(1+(k>>1),k&1),CTL=[G.NX[0]-.95,G.SH,.7],STO=[-1.95,0,-2.05],CK=j=>[STO[0]-.45+j*.9,.32,STO[2]];
   const HL=[0,0,2.4];
   function draw(R,k,e){const P=R.P,lab=(p,t,o)=>R.label(p,t,Object.assign({mono:true,fs:12},o||{}));R.grid(-6.2,6.2,-2.8,2.2,.5);
-    G.slab(R,0,{tint:P.c4});
-    const gA=k===1?1:.3;R.box(G.GCS,[1.2,.55,.8],{fill:mix(P.paper,P.c4,.45),a:gA});lab([G.GCS[0],.75,G.GCS[2]],'GCS',{dy:-8,b:1,c:P.c4,a:Math.max(.5,gA)});
-    R.box(G.DRV,[1.05,.5,.75],{fill:mix(P.paper,P.acc,.35),a:.35});lab([G.DRV[0],.2,G.DRV[2]+.4],'driver: fit()',{dy:12,c:P.acc,a:.7,wide:1});
-    const cA=k===0||k===4||k===6?1:.45;R.box(CTL,[1.05,.55,.62],{fill:mix(P.paper,P.c6,.5),a:cA});lab([CTL[0],.75,CTL[2]],'controller',{dy:-8,b:1,c:P.c6,a:Math.max(.55,cA)});
+    // step 4 is a close view of w1 and w2: the head, cut by the frame, fades with its labels (no labels clamped at the left edge)
+    const hd=k===3?1-.85*e:k===4?.15+.85*e:1,hl=(hd-.15)/.85;G.slab(R,0,{tint:P.c4,a:hd});
+    const gA=(k===1?1:.3)*hd;R.box(G.GCS,[1.2,.55,.8],{fill:mix(P.paper,P.c4,.45),a:gA});lab([G.GCS[0],.75,G.GCS[2]],'GCS',{dy:-8,b:1,c:P.c4,a:Math.max(.5,gA)*hl});
+    R.box(G.DRV,[1.05,.5,.75],{fill:mix(P.paper,P.acc,.35),a:.35*hd});lab([G.DRV[0],.2,G.DRV[2]+.4],'driver: fit()',{dy:12,c:P.acc,a:.7*hl,wide:1});
+    const cA=(k===0||k===4||k===6?1:.45)*hd;R.box(CTL,[1.05,.55,.62],{fill:mix(P.paper,P.c6,.5),a:cA});lab([CTL[0],.75,CTL[2]],'controller',{dy:-8,b:1,c:P.c6,a:Math.max(.55,cA)*hl});
     [1,2].forEach(i=>{G.slab(R,i);G.raylet(R,G.RL(i),{a:.3});G.store(R,i,{a:.3});G.gpus(R,i,{a:1});
       lab([G.NX[i]-G.SW/2+.1,0,G.SD/2],(i===1?'w1':'w2')+' · 2 fake_gpu',{al:'left',dy:14,b:1,a:.85})});
-    lab([G.NX[0]-G.SW/2+.1,0,G.SD/2],'head',{al:'left',dy:14,b:1,c:P.c4,a:.85});
+    lab([G.NX[0]-G.SW/2+.1,0,G.SD/2],'head',{al:'left',dy:14,b:1,c:P.c4,a:.85*hl});
     // storage_path: the shared volume where rank 0 uploads checkpoints
     R.box(STO,[2,.3,.8],{fill:mix(P.paper,P.c1,.25),a:k>=4?1:.4,lw:.7});lab([STO[0],0,STO[2]+.4],'/shared/results',{dy:12,c:P.c1,a:k>=4?1:.5,wide:1});
     // 1. fit(): the controller asks for a placement group of four bundles
@@ -38,7 +39,7 @@
       lab(HL,'RANK, WORLD_SIZE 4, MASTER_ADDR (rank 0) · group running '+f1(T.up)+' s after fit()',{b:1,c:P.c2,a:e,wide:1})}
     // 4. the process group: gloo connects every rank to every other; DDP all-reduces gradients every step
     if(k===3||k===4){const ma=k===3?e:.45;for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=RK(i),b=RK(j);R.flowArc([a[0],.75,a[2]],[b[0],.75,b[2]],.35+.2*Math.abs(i-j),{c:P.c4,a:ma*.85,r:.045,n:4,speed:1.1})}
-      if(k===3)lab(HL,'init_process_group(env://), backend gloo, world_size 4 · DDP all-reduce every step',{b:1,c:P.c4,a:e,wide:1})}
+      if(k===3)lab([2,0,HL[2]],'init_process_group(env://), backend gloo, world_size 4 · DDP all-reduce every step',{b:1,c:P.c4,a:e,wide:1})}
     // 5. step 50: every rank reports, rank 0 uploads the checkpoint, the controller registers it
     const c50=k<4?0:k===4?e:1;
     if(c50>0){R.box(CK(0),[.7,.3,.5],{fill:mix(P.paper,P.good,.55),a:c50,shadow:false,lw:.7});lab([CK(0)[0]-.35,.62,CK(0)[2]],k>=6?'step 50: restored':'step 50: registered',{al:'right',dx:-4,dy:-8,b:1,c:P.good,a:c50})}

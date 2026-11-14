@@ -24,12 +24,12 @@
     if(blkA>0)lab([G.NX[0]-G.SW/2,G.SH+.2,.3],k===0&&R.W>=520?'job 78 · 12 GPUs':'job 78',{al:'right',dx:-8,b:1,a:blkA,c:P.c4,mono:true,fs:12});
     // the daemons at the back
     const dA=k<=2||k===5?1:k===4?.15:.5;
-    R.box(CTL,[2.9,.8,1.1],{fill:mix(P.paper,J,.18),a:dA});lab([CTL[0],.8,ZC],'slurmctld',{dy:-12,b:1,a:dA,mono:true});
-    R.box(DBD,[1.8,.6,1.1],{fill:mix(P.paper,P.c5,.3),a:k===5?1:dA*.8});lab([DBD[0],.6,ZC],'slurmdbd',{dy:-12,b:1,a:k===5?1:dA,mono:true});
+    R.box(CTL,[2.9,.8,1.1],{fill:mix(P.paper,J,.18),a:dA});lab([CTL[0],.8,ZC],'slurmctld',{dy:-12,b:1,a:k===4?0:k===3?dA*(1-e):dA,mono:true}); // faded out under step 4's allocation label and in step 5's close view
+    R.box(DBD,[1.8,.6,1.1],{fill:mix(P.paper,P.c5,.3),a:k===5?1:dA*.8});lab([DBD[0],.6,ZC],'slurmdbd',{dy:-12,b:1,a:k===5?1:k===4?0:dA,mono:true});
     // the queue in front
     const qA=k===0?.35:k<=3?1:.35;
     R.box([-1.2,0,ZQ],[3.6,.07,1.1],{fill:mix(P.paper,P.ink,.05),a:qA,shadow:false});
-    lab([-3.0,0,ZQ],'queue',{al:'right',dx:-8,mono:true,c:P.mute,a:qA,grp:'side'});
+    lab([-3.0,0,ZQ],'queue',{al:'right',dx:-8,mono:true,c:P.mute,a:k===4?0:qA,grp:'side'});
     // job 79: two halves, one per node, that move together
     const inQ=k===1?e:k===2?1:0;
     if(k>=1&&k<=2){QP.forEach(p=>R.box(p,[1.15,.42,.62],{fill:J,a:inQ}));R.glass([QP[0][0]-.68,.07,ZQ+.4],[QP[1][0]-QP[0][0]+1.36,0,0],[0,.5,0],{c:J,a:inQ*.8,nu:2,nv:1,th:.02});
@@ -45,7 +45,7 @@
       R.flowArc([CTL[0]+.8,.8,ZC],[LP[0][0],1.0,.3],1.0,{c:P.c5,a:pA*.9,r:.06,speed:1.3});
       lab([(LP[0][0]+LP[1][0])/2,1.05,.3],'plan: start '+clk(T.plan).slice(0,8)+' (78\'s limit)',{dy:-34,mono:true,fs:12,b:1,c:P.c5,a:pA})}
     // the allocation: both halves at once
-    if(k===3){lab([LP[0][0],LP[0][1]+.2,.3],clk(T.alloc)+' · c1 + c2 together',{dy:-30,b:1,mono:true,fs:12,c:J,a:Math.max(0,(e-.6)/.4)});
+    if(k===3){lab([LP[0][0],LP[0][1]+.2,.3],clk(T.alloc)+' · c1 + c2 together',{dy:-40,b:1,mono:true,fs:12,c:J,a:Math.max(0,(e-.6)/.4)});
       lab([G.NX[2],G.SH+.4,.3],'free',{dy:-12,b:1,c:P.good,a:Math.max(0,(e-.6)/.4)})}
     // the steps: 79.batch on c1, then srun's 79.0 on both nodes, two ranks each, exchanging gradients
     const sA=k===4?e:0;
@@ -56,7 +56,7 @@
       const rk=[[G.NX[0]-.45,ys+.12,0],[G.NX[0]+.45,ys+.12,0],[G.NX[1]-.45,ys+.12,0],[G.NX[1]+.45,ys+.12,0]];
       rk.forEach(p=>R.ball(p,.13,{c:P.c3,a:sA}));
       R.flowArc(rk[1],rk[2],.35,{c:P.c3,a:sA,r:.05,speed:1.4,n:6});R.flowArc(rk[2],rk[1],.55,{c:P.c3,a:sA*.8,r:.05,speed:1.4,n:6});
-      lab([G.NX[1]-.1,ys+.3,0],'4 ranks · loss '+B.gloss.toFixed(4)+' at step 200',{dy:-14,mono:true,fs:12,c:P.c3,a:sA,wide:1})}
+      lab([G.NX[1]-.1,ys+.3,0],'4 ranks · loss '+B.gloss.toFixed(4)+' at step 200',{dy:-30,mono:true,fs:12,c:P.c3,a:sA,wide:1})}
     // recorded: the usage goes to slurmdbd
     if(k===5){[0,1].forEach(n=>R.flowArc([LP[n][0],LP[n][1],.3],[DBD[0]-.4,.6,ZC],1.1,{c:P.c5,a:e,r:.06,speed:1.4}));
       lab([(QP[0][0]+QP[1][0])/2,0,ZQ+.55],'79 recorded: billing=5,cpu=4,gres/gpu=4,node=2',{dy:16,mono:true,fs:12,b:1,c:P.c5,a:e});

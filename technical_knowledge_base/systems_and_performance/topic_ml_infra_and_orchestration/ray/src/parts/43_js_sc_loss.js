@@ -10,15 +10,17 @@
   const HL=[0,0,2.4],W=2;
   function draw(R,k,e){const P=R.P,lab=(p,t,o)=>R.label(p,t,Object.assign({mono:true,fs:12},o||{}));R.grid(-6.2,6.2,-2.2,2.2,.5);
     // the cluster; from step 2 on, w2 is gone (tinted, faded): nobody knows it yet until step 4
+    // step 6 is a close view of w1 and w2: the head's labels, cut by the frame, fade out there
+    const hd=k===5?1-e:k===6?e:1;
     G.slab(R,0,{tint:P.c4});
     const gA=k===2||k===3?1:.3;
-    R.box(G.GCS,[1.2,.55,.8],{fill:mix(P.paper,P.c4,.45),a:gA});lab([G.GCS[0],.75,G.GCS[2]],'GCS',{dy:-8,b:1,c:P.c4,a:Math.max(.5,gA)});
+    R.box(G.GCS,[1.2,.55,.8],{fill:mix(P.paper,P.c4,.45),a:gA});lab([G.GCS[0],.75,G.GCS[2]],'GCS',{dy:-8,b:1,c:P.c4,a:Math.max(.5,gA)*hd});
     G.raylet(R,G.HRL,{a:.3});
-    R.box(G.DRV,[1.05,.5,.75],{fill:mix(P.paper,P.acc,.35)});lab([G.DRV[0],.2,G.DRV[2]+.4],'driver: owns A, B, D',{dy:12,b:1,c:P.acc,a:k===0||k===1||k===4?1:.7});
+    R.box(G.DRV,[1.05,.5,.75],{fill:mix(P.paper,P.acc,.35)});lab([G.DRV[0],.2,G.DRV[2]+.4],'driver: owns A, B, D',{dy:12,b:1,c:P.acc,a:(k===0||k===1||k===4?1:.7)*hd});
     G.wnode(R,1,{dim:k===4||k===6?1:.35});
     const dead=k>=1,gone=k>=3;
     G.wnode(R,W,{dim:dead?.25:.6,dead:dead});
-    lab([G.NX[0]-G.SW/2+.1,0,G.SD/2],'head',{al:'left',dy:14,b:1,c:P.c4,a:.8});
+    lab([G.NX[0]-G.SW/2+.1,0,G.SD/2],'head',{al:'left',dy:14,b:1,c:P.c4,a:.8*hd});
     lab([G.NX[1]-G.SW/2+.1,0,G.SD/2],'w1',{al:'left',dy:14,b:1,a:.8});
     lab([G.NX[W]-G.SW/2+.1,0,G.SD/2],gone?'w2 · DEAD at '+f1(DEAD)+' s':dead?'w2 · killed at 0 s':'w2',{al:'left',dy:14,b:1,c:dead?P.bad:P.ink,a:dead&&k===1?e:1});
     // D: 1 KB, inline, in the driver's memory
@@ -33,7 +35,7 @@
       G.obj(R,p,{c,a});lab([p[0]+.35,.4,p[2]],t,{al:'left',dx:6,b:k===5&&n!=='A',c:k>=5&&n!=='A'?P.bad:P.ink,a:n==='A'&&k>=4?.35:k===6?.6:1,grp:'w2'})});
     const acts=[[0,'max_restarts=1'],[1,'max_restarts=0']];
     acts.forEach(([j,t])=>{const p=G.WK(W,j);const fade=k===6&&j===0?.25:1;R.box(p,[.5,.7,.55],{fill:dead?(k===6&&j===1?mix(P.paper,P.bad,.55):mix(P.paper,P.mute,.35)):mix(P.paper,P.c2,.55),a:(dead?.6:1)*fade,lw:.7});
-      if(k===0||k===6)lab([p[0],.9,p[2]],k===6?(j===0?'':'dead: '+a0.type):'actor, '+t,{dy:-8-14*j,b:k===6,c:k===6?P.bad:P.c2,a:k===6&&j===0?0:1,grp:'act'})});
+      if(k===0||k===6)lab([p[0],.9,p[2]],k===6?(j===0?'':'dead: '+a0.type):t,{dy:-8-14*j,b:k===6,c:k===6?P.bad:P.c2,a:k===6&&j===0?0:1,grp:'act'})});
     if(k===0)lab(HL,'before the kill: A, B, C in w2\'s store, two actors on w2; D inline in the driver',{b:1,a:e,wide:1});
     if(k===1){R.flowArc([dp[0],.25,dp[2]],[G.DRV[0],.6,G.DRV[2]],.3,{c:P.good,a:e,r:.05,n:3,speed:1});
       lab(HL,'docker kill at 0 s · ray.get(D) returns at once: it was never on w2',{b:1,c:P.good,a:e,wide:1})}
@@ -50,7 +52,7 @@
         R.flowArc([G.WK(1,0)[0]+.2,.5,G.WK(1,0)[2]],[p[0],.45,p[2]],.5,{c:P.good,a:e,r:.075,n:6,speed:1.2});
         lab(HL,'A rebuilt from lineage: task re-run on w1 at '+f1(REC)+' s, ray.get(A) returned after '+f1(A.secs)+' s',{b:1,c:P.good,a:e,wide:1})}
       G.obj(R,p,{c:mix(P.paper,P.good,.55),a:ra});lab([p[0]+.35,.4,p[2]],'A: rebuilt',{al:'left',dx:6,b:1,c:P.good,a:k===5?0:ra})}
-    if(k===5)lab(HL,'B: owner alive, retries off · C: owner died with w2 ('+f1(C.done_t)+' s)',{b:1,c:P.bad,a:e,wide:1});
+    if(k===5)lab([3,0,HL[2]],'B: owner alive, retries off · C: owner died with w2 ('+f1(C.done_t)+' s)',{b:1,c:P.bad,a:e,wide:1});
     // the actors: the one with a restart comes back on w1 with fresh state; the other is dead
     if(k===6){const p=G.WK(1,1);R.box(p,[.5,.7,.55],{fill:mix(P.paper,P.c2,.55),a:e,lw:.7});
       R.flowArc([G.GCS[0]+.3,.6,G.GCS[2]],[p[0],.8,p[2]],1.5,{c:P.c4,a:e,r:.07,n:10,speed:1.5});
@@ -59,7 +61,7 @@
   }
   const full={cam:[.12,.95],bounds:[[-5.7,0,-1.5],[5.7,1.4,2.5]]};
   const st=S3.stage({id:'stg-loss',list:'sx-loss',fig:'Fig. 3 · one node lost, six fates',cam:full.cam,bounds:full.bounds,aspect:.44,dur:1400,hold:5200,draw,
-    view:k=>k===4?{cam:[.18,.85],bounds:[[-5.7,0,-1.5],[1.9,1.4,2.5]]}:k===5?{cam:[.1,.85],bounds:[[-1.9,0,-1.5],[5.9,1.4,2.5]]}:full,
+    view:k=>k===4?{cam:[.18,.85],bounds:[[-5.7,0,-1.5],[1.9,1.4,2.5]]}:k===5?{cam:[.1,.85],bounds:[[-0.4,0,-1.5],[8,1.4,2.5]]}:full,
     margin:w=>w<520?[14,10,14,10]:[18,16,18,16]});
   (window.RYSTG=window.RYSTG||{})['stg-loss']=st;
 })();

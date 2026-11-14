@@ -33,7 +33,7 @@
       if(k===0)lab([xs(a/2),TH,ZH],'allocated '+Math.round(a)+' s: the bill',{dy:-20,b:1,a:e});
       if(k===1){lab([xs(0),TH,ZH-D/2],'start-up '+s1.toFixed(1)+' s',{al:'left',dy:-26,c:P.mute,b:1,a:e});lab([xs((s1+s2)/2),TH,ZH],'kept '+H.saved_s.toFixed(1)+' s',{dy:-20,b:1,c:P.good,a:e});
         if(R.W<520)lab([xs(a),0,ZH+D/2],'after '+H.after_s.toFixed(1)+' s',{al:'right',dy:14,c:P.mute,b:1,a:e});else lab([xs(a),TH/2,ZH],'after the last step '+H.after_s.toFixed(1)+' s',{al:'left',dx:10,c:P.mute,b:1,a:e})}
-      if(k===3)lab([xs((s1+s2)/2),TH+liftK,ZH],'84% kept',{dy:-18,b:1,c:P.good,fs:14,a:e});
+      if(k===3){if(R.W<520)lab([xs((s1+s2)/2),0,ZH+D/2],'84% kept',{dy:16,b:1,c:P.good,fs:14,a:e});else lab([xs((s1+s2)/2),TH+liftK,ZH],'84% kept',{dy:-18,b:1,c:P.good,fs:14,a:e})}
       // checkpoint saves stream to storage while this run is the subject
       if(k===1)(H.ckpt_s||[]).forEach(([step,t])=>R.flowArc([xs(t),TH,ZH],[STO[0]+(t/a-.5)*1.6,.7,ZS+.3],1.3,{c:P.c1,a:e,r:.07,n:7,speed:1.6}))}
     // the hung run
@@ -42,7 +42,7 @@
       slab(R,ZU,0,s1,C.start,uA*dim);slab(R,ZU,s1,s2,C.kept,uA,liftK);slab(R,ZU,s2,s3,C.lost,uA*dim);slab(R,ZU,s3,a,C.hang,uA*dim);
       lab([xs(0),TH/2,ZU],'hung',{al:'right',dx:-10,b:1,a:Math.max(.35,uA),grp:'row'});
       if(k===2){lab([xs(s1),TH,ZU-D/2],'kept '+U.saved_s.toFixed(1)+' s',{al:'left',dy:-34,b:1,c:P.good,a:e});lab([xs(s2),TH,ZU-D/2],'lost '+U.wasted_s.toFixed(1)+' s',{al:'left',dy:-16,b:1,c:P.bad,a:e});
-        lab([xs((s3+a)/2),TH,ZU],'the hang: '+U.after_s.toFixed(1)+' s, billed',{dy:-20,b:1,c:P.c5,a:e});
+        if(R.W<520)lab([xs((s3+a)/2),0,ZU+D/2],'the hang: '+U.after_s.toFixed(1)+' s, billed',{dy:16,b:1,c:P.c5,a:e});else lab([xs((s3+a)/2),TH,ZU],'the hang: '+U.after_s.toFixed(1)+' s, billed',{dy:-20,b:1,c:P.c5,a:e}); // a phone puts it under the bar, clear of the lost seconds
         (U.ckpt_s||[]).forEach(([step,t])=>R.flowArc([xs(t),TH,ZU],[STO[0]-.3,.7,ZS+.3],1,{c:P.c1,a:e,r:.07,n:7,speed:1.6}))}
       if(k===3)lab([xs(s1),TH+liftK,ZU],'12% kept',{al:'left',dy:-18,b:1,c:P.good,fs:14,a:e})}
     // the planner's run: one paid GPU-hour, split by the planner's model

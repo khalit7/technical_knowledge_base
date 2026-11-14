@@ -19,7 +19,8 @@
     const world=k===3?2:4;
     // the global batch: a glass plate of 32 rows at the back
     R.glass([-3,0.15,ZB],[6,0,0],[0,1.1,0],{c:P.c1,a:.9,nu:GB,nv:1});
-    lab([3,.7,ZB],'global batch: '+GB+' sequences',{al:'left',dx:10,b:1,c:P.c1});
+    // on a phone the label sits above the plate, clear of the ranks' row counts
+    if(R.W<520)lab([0,1.25,ZB],'global batch: '+GB+' sequences',{dy:-10,b:1,c:P.c1});else lab([3,.7,ZB],'global batch: '+GB+' sequences',{al:'left',dx:10,b:1,c:P.c1});
     // nodes and ranks
     const node=(x,z,name,a,col)=>{if(a<=.01)return;R.box([x,0,z],[3.6,.2,2.2],{fill:mix(P.paper,P.ink,.06),a,dz:200});lab([x,.2,z+1.3],name,{dy:14,b:1,a:Math.max(.45,a),c:col||P.ink})};
     node(NA,0,'agent A',1);
@@ -35,7 +36,7 @@
     const per=live.length?GB/live.length:0,ra=k===3||k===4||k===5?Math.max(.3,k===5?cIn:e):1;
     live.forEach((p,i)=>{rows(R,p,per,mix(P.paper,P.c1,.55),ra);
       R.flowArc([lerp(-2.6,2.6,(i+.5)/live.length),.6,ZB+.1],[p[0],.55+per*.055,p[2]-.2],.9,{c:P.c1,a:ra*.9,r:.06,n:Math.round(per/2)+2,speed:1.6});
-      lab([p[0]+(i%2?.55:-.55),.55+per*.055,p[2]],per+' rows',{al:i%2?'left':'right',dx:i%2?6:-6,fs:12,b:1,c:P.c1,a:ra})});
+      if(!(R.W<520&&live.length===4&&(i===1||i===2)))lab([p[0]+(i%2?.55:-.55),.55+per*.055,p[2]],per+' rows',{al:i%2?'left':'right',dx:i%2?6:-6,fs:12,b:1,c:P.c1,a:ra})}); // on a phone the two inner counts would collide: each node keeps its outer one
     if(k===1||k===2)[0,1].forEach(j=>rows(R,rk(NA,j),8,mix(P.paper,P.c1,.55),.3));
     // the all-reduce: a ring over the live ranks
     if(live.length>1&&(k===0||k>=3)){const ring=live.map(p=>[p[0],.45,p[2]+.55]);ring.forEach((p,i)=>{const q=ring[(i+1)%ring.length];R.flowArc(p,q,.35,{c:P.c4,a:ra*.8,r:.05,n:5,speed:1.4})})}
@@ -50,7 +51,7 @@
     if(k===5)lab([0,2.5,ZB],'spare in: from step '+T.fromS+', '+T.spare.toFixed(1)+' s after the kill',{b:1,c:P.good,a:e,wide:1});
   }
   const st=S3.stage({id:'stg-el',list:'sx-el',fig:'Fig. 2 · lose a node, shrink, grow back (measured)',cam:[.14,.66],bounds:[[-5,0,-3.6],[6.5,2.6,4.3]],aspect:.66,dur:1500,hold:5200,draw,
-    view:k=>k===2?{cam:[.45,.6],bounds:[[-5,0,-1.6],[1,2,2]]}:null,
+    view:k=>k===2?{cam:[.45,.6],bounds:[[-5,0,-1.6],[1,2,2]]}:innerWidth<520?{cam:[.14,.8],bounds:[[-4.8,0,-3.6],[5.5,2.6,4.3]]}:null, // a phone needs no room for the side label
     margin:w=>w<520?[14,10,14,10]:[18,16,18,18]});
   (window.FTSTG=window.FTSTG||{})['stg-el']=st;
 })();

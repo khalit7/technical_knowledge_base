@@ -31,12 +31,12 @@
       R.box([x,0,ZJ],[1.1,1.7,1.1],{fill:P.paper,fa:.08,a:ja,shadow:false});
       if(v>0)R.box([x,0,ZJ],[1.1,v*HS,1.1],{fill:JC[id],a:ja});
       lab([x,1.7,ZJ-.55],R.W<520?id:id+' '+who,{dy:-10,c:JC[id],b:1,a:la});
-      if(fill[id]>0)lab([x,v*HS,ZJ+.55],Math.round(v)+' GPU-s',{dy:-8,b:1,a:k>=4?.45:ja})});
+      if(fill[id]>0)lab([x,v*HS,ZJ+.55],Math.round(v)+' GPU-s',{dy:-8,b:1,a:k>=4?(R.W<520?0:.45):ja})});
     // flows: allocated GPUs stream GPU-seconds into their job's meter while they are held
     const fl=(from,to,col,al,o)=>R.flowArc(from,to,1.1,Object.assign({c:col,a:al,r:.06,n:5,speed:1.5},o||{}));
     if(k===1)[0,1,2].forEach(n=>GO.forEach((_,g)=>{const j=H[n][g];if(j)fl([gp(n,g)[0],.7,ZN],[JX[j],.6,ZJ],JC[j],e)}));
     if(k===3)GO.forEach((_,g)=>fl([gp(0,g)[0],.7,ZN],[JX[133],.6,ZJ],JC[133],e));
-    if(k===2)lab([JX[133],.85,ZJ],'waits '+Math.round(wait)+' s: 0 GPU-s',{b:1,c:P.c6,a:e});
+    if(k===2)lab([JX[133],.85,ZJ],'waits '+Math.round(wait)+' s'+(R.W<520?'':': 0 GPU-s'),{b:1,c:P.c6,a:e}); // shorter on a phone, where it ran into 132
     // accounts: the jobs roll up, then a price
     if(k>=4){const ta=k===4?e:1;Object.keys(TX).forEach(t=>{const x=TX[t],v=team[t]*ta;
         if(v>0)R.box([x,0,ZT],[1.6,v*HS,1.3],{fill:t==='teama'?mix(P.c1,P.c6,.5):P.c4,a:ta});

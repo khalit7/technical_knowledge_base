@@ -43,7 +43,7 @@
     if(k===4)lab([0,YT+.4,0],'busy · '+(mode==='packed'?PL.packed_ms:PL.spread_busy_ms).toFixed(1)+' ms',{dy:-12,b:1,c:mode==='packed'?P.c3:P.bad,a:e});
   }
   const st=S3.stage({id:'stg-place',list:'sx-place-packed',fig:'Fig. 3 · one ring, two placements',cam:[.3,.5],bounds:[[-6.4,0,-1.1],[6.4,5.2,1.1]],aspect:.56,dur:1500,hold:4600,draw,
-    view:k=>zoomed(k)?{cam:[.35,.4],bounds:[[RX(0,0)-2.2,0,-1],[RX(0,0)+.9,2.7,1]]}:null,
+    view:k=>zoomed(k)?{cam:[.35,.4],bounds:[[RX(0,0)-1.8,0,-1],[RX(0,0)+1.1,2.7,1]]}:null,
     margin:w=>w<520?[18,10,14,10]:[26,96,20,20]});
   (window.CASTG=window.CASTG||{})['stg-place']=st;
   const seg=document.getElementById('ca-place-mode');
