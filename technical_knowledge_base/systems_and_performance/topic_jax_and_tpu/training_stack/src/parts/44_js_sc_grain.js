@@ -35,7 +35,7 @@
   const full={cam:[.08,.78],bounds:[[-4.6,0,-2.8],[4.0,.4,2.4]]};
   const V=[{cam:[.08,.7],bounds:[[-4.6,0,-2.9],[4.0,.4,-1.6]]},{cam:[.08,.74],bounds:[[-4.6,0,-2.8],[4.0,.4,.6]]},
     {cam:[.08,.74],bounds:[[-4.6,0,-1.0],[4.0,.4,2.1]]},{cam:[.08,.74],bounds:[[-4.6,0,-1.0],[4.0,.4,2.3]]},full];
-  const st=S3.stage({id:'stg-grain',list:'sx-grain',fig:'Fig. 4 · batch 0 and 1 of a grain pipeline',cam:full.cam,bounds:full.bounds,aspect:.45,dur:1500,hold:4800,draw,
+  const st=S3.stage({id:'stg-grain',list:'sx-grain',fig:'Fig. 4 · batch 0 and 1 of a grain pipeline',cam:full.cam,bounds:full.bounds,aspect:.37,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[18,14,14,170],view:k=>V[k],onStep:()=>{try{readout()}catch(err){}}});
   function readout(){const B=G.G1[key()],RF=ref();let moved=0;for(let b=0;b<2;b++)for(let j=0;j<32;j++)if(RF[b][j]!==B[b][j])moved++;
     const eq=cfg==='DL'?G.G1_equal.DL['0_2']:(w==='0'?null:G.G1_equal[cfg]['0_'+w]);

@@ -60,5 +60,5 @@
   const full={cam:[.18,.26],bounds:[[-4.1,0,-1.6],[4.0,1.95,.5]]};
   S3.stage({id:'stg-prop',list:'sx-prop',fig:"Fig. 3 · propagation through the MLP (Shardy, recorded dump)",cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:4800,draw,
     margin:w=>w<520?[34,10,34,10]:[40,24,52,24],
-    view:k=>k===1?{cam:[.25,.28],bounds:[[-4.0,0,-1.6],[-.2,1.95,.5]]}:k===2?{cam:[.1,.26],bounds:[[-2.3,0,-.6],[2.0,1.95,.5]]}:k===3?{cam:[-.15,.28],bounds:[[.1,0,-1.6],[4.0,1.95,.9]]}:k===4?{cam:[-.35,.3],bounds:[[1.6,0,-1.8],[4.3,1.95,1.1]]}:full});
+    view:k=>k===1?{cam:[.25,.28],bounds:[[-4.0,0,-1.6],[-.2,1.95,.5]]}:k===2?{cam:[.1,.26],bounds:[[-2.3,0,-.6],[2.0,1.95,.5]]}:k===3?{cam:[-.15,.28],bounds:[[.1,0,-1.6],[4.0,1.95,.9]]}:k===4?{cam:[-.35,.3],bounds:[[1.6,0,-1.8],[4.3,1.95,1.1]]}:innerWidth<520?{cam:[.35,.6],bounds:full.bounds}:full} /* on a phone the full view looks down more to fill the card */);
 })();

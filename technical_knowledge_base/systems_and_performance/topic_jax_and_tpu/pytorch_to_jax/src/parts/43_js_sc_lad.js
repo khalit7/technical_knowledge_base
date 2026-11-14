@@ -49,7 +49,7 @@
       lab(R,[.12,hc,-.2],'correct port '+s2(fc),{mono:true,fs:12,al:'left',dx:10,c:P.mute,a:Math.min(1,e*1.6)*.9,wide:1})}
   }
   const full={cam:[.2,.5],bounds:[[-3.9,0,-.7],[3.9,TOP+1.1,1.5]]};
-  const st=S3.stage({id:'stg-lad',list:'sx-lad',fig:'Fig. 3 · the ladder: one batch, five comparisons',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1400,hold:5000,draw,
+  const st=S3.stage({id:'stg-lad',list:'sx-lad',fig:'Fig. 3 · the ladder: one batch, five comparisons',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:5000,draw,
     margin:w=>w<520?[14,10,14,10]:[20,16,16,96],onStep:k=>L.draw(k)});
   // a new port replays the climb from the first rung (a mode toggle: the one exception to "stops for good")
   L.sel.addEventListener('change',()=>{st.list('sx-lad');L.draw(0)});

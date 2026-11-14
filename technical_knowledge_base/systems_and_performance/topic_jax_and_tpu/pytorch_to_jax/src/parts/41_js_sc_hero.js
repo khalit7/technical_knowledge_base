@@ -79,6 +79,7 @@
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one training step, two homes for its state',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[20,14,16,90],
     // steps 2 and 3 move in on PyTorch, 4 and 5 on JAX; the first and last steps show both
-    view:k=>k===1||k===2?left:k===3||k===4?right:full});
+    // on a phone the first and last steps turn the two homes into depth so they draw larger
+    view:k=>k===1||k===2?left:k===3||k===4?right:innerWidth<520?{cam:[.75,1.0],bounds:full.bounds}:full});
   (window.PJSTG=window.PJSTG||{})['stg-hero']=st;
 })();

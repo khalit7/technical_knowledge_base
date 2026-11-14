@@ -109,7 +109,9 @@
     // ---- step 0: the program moving down the stack ----
     if(k===0)R.flow([[CX+.9,.9,0],[JX-.85,1.2,0],[JX+.85,1.2,0],[XX-1.6,.5,0],[XX+1.5,.5,0],[MX-1.6,.4,0],[MX+1.6,.4,0],[TX-1.5,.3,0]],{c:P.acc,a:e*.9,r:.07,speed:1.6});
   }
-  const full={cam:[.36,.74],bounds:[[-9.9,0,-1.5],[10.3,2,1.6]]};
+  // the overview turns the long chain into depth (more so on a phone) so its five parts draw larger
+  const ph=()=>{const c=document.querySelector('#stg-hero canvas');return c&&c.clientWidth<520};
+  const full={cam:[.62,.92],bounds:[[-9.9,0,-1.5],[10.3,2,1.6]]};
   const V=[full,
     {cam:[.42,.6],bounds:[[-11.2,0,-1],[-6.2,1.5,1.2]]},
     {cam:[.42,.58],bounds:[[-9.4,0,-1],[-2.4,2.1,1.2]]},
@@ -119,5 +121,5 @@
     {cam:[.4,.66],bounds:[[6.6,0,-1.3],[10.6,1.4,1.4]]},
     {cam:[.22,.8],bounds:[[-9.9,0,-1.9],[10.3,1.2,3.6]]}];
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one JAX train step, from your Python to the matrix unit',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:5200,draw,
-    view:k=>V[k]||full,margin:w=>w<520?[22,8,16,8]:[26,20,20,20]});
+    view:k=>k===0&&ph()?{cam:[.8,1.0],bounds:full.bounds}:V[k]||full,margin:w=>w<520?[22,8,16,8]:[26,20,20,20]});
 })();

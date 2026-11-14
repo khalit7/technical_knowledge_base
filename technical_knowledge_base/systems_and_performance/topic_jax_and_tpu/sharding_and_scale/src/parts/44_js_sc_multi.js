@@ -45,6 +45,6 @@
   const full={cam:[.15,.5],bounds:[[-3.1,0,-1.0],[3.1,1.6,.9]]};
   const st=S3.stage({id:'stg-multi',list:'sx-multi2',fig:'Fig. 12 · one data-parallel step, recorded run',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:4800,draw,
     margin:w=>w<520?[22,10,30,10]:[26,24,34,24],
-    view:k=>k===0||k===1?{cam:[.1,.42],bounds:[[-3.1,0,-.4],[3.1,1.0,.9]]}:full});
+    view:k=>(v=>innerWidth<520?{cam:[v.cam[0],v.cam[1]+.4],bounds:v.bounds}:v)(k===0||k===1?{cam:[.1,.42],bounds:[[-3.1,0,-.4],[3.1,1.0,.9]]}:full)} /* on a phone a steeper camera fills the taller card */);
   const seg=$('mu-mode');if(seg)SSU.seg(seg,v=>{mode=+v;$('sx-multi2').hidden=mode!==2;$('sx-multi1').hidden=mode===2;st.list('sx-multi'+mode)});
 })();

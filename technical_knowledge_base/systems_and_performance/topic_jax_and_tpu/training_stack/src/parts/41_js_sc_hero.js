@@ -45,15 +45,15 @@
     const lA=focus(2);
     if(k>=2&&k<=3){R.flow(legs([[-4.7,.2,.9],[ST[0]-.2,.25,.7]]),{c:P.c5,r:.06,speed:1.2,a:k===2?1:.3});
       R.flow(legs([[ST[0]+.3,TOP,ST[1]],[GX,TOP+.85,.35]]),{c:P.c1,r:.06,speed:1.1,a:k===2?1:.3})}
-    R.ball([GX,TOP+.85,.35],.12,{c:P.c2,a:k>=2?lA:.0});lab(R,[GX,TOP+.85,.35],'loss',{mono:true,fs:12.5,al:'left',dx:12,c:P.c2,a:k>=2?Math.max(.5,lA):0});
+    R.ball([GX,TOP+.85,.35],.12,{c:P.c2,a:k>=2?lA:.0});lab(R,[GX,TOP+.85,.35],'loss',{mono:true,fs:12.5,al:'left',dx:12,c:P.c2,a:k>=2&&k<5?Math.max(.5,lA):0});
     const gr=k===2?Math.min(1,e*1.4):k===3?1:k===4?off(k,e,4):0;
     if(gr>0){for(let i=0;i<6;i++)plate(R,[GX,ly(i),.35],.85,.6,{c:P.c2,a:gr*(k===3?.8:1)});
       lab(R,[GX,ly(0)-.05,.35],'grads: Params only',{mono:true,fs:12,dy:16,b:1,c:P.c2,a:gr,grp:'in',wide:1});
       if(k===2)R.flow(legs([[GX,TOP+.7,.35],[GX,ly(0),.35]]),{c:P.c2,r:.065,speed:1})}
     // ---------- optax: a chain of transformations the gradient passes through, reading and returning its own state
-    const wA=k===3?1:k===2||k===4?.35:.22,WN=['clip','scale_by_adam','decay','×(−lr)'];
+    const wA=k===3?1:k===2||k===4?.35:k===5?.12:.22,WN=['clip','scale_by_adam','decay','×(−lr)'];
     WX.forEach((x,i)=>{wall(R,[x,.12,.35],1.0,1.25,{c:i===0?P.c2:P.c3,a:wA*(k===3?Math.min(1,e*1.5+.2):1)});
-      lab(R,[x,1.42,.35],WN[i],{mono:true,fs:12,dy:-10,c:i===0?P.c2:P.c3,a:Math.max(.35,wA),grp:'ox'})});
+      lab(R,[x,1.42,.35],WN[i],{mono:true,fs:12,dy:-10,c:i===0?P.c2:P.c3,a:k===5?0:Math.max(.35,wA),grp:'ox'})});
     if(k===3){R.flow(legs([[GX+.45,.75,.35],[WX[0]-.05,.75,.35],[WX[3]+.05,.75,.35],[UX-.4,.75,.35]]),{c:P.c2,r:.07,speed:1.1});
       R.flow(legs([[WX[1],.2,.95],[1.0,.2,1.35]]),{c:P.c3,r:.06,speed:.9});R.flow(legs([[1.4,.2,1.35],[WX[2],.2,.95]]),{c:P.c3,r:.06,speed:.9})}
     const oS=k===3?1:k===5?.85:k===4?.6:.25;
@@ -64,8 +64,8 @@
     // ---------- written back: the new state returns to the object; metrics stay on the device
     if(k===4){R.flowArc([UX,TOP,.2],[OBJ[0]+.4,TOP+.2,OBJ[1]+.3],1.0,{c:P.c1,r:.07,speed:1.3,a:Math.min(1,e*1.5)});
       lab(R,[(UX+OBJ[0])/2,TOP+1.25,-1.0],ph?'written back':'nnx.jit writes the new state back',{fs:13,b:1,a:e})}
-    const mA=k===4?1:.25;R.box([UX,0,1.38],[.6,.24,.42],{fill:tint(P,P.c5,.25),a:mA});lab(R,[UX,.24,1.38],'metrics',{mono:true,fs:12,al:'left',dx:22,c:P.mute,a:Math.max(.4,mA),wide:1});
-    // ---------- orbax: four items, written by a background thread while the next step runs
+    const mA=k===4?1:.25;R.box([UX,0,1.38],[.6,.24,.42],{fill:tint(P,P.c5,.25),a:mA});lab(R,[UX,.24,1.38],'metrics',{mono:true,fs:12,al:'left',dx:22,c:P.mute,a:k===5?0:Math.max(.4,mA),wide:1});
+    // ---------- orbax: four items, written by a background thread while the next step runs (in step 6 the step's own labels, loss, optax and metrics, are hidden so the save reads clearly)
     const cA=k===5?1:.22,IT=[['model/',P.c1],['opt/',P.c3],['data/',P.c5],['meta/',P.mute]];
     IT.forEach(([n,c],i)=>{const y=.05+i*.42,a=k===5?Math.max(.25,Math.min(1,e*2-i*.25)):cA;R.box([STX,y,.2],[1.0,.34,.8],{fill:tint(P,c,.35),a,shadow:i===0});
       lab(R,[STX+.5,y+.17,.2],n,{mono:true,fs:12.5,b:1,al:'left',dx:8,c,a:Math.max(.35,a)})});
