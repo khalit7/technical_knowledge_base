@@ -25,7 +25,7 @@
     for(let a=0;a<N;a++){const on=!used||used.includes(a);
       R.box([xa(a),0,ZS],[.56,.24,.5],{fill:mix(P.paper,P.c2,on?.5:.15),a:k===5?.5:on?1:.45});
       R.label([xa(a),.24,ZS+.25],String(a),{mono:true,fs:12,b:on&&!!used,c:P.ink,dy:-2,a:on?1:.5})}
-    R.label([xa(0)-.35,.1,ZS],'storage · 48 bytes',{al:'right',dx:-8,mono:true,fs:12,c:P.c2,b:k===0,wide:1});
+    R.label([xa(0)-.35,.1,ZS],'storage · 48 bytes',{al:'right',dx:-14,mono:true,fs:12,c:P.c2,b:k===0,wide:1});
     if(k===6)for(let a=0;a<4;a++)R.label([xa(a),.24,ZS],'×3',{mono:true,fs:12,b:1,c:P.acc,dy:-22,a:e});
     // headers
     const hx=k===1?e:k===2?1:k===3?off(k,Math.min(1,e*2.2),3):0;
@@ -55,11 +55,11 @@
       const [tr]=dims(t.shape),anchor=[-2*CW-.1,YT+(tr-.5)*RH,ZW];
       R.label(anchor,nm,{al:'right',dx:-10,dy:-10,mono:true,fs:13,b:1,c,a:k===3?Math.max(.4,tin):1});
       R.label(anchor,'shape '+sh+' · strides '+st+' · offset '+t.offset,{al:'right',dx:-10,dy:8,mono:true,fs:12,c:P.ink,wide:1,a:k===3?Math.max(.4,tin):1})}
-    if(k===0)R.label([0,.24,ZS],'torch.arange(12.): 12 floats, value = index',{mono:true,fs:12.5,b:1,c:P.c2,dy:-30,a:e})
+    if(k===0)R.label([xa(2.5),.24,ZS-.25],narrow?'12 floats, value = index':'torch.arange(12.): 12 floats, value = index',{mono:true,fs:12.5,b:1,c:P.c2,al:'left',dx:12,dy:-24,a:e}) // above the far side of the row, which the step's camera turns into depth
   }
   const full={cam:[.12,.3],bounds:[[-4.1,0,-1.1],[4.1,2.95,1.5]]};
   S3.stage({id:'stg-ten',list:'sx-ten',fig:'Fig. 2 · one storage, many headers',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4400,draw,
     margin:w=>w<520?[14,10,14,10]:[16,20,14,230],
     // step 1 comes in close on the storage alone; the reading-order step comes down to the storage row; the copy step pulls back to show the new storage in front
-    view:k=>k===0?{cam:[.12,.45],bounds:[[-4.1,0,.4],[4.1,.9,1.9]]}:k===4?{cam:[.1,.36],bounds:[[-4.3,0,-1],[4.6,2.95,1.6]]}:k===5?{cam:[.12,.42],bounds:[[-4.3,0,-1.1],[4.3,2.95,2.8]]}:full});
+    view:k=>k===0?{cam:[.62,.5],bounds:[[-4.1,0,.8],[4,.9,1.6]]}:k===4?{cam:[.1,.36],bounds:[[-4.3,0,-1],[4.6,2.95,1.6]]}:k===5?{cam:[.12,.42],bounds:[[-4.3,0,-1.1],[4.3,2.95,2.8]]}:full});
 })();

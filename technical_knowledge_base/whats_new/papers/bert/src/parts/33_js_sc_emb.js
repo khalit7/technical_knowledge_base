@@ -19,7 +19,8 @@
     const focus=i=>k<5?1:(i===1||i===6)?1:lerp(1,.16,e);
     // the tokens on the floor in front: [CLS] austin smiled [SEP] | i met austin [SEP]
     T.words.forEach((w,i)=>{const s=T.seg[i];R.box([X(i),0,ZT],[.9,.26,.5],{fill:mix(P.paper,s?P.c3:P.c1,.22),a:focus(i)});
-      R.label([X(i),0,ZT+.3],w,{mono:w[0]==='[',serif:w[0]!=='[',fs:12.5,dy:nar&&i%2?27:13,b:w==='austin',a:Math.max(.35,focus(i))})});
+      const lo={mono:w[0]==='[',serif:w[0]!=='[',fs:12.5,b:w==='austin',a:Math.max(.35,focus(i))};   // on a phone (row in depth) each word sits to the left of its token
+      if(innerWidth<560)R.label([X(i)-.45,.13,ZT],w,Object.assign(lo,{al:'right',dx:-6}));else R.label([X(i),0,ZT+.3],w,Object.assign(lo,{dy:nar&&i%2?27:13}))});
     // the three tables as glass plates on the left, one per shelf, and the sum
     const TAB=[['token table · '+T.V0+' × 24',0],['segment · 2 × 24',1],['position · '+T.maxpos+' × 24',2]];
     TAB.forEach(([t,r])=>{const lit=k===r+1,a=k<=r?.16:lit?1:k>=5?.25:.5,y=YR[r];
@@ -40,5 +41,6 @@
     if(k>=5)[1,6].forEach(i=>R.label([X(i),YR[3]+HM,ZS],'austin at '+i,{mono:true,fs:12.5,dy:-8,b:1,c:P.c2,a:e}));
   }
   S3.stage({id:'stg-emb',list:'sx-emb',fig:'Fig. 3 · token + segment + position, real toy vectors',cam:[.26,.36],bounds:[[-7.1,0,-.3],[5.8,5.15,1.4]],aspect:.56,dur:1300,hold:4600,draw,
-    margin:w=>w<520?[14,8,14,8]:[16,14,14,150]});
+    margin:w=>w<520?[14,8,14,8]:[16,14,14,150],
+    view:()=>innerWidth<560?{cam:[.9,.32],bounds:[[-7.1,0,-.3],[5.8,5.15,1.4]]}:null}); // on a phone the long row of shelves turns into depth, so the bars come out larger
 })();

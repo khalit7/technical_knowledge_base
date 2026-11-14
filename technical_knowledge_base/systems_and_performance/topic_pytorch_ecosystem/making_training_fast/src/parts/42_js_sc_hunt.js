@@ -24,7 +24,7 @@
       const a=isC||isB?1:o.v==='slower'?.3:.45;
       R.box([x,0,z],[.74,Math.max(.012,h),.74],{fill:mix(P.paper,col(o),o.v==='slower'?.45:.78),a});
       if(o.r.median_ms>L.cap&&(!isC||e>.9)){R.box([x,h,z],[.82,.05,.82],{fill:P.bad,a,shadow:false});R.label([x,h,z],fmt(o.r.median_ms)+' (cut)',{mono:true,fs:12,b:1,c:P.bad,dy:-14,a})}
-      else if(!ph||isC||isB)R.label([x,h,z],fmt(o.r.median_ms),{mono:true,fs:12.5,b:isC,c:isC?P.ink:P.mute,dy:-12,a:isC?Math.min(1,e*1.4):a});
+      else if(!ph||isC||isB)R.label([x,h,z],isC?fmt(o.r.median_ms):fmt(o.r.median_ms).replace(' ms',''),{mono:true,fs:12.5,b:isC,c:isC?P.ink:P.mute,dy:isC?-26:-12,a:isC?Math.min(1,e*1.4):a}); // the older blocks drop the unit and the new one sits a line higher, so neighbours do not overlap
       if(!ph||isC)R.label([x,0,z+.4],SHORT[o.r.stage],{fs:12,dy:12,c:isC?P.ink:P.mute,b:isC,a:isC?1:Math.max(.55,a),wide:isC?0:1})});
     // the fix streams from the block it was built on to the new one
     if(bi>=0){const b=O[bi],a0=[L.X(bi),L.Hh(b.r.median_ms)+.03,zOf(b)],a1=[L.X(k),Math.max(.05,L.Hh(cur.r.median_ms)*e)+.03,zOf(cur)];

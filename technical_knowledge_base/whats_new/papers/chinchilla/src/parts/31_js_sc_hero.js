@@ -40,7 +40,7 @@
     // floor axes: parameters along the front edge, tokens along the right edge
     const zf=Z(DL[1])+.3,xr=X(NL[1])+.3;
     R.line([[X(NL[0]),0,Z(DL[1])],[X(NL[1]),0,Z(DL[1])]],{c:P.mute,w:1,a:.6});R.line([[X(NL[1]),0,Z(DL[0])],[X(NL[1]),0,Z(DL[1])]],{c:P.mute,w:1,a:.6});
-    if(k!==3&&k!==4){[[10,'10B'],[11,'100B'],[12,'1T']].forEach(([v,t])=>R.label([X(v),0,zf],t,{mono:true,fs:12,c:P.mute}));
+    if(k!==3&&k!==4&&!(k===0&&innerWidth<560)){[[10,'10B'],[11,'100B'],[12,'1T']].forEach(([v,t])=>R.label([X(v),0,zf],t,{mono:true,fs:12,c:P.mute}));
       [[11,'100B'],[12,'1T'],[13,'10T']].forEach(([v,t])=>R.label([xr,0,Z(v)],t,{mono:true,fs:12,c:P.mute,al:'left',dx:2}));
       R.label([X(11),0,zf+.45],'parameters N',{mono:true,fs:12,c:P.ink,dy:6});
       R.label([xr+.55,0,Z(12.5)],'tokens D',{mono:true,fs:12,c:P.ink,al:'left',dx:4})}
@@ -60,7 +60,7 @@
       R.ball(p,.075,{c,a:ma,top:k>=1});
       const nm=m.nm.split(' ')[0];if(nm==='Jurassic-1'||/^Jurassic/.test(nm))return;
       const t=nm==='GPT-3'?'GPT-3, Jurassic-1':nm;
-      if(k<=1)R.label(p,t,{fs:12,c,b:isC(m)||isG(m),al:isC(m)||/LaMDA/.test(nm)?'right':'left',dx:isC(m)||/LaMDA/.test(nm)?-9:9,dy:/MT-NLG/.test(nm)?10:/GPT/.test(nm)?-10:0,grp:isC(m)||isG(m)?null:'m'})});
+      if(k<=1)R.label(p,t,{fs:12,c,b:isC(m)||isG(m),al:isC(m)||/LaMDA/.test(nm)?'right':'left',dx:isC(m)||/LaMDA/.test(nm)?-9:9,dy:/MT-NLG/.test(nm)?10:/GPT/.test(nm)?-10:0,grp:isC(m)||isG(m)||(k===0&&innerWidth<560)?null:'m'})});  // on a phone the first step moves in close, so every model keeps its name
     // Gopher's budget as a cut: floor line, a curtain up to the surface, the profile along its top
     const cg=cut(CGOP,48);
     if(k>=2){const a=k===2?e:1,ca=k===5?.35:1,top=ride(cg,1);
@@ -101,5 +101,5 @@
     set('hr-a',(f.beta/(f.alpha+f.beta)).toFixed(3));set('hr-t',valley(1e26).tpp.toFixed(0)+' to '+valley(1e22).tpp.toFixed(0))};
   nums();
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · loss over parameters and tokens',cam:full.cam,bounds:full.bounds,aspect:.78,dur:1500,hold:5200,draw,
-    view:k=>k===2?cutV:k===3||k===4?near:full,margin:w=>w<520?[14,10,14,10]:[18,16,14,60]});
+    view:k=>k===0&&innerWidth<560?{cam:full.cam,bounds:[[X(10.4),0,Z(11)],[X(12),.5,Z(12.6)]]}:k===2?cutV:k===3||k===4?near:full,margin:w=>w<520?[14,10,14,10]:[18,16,14,60]});
 })();

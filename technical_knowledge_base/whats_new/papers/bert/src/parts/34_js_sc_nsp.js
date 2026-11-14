@@ -34,6 +34,6 @@
   }
   const full={cam:[.22,.45],bounds:[[-4.7,0,.2],[4.7,2.9,1.6]]},close={cam:[.45,.36],bounds:[[X(0)-1.8,0,.2],[X(0)+2.6,3.2,1.6]]};
   S3.stage({id:'stg-nsp',list:'sx-nsp',fig:'Fig. 4 · next sentence prediction through [CLS]',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1300,hold:4800,draw,
-    view:k=>k===2||k===4?close:full,margin:w=>w<520?[14,10,14,10]:[16,14,14,150],
+    view:k=>k===2||k===4?close:full,margin:w=>w<520?[14,10,14,10]:[16,14,34,150], // room under the token labels for the drag hint
     onStep:()=>{try{const d=data();$('nsP1').textContent=Math.round(d[0].p*100)+'%';$('nsP2').textContent=(d[1].p*100).toFixed(1)+'%'}catch(e){}}});
 })();

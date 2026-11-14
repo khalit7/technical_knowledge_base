@@ -52,8 +52,8 @@
         if(narrow)R.label([KX.Meta,KY+KB[1],0],'fake: shape only',{mono:true,fs:12,b:1,c:P.acc,dy:-14,a})}
     }
   }
-  const full={cam:[.42,.42],bounds:[[-2.3,0,-1.1],[2.3,4.9,1.1]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one call down the keys',cam:full.cam,bounds:full.bounds,aspect:.74,dur:1300,hold:4600,draw,
+  const full={cam:[.42,.42],bounds:[[-1.95,0,-.9],[1.95,4.9,.9]]};
+  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one call down the keys',cam:full.cam,bounds:full.bounds,aspect:.68,dur:1300,hold:4600,draw,
     margin:w=>w<520?[14,10,14,10]:[16,170,14,150],
     // the last two steps move in close on the kernels at the bottom
     view:k=>k>=5?{cam:[.5,.55],bounds:[[-2.0,0,-1],[2.2,1.2,2.0]]}:full});

@@ -20,7 +20,8 @@
   function draw(R,k,e){const P=R.P,M=data()[mode],out=outPos(),nar=R.W<620;R.grid(-5,5,-3,3,.5);
     // the input words; under the masked LM the target is replaced by [MASK]
     W0.forEach((w,i)=>{const m=mode==='mlm'&&i===T,h=hot(0,i);R.box([X(i),0,RW[0][1]],[.7,.3,.56],{fill:m?mix(P.paper,P.c2,.25):h?mix(P.paper,P.c2,.6):P.paper});
-      R.label([X(i),0,RW[0][1]+.35],m?'[MASK]':w,{serif:!m,mono:m,fs:12.5,dy:nar&&i%2?27:13,b:i===T,c:i===T?P.c2:P.ink})});
+      if(!(k===3&&i>outPos()+2))R.label([X(i),0,RW[0][1]+.35],m?'[MASK]':w,{ // the close-up's words out of view keep no label (it would be clamped to the corner)
+        serif:!m,mono:m,fs:12.5,dy:nar&&i%2?27:13,b:i===T,c:i===T?P.c2:P.ink})});
     // the states of layer 1 and layer 2; a state holding information from "dog" itself is orange
     for(let lay=1;lay<=2;lay++)for(let i=0;i<n;i++){const p=node(lay,i),shown=k>=lay&&(lay===1||i===out),a=shown?(k===lay?Math.max(.2,e):1):.16,h=hot(lay,i)&&shown;
       R.box([p[0],p[1]-.11,p[2]],[.5,.22,.42],{fill:h?mix(P.paper,P.c2,.65):lay===2&&shown?mix(P.paper,P.c1,.35):P.paper,a,shadow:false})}
@@ -44,8 +45,8 @@
   }
   const full={cam:[.3,.62],bounds:[[-4.6,0,-2.4],[4.6,2.4,2.5]]};
   const st=S3.stage({id:'stg-mlm',list:'sx-mlm',fig:'Fig. 2 · can the answer reach its own prediction?',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1300,hold:4800,draw,
-    view:k=>k===3?{cam:[.42,.5],bounds:[[X(outPos())-2.4,0,-2.6],[X(outPos())+2.4,2.8,1.2]]}:full,
-    margin:w=>w<520?[14,10,14,10]:[16,14,14,120]});
+    view:k=>k===3?{cam:[.42,.5],bounds:[[X(outPos())-2.4,0,-2.6],[X(outPos())+2.4,2.8,2.6]]}:full, // the close-up keeps the input words and their labels
+    margin:w=>w<520?[14,10,14,10]:[16,14,34,120]}); // room under the input words' labels for the drag hint
   // live numbers in the step lists
   try{const d=data(),pc=v=>(v*100).toFixed(1)+'%',pd=t=>{const x=t.find(y=>y[0]==='dog');return x?x[1]:0};
     $('mlP').textContent=pc(pd(d.mlm.top));$('ltP').textContent=pc(pd(d.ltr.top));$('ltTop').textContent=d.ltr.top.map(([w,p])=>w+' '+pc(p)).join(', ')}catch(e){}

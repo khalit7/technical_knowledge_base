@@ -14,7 +14,7 @@
     R.grid(-5.5,5.5,-4.4,3.6,.5);
     const ddp=k===1||k===2,sharded=!ddp,cl=k===5?e:0;
     // the file system, and the files each layout leaves on it
-    R.box(ST,[5.4,.7,1.5],{fill:mix(P.paper,W,.3)});lab([ST[0]+2.7,.4,ST[2]],'file system',{al:'left',dx:10,b:1,c:W});
+    R.box(ST,[5.4,.7,1.5],{fill:mix(P.paper,W,.3)});lab([ST[0]-2.7,.4,ST[2]],'file system',{al:'right',dx:-10,b:1,c:W}); // its left end: on a phone the right edge is taken by the files' label
     const files=k===1?['rank0.pt']:k===2?['rank0.pt','rank1.pt','rank2.pt','rank3.pt']:k===3?['full.pt']:k>=4?['__0_0','__1_0','__2_0','__3_0']:[];
     const fa=k===3?Math.max(0,e*2-1):e;
     files.forEach((f,i)=>{const n=files.length,x=ST[0]+(i-(n-1)/2)*1.25;R.box([x,.7,ST[2]],[1.05,.16*(k===2||k===1||k===3?1:.5)+.06,.9],{fill:mix(P.paper,W,.75),a:fa,shadow:false,lw:.6});

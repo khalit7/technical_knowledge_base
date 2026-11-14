@@ -45,7 +45,7 @@
     if(k===6){R.box([TX,0,0],[.9,.22,.5],{fill:mix(P.paper,P.c2,.3)});R.label([TX,.11,0],'" Jane"',{mono:true,fs:13,b:1,c:P.ink,dx:0,dy:0});
       const bar=(list,x0,c,a,lab,ph)=>{list.forEach(([t,p],i)=>{const x=x0+i*.5,h=p*7*e;R.box([x,2.05,0],[.34,Math.max(.01,h),.3],{fill:c,a,shadow:false});
           R.label([x,2.05+h,0],'"'+t.replace(/\n/g,'↵')+'"',{mono:true,fs:12,dy:-22,c:P.ink,a:a*e,wide:1});R.label([x,2.05+h,0],(100*p).toFixed(1)+'%',{mono:true,fs:12,dy:-8,c,b:1,a:a*e,wide:ph})});
-        R.label([x0+.5,2.05,0],lab,{mono:true,fs:12.5,dy:-2,c,b:1,a:a*e,wide:ph})};
+        R.label([x0+.5,2.05,0],lab,{mono:true,fs:12.5,dy:14,c,b:1,a:a*e,wide:ph})}; // under the bars' feet, clear of the bars
       bar(topSA,TX-1.6,P.c2,1,'Stage A prior',0);bar(topU,TX+.6,P.c5,.85,'anchor u alone',1)}
   }
   const views=[

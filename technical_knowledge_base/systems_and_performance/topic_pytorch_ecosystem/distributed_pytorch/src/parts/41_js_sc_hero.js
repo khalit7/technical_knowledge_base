@@ -37,11 +37,13 @@
     const T=[['One process: the whole model','3,186,944 parameters · 12,747,776 B'],['DDP · 4 ranks, whole model each','2 all-reduces per step ('+arB.join(' and ')+' B)'],
       ['FSDP2 · 4 ranks, a quarter each',(nAG+nRS)+' collectives: '+nAG+' all-gathers, '+nRS+' reductions · '+U.comma(fs.state.params)+' B per rank'],
       ['Tensor parallel · 2 ranks, half of each matrix','16 all-reduces of 524,288 B per step'],['Pipeline · 2 stages, half the blocks each','send/recv once per micro-batch · idle 10 to 21%']][k];
-    R.label([0,TOP+.3,0],R.W<520?T[0].split(/ ·|,/)[0]:T[0],{fs:14.5,b:1,c:k?col:P.ink,a:al,dy:-16});R.label([0,TOP+.3,0],R.W<520?T[1].split(' · ')[0].split(' (')[0]:T[1],{fs:12.5,mono:true,c:P.ink,a:al,dy:4})}
+    const TY=k===0?TOP+.3:TOP+.7,d0=k===0?-16:-34; // above the stacks' backs
+    R.label([0,TY,0],R.W<520?T[0].split(/ ·|,/)[0]:T[0],{fs:14.5,b:1,c:k?col:P.ink,a:al,dy:d0});R.label([0,TY,0],R.W<520?T[1].split(' · ')[0].split(' (')[0]:T[1],{fs:12.5,mono:true,c:P.ink,a:al,dy:d0+20})}
   function draw(R,k,e,st){R.grid(-3.6,3.6,-1.3,1.3,.5);
     if(st&&st.pk!==k&&e<1&&!S3.RM){if(e<.4)scene(R,st.pk,1-e/.4,e);else scene(R,k,(e-.4)/.6,e)}else scene(R,k,1,e)}
-  const full={cam:[.06,.5],bounds:[[-3.55,0,-.8],[3.55,1.75,.8]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · what each rank holds',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
+  const full={cam:[.06,.5],bounds:[[-3.55,0,-.8],[3.55,2.2,.8]]};
+  // bounds three times the full view's set the camera's distance (every step's view names its own bounds), so the outer ranks show less of their sides
+  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · what each rank holds',cam:full.cam,bounds:full.bounds.map(p=>p.map(v=>v*3)),aspect:.5,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[16,16,18,16],
-    view:k=>k===0?{cam:[.3,.4],bounds:[[-1.9,0,-.6],[1.4,1.75,.6]]}:k>=3?{cam:[.06,.5],bounds:[[-2.4,0,-.75],[2.4,1.75,.75]]}:full});
+    view:k=>k===0?{cam:[.3,.4],bounds:[[-1.9,0,-.6],[1.4,1.75,.6]]}:k>=3?{cam:[.06,.5],bounds:[[-2.4,0,-.75],[2.4,2.2,.75]]}:full});
 })();

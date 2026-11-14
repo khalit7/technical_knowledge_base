@@ -14,7 +14,7 @@
     const el=$('es-stack'),W=RD.width(el),rh=40;let sb='';
     STACK.forEach((s,j)=>{const y=j*(rh+6)+2,on=s[0]===lvl,hook=s[0]==='tf'||s[0]==='td';
       sb+='<rect x="1" y="'+y+'" width="'+(W-2)+'" height="'+rh+'" rx="6" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'" stroke-width="'+(on?2:1)+'" opacity="'+(hook&&!on?0.55:1)+'"/>'+
-        RD.t(9,y+16,esc(s[1]),{fs:12,fill:'var(--ink)',w:600})+RD.t(9,y+32,esc(s[2]),{fs:11,fill:'var(--mute)'});
+        RD.t(9,y+16,esc(s[1]),{fs:12,fill:'var(--ink)',w:600})+RD.t(9,y+32,esc(s[2]),{fs:12,fill:'var(--mute)'});
       if(j<STACK.length-1)sb+='<path d="M'+(W/2)+' '+(y+rh)+' v6" stroke="var(--mute)"/>'});
     el.innerHTML=RD.svg(W,STACK.length*(rh+6),sb,'where the call was caught');
     $('es-now').innerHTML='<span class="es-ph '+ph[1]+'">'+ph[0]+'</span><span class="small mute">call '+(i+1)+' of '+L.ev.length+'</span><div class="es-op">'+esc(e[2])+'</div><div class="small mute">subclass argument position'+(e[3].length>1?'s':'')+': '+(e[3].length?e[3].join(', '):'none (a method on the subclass)')+'</div>';

@@ -33,8 +33,9 @@
       ['Root unit gathered, and kept','all-gather · '+U.comma(agRoot)+' B in per rank'],['Block 0 gathered for its forward, then freed','all-gather · '+U.comma(agBlk)+' B in per rank'],
       ['Blocks 1 to 3, one at a time','each all-gather '+U.comma(agBlk)+' B in · at most one block whole'],['Backward: gather block 3 again, reduce-scatter its gradient',U.comma(rsBlk)+' B per block (gloo: an all-reduce)'],
       ['Every rank ends with its gradient quarter','root\'s reduction '+U.comma(rsRoot)+' B last · '+nAG+' + '+nRS+' = '+(nAG+nRS)+' collectives']][k];
-    R.label([0,TOP+.32,0],R.W<520?T[0].split(/[:,]/)[0]:T[0],{fs:14.5,b:1,c:k>=4?P.c2:P.ink,dy:-16});R.label([0,TOP+.32,0],R.W<520?T[1].split(' (')[0].split(' · ')[0]:T[1],{fs:12.5,mono:true,c:P.ink,dy:4});
-    R.label([0,TOP+.32,0],'all-gathers so far '+CNT[k][0]+' · reductions '+CNT[k][1],{fs:12,mono:true,c:P.mute,dy:22,wide:1})}
-  S3.stage({id:'stg-fsdp',list:'sx-fsdp',fig:'Fig. 3 · one FSDP2 step on 4 ranks',cam:[.06,.5],bounds:[[-3.4,0,-.75],[3.4,1.85,.75]],aspect:.5,dur:1400,hold:5200,draw,
+    R.label([0,TOP+.75,0],R.W<520?T[0].split(/[:,]/)[0]:T[0],{fs:14.5,b:1,c:k>=4?P.c2:P.ink,dy:-40});R.label([0,TOP+.75,0],R.W<520?T[1].split(' (')[0].split(' · ')[0]:T[1],{fs:12.5,mono:true,c:P.ink,dy:-20});
+    R.label([0,TOP+.75,0],'all-gathers so far '+CNT[k][0]+' · reductions '+CNT[k][1],{fs:12,mono:true,c:P.mute,dy:-2,wide:1})}
+  // bounds three times the view's: they set the camera's distance, so the outer ranks show less of their sides
+  S3.stage({id:'stg-fsdp',list:'sx-fsdp',fig:'Fig. 3 · one FSDP2 step on 4 ranks',cam:[.06,.5],bounds:[[-10.2,0,-2.25],[10.2,5.55,2.25]],view:()=>({bounds:[[-3.4,0,-.75],[3.4,2.35,.75]]}),aspect:.5,dur:1400,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[16,16,18,16]});
 })();

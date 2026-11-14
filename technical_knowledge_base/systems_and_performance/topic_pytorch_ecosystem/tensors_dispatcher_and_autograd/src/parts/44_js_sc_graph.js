@@ -61,5 +61,6 @@
   S3.stage({id:'stg-graph',list:'sx-graph',fig:'Fig. 4 · the autograd graph of one block',cam:full.cam,bounds:full.bounds,aspect:.62,dur:3200,hold:4200,draw,
     margin:w=>w<520?[14,8,14,8]:[16,16,14,16],
     // step 3 moves in close on attention's node and what it saved
-    view:k=>k===2?{cam:[-.2,.55],bounds:[[-1.6,0,-2.5],[1.6,1.6,-.3]]}:full});
+    // on a phone the two long rows turn into depth (the camera looks along them), so the nodes come out larger
+    view:k=>k===2?{cam:[-.2,.55],bounds:[[-1.6,0,-2.5],[1.6,1.6,-.3]]}:innerWidth<560?{cam:[1.25,.85],bounds:full.bounds}:full});
 })();

@@ -29,9 +29,9 @@
     // 3. duplicated work is visible as two branches from one parent
     if(k===2){const f=pos(by.f);['g','h'].forEach(id=>{const q=pos(by[id]);R.flowArc([f[0],.3,f[2]],[q[0],.3,q[2]],.3,{c:acol(P,by[id].acct),a:e,r:.06,n:6,speed:1.2})});
       R.label([pos(by.g)[0],.3,pos(by.g)[2]],'g · second donor (w4)',{mono:true,fs:12,dy:-12,a:e,grp:'b'});R.label([pos(by.h)[0],.3,pos(by.h)[2]],'h · second donor, rerun (w5)',{mono:true,fs:12,dy:14,a:e,grp:'b'})}
-    // 4. two ways in: code-bearing work arrives as a Git bundle (orange), metadata-only work as JSON (teal)
+    // 4. two ways in: code-bearing work arrives as a Git bundle (orange), metadata-only work as JSON (teal); the legend stands in front of the w5 lane
     if(k===3){N.forEach(v=>{if(v.tag==='setup')return;const p=pos(v);R.flow([[p[0],1.3,p[2]],[p[0],isRes(v)?.6:.1,p[2]]],{c:isRes(v)?P.c2:P.c6,a:.85*e,r:isRes(v)?.075:.055,n:3,speed:.8})});
-      R.label([-4.3,.6,2.6],'blocks: code, a Git bundle the server validates',{mono:true,fs:12,al:'left',c:P.c2,b:1,a:e,grp:'p'});R.label([-4.3,.2,2.6],'tiles: metadata, JSON the server commits',{mono:true,fs:12,al:'left',c:P.c6,b:1,a:e,grp:'p'})}
+      R.label([-4.3,.6,3.8],'blocks: code, a Git bundle the server validates',{mono:true,fs:12,al:'left',c:P.c2,b:1,a:e,grp:'p'});R.label([-4.3,.2,3.8],'tiles: metadata, JSON the server commits',{mono:true,fs:12,al:'left',c:P.c6,b:1,a:e,grp:'p'})}
     // 5. the index the views read is a separate layer: rebuilt from Git, but records can be missing or edited
     if(k===4){R.glass([-4.6,YI,-2.4],[9.2,0,0],[0,0,4.8],{c:P.c1,a:.55*e,nu:12,nv:6});R.label([4.6,YI,-2.3],'SQLite index',{mono:true,fs:12.5,b:1,al:'left',dx:6,c:P.c1,a:e});
       N.forEach(v=>{const p=pos(v),top=[p[0],YI+.03,p[2]];if(MISS.includes(v.id)){R.label(top,'×',{fs:15,b:1,c:P.bad,a:e});return}
@@ -53,5 +53,5 @@
   const full={cam:[.18,.8],bounds:[[-4.4,0,-2.3],[4.4,1,2.6]]};
   S3.stage({id:'stg-git',list:'sx-git',fig:'Fig. 2 · the commit graph and its index · graph illustrative',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1400,hold:4800,draw,
     margin:w=>w<520?[16,10,14,10]:[18,16,14,16],
-    view:k=>k===0?{cam:[.35,.45],bounds:[[pos(by.d)[0]-1.6,0,pos(by.d)[2]-1],[pos(by.d)[0]+1.6,.8,pos(by.d)[2]+1]]}:k===4?{cam:[.18,.5],bounds:[[-4.6,0,-2.4],[4.6,YI+.2,2.4]]}:k===5?{cam:[.3,.55],bounds:[[pos(by.d)[0]-1.4,0,-1.6],[pos(by.d)[0]+1.6,1.4,.9]]}:full});
+    view:k=>k===0?{cam:[.35,.45],bounds:[[pos(by.d)[0]-1.6,0,pos(by.d)[2]-1],[pos(by.d)[0]+1.6,.8,pos(by.d)[2]+1]]}:k===3?{cam:full.cam,bounds:[[-4.4,0,-2.3],[4.4,1,3.9]]}:k===4?{cam:[.18,.5],bounds:[[-4.6,0,-2.4],[4.6,YI+.2,2.4]]}:k===5?{cam:[.3,.55],bounds:[[pos(by.d)[0]-1.4,0,-1.6],[pos(by.d)[0]+1.6,1.4,.9]]}:full});
 })();

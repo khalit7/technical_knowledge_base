@@ -24,8 +24,8 @@ window.EXTU=(function(){
   function svgBars(el,items,unit,dec){const W=RD.width(el),wide=W>=560,mx=Math.max(...items.map(i=>i.v));
     const lw=wide?Math.min(230,W*0.34):0,vw=78,bx=lw+4,bw=Math.max(60,W-bx-vw-6),rh=wide?34:46;let y=4,b='';
     items.forEach(i=>{const ty=wide?y+13:y+12,by=wide?y+3:y+18,w=Math.max(2,bw*i.v/mx);
-      if(wide){b+=RD.t(0,ty,esc(i.k),{fs:12,fill:'var(--ink)'});if(i.sub)b+=RD.t(0,ty+14,esc(i.sub),{fs:11,fill:'var(--mute)'})}
-      else{b+=RD.t(0,ty,esc(i.k)+(i.sub?'  ('+esc(i.sub)+')':''),{fs:11.5,fill:'var(--ink)'})}
+      if(wide){b+=RD.t(0,ty,esc(i.k),{fs:12,fill:'var(--ink)'});if(i.sub)b+=RD.t(0,ty+14,esc(i.sub),{fs:12,fill:'var(--mute)'})}
+      else{b+=RD.t(0,ty,esc(i.k)+(i.sub?'  ('+esc(i.sub)+')':''),{fs:12,fill:'var(--ink)'})}
       b+='<rect x="'+bx+'" y="'+by+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="'+(i.c||'var(--acc)')+'"/>';
       b+=RD.t(bx+w+5,by+12.5,i.v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+' '+unit,{fs:12,fill:'var(--ink)',w:600});
       y+=rh});

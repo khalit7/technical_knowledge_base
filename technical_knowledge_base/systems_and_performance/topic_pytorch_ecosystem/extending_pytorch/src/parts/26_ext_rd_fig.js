@@ -22,17 +22,17 @@
         ['opcheck',np===oc.length,np+' of '+oc.length+' tests pass']]}
     function draw(i){const el=$('ext-tbl-view'),W=RD.width(el),wide=W>=640;let b='',y=2;
       const tw=wide?W*0.56:W-2,rh=wide?32:42;
-      b+=T(1,13,'The operator’s slots',{fs:11,fill:'var(--mute)'});y=20;
+      b+=T(1,13,'The operator’s slots',{fs:12,fill:'var(--mute)'});y=20;
       slots(i).forEach(s=>{const st=s[2];
         b+=box(1,y,tw,rh-4,{fill:st==='new'?'var(--acc2)':'var(--bg)',stroke:st==='new'?'var(--acc)':st==='bad'?'var(--bad)':'var(--line)',sw:st==='new'?2:1,op:st==='dim'?0.55:1});
-        if(wide){b+=T(9,y+18,esc(s[0]),{fs:11.5,fill:'var(--mute)'})+T(9+tw*0.46,y+18,esc(s[1]),{fs:11.5,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
-        else{b+=T(9,y+15,esc(s[0]),{fs:11,fill:'var(--mute)'})+T(9,y+31,esc(s[1]),{fs:11.5,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
+        if(wide){b+=T(9,y+18,esc(s[0]),{fs:12,fill:'var(--mute)'})+T(9+tw*0.46,y+18,esc(s[1]),{fs:12,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
+        else{b+=T(9,y+15,esc(s[0]),{fs:12,fill:'var(--mute)'})+T(9,y+31,esc(s[1]),{fs:12,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
         y+=rh});
-      let rx=1,ry=20;if(wide){rx=tw+18}else{ry=y+10;b+=T(1,ry-1,'What works now',{fs:11,fill:'var(--mute)'});ry+=7}
-      if(wide)b+=T(rx,13,'What works now (recorded)',{fs:11,fill:'var(--mute)'});
+      let rx=1,ry=20;if(wide){rx=tw+18}else{ry=y+10;b+=T(1,ry-1,'What works now',{fs:12,fill:'var(--mute)'});ry+=7}
+      if(wide)b+=T(rx,13,'What works now (recorded)',{fs:12,fill:'var(--mute)'});
       results(i).forEach(r=>{const c=r[1]?'var(--good)':'var(--bad)';
         b+='<circle cx="'+(rx+7)+'" cy="'+(ry+9)+'" r="6" fill="'+c+'"/>'+T(rx+7,ry+13,r[1]?'✓':'✗',{fs:10,fill:'var(--bg)',a:'middle',w:700});
-        b+=T(rx+19,ry+13,esc(r[0])+':',{fs:11.5,fill:'var(--ink)',w:600})+T(rx+19+(wide?122:122),ry+13,esc(r[2]),{fs:11.5,fill:c});ry+=24});
+        b+=T(rx+19,ry+13,esc(r[0])+':',{fs:12,fill:'var(--ink)',w:600})+T(rx+19+(wide?122:122),ry+13,esc(r[2]),{fs:12,fill:c});ry+=24});
       el.innerHTML=RD.svg(W,Math.max(y,ry)+4,b,'dispatch slots of ext::gelu and what works');
     }
     const an=RD.anim({card:'ext-tbl-card',ctl:'ext-tbl-ctl',n:3,draw,ms:4200,label:'Registration step',list:'sx-tbl'});
@@ -50,8 +50,8 @@
         b+=box(1,y,w,h,{stroke:bad?'var(--bad)':'var(--good)',sw:1.5});
         b+=T(9,y+16,'Process '+(j+1)+': '+esc(LBL[j]),{fs:wide?12:11.5,fill:'var(--ink)',w:600});
         const res=r.no_grad_params+' of '+r.params+' parameters get no gradient';
-        if(wide)b+=T(9,y+32,esc(ACT[j]),{fs:11,fill:'var(--mute)'})+T(w-6,y+32,res,{fs:11.5,fill:bad?'var(--bad)':'var(--good)',a:'end',w:600});
-        else b+=T(9,y+31,esc(ACT[j]),{fs:11,fill:'var(--mute)'})+T(9,y+47,res,{fs:11.5,fill:bad?'var(--bad)':'var(--good)',w:600});
+        if(wide)b+=T(9,y+32,esc(ACT[j]),{fs:12,fill:'var(--mute)'})+T(w-6,y+32,res,{fs:12,fill:bad?'var(--bad)':'var(--good)',a:'end',w:600});
+        else b+=T(9,y+31,esc(ACT[j]),{fs:12,fill:'var(--mute)'})+T(9,y+47,res,{fs:12,fill:bad?'var(--bad)':'var(--good)',w:600});
         // connector to the cache band
         const my=y+h/2,lx=j===0?W-10:W-26;
         if(j===0)b+='<path d="M'+(w+1)+' '+my+' H'+lx+' V34" fill="none" stroke="var(--bad)" stroke-width="2"/><path d="M'+(lx-4)+' 41 L'+lx+' 34 L'+(lx+4)+' 41" fill="none" stroke="var(--bad)" stroke-width="2"/>';
@@ -73,13 +73,13 @@
         b+=T(x+10,y+17,esc(p[0]),{fs:12,fill:'var(--ink)',w:600});
         const bw=Math.min(64,(pw-40)/3.4),mid=pw-24-2*bw-16,by=y+30,bh=28;
         const x1=x+10,x2=x1+bw+8,x3=x2+mid+8;
-        b+=box(x1,by,bw,bh,{fill:'var(--soft)'})+T(x1+bw/2,by+18,'fc',{fs:11,fill:'var(--ink)',a:'middle'});
-        b+=box(x3,by,bw,bh,{fill:'var(--soft)'})+T(x3+bw/2,by+18,'proj',{fs:11,fill:'var(--ink)',a:'middle'});
-        if(p[2]==='solid')b+=box(x2,by,mid,bh,{fill:'var(--ink)',stroke:'var(--ink)'})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--bg)',a:'middle',w:600});
-        else if(p[2]==='open')b+=box(x2,by,mid,bh,{fill:'var(--acc2)',stroke:'var(--acc)',sw:1.5,dash:'4 3'})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--ink)',a:'middle',w:600});
-        else b+=box(x2,by,mid,bh,{fill:'var(--soft)',stroke:'var(--c4)',sw:1.5})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--ink)',a:'middle',w:600});
+        b+=box(x1,by,bw,bh,{fill:'var(--soft)'})+T(x1+bw/2,by+18,'fc',{fs:12,fill:'var(--ink)',a:'middle'});
+        b+=box(x3,by,bw,bh,{fill:'var(--soft)'})+T(x3+bw/2,by+18,'proj',{fs:12,fill:'var(--ink)',a:'middle'});
+        if(p[2]==='solid')b+=box(x2,by,mid,bh,{fill:'var(--ink)',stroke:'var(--ink)'})+T(x2+mid/2,by+18,p[1],{fs:12,fill:'var(--bg)',a:'middle',w:600});
+        else if(p[2]==='open')b+=box(x2,by,mid,bh,{fill:'var(--acc2)',stroke:'var(--acc)',sw:1.5,dash:'4 3'})+T(x2+mid/2,by+18,p[1],{fs:12,fill:'var(--ink)',a:'middle',w:600});
+        else b+=box(x2,by,mid,bh,{fill:'var(--soft)',stroke:'var(--c4)',sw:1.5})+T(x2+mid/2,by+18,p[1],{fs:12,fill:'var(--ink)',a:'middle',w:600});
         b+='<path d="M'+(x1+bw)+' '+(by+14)+' H'+x2+' M'+(x2+mid)+' '+(by+14)+' H'+x3+'" stroke="var(--mute)"/>';
-        b+=T(x+10,y+78,esc(p[3]),{fs:11,fill:'var(--ink)'})+T(x+10,y+93,esc(p[4]),{fs:11,fill:'var(--mute)'})});
+        b+=T(x+10,y+78,esc(p[3]),{fs:12,fill:'var(--ink)'})+T(x+10,y+93,esc(p[4]),{fs:12,fill:'var(--mute)'})});
       el.innerHTML=RD.svg(W,wide?ph+4:3*(ph+g),b,'custom_op, triton_op and Helion as the compiler sees them')}
     plug();RD.onRender(plug);RD.onResize(plug);
   }

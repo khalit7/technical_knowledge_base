@@ -80,9 +80,9 @@
     const al=r.alpha,ra=$('raAl');
     if(al){const ww=ra.clientWidth||w,L=al[0].length,bw=Math.min(60,(ww-150)/(2*L+2));let s2=tx(0,12,'learned α (share of bidirectional features) per block',{fs:11,w:600});
       const Y=v=>110-90*v;[0,0.5,1].forEach(t=>s2+=ln2(40,Y(t),40+(2*L+1)*bw+10,Y(t),'var(--line)')+tx(34,Y(t)+4,t.toFixed(1),{fs:11,a:'end',c:'var(--mute)'}));
-      for(let i=0;i<L;i++){s2+=rc(44+i*2*bw,Y(al[0][i]),bw-2,Y(0)-Y(al[0][i]),'var(--c1)',{r:1})+rc(44+i*2*bw+bw,Y(al[1][i]),bw-2,Y(0)-Y(al[1][i]),'var(--c2)',{r:1})+tx(44+i*2*bw+bw,124,'block '+(i+1),{fs:11,a:'middle',c:'var(--mute)'})}
+      for(let i=0;i<L;i++){s2+=rc(44+i*2*bw,Y(al[0][i]),bw-2,Y(0)-Y(al[0][i]),'var(--c6)',{r:1})+rc(44+i*2*bw+bw,Y(al[1][i]),bw-2,Y(0)-Y(al[1][i]),'var(--c4)',{r:1})+tx(44+i*2*bw+bw,124,'block '+(i+1),{fs:11,a:'middle',c:'var(--mute)'})}
       const pk=window.PAPER.rc.fig3;s2+=ln2(40,Y(pk.mean_k),44+2*L*bw,Y(pk.mean_k),'var(--ink)',{da:'4 3'})+tx(48+2*L*bw,Y(pk.mean_k)+4,'paper, Llama3-8B mean '+pk.mean_k.toFixed(2),{fs:11,c:'var(--mute)'});
-      const lg=legend([['keys','var(--c1)'],['values','var(--c2)']],48+2*L*bw,40,140);
+      const lg=legend([['keys','var(--c6)'],['values','var(--c4)']],48+2*L*bw,40,140);
       ra.innerHTML=svgW(ww,132,s2+lg.s,'Learned mixing ratios')+'<p class="small">'+al[0].map((a,i)=>'block '+(i+1)+': α<sub>k</sub> '+a.toFixed(2)+', α<sub>v</sub> '+al[1][i].toFixed(2)).join('; ')+'. All start at 0.5.</p>'}
     else ra.innerHTML='<p class="small mute">This model has one prompt pass, so nothing is mixed.</p>'}
   ['raVar','raL','raH'].forEach(id=>$(id).addEventListener('change',drawRA));

@@ -11,7 +11,7 @@
   for(let b=0;b<4;b++)rows.push({nm:'block '+b,b,parts:[take(NA),take(1),take(1),take(1),take(1)]});
   rows.push({nm:'ln_f, head, loss',parts:[take(cg.length-k0)]});
   const NB=NA+4,DX=.21,X0=-(NB-1)*DX/2,ZR=[-2.15,-1.3,-.45,.4,1.25,2.1],OB=[.15,.2,.3],xi=i=>X0+i*DX;
-  let mode='pybind';
+  let mode='pybind';const close=k=>mode==='pybind'?k>=1&&k<=3:k>=1&&k<=2; // the block 0 steps, in close
   // [appears at step, in focus until step] for each part of each row
   function steps(r,j){const pb=mode==='pybind';
     if(r===0)return [0,0];if(r===5)return pb?[5,5]:[4,4];if(r>1)return pb?[4,4]:[3,3];
@@ -35,7 +35,7 @@
           // the path the dots take: along the row, up and over at a graph break
           if(k>=s0){if(isG&&pb){for(let s=0;s<=10;s++){const u=s/10;pts.push([x+(u-.5)*.3,.34+.9*Math.sin(Math.PI*u),z])}}else pts.push([x,.34,z])}});
         i0+=n});
-      R.label([X0-.2,0,z],row.nm,{al:'right',dx:-8,mono:true,fs:12,c:focus?P.ink:P.mute,grp:'rows'});
+      if(!(close(k)&&r>=3))R.label([X0-.2,0,z],row.nm,{al:'right',dx:-8,mono:true,fs:12,c:focus?P.ink:P.mute,grp:'rows'}); // rows out of the close-up keep no label (it would be clamped to the edge)
       if(focus&&pts.length>1)R.flow(pts,{c:pb?(row.b===undefined?P.c5:P.c1):P.acc,r:.05,speed:1.6,a:.75});
       if(focus&&row.b===undefined&&k<last)R.label([xi(row.parts[0].length-1)+.15,.2,z],pb?'eager · '+row.parts[0].length+' ops':'graph 1 · '+row.parts[0].length+' ops',{al:'left',dx:6,mono:true,fs:12,b:1,c:pb?P.c5:P.acc})});
     // one tray for the whole forward under the custom op, growing row by row as Dynamo traces
@@ -47,6 +47,6 @@
   const st=S3.stage({id:'stg-dyn',list:'sx-dyn-pb',fig:'Fig. 2 · one forward, as Dynamo recorded it',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1400,hold:4800,draw,
     margin:w=>w<520?[14,8,14,8]:[16,14,14,130],
     // the block 0 steps move in close on its row; the rest show the whole forward
-    view:k=>(mode==='pybind'?k>=1&&k<=3:k>=1&&k<=2)?{cam:[.25,.7],bounds:[[-2.9,0,-2.0],[2.9,1.3,-.6]]}:full});
+    view:k=>close(k)?{cam:[.12,.55],bounds:[[-2.5,0,-1.75],[2.6,1.2,-.9]]}:full});
   RD.seg(document.getElementById('ext-dyn-seg'),m=>{mode=m;document.getElementById('sx-dyn-pb').hidden=m!=='pybind';document.getElementById('sx-dyn-co').hidden=m==='pybind';st.list(m==='pybind'?'sx-dyn-pb':'sx-dyn-co')});
 })();
