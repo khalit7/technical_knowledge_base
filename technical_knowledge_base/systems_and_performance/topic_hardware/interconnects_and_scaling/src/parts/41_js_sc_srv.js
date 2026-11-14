@@ -35,7 +35,7 @@
       lab([G.XS(1.5),.5,z],'add 8 buffers, multicast the sum',{dy:-16,b:1,c:P.c3,a:e});lab(gp(6),'up: S bytes · down: the sum',{dy:26,fs:12,c:P.c2,a:e,wide:1})}
   }
   const st=S3.stage({id:'stg-srv',list:'sx-srv',fig:'Fig. 2 · one 8-GPU server: switch against mesh',cam:[.22,.88],bounds:[[-7.1,0,-1.4],[7.1,.5,1.9]],aspect:.46,dur:1500,hold:4800,draw,
-    view:k=>k===1?{cam:[.3,.72],bounds:[[-6.1,0,-1.4],[G.XG(3)+.9,.5,.9]]}:k===2||k===3?{cam:[.08,.42],bounds:[[-5.9,0,-1.2],[5.9,1.45,.6]]}:k===4?{cam:[.25,.7],bounds:[[-5.9,0,-1.4],[5.9,.6,.6]]}:null,
+    view:k=>S3P(k,'stg-srv',k=>k===1?{cam:[.3,.72],bounds:[[-6.1,0,-1.4],[G.XG(3)+.9,.5,.9]]}:k===2||k===3?{cam:[.08,.42],bounds:[[-5.9,0,-1.2],[5.9,1.45,.6]]}:k===4?{cam:[.25,.7],bounds:[[-5.9,0,-1.4],[5.9,.6,.6]]}:null,[.22,.88]),
     margin:w=>w<520?[18,10,14,10]:[26,20,22,20]});
   (window.ICSTG=window.ICSTG||{})['stg-srv']=st;
 })();

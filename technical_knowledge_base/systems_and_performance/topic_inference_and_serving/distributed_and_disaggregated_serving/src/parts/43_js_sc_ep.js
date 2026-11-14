@@ -32,6 +32,6 @@
       lab(R,[X[3]+.7,YB,0],'batch 2 · computing attention',{al:'left',dx:8,fs:12.5,b:1,c:P.c1,a,wide:1});lab(R,[X[3]+.7,YA,0],'batch 1 · tokens in flight',{al:'left',dx:8,fs:12.5,b:1,c:P.c2,a,wide:1});}
   }
   const st=S3.stage({id:'stg-ep',list:'sx-ep',fig:'Fig. 5 · one MoE layer under expert parallelism',cam:[.12,.62],bounds:[[-4.4,0,-1],[4.4,1.6,1.3]],aspect:.44,dur:1500,hold:4800,draw,
-    view:k=>k===3?{cam:[.12,.55],bounds:[[-4.4,0,-1],[6.6,1.8,1.3]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+    view:k=>DDP('stg-ep',k===3?{cam:[.12,.55],bounds:[[-4.4,0,-1],[6.6,1.8,1.3]]}:null,[.12,.62]),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.DDSTG=window.DDSTG||{})['stg-ep']=st;
 })();

@@ -1,5 +1,8 @@
 // ---- Shared pieces of this page's 3D scenes (renderer v2, 25_js_s3.js): a GPU, labels, and the fade rule ("a step that changes the
 // whole picture fades the old one out fully before the new one appears"). Numbers come from window.DDC (recompute.py, the planner). ----
+// on a phone (canvas under 520 px) every stage's camera turns about 1 radian, so its long row of GPUs runs into depth and draws larger;
+// v is the step's wide-screen view (or null), cam0 the stage's camera
+window.DDP=(id,v,cam0)=>{const h=document.getElementById(id);if(!h||h.clientWidth>=520)return v;const c=(v&&v.cam)||cam0;return {cam:[1.0,Math.max(.6,c[1])],bounds:v&&v.bounds}};
 window.DDS=(function(){
   if(!window.S3)return null;const {mix}=S3;
   // alpha of something shown on the steps where on(k) is true: it fades out over the first 40% of a step change, then the new one fades in

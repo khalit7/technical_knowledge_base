@@ -50,8 +50,8 @@
     const pa=ports(0),pb=ports(ZB);pa.concat(pb).forEach(p=>R.line(p,{c:P.line,w:1.5,a:na*.8}));
     // ---- step 0: the three demands, pinned where they act ----
     if(k===0){R.label([F[0],.25,F[2]],nar?FL+' × 10¹⁶ FLOPs':'arithmetic · '+FL+' × 10¹⁶ FLOPs',{fs:12.5,b:1,dy:-14,c:P.c4,a:e});
-      R.label([GA[0][0],.4,GA[0][2]],nar?ST+' GB of state':'memory · '+ST+' GB of state',{fs:12.5,b:1,dy:-14,c:P.c1,a:e,wide:nar?1:0});
-      R.label([0,.32,-1.4],nar?GB+' GB of gradients':'between chips · '+GB+' GB of gradients',{fs:12.5,b:1,dy:-14,c:P.c3,a:e});
+      R.label([GA[0][0],.4,GA[0][2]],nar?ST+' GB of state':'memory · '+ST+' GB of state',{fs:12.5,b:1,dy:-14,c:P.c1,a:e,wide:nar?1:0,grp:nar?null:'dem'});
+      R.label([0,.32,-1.4],nar?GB+' GB of gradients':'between chips · '+GB+' GB of gradients',{fs:12.5,b:1,dy:-14,c:P.c3,a:e,grp:nar?null:'dem'});
       R.label([SW[0],.4,SW[2]],'network',{fs:12,dy:-12,c:P.c6,a:e,wide:1});
       R.label([0,0,ZB-2.2],'a second 8-GPU server',{fs:12,dy:16,c:P.mute,a:e,wide:1})}
     // ---- step 1: tensor cores inside the SMs; one SM lifted out of the die ----
@@ -101,8 +101,8 @@
     // ---- step 6: the arithmetic: each demand over its rate, the largest sets the step ----
     if(k===6){const a=e,sc=2.0/S.step_8gpu,zb=3.5;
       bar(R,[-2.6,0,zb],S.step_8gpu*sc,P.c4,a,nar?T8+' s':'arithmetic · '+T8+' s');
-      bar(R,[0,0,zb],A.t.nvlink*sc,P.c3,a,nar?NV+' ms':'NVLink all-reduce · '+NV+' ms');
-      bar(R,[2.6,0,zb],A.t.ib*sc,P.c6,a,nar?IB+' s':'over the network · '+IB+' s');
+      bar(R,[0,0,zb],A.t.nvlink*sc,P.c3,a,nar?NV+' ms':'NVLink all-reduce · '+NV+' ms',{grp:nar?null:'bars'});
+      bar(R,[2.6,0,zb],A.t.ib*sc,P.c6,a,nar?IB+' s':'over the network · '+IB+' s',{grp:nar?null:'bars'});
       R.flow([[-2.6,.3,1.6],[-2.6,.3,zb-.35]],{c:P.c4,a,r:.07,n:4,speed:.8});R.flow([[0,.3,1.6],[0,.12,zb-.35]],{c:P.c3,a,r:.07,n:4,speed:.8});
       R.label([0,0,zb+.4],nar?'8 H100s, 40% MFU':'one step on 8 H100s at 40% MFU: the largest bar sets the time',{fs:12.5,b:1,dy:18,c:P.ink,a})}
     // ---- step 7: other bets: a systolic array, a wafer ----
@@ -118,14 +118,14 @@
       R.label([TPU[0],.4,TPU[2]+.9],nar?'systolic array':'TPU: a systolic array, operands cell to cell',{fs:12.5,b:1,dy:18,c:P.c3,a});
       R.label([WAF[0],.1,WAF[2]-1.2],nar?'one wafer':'Cerebras: one wafer, 44 GB of SRAM',{fs:12.5,b:1,dy:-12,c:P.c5,a})}
   }
-  const full={cam:[.45,.72],bounds:[[-4.9,0,-8.5],[7,.5,2.3]]};
+  const full={cam:[.25,.75],bounds:[[-4.9,0,-8.5],[7,.5,2.3]]};
   const V=[full,
     {cam:[.35,.7],bounds:[[F[0]-1.3,0,F[2]-1],[F[0]+1.6,1,F[2]+1.9]]},
     {cam:[.35,.72],bounds:[[F[0]-1.2,0,F[2]-1],[F[0]+1.3,1.4,F[2]+1.9]]},
     {cam:[.4,.82],bounds:[[-4.9,0,-2.3],[4.9,.6,2.4]]},
     {cam:[.5,.78],bounds:[[-4.9,0,-8.5],[8.4,.6,2.4]]},
     {cam:[.4,.78],bounds:[[-7.6,0,-8.5],[4.9,1.4,2.4]]},
-    {cam:[.22,.45],bounds:[[-3.6,0,.6],[3.6,2.2,4.3]]},
+    {cam:[.22,.62],bounds:[[-3.6,0,.6],[3.6,2.2,4.3]]},
     {cam:[.45,.75],bounds:[[6.6,0,-3.8],[9.8,.6,2.4]]}];
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one training step, from the tensor core to the building',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:5200,draw,
     view:k=>V[k]||full,margin:w=>w<520?[18,8,16,8]:[24,20,20,20]});

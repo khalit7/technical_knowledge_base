@@ -70,7 +70,7 @@
       kn([XA,0,1.7],['--api-server-count']);kn([.25,0,2.0],['scheduler: max_num_seqs','max_num_batched_tokens','max_loras'],'right');
       kn([.75,0,2.0],['pool: gpu_memory_utilization','enable_prefix_caching','block_size'],'left');kn([XW+.4,0,1.7],['-O level'])}
   }
-  const full={cam:[-.55,.78],bounds:[[-8.2,0,-2.1],[7.5,.9,2.2]]};
+  const full={cam:[-.3,.74],bounds:[[-8.2,0,-2.1],[7.5,.9,2.2]]};
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one request through vLLM',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:5200,draw,
     view:k=>k===0?{cam:[-.25,.66],bounds:[[-8.3,0,-1.9],[-3.3,.9,1.9]]}:k===1?{cam:[-.18,.7],bounds:[[-6.6,0,-2.1],[.4,1.2,1.9]]}:k===2?{cam:[-.12,.72],bounds:[[-2.9,0,-1.7],[.6,.8,1.2]]}:
       k===3?{cam:[-.1,.8],bounds:[[-.6,0,-1.4],[3.8,.6,1.5]]}:k===4?{cam:[-.15,.66],bounds:[[.4,0,-2.0],[7.6,1.4,2.2]]}:full,

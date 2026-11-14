@@ -38,9 +38,10 @@
       lab([SX+.4,MEAS*SY,0],'measured '+MEAS.toFixed(1),{dy:-12,b:1,c:P.c1,a:sa*ma,al:'left',dx:-6});
       lab([SX,0,Z1],'tokens per second',{dy:20,c:P.mute,a:sa})}
   }
+  const ph=()=>{const c=document.querySelector('#stg-hero canvas');return c&&c.clientWidth<520}; // a phone: the full view fits the pool (and the speed bars) without the side room, so it draws larger
   const full={cam:[.16,.92],bounds:[[-5.1,0,-3.6],[7.1,2.1,1.5]]};
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one model in this laptop’s memory',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1500,hold:5200,draw,
-    view:k=>k===1?{cam:[.28,.86],bounds:[[X0-.6,0,-3.6],[gx(8),1,1.5]]}:k===2?{cam:[.2,.9],bounds:[[X0-.4,0,-3.6],[gx(GB)+.4,1,1.5]]}:full,
+    view:k=>ph()&&k!==1&&k!==2?{cam:full.cam,bounds:[[X0-.2,0,-3.5],[k?SX+.8:gx(GB)+.2,k?2.1:.9,1.5]]}:k===1?{cam:[.28,.86],bounds:[[X0-.6,0,-3.6],[gx(8),1,1.5]]}:k===2?{cam:[.2,.9],bounds:[[X0-.4,0,-3.6],[gx(GB)+.4,1,1.5]]}:full,
     margin:w=>w<520?[18,10,16,10]:[24,18,20,18]});
   (window.LOSTG=window.LOSTG||{})['stg-hero']=st;
 })();

@@ -11,7 +11,7 @@
   function draw(R,k,e){const P=R.P,lab=(p,t,o)=>R.label(p,t,Object.assign({fs:12.5},o||{}));R.grid(-7,7,-4.6,1.6,.5);
     R.box(GPU,[2.6,.5,1],{fill:mix(P.paper,P.c1,.35)});lab([0,.5,GZ],'M1 Pro GPU · reads 200 GB/s at most',{dy:-12,b:1,c:P.c1});
     F.forEach((f,i)=>{const x=XS[i],act=k===i||k===4||(k===5&&i===2);
-      const a=k===4?1:act?1:i<k?.3:.14,la=act?1:0;
+      const a=k===4?1:act?1:.1,la=act?1:0; // in a close-up the other files, cut by the frame, recede almost fully
       const fx=x-.6,h=f.gb*HB,kv=k===5&&i===2?at(k,e,5):0;
       R.box([fx,0,Z],[.9,h,.9],{fill:mix(P.paper,P.c1,.15+.45*(f.gb/F[0].gb)),a});
       lab([fx,0,Z+.45],f.n+' · '+f.gb.toFixed(2)+' GB',{dy:16,b:1,a:la});

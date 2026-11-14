@@ -55,8 +55,9 @@
       lab(G.top(S0.nic(0)),'GPU 0, server 0',{dy:18,fs:12,a:e,wide:1});lab(G.top(S1.nic(5)),'GPU 5, server 1',{dy:-14,fs:12,a:e,wide:1})}
   }
   const full={cam:[.42,.36],bounds:[[-7.2,0,-3.6],[7.2,5.6,3.6]]};
+  const V0=k=>k===0?{cam:[.5,.62],bounds:[[G.XG(HG-1)-.6,0,1.1],[G.XG(HG+1)+.6,.5,2.9]]}:k<=2?{cam:[.35,.62],bounds:[[-6.9,0,.6],[G.XG(HG)+1.3,.5,3.6]]}:k===3?{cam:[.4,.3],bounds:[[-7.2,0,-3.6],[7.2,3.2,3.6]]}:full;
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the ladder on two HGX H100 servers',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:4800,draw,
-    view:k=>k===0?{cam:[.5,.62],bounds:[[G.XG(HG-1)-.6,0,1.1],[G.XG(HG+1)+.6,.5,2.9]]}:k<=2?{cam:[.35,.62],bounds:[[-6.9,0,.6],[G.XG(HG)+1.3,.5,3.6]]}:k===3?{cam:[.4,.3],bounds:[[-7.2,0,-3.6],[7.2,3.2,3.6]]}:full,
+    view:k=>k<3?V0(k):S3P(k,'stg-hero',V0,full.cam), // the close-ups (steps 1 to 3) keep their wide-screen camera on phones
     margin:w=>w<520?[18,10,14,10]:[24,20,20,20]});
   (window.ICSTG=window.ICSTG||{})['stg-hero']=st;
 })();

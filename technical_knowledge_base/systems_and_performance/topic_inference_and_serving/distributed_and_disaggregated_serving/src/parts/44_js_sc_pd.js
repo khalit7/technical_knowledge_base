@@ -43,7 +43,7 @@
     if(a>0){R.box([XB-1.25,GS[1],.75],[CS*1.4,CS*1.4,CS*1.4],{fill:mix(P.paper,P.acc,.7),ec:P.acc,lw:1.6,a,shadow:false});lab(R,[XB-1.25,.45,.75],'user 65',{dy:-10,fs:12,b:1,c:P.acc,a});
       lab(R,[XA,.3,0],'idle until the next prompt',{dy:-8,fs:12.5,c:P.mute,a});}
   }
-  const st=S3.stage({id:'stg-pd',list:'sx-pd',fig:'Fig. 6 · colocated against disaggregated',cam:[.1,.72],bounds:[[-5.4,0,-1.3],[4.4,1.1,2.2]],aspect:.44,dur:1500,hold:4800,draw,
-    view:k=>k===4?{cam:[.08,.55],bounds:[[-4.3,0,-1.2],[4.3,1.4,1.4]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+  const st=S3.stage({id:'stg-pd',list:'sx-pd',fig:'Fig. 6 · colocated against disaggregated',cam:[.1,.72],bounds:[[-5.4,0,-1.3],[4.4,1.1,2.2]],aspect:.37,dur:1500,hold:4800,draw,
+    view:k=>DDP('stg-pd',k===4?{cam:[.08,.55],bounds:[[-4.3,0,-1.2],[4.3,1.4,1.4]]}:null,[.1,.72]),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.DDSTG=window.DDSTG||{})['stg-pd']=st;
 })();

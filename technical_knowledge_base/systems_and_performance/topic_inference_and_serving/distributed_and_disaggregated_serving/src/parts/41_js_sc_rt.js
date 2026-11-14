@@ -37,7 +37,7 @@
     if(k===3)flowTo(0,e);
     if(k===4){flowTo(0,1-win*Math.min(1,(e-.5)*4));if(win)flowTo(1,Math.min(1,(e-.5)*3))}
   }
-  const st=S3.stage({id:'stg-rt',list:'sx-rt',fig:'Fig. 2 · a KV-aware router weighs cache against load',cam:[.1,.82],bounds:[[-4.7,0,-1.5],[4.9,1.2,3.6]],aspect:.58,dur:1500,hold:4800,draw,
+  const st=S3.stage({id:'stg-rt',list:'sx-rt',fig:'Fig. 2 · a KV-aware router weighs cache against load',cam:[.1,.82],bounds:[[-4.7,0,-1.5],[4.9,1.2,3.6]],aspect:.52,dur:1500,hold:4800,draw,
     view:k=>k===0?{cam:[.1,.7],bounds:[[-3,0,1.6],[3,.6,3.7]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.DDSTG=window.DDSTG||{})['stg-rt']=st;
 })();

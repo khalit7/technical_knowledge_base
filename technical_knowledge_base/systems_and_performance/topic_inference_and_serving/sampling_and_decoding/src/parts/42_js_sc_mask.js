@@ -46,7 +46,7 @@
       R.label([xs(pick)+.4,p*.6,ZB],'greedy takes '+vis(s0.pick)+' · next step: '+J.steps[1].n_allowed+' allowed',{al:'left',dx:10,fs:13,b:1,c:P.good,a:e})}
     R.label([xs(0)-.5,.3,ZB],k>=3?'renormalised':'model p',{al:'right',dx:-6,mono:true,fs:12.5,b:1,c:k>=3?blue:P.ink,grp:'row'})
   }
-  const full={cam:[.3,.6],bounds:[[-4.2,0,-.5],[5,1.9,2.5]]};
+  const full={cam:[.3,.8],bounds:[[-4.2,0,-.5],[5,1.9,2.5]]};
   S3.stage({id:'stg-mask',list:'sx-mask',fig:'Fig. 3 · the grammar mask at step 0',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1400,hold:5000,draw,
     margin:w=>w<520?[16,10,16,10]:[18,16,16,110],
     view:k=>k===0?{cam:[.3,.45],bounds:[[-4.2,0,-.5],[5,1.9,.5]]}:k>=3?{cam:[.3,.45],bounds:[[-4.2,0,-.5],[5,3.1,1.6]]}:full});

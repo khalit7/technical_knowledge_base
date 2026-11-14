@@ -48,7 +48,8 @@
   }
   const full={cam:[.06,1.0],bounds:[[-5.5,0,-3.5],[6.4,.5,3.3]]};
   const back={cam:[.06,.95],bounds:[[-5.5,0,-3.5],[5.1,.5,-.4]]},front={cam:[.06,.95],bounds:[[-5.5,0,.1],[5.1,.5,3.3]]};
-  const st=S3.stage({id:'stg-cb',list:'sx-cb',fig:'Fig. 2 · eight requests, four seats, two ways',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1700,hold:5000,draw,
+  const st=S3.stage({id:'stg-cb',list:'sx-cb',fig:'Fig. 2 · eight requests, four seats, two ways',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1700,hold:5000,draw,view:k=>document.getElementById('stg-cb').clientWidth<520?{cam:[.95,.62],bounds:k>=1&&k<=3?back.bounds:k===4?front.bounds:full.bounds}:null, // phones: the lanes turned into depth, close on the lane each step is about
+   
     margin:w=>w<520?[14,10,22,10]:[20,18,26,110]});
   (window.BKSTG=window.BKSTG||{})['stg-cb']=st;
 })();

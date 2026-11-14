@@ -32,7 +32,7 @@
     if(k>=2&&k<5||k===5&&e<.9){const dShow=k===2?Math.ceil(e*6):9;
       S.nodes.forEach(n=>{if(n.d>dShow)return;const p=[x(n.d),0,zt(n.j)],pp=n.par?[x(n.par.d),.06,zt(n.par.j)]:[XC,.06,zt(0)];
         const ok=k>=4&&n.ok,bad=k>=4&&!n.ok;R.line([[pp[0]+.43,.06,pp[2]],[p[0]-.43,.06,p[2]]],{c:ok?gr:P.mute,w:ok?2.4:1.2,a:(bad?.4:.9)*fadeAll});
-        tile(R,p,vis(n.path[n.d-1]),ok?mix(P.paper,gr,.45):mix(P.paper,P.c4,bad?.1:.3),(bad?.35:1)*fadeAll,ok?gr:P.c4,k===2||ok);
+        tile(R,p,vis(n.path[n.d-1]),ok?mix(P.paper,gr,.45):mix(P.paper,P.c4,bad?.1:.3),(bad?.35:1)*fadeAll,ok?gr:P.c4,k===2||k===3||ok);
         if(k===2&&n.d<=2)R.label([p[0],.12,p[2]+.24],'cp '+n.cp.toFixed(2),{mono:true,fs:12,dy:28,c:P.c4,a:e})})}
     // 4. one verification pass with a tree attention mask: node i sees node j only if j is i or one of its ancestors
     if(k===3||k===4){const a=k===3?Math.min(1,e*1.4):.35,N=S.nodes.length;
@@ -47,10 +47,11 @@
     if(k===5){means.forEach(([nm,v],i)=>{const bx=-2.4+i*1.25,h=v*.42*Math.min(1,e*1.4);R.box([bx,0,.2],[.75,h,.6],{fill:mix(P.paper,nm.startsWith('chain')?or:P.c4,.5)});
       R.label([bx,h,.2],v.toFixed(2),{mono:true,fs:13,b:1,dy:-11,c:P.ink,a:e});R.label([bx,0,.5],nm,{mono:true,fs:12.5,dy:16,c:nm.startsWith('chain')?or:P.c4,a:e})})}
   }
+  const ph=()=>{const c=document.querySelector('#stg-tree canvas');return c&&c.clientWidth<520}; // a phone: the rows turn into depth so the tiles draw larger and their labels stack
   const full={cam:[.22,.88],bounds:[[-5.9,0,-2.6],[4.0,.6,2.5]]};
   const st=S3.stage({id:'stg-tree',list:'sx-tree',fig:'Fig. 5 · chain against tree, real models, greedy',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1500,hold:5000,draw,
     margin:w=>w<520?[16,10,24,10]:[18,16,28,16],
-    view:k=>k===3?{cam:[.22,.9],bounds:[[-5.9,0,-2.8],[6.6,.6,2.5]]}:k===4?{cam:[.22,.88],bounds:[[-5.9,0,-2.6],[5.4,.6,2.5]]}:k===5?{cam:[.2,.45],bounds:[[-3.2,0,-.2],[3.4,1.9,1.0]]}:full,
+    view:k=>ph()&&k<5?{cam:[1.0,.95],bounds:k===3?[[-4.2,0,-2.8],[6.6,.6,1.3]]:k===4?[[-5.9,0,-2.6],[5.4,.6,2.5]]:full.bounds}:k===3?{cam:[.22,.9],bounds:[[-5.9,0,-2.8],[6.6,.6,2.5]]}:k===4?{cam:[.22,.88],bounds:[[-5.9,0,-2.6],[5.4,.6,2.5]]}:k===5?{cam:[.2,.45],bounds:[[-3.2,0,-.2],[3.4,1.9,1.0]]}:full,
     onStep:()=>{try{readout()}catch(err){}}});
   function readout(){const o=document.getElementById('tree-out');if(!o)return;
     o.innerHTML='Example '+(ei+1)+' ('+SD.esc(S.e.prompt)+'): after “…'+SD.esc(SD.vis(S.e.context).slice(-28))+'” the target writes “'+SD.esc(SD.vis(S.e.g.slice(0,5).join('')))+'…”; the chain keeps '+S.mc+', the tree '+S.best+'.'}

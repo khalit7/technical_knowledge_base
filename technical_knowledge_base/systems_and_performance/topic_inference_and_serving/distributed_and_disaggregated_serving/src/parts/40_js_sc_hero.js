@@ -55,7 +55,7 @@
       R.flowArc([1.4,2.15,0],[X[3],Y(1)+.1,0],.15,{c:P.c5,a:a*.7,r:.05,n:4,speed:1})}
   }
   const full={cam:[.1,.7],bounds:[[-4.3,0,-.7],[4.3,1.1,2.9]]};
-  const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · five ways to spread serving',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1500,hold:4800,draw,
-    view:k=>k===5?{cam:[.12,.55],bounds:[[-4.4,0,-.8],[4.4,2.5,3]]}:k===3?{cam:[.1,.62],bounds:[[-4.3,0,-.7],[4.3,1.6,1.2]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+  const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · five ways to spread serving',cam:full.cam,bounds:full.bounds,aspect:.41,dur:1500,hold:4800,draw,
+    view:k=>DDP('stg-hero',k===5?{cam:[.12,.55],bounds:[[-4.4,0,-.8],[4.4,2.5,3]]}:k===3?{cam:[.1,.62],bounds:[[-4.3,0,-.7],[4.3,1.6,1.2]]}:null,full.cam),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.DDSTG=window.DDSTG||{})['stg-hero']=st;
 })();

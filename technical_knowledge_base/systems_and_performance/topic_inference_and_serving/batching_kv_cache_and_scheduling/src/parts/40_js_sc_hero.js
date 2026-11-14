@@ -46,8 +46,9 @@
       [34,35,36].forEach((i,j)=>R.flowArc(pb(i),hb(10+j),.5,{c:P.mute,r:.05,n:5,speed:1.2,a:ha}));
       lab(pb(35),'cached, free: evicted oldest first',{dy:-20,b:1,c:P.mute,a:ha,grp:'pool'});lab(pb(45),'free',{dy:-14,b:1,c:P.ink,a:ha,grp:'pool'})}
   }
-  const top={cam:[.12,1.05],bounds:[[-5.4,0,-3.3],[4.4,1,-.4]]},full={cam:[.12,.9],bounds:[[-5.4,0,-3.3],[5.2,.6,3.1]]};
+  const top={cam:[.3,.85],bounds:[[-5.4,0,-3.3],[4.4,1,-.4]]},topN={cam:[.12,1.05],bounds:[[-5.4,0,-3.3],[4.4,1,-.4]]},full={cam:[.12,.9],bounds:[[-5.4,0,-3.3],[5.2,.6,3.1]]};
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one engine step of the running example',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:4800,draw,
-    view:k=>k<=3?top:full,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+    view:k=>k<=3?(document.getElementById('stg-hero').clientWidth<520?topN:top):full, // phones keep the straight-on view, where the row already fills the width
+   margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.BKSTG=window.BKSTG||{})['stg-hero']=st;
 })();

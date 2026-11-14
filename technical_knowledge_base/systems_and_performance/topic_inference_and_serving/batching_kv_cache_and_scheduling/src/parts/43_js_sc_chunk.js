@@ -36,7 +36,8 @@
   }
   const full={cam:[.16,.82],bounds:[[XP-.5,0,-2.9],[x(.75)+1.6,1.1,3.2]]};
   const st=S3.stage({id:'stg-ck',list:'sx-ck',fig:'Fig. 4 · one long prompt, eight decoding users, three budgets',cam:full.cam,bounds:full.bounds,aspect:.5,dur:2200,hold:5200,draw,
-    view:k=>k>=2&&k<=4?{cam:[.2,.72],bounds:[[XP-.5,0,ZR[k-2]-1.2],[x(.75)+1.6,1.1,ZR[k-2]+1.1]]}:full,
+    view:k=>{const v=k>=2&&k<=4?{cam:[.2,.72],bounds:[[XP-.5,0,ZR[k-2]-1.2],[x(.75)+1.6,1.1,ZR[k-2]+1.1]]}:full; // phones: the lanes turned into depth, the whole figure in view
+      return document.getElementById('stg-ck').clientWidth<520?{cam:[.95,.62],bounds:full.bounds}:v},
     margin:w=>w<520?[14,10,22,10]:[20,18,26,18]});
   (window.BKSTG=window.BKSTG||{})['stg-ck']=st;
 })();

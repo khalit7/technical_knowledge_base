@@ -40,7 +40,7 @@
       lab(R,[XG(0)-1.1,.1,-1.3],'card · '+N.nic+' GB/s ('+N.ratio+'x less)',{al:'right',dx:-8,b:1,fs:12.5,c:P.c6,a})}
   }
   const tp=S3.stage({id:'stg-tp',list:'sx-tp',fig:'Fig. 3a · one model, eight GPUs, cut across every layer',cam:[.1,.62],bounds:[[-6.1,0,-.9],[8.6,1.4,.9]],aspect:.34,dur:1500,hold:4800,draw:drawTP,
-    view:k=>k===3?{cam:[.1,.42],bounds:[[1.5,0,-.9],[10.3,2.4,.9]]}:k===4?{cam:[.25,.75],bounds:[[-9,0,-3.2],[6.1,1.4,.9]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+    view:k=>k>=3?(k===3?{cam:[.1,.42],bounds:[[1.5,0,-.9],[10.3,2.4,.9]]}:{cam:[.25,.75],bounds:[[-9,0,-3.2],[6.1,1.4,.9]]}):DDP('stg-tp',null,[.1,.62]),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   // ---- Fig. 3b: pipeline parallel ----
   function drawPP(R,k,e,st){const P=R.P,v=f=>vis(k,e,st,f);R.grid(-6.5,6.5,-3.4,1.8,.5);
     const two=v(q=>q===3),one=1-two;
@@ -65,6 +65,6 @@
       lab(R,R.arcPt([XG(7),Y(5)+.08,0],[XG(7),Y(5)+.08,-2.6],.5,.5),'16 KiB per token',{al:'left',dx:12,b:1,c:P.c2,fs:13,a})}
   }
   const pp=S3.stage({id:'stg-pp',list:'sx-pp',fig:'Fig. 3b · one model, eight GPUs, cut by depth',cam:[.1,.62],bounds:[[-6.1,0,-.9],[8.4,1.0,.9]],aspect:.32,dur:1500,hold:4800,draw:drawPP,
-    view:k=>k===3?{cam:[.25,.75],bounds:[[-7.8,0,-3.2],[7.8,1.4,.9]]}:null,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+    view:k=>DDP('stg-pp',k===3?{cam:[.25,.75],bounds:[[-7.8,0,-3.2],[7.8,1.4,.9]]}:null,[.1,.62]),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   Object.assign(window.DDSTG=window.DDSTG||{},{'stg-tp':tp,'stg-pp':pp});
 })();

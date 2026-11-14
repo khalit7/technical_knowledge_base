@@ -2,6 +2,9 @@
 // describes it (8 GPUs, 4 NVSwitch chips, each GPU with its own NIC under a PCIe switch, two CPUs; the number of PCIe switches is illustrative),
 // two such servers on 8 rail leaves (GPU k of every server on leaf k), and spine switches above (their number illustrative).
 // Pipes: a link drawn as a tube whose cross-section area is proportional to its bandwidth per GPU, each direction (diameter = K * sqrt(GB/s)). ----
+// on a phone (canvas under 520 px) a stage's camera turns about 1 radian so the long row of GPUs runs into depth and the parts draw larger;
+// f(k) is the step's wide-screen view (or null), cam0 the stage's camera
+window.S3P=(k,id,f,cam0)=>{const v=f(k),h=document.getElementById(id);if(!h||h.clientWidth>=520)return v;const c=(v&&v.cam)||cam0;return {cam:[1.0,Math.max(.6,c[1])],bounds:v&&v.bounds}};
 window.ICG=(function(){
   if(!window.S3)return null;
   const {mix}=S3;

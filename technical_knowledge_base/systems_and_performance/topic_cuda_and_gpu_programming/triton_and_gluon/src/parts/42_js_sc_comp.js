@@ -19,7 +19,7 @@
     if(mode==='tr'){
       // the plate this step is about at full strength; those above it receding, those below drawn faintly so the whole stack is there from the start
       for(let i=0;i<6;i++){const a=i===k?(k===0?1:.35+.65*e):i<k?.3:.13;plate(R,i,a,C[i]);
-        if(Math.abs(i-k)<=1)lab([-1.5,Y(i),0],NM[i]+(LN[i]?' · '+LN[i].toLocaleString('en-US')+' '+UNIT[i]:''),{al:'right',dx:-10,fs:12.5,b:i===k,c:i===k?P.ink:P.mute,a:i===k?1:.75,grp:'st'})}
+        if(i-k>=-2&&i-k<=1)lab([-1.5,Y(i),0],NM[i]+(LN[i]?' · '+LN[i].toLocaleString('en-US')+' '+UNIT[i]:''),{al:'right',dx:-10,fs:12.5,b:i===k,c:i===k?P.ink:P.mute,a:i===k?1:.75,grp:'st'})}
       // the operation: flows down from the last plate to this one, then sits on it with its name at this level
       const yk=Y(k);if(k>0)R.flow([[0,Y(k-1)+.05,0],[0,yk+.12,0]],{c:P.acc,a:e,r:.08,n:6,speed:1.2});
       R.box([0,yk+.02,0],[.32,.16,.32],{fill:mix(P.paper,P.acc,.75),a:k===0?1:e,shadow:false});

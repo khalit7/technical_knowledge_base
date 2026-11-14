@@ -12,7 +12,7 @@
   const MX0=-7.4,mx=g=>MX0+g*U,MCPU=[-6.8,0,-2.3],MGPU=[-4.8,0,-2.3];
   const RX0=-2.7,RX1=-.5,VX0=.6,vx=g=>VX0+g*U,PCPU=[-1.6,0,-2.5],PGPU=[vx(16),0,-2.5];
   function draw(R,k,e){const P=R.P,lab=(p,t,o)=>R.label(p,t,Object.assign({fs:12.5},o||{}));R.grid(-9,8,-3.6,1.8,.5);
-    const ma=k===0||k===5?1:.25,pa=k===0?.2:1,mla=k===0||k===5?1:0,pla=k===0?0:1;
+    const ma=k===0||k===5?1:.1,pa=k===0?.08:1, /* the side out of the close-up recedes almost fully */ mla=k===0||k===5?1:0,pla=k===0?0:1;
     // ---- the Mac
     R.glass([MX0,.01,Z0],[mac.mem*U,0,0],[0,0,Z1-Z0],{c:P.acc,nu:mac.mem,nv:1,a:ma*.9,th:.03});
     R.box(MCPU,[1.3,.45,.8],{fill:mix(P.paper,P.mute,.25),a:ma});R.box(MGPU,[1.3,.45,.8],{fill:mix(P.paper,P.c1,.35),a:ma});

@@ -24,7 +24,7 @@
       if(k===4){const j=FT.indexOf(i);if(j>=0){const t=(j+.5)/F.nf;const on=e>t?Math.max(0,1-(e-t)*F.nf*.9):0;fill=mix(work,P.bad,e>t?Math.max(.55,on):0);h=.12+.12*on}}
       R.box([x(c),0,z(r)],[TS,h,TS],{fill,a,shadow:false,lw:.5,ea:.45})}
     // checkpoint storage
-    const sa=k===0?.35:1;R.box([STO[0],0,STO[1]],[1.2,1.0,1.8],{fill:mix(P.paper,P.c4,.5),a:sa});
+    const sa=k===0?.35:k===4?lerp(1,.15,e):1; // in step 5 storage recedes so the bars in front of it read clearlyR.box([STO[0],0,STO[1]],[1.2,1.0,1.8],{fill:mix(P.paper,P.c4,.5),a:sa});
     const cols=[1,4,7,10,13];
     // 1. lockstep: every row exchanges gradients each step
     if(k===0){for(let r=1;r<NT;r+=3)R.flow([[x(0),.2,z(r)],[x(NT-1),.2,z(r)]],{c:P.acc,a:e,r:.06,n:12,speed:1.6});

@@ -43,7 +43,7 @@
     if(k===NS){const end=T[NS].find(c=>G?c.kept:c.kept&&c.rank===0);R.glow([X(NS),H(end.cum),end.z],.6,{c:G?P.c2:P.good,a:e});
       R.label([X(NS)+.3,H(end.cum),end.z],nm(end.tok)+' · '+(G?'greedy':'best beam')+', total '+end.cum.toFixed(2).replace('-','−'),{al:'left',dx:8,fs:13,b:1,c:G?P.c2:P.good,a:e})}
   }
-  const full={cam:[.12,.62],bounds:[[X(0)-1.6,0,-2.8],[X(NS)+2.4,1.1,2.2]]},last={cam:[.12,.66],bounds:[[X(0)-1.4,0,-.6],[X(NS)+3.2,1.1,2.2]]};
+  const full={cam:[.12,.62],bounds:[[X(0)-1.6,0,-2.8],[X(NS)+2.4,1.1,2.2]]},last={cam:[.42,.9],bounds:[[X(0)-1.4,0,-.6],[X(NS)+3.2,1.1,2.2]]};
   const stg=S3.stage({id:'stg-beam',list:'sx-bm-g',fig:'Fig. 2 · search over GPT-2’s real log-probabilities',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1300,hold:4800,draw,
     margin:w=>w<520?[16,10,14,10]:[18,14,14,14],
     view:k=>k===0?{cam:[.12,.6],bounds:[[X(0)-1.6,0,-2.8],[X(1)+2.4,1.1,2.2]]}:k<NS?{cam:[.14,.6],bounds:[[X(k-1)-.7,0,-2.8],[X(k)+2.6,1.1,2.2]]}:last});

@@ -50,7 +50,9 @@
     lab([UX-.4,2.3,-1.7],mt,{al:'left',dy:19,mono:true,fs:12,c:P.mute});
     lab([UX-.4,2.3,-1.7],'p90 TTFT '+(X.p90<10?X.p90.toFixed(2):X.p90.toFixed(1))+' s · target 1.05 s',{al:'left',dy:38,mono:true,fs:12,b:X.p90>BASE.slo,c:X.p90>BASE.slo?P.bad:P.mute});
   }
+  const ph=()=>{const c=document.querySelector('#stg-as canvas');return c&&c.clientWidth<520};
   const st=S3.stage({id:'stg-as',list:'sx-as-q',fig:'Fig. 3 · the pool over half an hour, simulated',cam:[.12,.78],bounds:[[-5.6,0,-1.6],[5.9,1.7,1.4]],aspect:.56,dur:3600,hold:3600,draw,
+    view:()=>ph()?{cam:[.5,.98]}:null, // a steeper camera on a phone so the scene draws larger
     margin:w=>w<520?[16,10,14,10]:[20,100,18,18]});
   const ch=document.getElementById('as-mode');
   if(ch)ch.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;mode=b.dataset.m;ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));

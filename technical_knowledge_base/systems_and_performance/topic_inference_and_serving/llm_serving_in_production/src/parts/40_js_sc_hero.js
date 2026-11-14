@@ -40,8 +40,10 @@
       if(fill>0)R.box([XR,0,NEWZ],[1.3,.5*fill,.8],{fill:mix(P.paper,P.c2,.45),a:.9,shadow:false,lw:.5});
       lab([XR+.7,.25,NEWZ],fill<1?'starting: weights, engine init':'serving',{al:'left',dx:6,c:P.c2,b:1,grp:'rep'})}
   }
+  const ph=()=>{const c=document.querySelector('#stg-hero canvas');return c&&c.clientWidth<520};
   const full={cam:[.15,.66],bounds:[[-5.9,0,-2.6],[5.2,.55,2.7]]};
   const st=S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one request through the service, schematic',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1400,hold:4800,draw,
+    view:()=>ph()?{cam:[.62,.92]}:null, // on a phone the long row turns into depth so the boxes draw larger
     margin:w=>w<520?[22,10,14,10]:[26,70,20,18]});
   (window.PRSTG=window.PRSTG||{})['stg-hero']=st;
 })();

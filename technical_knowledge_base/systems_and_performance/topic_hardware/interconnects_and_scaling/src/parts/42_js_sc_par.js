@@ -14,14 +14,14 @@
   // per step: which link carries the traffic, its colour key, the comm / compute ratio, and the alphas of the network tiers
   const ST=[{kind:'I'},{kind:'tpn',c:'c3',r:R_.tpn,lab:'TP 8 inside the server'},{kind:'tpi',c:'bad',r:R_.tpi,lab:'TP 8 across the NIC'},
     {kind:'pp',c:'c5',r:R_.pp,lab:'pipeline, 16 stages'},{kind:'dp',c:'c2',r:R_.dp,lab:'data parallel'},{kind:'ep',c:'c4',r:R_.ep,lab:'expert parallel'}];
-  const TIER=[{nvl:1,rail:1,up:.25},{nvl:1,rail:.2,up:.15},{nvl:.25,rail:1,up:.15},{nvl:.25,rail:.8,up:.15},{nvl:.25,rail:1,up:.15},{nvl:.4,rail:.6,up:1}];
+  const TIER=[{nvl:1,rail:1,up:.25},{nvl:1,rail:.2,up:.05},{nvl:.25,rail:1,up:.05},{nvl:.25,rail:.8,up:.05},{nvl:.25,rail:1,up:.05},{nvl:.4,rail:.6,up:1}];
   const BX=9.1,HS=1.7; // the bars: x position, height of 100%
   function draw(R,k,e,st){const P=R.P,pk=st.pk==null?k:st.pk,a=n=>lerp(TIER[pk][n],TIER[k][n],e),lab=(p,t,o)=>R.label(p,t,Object.assign({mono:true,fs:12.5},o||{})),s=ST[k];
     R.grid(-7.5,10.5,-4,4,.5);
-    [S0,S1].forEach(S=>{G.drawServer(R,S,{hbm:.25,nvs:.4+.6*a('nvl'),pci:.3,nic:.6,cpu:.3});G.links(R,S,BW,{nvl:a('nvl'),pcie:.2})});
-    for(let r=0;r<8;r++){const L=G.leaf(r);R.box([L[0],L[1]-.15,0],[.9,.3,.6],{fill:mix(P.paper,P.c2,.45),a:.4+.6*a('rail'),shadow:false});
+    [S0,S1].forEach(S=>{G.drawServer(R,S,{hbm:.1+.15*a('nvl'),nvs:.4+.6*a('nvl'),pci:.12+.18*a('nvl'),nic:.6,cpu:.12+.18*a('nvl')});G.links(R,S,BW,{nvl:a('nvl'),pcie:.2})});
+    for(let r=0;r<8;r++){const L=G.leaf(r);R.box([L[0],L[1]-.15,0],[.9,.3,.6],{fill:mix(P.paper,P.c2,.45),a:.2+.8*a('rail'),shadow:false});
       [S0,S1].forEach(S=>G.pipe(R,G.top(S.nic(r)),[L[0],L[1]-.15,0],BW.nic,{c:P.c2,a:a('rail')*.8}))}
-    for(let q=0;q<4;q++){const Sp=G.spine(q);R.box([Sp[0],Sp[1]-.18,0],[1.5,.36,.75],{fill:mix(P.paper,P.bad,.55),a:.3+.7*a('up'),shadow:false});
+    for(let q=0;q<4;q++){const Sp=G.spine(q);R.box([Sp[0],Sp[1]-.18,0],[1.5,.36,.75],{fill:mix(P.paper,P.bad,.55),a:.15+.85*a('up'),shadow:false});
       for(let r=0;r<8;r++){const L=G.leaf(r);G.pipe(R,[L[0],L[1]+.15,0],[Sp[0],Sp[1]-.18,0],BW.spine,{c:P.bad,a:a('up')*.7})}}
     // traffic
     const z0=S0.nvs(0)[2],z1=S1.nvs(0)[2],via=(S,g,z)=>[[G.XG(g),.44,S.z0],[G.XG(g),.44,z]];
@@ -45,7 +45,8 @@
     if(k===0){lab([G.XG(0),.5,z0],'NVLink · I = '+f(PR.nvl.I),{al:'right',dx:-10,b:1,c:P.c3,a:e,wide:1});lab([G.XG(0),G.YL,0],'NIC · I = '+f(PR.ib.I),{al:'right',dx:-14,b:1,c:P.c2,a:e,wide:1})}
   }
   const full={cam:[.5,.34],bounds:[[-7.2,0,-3.6],[10.2,5.6,3.6]]};
-  const st=S3.stage({id:'stg-par',list:'sx-par',fig:'Fig. 5 · where each parallelism sends its traffic',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1500,hold:5200,draw,
+  const st=S3.stage({id:'stg-par',list:'sx-par',fig:'Fig. 5 · where each parallelism sends its traffic',cam:full.cam,bounds:full.bounds,aspect:.58,dur:1500,hold:5200,draw,view:k=>S3P(k,'stg-par',()=>null,full.cam),
+   
     margin:w=>w<520?[18,10,14,10]:[24,20,20,20]});
   (window.ICSTG=window.ICSTG||{})['stg-par']=st;
 })();

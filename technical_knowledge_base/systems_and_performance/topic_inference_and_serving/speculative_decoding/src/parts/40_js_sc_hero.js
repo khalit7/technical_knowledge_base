@@ -60,5 +60,5 @@
   const full={cam:[.28,.62],bounds:[[-5.6,0,-2.0],[3.4,1.5,1.9]]};
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · one round of speculation, real tokens',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1600,hold:5200,draw,
     margin:w=>w<520?[16,10,14,10]:[18,16,16,16],
-    view:k=>k===1?{cam:[.4,.55],bounds:[[-5.4,0,-.6],[2.6,1.2,1.8]]}:k===3||k===4?{cam:[.2,.5],bounds:[[-2.6,0,-2.2],[3.2,1.8,1.8]]}:k===5?{cam:[.02,.8],bounds:[[-6.2,0,2.0],[2.2,.4,4.0]]}:full});
+    view:k=>k===1?{cam:[.4,.55],bounds:[[-5.4,0,-.6],[2.6,1.2,1.8]]}:k===3||k===4?{cam:[.2,.5],bounds:[[-2.6,0,-2.2],[3.2,1.8,1.8]]}:k===5?{cam:[0,1.3],bounds:[[-6.2,0,2.0],[2.2,.4,4.0]]}:full});
 })();

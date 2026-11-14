@@ -34,8 +34,10 @@
     const done=X.slice(0,A.m).reduce((s,r)=>s+r[3],0);
     R.label([RT[0]+.7,.2,RT[2]],'computed so far: '+nf(done),{al:'left',dx:8,b:last,c:last?P.bad:P.mute});
   }
+  const ph=()=>{const c=document.querySelector('#stg-rt canvas');return c&&c.clientWidth<520};
   const full={cam:[.12,.7],bounds:[[-5.1,0,-3.0],[5.1,.7,1.9]]};
   const st=S3.stage({id:'stg-rt',list:'sx-rt-rr',fig:'Fig. 2 · eight real requests, three llama-server replicas',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:4400,draw,
+    view:()=>ph()?{cam:[.12,.98]}:null, // a steeper camera on a phone so the scene draws larger
     margin:w=>w<520?[16,10,18,10]:[20,24,22,24]});
   const ch=document.getElementById('rt-mode');
   if(ch)ch.addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;mode=b.dataset.m;ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));

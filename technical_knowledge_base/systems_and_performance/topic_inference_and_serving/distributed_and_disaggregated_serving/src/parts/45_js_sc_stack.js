@@ -38,6 +38,6 @@
       R.box([3,.98,-.35],[2.2,.24,.6],{fill:mix(P.paper,P.mute,.25),a,shadow:false,lw:.7});lab(R,[3,1.22,-.35],'training · data jobs',{dy:-10,fs:12.5,c:P.mute,a});
       req([-1.5,1.25,.3],P.acc,a);R.flowArc([-1.5,.98,.1],[-3,.46,.1],.15,{c:P.acc,a,r:.06,n:4,speed:1.2});}
   }
-  const st=S3.stage({id:'stg-stack',list:'sx-stack',fig:'Fig. 8 · the serving layer, stacked above the engines',cam:[.1,.62],bounds:[[-5,0,-.9],[5,1.6,2.4]],aspect:.46,dur:1500,hold:5200,draw,margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
+  const st=S3.stage({id:'stg-stack',list:'sx-stack',fig:'Fig. 8 · the serving layer, stacked above the engines',cam:[.1,.62],bounds:[[-5,0,-.9],[5,1.6,2.4]],aspect:.36,dur:1500,hold:5200,draw,view:k=>DDP('stg-stack',null,[.1,.62]),margin:w=>w<520?[16,10,14,10]:[22,18,18,18]});
   (window.DDSTG=window.DDSTG||{})['stg-stack']=st;
 })();
