@@ -205,6 +205,8 @@ table.tbx tr.meta td{color:var(--mute);font-size:12px}
 .dl{display:block;font-size:11px;font-weight:500;color:var(--mute)}.dl.up{color:var(--good)}.dl.dn{color:var(--bad)}
 table.tb td.ok{color:var(--good);font-weight:700}table.tb td.no{color:var(--bad);font-weight:700}
 #t2Body td:first-child,#t2Body td:nth-child(2){text-align:left}
+/* the promoted-accumulation card is about 740 px tall: it stays sticky only where the window can hold it */
+@media (max-height:819px){.s3side:has(#ax){position:static}}
 </style>
 <style id="kb-look">
 /* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
@@ -408,12 +410,6 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <p>The report claims the first validation of FP8 mixed-precision training on an extremely large model (<a href="https://arxiv.org/html/2412.19437v2#S1" target="_blank" rel="noopener noreferrer">§1</a>). The framework (<a href="https://arxiv.org/html/2412.19437v2#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>, <a href="https://arxiv.org/html/2412.19437v2#S3.F6" target="_blank" rel="noopener noreferrer">Figure 6</a>): all three GEMMs of every linear layer, Fprop, Dgrad and Wgrad, take FP8 inputs and produce BF16 or FP32, theoretically doubling speed over BF16, and FP8 Wgrad lets activations be cached in FP8 for the backward pass. Kept in BF16 or FP32: the embedding, the output head, the MoE gating, normalisation and attention. Master weights and weight gradients stay FP32; AdamW's two moments drop to BF16 without observable loss (<a href="https://arxiv.org/html/2412.19437v2#S3.SS3.SSS3" target="_blank" rel="noopener noreferrer">§3.3.3</a>). Four changes make it work (<a href="https://arxiv.org/html/2412.19437v2#S3.SS3.SSS2" target="_blank" rel="noopener noreferrer">§3.3.2</a>); the first two run below in your browser with exact arithmetic, each as the method V3 replaced against the one it adopted on the same input.</p>
 <details class="card"><summary><b>The two FP8 formats</b>, in the numbers the simulator uses</summary>
 <p class="small"><b>E4M3</b>: 4 exponent bits, 3 mantissa bits, largest value 448, smallest normal 2<sup>−6</sup>, smallest subnormal 2<sup>−9</sup>: about 2<sup>18</sup> of range, rounding error up to 1/16 of a value. <b>E5M2</b>: largest 57,344, smallest normal 2<sup>−14</sup>, smallest subnormal 2<sup>−16</sup>: 2<sup>32</sup> of range, twice the rounding error. Below the smallest normal a value is <b>subnormal</b> and keeps fewer mantissa bits; below half the smallest subnormal it becomes zero. Rounding is to nearest, ties to even; values above the maximum saturate. How the formats are built bit by bit is on <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>.</p></details>
-
-</section>
-
-<div class="s3sp"><div class="s3R"><div id="stg-fp8"></div></div><div class="s3L">
-<section id="s-fp8s"><h3 id="sx-h">1. Fine-grained scaling: one scale per tensor, per 1×128 tile, or per 128×128 block</h3>
-<p>Scaling a whole tensor so its largest value maps to FP8's largest makes everything else hostage to outliers. V3 scales activations per 1×128 tile (one token, 128 channels) and weights per 128×128 block (<a href="https://arxiv.org/html/2412.19437v2#S3.F7" target="_blank" rel="noopener noreferrer">Figure 7a</a>), each scale computed online from the group itself so that its largest magnitude lands on 448. Standard FP8 GEMMs cannot take per-group scales along the inner dimension; V3 applies them during the promoted accumulation. The paper notes this is the idea behind microscaling formats, which NVIDIA's Blackwell tensor cores support natively.</p>
 <div class="pred" id="pr-fp8" data-ans="2"><div class="q">Activations quantised to E4M3 with <b>one scale per tensor</b>. Two channels carry outliers 100,000 times larger than the rest. What share of the ordinary values survive as non-zero FP8 numbers?</div>
 <div class="opts"><button>Nearly all: FP8 is floating point</button><button>About 90%</button><button>About half</button></div>
 <div class="fb"></div>
@@ -422,6 +418,12 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <div class="out" id="fp8Mini"></div>
 <p class="small">E5M2 has 2<sup>32</sup> of range and survives the same outlier, at twice the rounding error everywhere else. Tiles of 1×128 keep E4M3's precision and confine the damage to the tiles that hold an outlier. That is the trade "mantissa over exponents" makes.</p>
 </div></div>
+
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-fp8"></div></div><div class="s3L">
+<section id="s-fp8s"><h3 id="sx-h">1. Fine-grained scaling: one scale per tensor, per 1×128 tile, or per 128×128 block</h3>
+<p>Scaling a whole tensor so its largest value maps to FP8's largest makes everything else hostage to outliers. V3 scales activations per 1×128 tile (one token, 128 channels) and weights per 128×128 block (<a href="https://arxiv.org/html/2412.19437v2#S3.F7" target="_blank" rel="noopener noreferrer">Figure 7a</a>), each scale computed online from the group itself so that its largest magnitude lands on 448. Standard FP8 GEMMs cannot take per-group scales along the inner dimension; V3 applies them during the promoted accumulation. The paper notes this is the idea behind microscaling formats, which NVIDIA's Blackwell tensor cores support natively.</p>
 <ol class="sx" id="sx-fp8">
 <li><b>The activations.</b> A matrix of 32 tokens × 512 channels of unit-variance values lies on the plate, with outliers 10<sup>5</sup> times larger on channels 38 and 301 of every token (the purple ridges).</li>
 <li><b>One scale for the whole tensor.</b> The largest magnitude, 3.1 × 10<sup>5</sup> on an outlier channel, divided by 448 (E4M3's largest value) is the scale: one outlier sets it for all 16,384 values.</li>
@@ -503,6 +505,12 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <details class="card"><summary><b>Hyper-parameters</b> (§4.2)</summary>
 <p class="small"><b>Hyper-parameters</b> (<a href="https://arxiv.org/html/2412.19437v2#S4.SS2" target="_blank" rel="noopener noreferrer">§4.2</a>): AdamW with β<sub>1</sub> = 0.9, β<sub>2</sub> = 0.95, weight decay 0.1, gradient clipping 1.0, sequence length 4K. Learning rate: linear warm-up to 2.2 × 10<sup>−4</sup> over 2K steps, constant until 10T tokens, cosine decay to 2.2 × 10<sup>−5</sup> over 4.3T tokens, then 2.2 × 10<sup>−5</sup> for 333B tokens and 7.3 × 10<sup>−6</sup> for the last 167B. Batch size ramps from 3,072 to 15,360 sequences over the first 469B tokens.</p></details>
 <p><b>Long context</b> (<a href="https://arxiv.org/html/2412.19437v2#S4.SS3" target="_blank" rel="noopener noreferrer">§4.3</a>): YaRN applied only to the decoupled key k<sup>R</sup> (scale s = 40, α = 1, β = 32, √t = 0.1 ln s + 1; YaRN itself is taught on <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>), then two 1,000-step phases that take the window from 4K to 32K and then to 128K, at learning rate 7.3 × 10<sup>−6</sup>: 32K sequences in batches of 1,920, then 128K in batches of 480. After fine-tuning the model passes "Needle in a Haystack" across the whole 128K window (<a href="https://arxiv.org/html/2412.19437v2#S4.F8" target="_blank" rel="noopener noreferrer">Figure 8</a>). Those two phases are about 126B tokens for 119K GPU hours, about 950 GPU hours per billion tokens against 180 in pre-training (derived), because attention over long sequences is expensive.</p>
+<div class="pred" id="pr-cost" data-ans="2"><div class="q">Llama 3.1 405B's pre-training took 30.84M H100 GPU hours, 11 times V3's total. An H800 has the same compute as an H100. How much of that 11× is explained simply by Llama doing more work: 405B active parameters on 15.6T tokens against 37B on 14.8T?</div>
+<div class="opts"><button>About a third: the rest is DeepSeek's efficiency</button><button>About half</button><button>Nearly all of it</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p><b>Nearly all of it.</b> Active parameters × tokens is 11.5 times larger for Llama, against 11.1 times the GPU hours (11.6 against pre-training alone). Counted as 6 × active parameters × tokens, both runs used about 34% of the GPUs' dense BF16 peak.</p>
+</div></div>
 </section>
 
 <div class="s3sp"><div class="s3L">
@@ -517,12 +525,6 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <li><b>Hardware, power, staff and data.</b> The 2,048 H800s cost far more to buy than $5.6M; the lab page quotes SemiAnalysis's estimate of DeepSeek's hardware. The paper never claims otherwise: $2 an hour is a rental-equivalent price.</li>
 </ul>
 <p class="small">The fair one-line version: "the final training run used 2.788M H800 GPU hours, worth about $5.6M at rental prices". That claim checks out.</p></details>
-<div class="pred" id="pr-cost" data-ans="2"><div class="q">Llama 3.1 405B's pre-training took 30.84M H100 GPU hours, 11 times V3's total. An H800 has the same compute as an H100. How much of that 11× is explained simply by Llama doing more work: 405B active parameters on 15.6T tokens against 37B on 14.8T?</div>
-<div class="opts"><button>About a third: the rest is DeepSeek's efficiency</button><button>About half</button><button>Nearly all of it</button></div>
-<div class="fb"></div>
-<div class="reveal" hidden>
-<p><b>Nearly all of it.</b> Active parameters × tokens is 11.5 times larger for Llama, against 11.1 times the GPU hours (11.6 against pre-training alone). Counted as 6 × active parameters × tokens, both runs used about 34% of the GPUs' dense BF16 peak.</p>
-</div></div>
 </section>
 </div><div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Table 1, recomputed</div>
 <div class="ctl"><label>Rental price per H800 GPU hour = <b id="bpV">$2.00</b> (the paper's assumption)<input type="range" id="bp" min="1" max="4" step="0.25" value="2"></label></div>

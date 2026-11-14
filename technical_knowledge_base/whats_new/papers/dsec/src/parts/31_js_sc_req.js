@@ -65,7 +65,7 @@
   }
   const CNT={box:k=>stat('Components passed',[1,2,3,4,5,6,6,6][k]+' of 6')+stat('Per-sandbox state in the ingress','none','sandbox ID encodes its edge')+stat('Image bytes pulled before start','0','data fetched on read'),
     fn:k=>stat('Components passed',[1,2,3,3][k]+' of 3')+stat('Per-invocation provisioning','none','container is precreated')+stat('Step',(k+1)+' of 4')};
-  const full={cam:[.28,.78],bounds:[[-7.2,0,-3.2],[6.3,1.2,2.1]]},nodes={cam:[.38,.66],bounds:[[1.3,0,-3.2],[6.4,1.1,2.1]]},fnv={cam:[.3,.7],bounds:[[1.2,0,-.3],[6.4,1.1,2.1]]};
+  const full={cam:[.28,.78],bounds:[[-7.2,0,-2.6],[6.3,.6,2.1]]},nodes={cam:[.38,.66],bounds:[[1.3,0,-3.2],[6.4,1.1,2.1]]},fnv={cam:[.3,.7],bounds:[[1.2,0,-.3],[6.4,1.1,2.1]]};
   const isClose=k=>M==='box'?(k===4||k===5||k===7):k===3;
   const stg=S3.stage({id:'stg-rq',list:'sx-rq-box',fig:'Fig. 1 · one request, from libdsec to a shell',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1400,hold:4600,draw,
     // the steps about the node (admission, image loading, stop) move in close; FnCall's last step is about its container

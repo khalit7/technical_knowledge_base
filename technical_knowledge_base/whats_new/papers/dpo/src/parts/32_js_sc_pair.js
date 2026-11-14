@@ -35,7 +35,7 @@
   const near=i=>({cam:[.2,.42],bounds:[[XP(i)-1.2,0,-.4],[XP(i)+1.2,1.85,1.2]]});
   const stg=S3.stage({id:'stg-pair',list:'sx-pair-dpo',fig:'Fig. 2 · four training pairs through the loss',cam:full.cam,bounds:full.bounds,aspect:.5,dur:2600,hold:4200,
     draw:(R,k,e)=>{draw(R,k,e);counters(k,e)},
-    view:k=>{const f=FOC[MODE][k],v=f&&f.length===1?near(f[0]):full,h=document.getElementById('stg-pair');return v},
+    view:k=>{const f=FOC[MODE][k],v=f&&f.length===1?near(f[0]):full,h=document.getElementById('stg-pair');return h&&h.clientWidth<520?{cam:[v.cam[0]+.7,v.cam[1]+.35],bounds:v.bounds}:v}, // phones: the row of four turned into depth
     margin:w=>w<520?[14,6,12,6]:[18,16,14,16]});
   const seg=document.getElementById('pairM'),sel=document.getElementById('pairB');
   if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(y=>{y.classList.toggle('on',y===b);y.setAttribute('aria-pressed',y===b?'true':'false')});

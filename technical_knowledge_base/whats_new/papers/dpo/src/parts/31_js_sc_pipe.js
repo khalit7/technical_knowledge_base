@@ -68,7 +68,7 @@
   const VR=[back,left,full,full,{cam:[.3,.5],bounds:[[-3.5,0,-1.9],[1.4,1.2,1.3]]},{cam:[.3,.5],bounds:[[-1.3,0,-1.9],[3.5,1.3,1.3]]},full];
   const VD=[back,full,left,full,full,full];
   const stg=S3.stage({id:'stg-pipe',list:'sx-rlhf',fig:'Fig. 1 · RLHF against DPO on the toy\'s 5,229 pairs',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:5000,draw,
-    view:k=>{const v=(MODE==='rlhf'?VR:VD)[k]||full,h=document.getElementById('stg-pipe');return h&&h.clientWidth<520?{cam:[.3,.75],bounds:full.bounds}:v},
+    view:k=>{const v=(MODE==='rlhf'?VR:VD)[k]||full,h=document.getElementById('stg-pipe');return h&&h.clientWidth<520?{cam:[v.cam[0]+.6,v.cam[1]+.25],bounds:v.bounds}:v}, // phones: each step's own view, turned so the lanes run into depth
     margin:w=>w<520?[16,8,14,8]:[22,30,16,30],onStep:k=>counters(k)});
   const seg=document.getElementById('pipeM');
   if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(y=>{y.classList.toggle('on',y===b);y.setAttribute('aria-pressed',y===b?'true':'false')});

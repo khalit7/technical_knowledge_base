@@ -69,8 +69,8 @@
   const full={cam:[.55,.62],bounds:[[-4.7,0,-3.9],[4.7,2.1,2.6]]};
   const V=[full,{cam:[.45,.8],bounds:[[-4.7,0,-.5],[4.7,.7,3.8]]},{cam:[.5,.42],bounds:[[-4.7,0,-2],[4.7,2.6,1.2]]},{cam:[.45,.36],bounds:[[-4.7,0,-2],[4.7,2.4,.6]]},
     {cam:[.55,.5],bounds:[[-4.7,0,-2.9],[4.7,2.2,.4]]},{cam:[.3,1.0],bounds:[[-4.7,0,-.6],[4.7,.5,3.0]]}];
-  const stg=S3.stage({id:'stg-grp',list:'sx-grp',fig:'Fig. 1 · one GRPO step, sixteen toy answers',cam:full.cam,bounds:full.bounds,aspect:.64,dur:1700,hold:5200,draw,
-    view:k=>{const v=V[k],h=document.getElementById('stg-grp');return h&&h.clientWidth<520?{cam:[v.cam[0],Math.min(1.15,v.cam[1]+.35)],bounds:v.bounds}:v},margin:w=>w<520?[14,8,14,8]:[16,84,14,124],onStep:k=>counters(k)});
+  const stg=S3.stage({id:'stg-grp',list:'sx-grp',fig:'Fig. 1 · one GRPO step, sixteen toy answers',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1700,hold:5200,draw,
+    view:k=>{const v=V[k],h=document.getElementById('stg-grp');const W=.15;return h&&h.clientWidth<520?{cam:[v.cam[0],Math.min(1.15,v.cam[1]+.35)],bounds:v.bounds}:{cam:[v.cam[0],Math.min(1.15,v.cam[1]+W)],bounds:v.bounds}},margin:w=>w<520?[14,8,14,8]:[16,84,14,124],onStep:k=>counters(k)});
   const seg=document.getElementById('grpM');
   if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(y=>{y.classList.toggle('on',y===b);y.setAttribute('aria-pressed',y===b?'true':'false')});
     M=b.dataset.m;stg.list('sx-grp')}));

@@ -34,12 +34,6 @@
 <p>The report claims the first validation of FP8 mixed-precision training on an extremely large model ({{§1|ax:S1}}). The framework ({{§3.3.1|ax:S3.SS3.SSS1}}, {{Figure 6|ax:S3.F6}}): all three GEMMs of every linear layer, Fprop, Dgrad and Wgrad, take FP8 inputs and produce BF16 or FP32, theoretically doubling speed over BF16, and FP8 Wgrad lets activations be cached in FP8 for the backward pass. Kept in BF16 or FP32: the embedding, the output head, the MoE gating, normalisation and attention. Master weights and weight gradients stay FP32; AdamW's two moments drop to BF16 without observable loss ({{§3.3.3|ax:S3.SS3.SSS3}}). Four changes make it work ({{§3.3.2|ax:S3.SS3.SSS2}}); the first two run below in your browser with exact arithmetic, each as the method V3 replaced against the one it adopted on the same input.</p>
 <details class="card"><summary><b>The two FP8 formats</b>, in the numbers the simulator uses</summary>
 <p class="small"><b>E4M3</b>: 4 exponent bits, 3 mantissa bits, largest value 448, smallest normal 2<sup>−6</sup>, smallest subnormal 2<sup>−9</sup>: about 2<sup>18</sup> of range, rounding error up to 1/16 of a value. <b>E5M2</b>: largest 57,344, smallest normal 2<sup>−14</sup>, smallest subnormal 2<sup>−16</sup>: 2<sup>32</sup> of range, twice the rounding error. Below the smallest normal a value is <b>subnormal</b> and keeps fewer mantissa bits; below half the smallest subnormal it becomes zero. Rounding is to nearest, ties to even; values above the maximum saturate. How the formats are built bit by bit is on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p></details>
-
-</section>
-
-<div class="s3sp"><div class="s3R"><div id="stg-fp8"></div></div><div class="s3L">
-<section id="s-fp8s"><h3 id="sx-h">1. Fine-grained scaling: one scale per tensor, per 1×128 tile, or per 128×128 block</h3>
-<p>Scaling a whole tensor so its largest value maps to FP8's largest makes everything else hostage to outliers. V3 scales activations per 1×128 tile (one token, 128 channels) and weights per 128×128 block ({{Figure 7a|ax:S3.F7}}), each scale computed online from the group itself so that its largest magnitude lands on 448. Standard FP8 GEMMs cannot take per-group scales along the inner dimension; V3 applies them during the promoted accumulation. The paper notes this is the idea behind microscaling formats, which NVIDIA's Blackwell tensor cores support natively.</p>
 <div class="pred" id="pr-fp8" data-ans="2"><div class="q">Activations quantised to E4M3 with <b>one scale per tensor</b>. Two channels carry outliers 100,000 times larger than the rest. What share of the ordinary values survive as non-zero FP8 numbers?</div>
 <div class="opts"><button>Nearly all: FP8 is floating point</button><button>About 90%</button><button>About half</button></div>
 <div class="fb"></div>
@@ -48,6 +42,12 @@
 <div class="out" id="fp8Mini"></div>
 <p class="small">E5M2 has 2<sup>32</sup> of range and survives the same outlier, at twice the rounding error everywhere else. Tiles of 1×128 keep E4M3's precision and confine the damage to the tiles that hold an outlier. That is the trade "mantissa over exponents" makes.</p>
 </div></div>
+
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-fp8"></div></div><div class="s3L">
+<section id="s-fp8s"><h3 id="sx-h">1. Fine-grained scaling: one scale per tensor, per 1×128 tile, or per 128×128 block</h3>
+<p>Scaling a whole tensor so its largest value maps to FP8's largest makes everything else hostage to outliers. V3 scales activations per 1×128 tile (one token, 128 channels) and weights per 128×128 block ({{Figure 7a|ax:S3.F7}}), each scale computed online from the group itself so that its largest magnitude lands on 448. Standard FP8 GEMMs cannot take per-group scales along the inner dimension; V3 applies them during the promoted accumulation. The paper notes this is the idea behind microscaling formats, which NVIDIA's Blackwell tensor cores support natively.</p>
 <ol class="sx" id="sx-fp8">
 <li><b>The activations.</b> A matrix of 32 tokens × 512 channels of unit-variance values lies on the plate, with outliers 10<sup>5</sup> times larger on channels 38 and 301 of every token (the purple ridges).</li>
 <li><b>One scale for the whole tensor.</b> The largest magnitude, 3.1 × 10<sup>5</sup> on an outlier channel, divided by 448 (E4M3's largest value) is the scale: one outlier sets it for all 16,384 values.</li>

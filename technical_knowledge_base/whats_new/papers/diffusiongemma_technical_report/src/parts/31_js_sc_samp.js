@@ -69,7 +69,7 @@
       stat('Forward passes',passes,'denoise + append')+stat('Final tokens',toks+' / '+NB,'canvases done')+stat('TPF so far',passes?(toks/passes).toFixed(2):'0','AR = 1')+stat('Correct bits',k>=5?d.ok+' / '+NB:'...','against the rule')}
   const W0=-10.3,W1=8.2,full={cam:[.1,.95],bounds:[[W0,0,z(24)-.3],[W1,.8,1.9]]};
   const st=S3.stage({id:'stg-samp',list:'sx-samp',fig:'Fig. 1 · Algorithm 1 on the toy, pass by pass',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1700,hold:4800,draw,
-    margin:w=>w<520?[14,10,14,10]:[18,14,14,120],
+    margin:w=>w<520?[14,10,14,10]:[18,14,34,120],
     view:k=>{const d=SAMPDATA(),n0=d.ev.filter(v=>v.k===0&&v.kind==='den').length;
       if(k===0)return {cam:[.1,.8],bounds:[[W0,0,-.4],[x(C-1)+.4,.6,1.9]]};
       if(k>=1&&k<=4)return {cam:[.12,.9],bounds:[[W0,0,z(n0+1)-.3],[x(C-1)+2.2,.8,1.9]]};
