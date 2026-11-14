@@ -58,7 +58,7 @@
       if(k===2){const top=(f3.k+f3.p)*SL,drop=lerp(.9,0,e);R.box([xF,top-SL+drop,ZM],[S.dx*.62,SL*.86,.5],{fill:P.c5,a:1,shadow:false});R.glow([xF,top+drop,ZM],.35,{c:P.c5,a:.6});
         R.glass([xF-.45,top+.32,ZM-.3],[.9,0,0],[0,0,.6],{c:P.mute,a:e,nu:2,nv:2});R.label([xF+.45,top+.32,ZM],'status · private',{al:'left',dx:8,mono:true,fs:12,c:P.mute,a:e});
         R.label([xF,top,ZM],'+ procedural: gcov comes with gcc',{al:'left',dx:10,dy:14,mono:true,fs:12,b:1,c:P.ink,a:e});
-        R.label([S.x(FOC-1),S.T.m[FOC-1][0]*S.sc+.3,ZA],'turn 3 · E: Unable to locate package gcov',{mono:true,fs:12,dy:-14,c:P.ink,a:e,wide:1})}
+        R.label([S.x(FOC-1),S.T.m[FOC-1][0]*S.sc+.3,ZA],'turn 3 · E: Unable to locate package gcov',{mono:true,fs:12,dy:-30,c:P.ink,a:e,wide:1})}
       if(k===3){const top=S.T.m[FOC][0]*S.sc,cap=Math.max(.045,f3.n/CPT*S.sc);R.glow([xF,top+cap,ZA],.35,{c:L[f3.l],a:.7*e});
         R.label([xF,top+cap,ZA],'turn 4 · '+fmt(S.T.m[FOC][0])+' + '+Math.round(f3.n/CPT)+' tokens',{mono:true,fs:12.5,b:1,dy:-14,c:L[f3.l],a:e});
 }
@@ -76,10 +76,10 @@
     if(fi>0){lanes(R,SB,{a:fi,lab:1,upto:99*fi,grow:1});
       R.label([SB.x(SB.N-1)+SB.dx*.4,0,ZM+.4],SB.inj+' of '+SB.trig.length+' spoke',{al:'right',dy:18,mono:true,fs:12.5,b:1,c:P.ink,a:fi});
       R.label([SB.x(SB.N-1),SB.maxA*SB.sc,ZA],B+' · turn '+SB.N,{mono:true,fs:12,dy:-12,c:P.c1,a:fi});
-      const c=PMRUN.other.cleared-1;R.label([SB.x(SB.trig[c-1].s),SB.pMax*SL+SB.trig[c-1].k*SL,ZM],SB.pMax+' procedural, then deleted',{mono:true,fs:12,dy:-10,c:P.c5,a:fi})}}
+      const c=PMRUN.other.cleared-1;R.label([SB.x(SB.trig[c-1].s),0,ZM+.4],SB.pMax+' procedural, then deleted',{mono:true,fs:12,dy:18,al:'right',dx:-80,c:P.c5,a:fi})}}
   // on a phone the camera looks further down, so the lanes spread over the card's height instead of a thin band
   const nar=()=>innerWidth<520,full=()=>({cam:[.1,nar()?.66:.45],bounds:[[-6.2,0,-1.3],[5.8,3.1,1.3]]});
-  S3.stage({id:'stg-run',list:'sx-run',fig:'3D · one released run, sqlite-with-gcov',cam:full().cam,bounds:full().bounds,aspect:.42,dur:1500,hold:5200,draw,
+  S3.stage({id:'stg-run',list:'sx-run',fig:'3D · one released run, sqlite-with-gcov',cam:full().cam,bounds:full().bounds,aspect:.36,dur:1500,hold:5200,draw,
     margin:w=>w<520?[16,8,16,8]:[22,16,18,190],
     // steps 2 to 4 move in close on memory step 4 (before turn 4); step 6 looks further down to take in the front lane it adds
     view:k=>k>=1&&k<=3?{cam:[.22,.5],bounds:[[-6.7,0,-1.2],[SA.x(FOC)+2.4,1.2,2.2]]}:k===5?{cam:[.1,.6],bounds:[[-6.2,0,-1.3],[5.8,3.1,2.5]]}:full(),

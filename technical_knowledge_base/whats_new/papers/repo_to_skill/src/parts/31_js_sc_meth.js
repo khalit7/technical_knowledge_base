@@ -108,7 +108,7 @@
   const VT=[{cam:[.25,.6],bounds:[[-3.5,0,-2.9],[2,1.0,-1.8]]},{cam:[.25,.55],bounds:[[-3.5,0,-2.9],[2.5,1.3,.6]]},{cam:[.25,.6],bounds:[[-4,0,-3.9],[3,1.3,.2]]},
     {cam:[.2,.58],bounds:[[-4.5,0,-2.9],[4.5,1.4,3]]},{cam:[.22,.66],bounds:[[-4.5,0,-2.9],[4.5,1.4,3.1]]},{cam:[.22,.66],bounds:[[-4.5,0,-2.9],[4.5,1.4,3.1]]}];
   const stg=S3.stage({id:'stg-meth',list:'sx-meth-ag',fig:'Eq. 8 · scope, ground, construct, verify',cam:full.cam,bounds:full.bounds,aspect:.66,dur:1500,hold:5200,draw,
-    view:k=>(M==='ag'?VA:VT)[k],margin:w=>w<520?[16,10,14,10]:[18,14,14,110]});
+    view:k=>{const v=(M==='ag'?VA:VT)[k];return innerWidth<520?{cam:[v.cam[0],Math.min(1.2,v.cam[1]+.35)],bounds:v.bounds}:v},margin:w=>w<520?[16,10,14,10]:[18,14,14,110]});
   const seg=document.getElementById('mtM');
   if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
     M=b.dataset.m;['ag','to'].forEach(m=>{const l=document.getElementById('sx-meth-'+m);if(l)l.hidden=m!==M});stg.list('sx-meth-'+M)}));

@@ -22,7 +22,7 @@
   const XQ=-4.7,XE=-4.0,XC=-2.95,IX0=-2.2,IX1=.3,IZ0=-1.8,IZ1=1.5,XD=1.55,XG=2.95,XS=4.05,zr=j=>(j-2)*.8,NC=34,NR=30;
   const cell=i=>[IX0+(IX1-IX0)*((i%NC)+.5)/NC,.02,IZ0+(IZ1-IZ0)*(Math.floor(i/NC)+.5)/NR];
   function draw(R,k,e){const P=R.P,T=data();R.grid(-5.5,5,-2.6,2.6,.5);
-    const qa=k<=1||k===5?1:.3,ia=k===1||k===5?1:.3,da=k>=2?(k===2?e:1):0,ga=k>=3?(k===3?e:1):0,z0=zr(2);
+    const qa=k<=1||k===5?1:.3,ia=k===1||k===5?1:k===3||k===4?.06:.3,da=k>=2?(k===2?e:1):0,ga=k>=3?(k===3?e:1):0,z0=zr(2);
     // 1. the question and the query encoder (orange glass: fine-tuned); the question's tokens stream through it into one signed weight each
     if(k<=1||k===5)R.label([XQ,1.25,z0],'x: '+WD.show(T.toks),{mono:true,fs:12.5,b:1,al:'left',dx:-20,c:P.ink});
     R.glass([XE-.42,.1,z0],[.84,0,0],[0,.9,0],{c:P.q,a:qa,nu:6,nv:6});
@@ -66,5 +66,5 @@
     margin:w=>w<520?[14,8,16,8]:[18,14,18,14],
     // step 1 moves in on the question and the query encoder, step 2 looks down on the index, step 3 on the five documents and their weights,
     // steps 4 and 5 on the generator and the sum; the last step shows the whole model with the gradient's path
-    view:k=>k===0?{cam:[.35,.5],bounds:[[-5.0,0,-.9],[-2.2,1.4,.9]]}:k===1?{cam:[.3,.9],bounds:[[-4.4,0,-1.9],[.5,1.0,1.7]]}:k===2?{cam:[.55,.62],bounds:[[-.6,0,-2.0],[3.2,1.3,2.0]]}:k===3||k===4?{cam:[.5,.62],bounds:[[.7,0,-2.0],[4.7,1.3,2.0]]}:full});
+    view:k=>k===0?{cam:[.35,.5],bounds:[[-5.0,0,-.9],[-2.2,1.4,.9]]}:k===1?{cam:[.3,.9],bounds:[[-4.4,0,-1.9],[.5,1.0,1.7]]}:k===2?{cam:[.55,.62],bounds:[[-.6,0,-2.0],[3.2,1.3,2.0]]}:k===3||k===4?{cam:[.5,.62],bounds:[[.7,0,-2.0],[4.7,1.3,2.0]]}:innerWidth<520?{cam:[.85,.85],bounds:full.bounds}:full});
 })();

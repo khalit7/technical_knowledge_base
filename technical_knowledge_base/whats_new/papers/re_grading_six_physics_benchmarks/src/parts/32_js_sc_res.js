@@ -23,7 +23,7 @@
       const [g0,g1]=row.mean.gpt;
       if(!inView(c))return;
       if(k===0)R.label([GX(c),g0*HS,RZ(0)],g0.toFixed(1),{mono:true,fs:12,b:1,dy:-10,a:e});
-      else if(rv===k)R.label([GX(c),lerp(g0,g1,g)*HS,RZ(0)],nar?g1.toFixed(1):g0.toFixed(1)+' → '+g1.toFixed(1),{mono:true,fs:12.5,b:1,dy:-14,c:ok,a:e});
+      else if(rv===k)R.label(nar?[GX(c),lerp(g0,g1,g)*HS,RZ(0)]:[GX(c),Math.max(...MS.map(m=>row.mean[m][1]))*HS,RZ(MS.length-1)],nar?g1.toFixed(1):g0.toFixed(1)+' → '+g1.toFixed(1),{mono:true,fs:12.5,b:1,dy:-14,c:ok,a:e});
       else if(k===6)R.label([GX(c),g1*HS,RZ(0)],g1.toFixed(1),{mono:true,fs:12,b:1,dy:-10,c:ok,a:e});
       // column names and the questions each score is computed on
       R.label([GX(c),0,RZ(0)+.3],nar?PH[row.b]:SH[row.b],{fs:12,dy:14,b:focus&&k>0&&k<6,c:P.ink,a:focus?1:.55});

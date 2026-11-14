@@ -45,7 +45,7 @@
         R.label([XB+.25,DY[i],0],f3(sh),{al:'left',dx:6,mono:true,fs:12.5,b:1,a:sa});
         R.flowArc([XB,DY[i]+.1,0],[XS,YS+.1,ZS],.15,{c:P.c5,a:sa*.7,r:.045,n:5,speed:.9})}}
     if(k>=2){const sa=k===2?e:1,h=Math.max(.012,Math.abs(tot)*.32);R.box([XS,YS-.045,ZS],[.6,.045,.4],{a:sa,shadow:false});R.box([XS,0,ZS],[.04,YS-.05,.04],{a:sa*.9});
-      R.box([XS,tot>=0?YS:YS-.045-h,ZS],[.36,h,.24],{fill:P.c5,a:sa,shadow:false,lw:.7});R.label([XS+.3,YS-.1,ZS],'q⊤k = '+f3(tot),{al:'left',dx:8,mono:true,fs:13.5,b:1,c:P.c5,a:sa})}
+      R.box([XS,tot>=0?YS:YS-.045-h,ZS],[.36,h,.24],{fill:P.c5,a:sa,shadow:false,lw:.7});R.label([XS+.3,YS-.1,ZS],'q⊤k = '+f3(tot),{al:'left',dx:30,mono:true,fs:13.5,b:1,c:P.c5,a:sa})}
     if(k>=1)R.label([0,DY[0]+.25,0],k===1?'unrotated (position 0)':'query at '+Math.round(m)+' · key at '+Math.round(n)+' · offset '+Math.round(m-n),{fs:13,b:1,dy:-18,a:k===1?e:1})
   }
   const full={cam:[.55,.6],bounds:[[-1,0,-.9],[3.6,5.0,1.15]]};

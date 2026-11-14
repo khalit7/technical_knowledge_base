@@ -104,10 +104,11 @@
       if(k===5)xp.forEach((x,i)=>R.flow([[x,.3,Z1],[x,.25,(Z1+ZW)/2+.2],[x,.05,ZW+.2]],{c:P.mute,a:fa*.6*(1-e*.6),r:.05,n:4}));
       if(k===6){F(top,kid('reviewer 2'),.9,{c:P.c1,n:20,r:.075});F(kid('reviewer 2'),l1(2),.7,{c:P.c2,n:10})}}
   }
-  const full={cam:[.16,1.08],bounds:[[-5.1,0,-2.2],[5.0,1.1,4.4]]};
+  const full0={cam:[.16,1.08],bounds:[[-5.1,0,-1.95],[5.0,.75,4.4]]},phone={cam:[.02,1.22],bounds:[[-4.75,0,-1.95],[4.85,.6,4.3]]};
+  const full=full0,fv=()=>innerWidth<520?phone:full0;
   const close={cam:[.28,.95],bounds:[[-4.9,0,-.8],[3.6,1.3,2.6]]};
-  const st=S3.stage({id:'stg-orc',list:'sx-orc-new',fig:'Fig. 2 in 3D · one task through the state hierarchy (illustrative)',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1400,hold:4800,draw,
-    view:k=>(mode==='new'&&k===1)||(mode==='old'&&k===2)?close:full,
+  const st=S3.stage({id:'stg-orc',list:'sx-orc-new',fig:'Fig. 2 in 3D · one task through the state hierarchy (illustrative)',cam:full.cam,bounds:full.bounds,aspect:.54,dur:1400,hold:4800,draw,
+    view:k=>(mode==='new'&&k===1)||(mode==='old'&&k===2)?close:fv(),
     margin:w=>w<520?[12,8,12,8]:[14,10,10,160]});
   const seg=document.getElementById('orcM');
   if(seg&&st)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.m===mode)return;mode=b.dataset.m;

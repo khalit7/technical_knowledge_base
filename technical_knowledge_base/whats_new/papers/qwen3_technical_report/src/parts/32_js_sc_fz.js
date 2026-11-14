@@ -20,7 +20,7 @@
     const C={p:mix(P.paper,P.mute,.35),f:P.c4,t:P.paper,t2:P.paper,th:P.acc,s:P.c2,a:P.c3},H={p:.18,f:.3,t:.26,t2:.26,th:.38,s:.3,a:.5};
     // the weights, glass plates to scale with memory
     const pl=PLATES[M];pl.forEach(([id,n,x],i)=>{const w=GB[id]*PW,a=1;R.glass([x-w/2,.05,ZP],[w,0,0],[0,PH,0],{c:M==='one'?P.acc:i?P.c4:P.c3,a,nu:8,nv:6});
-      R.label([pl.length>1?(i?x+w/2:x-w/2):x,PH+.08,ZP],(R.W<520?n.replace('Qwen2.5-32B-','').replace('-32B',''):n)+' · '+GB[id].toFixed(1).replace(/\.0$/,'')+' GB',{fs:12.5,b:1,dy:-10,al:pl.length>1?(i?'left':'right'):'center',dx:pl.length>1?(i?4:-4):0})});
+      R.label([pl.length>1?(i?x+w/2:x-w/2):x,PH+.08,ZP],(R.W<520?n.replace('Qwen2.5-32B-','').replace('-32B',''):n)+' · '+GB[id].toFixed(1).replace(/\.0$/,'')+' GB',{fs:12.5,b:1,dy:pl.length>1&&i?-20:-10,al:pl.length>1?'right':'center',dx:pl.length>1?(i?0:-4):0})});
     if(M==='two'&&k===1)R.label([0,PH+.08,ZP],'130 GB in memory',{fs:12.5,b:1,dy:-30,c:P.c2});
     // the router (before Qwen3)
     if(M==='two'&&k>=1){const rx=-3.6,rz=-.62,a=k===1?1:.35;R.box([rx,0,rz],[.8,.3,.45],{fill:mix(P.paper,P.ink,.15),a});R.label([rx,.3,rz],'router',{fs:12.5,b:1,dy:-10,a:Math.max(a,.5)});
@@ -47,8 +47,8 @@
   }
   const FULL={cam:[.1,.92],bounds:[[-5.9,0,-1.6],[5.3,1.9,1.9]]};
   function view(k){const L=[[-6.4,0,-1.6],[1.6,1.9,2]];
-    if(innerWidth<520)return k===0?{cam:[0,1.0],bounds:FULL.bounds}:k<=2?{cam:[.1,.95],bounds:L}:{cam:[-.05,.95],bounds:[[-3,0,-1.6],[5.4,1.9,1.9]]};
-    if(M==='two')return k===1||k===2?{cam:[.24,.72],bounds:[L[0],[2.8,1.9,2]]}:FULL;
+    if(innerWidth<520)return k===0?{cam:[0,1.0],bounds:[[-5.3,0,-1.6],[3.5,1.9,1.9]]}:k<=2?{cam:[.1,.95],bounds:M==='two'?[L[0],[3.5,1.9,2]]:L}:{cam:[-.05,.95],bounds:[[-3,0,-1.6],[5.4,1.9,1.9]]};
+    if(M==='two')return k===1||k===2?{cam:[.24,.72],bounds:[L[0],[4.2,1.9,2]]}:FULL;
     return k===1||k===2?{cam:[.24,.72],bounds:L}:FULL}
   const stg=S3.stage({id:'stg-fz',list:'sx-fz-two',fig:'Fig. 2 · two models, or one checkpoint with a flag and a budget',cam:FULL.cam,bounds:FULL.bounds,aspect:.46,dur:1500,hold:5000,draw,view,
     margin:w=>w<520?[14,10,14,10]:[18,16,16,110]});

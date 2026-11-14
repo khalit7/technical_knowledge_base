@@ -29,7 +29,7 @@
       else R.glass([x0,Y(f(s)),-ZM],[x1-x0,0,0],[0,0,2*ZM],{c:o.c,a:o.a,nu:Math.max(1,j-s),nv:4,th:.02});s=j}}}
   function pillar(R,j,a,lab){const p=T[j];R.box([X(j),0,Z(p[2])],[.26,Y(p[1]),.26],{a});
     if(lab)R.label([X(j),Y(p[1]),Z(p[2])],p[1]+' · '+k0(p[2]),{mono:true,fs:12,b:1,dy:-12,c:R.P.ink,a:Math.min(1,a*1.4)})}
-  function path(R,a,upto){const pts=[];for(let j=0;j<=upto;j++){const p=T[j];pts.push([X(j),Y(p[1]),Z(p[2])]);if(j<upto){const q=T[j];pts.push([X(j+1),Y(q[1]),Z(q[2])])}}R.line(pts,{c:R.P.ink,w:2,a})}
+  function path(R,a,upto,j0){const pts=[];for(let j=j0||0;j<=upto;j++){const p=T[j];pts.push([X(j),Y(p[1]),Z(p[2])]);if(j<upto){const q=T[j];pts.push([X(j+1),Y(q[1]),Z(q[2])])}}R.line(pts,{c:R.P.ink,w:2,a})}
   const changes=[0].concat(T.map((p,j)=>j).filter(j=>j>0&&(T[j][1]!==T[j-1][1]||T[j][2]!==T[j-1][2])));
   function axes(R,a,fullv){const P=R.P;[125,130,135,140,145].forEach(n=>{R.line([[X(0)-.5,Y(n),-ZM],[X(0)-.35,Y(n),-ZM]],{c:P.mute,w:1,a});R.label([X(0)-.5,Y(n),-ZM],String(n),{mono:true,fs:12,al:'right',dx:-4,c:P.mute,a,grp:'ax'})});
     R.line([[X(0)-.42,0,-ZM],[X(0)-.42,Y(146),-ZM]],{c:P.mute,w:1,a});
@@ -43,7 +43,7 @@
   const byId=id=>C.find(x=>x.c.id===id);
   function draw(R,k,e){const P=R.P;R.grid(-6,6,-1.6,1.6,.52);
     const fade=k===5?Math.max(0,1-2*e):1,show=k===5?Math.max(0,2*e-1):0;
-    if(fade>0){axes(R,fade*.9,k===1||k===4);
+    if(fade>0){axes(R,k===2||k===3?0:fade*.9,k===1||k===4);
       // 1. round 0: two candidates from the base harness
       if(k===0){pillar(R,0,1,true);R.label([X(0),0,Z(T[0][2])],'H₀',{serif:true,fs:14,b:1,dy:14,c:P.ink});sheets(R,j=>best[j]-D,{c:P.c4,a:.55},1,1);sheets(R,j=>inc[j][1]+D,{c:P.c5,a:.35},1,1);
         R.label([X(1)+.3,Y(best[1]-D),-ZM],'floor S* − δ',{mono:true,fs:12,al:'left',dx:6,c:P.c4,grp:'s'});R.label([X(1)+.3,Y(inc[1][1]+D),-ZM],'band: incumbent + δ',{mono:true,fs:12,al:'left',dx:6,c:P.c5,grp:'s'});
@@ -56,14 +56,14 @@
         R.label([X(N)+.3,Y(best[N]-D),-ZM],'floor ' + (best[N]-D).toFixed(1),{mono:true,fs:12,al:'left',dx:6,c:P.c4,b:1});
         R.label([X(10),Y(146),-ZM],below.length+' of '+meas.length+' under the floor',{mono:true,fs:13,b:1,dy:-16,c:P.c4,a:e,wide:1})}
       // 3. inside the band: the token wall decides
-      if(k===2){changes.forEach(j=>pillar(R,j,j>=2&&j<=12?1:.3,false));path(R,.7,N);
+      if(k===2){changes.forEach(j=>pillar(R,j,j>=2&&j<=12?1:.3,false));path(R,.7,N,6);
         const j0=8;sheets(R,j=>best[j]-D,{c:P.c4,a:.35},j0,N);sheets(R,j=>inc[j][1]+D,{c:P.c5,a:.2},j0,N);
         sheets(R,j=>Z(inc[j][2]),{c:P.c6,a:.32*Math.min(1,e*2),wall:[j=>best[j]-D,j=>inc[j][1]+D]},j0,N);
-        balls(R,x=>x.j<j0?{a:.15}:x.c.st==='accepted'&&x.j<20?{a:1,r:.12,glow:P.c1,wide:1,lab:x.c.id+' '+x.c.n+', tokens '+(x.c.dC>=0?'+':'−')+Math.abs(Math.round(x.c.dC*100))+'%',al:'right',dy:-16}:x.c.st==='rejected_cost'?{a:1,r:.1,wide:1,lab:x.c.id==='r18A'?'r18A 140, tokens +'+Math.round(x.c.dC*100)+'%':null,dy:-16}:{a:.25});
+        balls(R,x=>x.j<j0?{a:.15}:x.c.st==='accepted'&&x.j<20?{a:1,r:.12,glow:P.c1,lab:R.W<520?x.c.id:x.c.id+' '+x.c.n+', tokens '+(x.c.dC>=0?'+':'−')+Math.abs(Math.round(x.c.dC*100))+'%',al:'right',dy:-16}:x.c.st==='rejected_cost'?{a:1,r:.1,lab:x.c.id==='r18A'?(R.W<520?'r18A':'r18A 140, tokens +'+Math.round(x.c.dC*100)+'%'):null,dy:-16}:{a:.25});
         ['r7A','r11B'].forEach(id=>{const x=byId(id);R.flowArc(pos(x),[X(x.j),Y(T[x.j][1]),Z(T[x.j][2])],.12,{c:P.c1,a:Math.min(1,e*2),r:.06,n:4})});
         R.label([X(N)+.3,Y(best[N]-D),-ZM],'floor stays 133.9',{mono:true,fs:12,al:'left',dx:6,c:P.c4,grp:'s3'});R.label([X(N)+.3,Y(inc[N][1]+D),-ZM],'band top',{mono:true,fs:12,al:'left',dx:6,c:P.c5,grp:'s3'})}
       // 4. above the band: the last round
-      if(k===3){changes.forEach(j=>pillar(R,j,j>=12?1:.3,j===12));path(R,.7,N);sheets(R,j=>best[j]-D,{c:P.c4,a:.4},17,N);sheets(R,j=>inc[j][1]+D,{c:P.c5,a:.45},17,N);
+      if(k===3){changes.forEach(j=>pillar(R,j,j>=12?1:.3,j===12));path(R,.7,N,12);sheets(R,j=>best[j]-D,{c:P.c4,a:.4},17,N);sheets(R,j=>inc[j][1]+D,{c:P.c5,a:.45},17,N);
         const A=byId('r19B');balls(R,x=>x.j<17?{a:.12}:x===A?{a:1,r:.13,glow:P.c1,lab:'r19B 144 · '+k0(A.c.C),al:'right',dy:-16}:{a:.45});
         R.flowArc([X(N-1)+.1,Y(T[N-1][1])+.05,Z(T[N-1][2])],pos(A),.3,{c:P.ink,a:.6,r:.05,n:5,speed:1.3});
         if(e>.4){const a=Math.min(1,(e-.4)/.4);pillar(R,N,a,false);R.flowArc(pos(A),[X(N),Y(T[N][1]),Z(T[N][2])],.15,{c:P.c1,a,r:.06,n:4})}}

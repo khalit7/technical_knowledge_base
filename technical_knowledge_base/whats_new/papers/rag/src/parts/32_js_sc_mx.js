@@ -32,7 +32,7 @@
       '<li><b>Marginalise.</b> Each hypothesis\'s <i>p</i>(<i>y</i>|<i>x</i>) = Σ<sub><i>z</i></sub> <i>p</i>(<i>z</i>|<i>x</i>) <i>p</i><sub>θ</sub>(<i>y</i>|<i>x</i>, <i>z</i>), the front row. The winner is <b>'+WD.show(best.y)+'</b>'+(ok(best.y)?', which is right.':', against the truth '+WD.show(Q.y)+(Q.task==='novels'?': no single document holds both titles, so every hypothesis has one title and a guess.':'.'))+'</li>'].join('')}
   compute();
   // layout: documents in depth (rows), their prior, the generator plate, then per-token proposals and posteriors (Token) or the hypothesis plate (Sequence)
-  const zr=j=>(j-2)*1.05,XD=-4.4,XP=-3.1,XG=-2.0,XO=-.6,XPo=.85,XM=2.7,HX=c=>.35+c*.95,ZF=zr(4)+1.35;
+  const zr=j=>(j-2)*1.05,XD=-4.4,XP=-3.1,XG=-2.0,XO=-.6,XPo=1.15,XM=2.7,HX=c=>.35+c*.95,ZF=zr(4)+1.35;
   function draw(R,k,e){const P=R.P,isT=mode==='tok',A=isT?RT:RS,pz=A.ret.lpz.map(Math.exp),docs=A.ret.idx.map(i=>IDX18[i]);
     const n=isT?RT.steps.length:0,last=isT?n+1:3,mid=(isT&&k>=1&&k<=n)||(!isT&&k>=2);R.grid(-6,isT?4.2:HX(RS.hyps.length)+1,-3,isT?3:ZF+.9,.5);
     const ret=k===0?e:1,dimD=k===0||k===last||(!isT&&k===1)?1:.45;
@@ -97,7 +97,7 @@
   const st=S3.stage({id:'stg-mx',list:'sx-mx-tok',fig:'Fig. 2 · RAG-Token or RAG-Sequence · toy model, k = 5',cam:[.28,.62],bounds:()=>bounds(),aspect:.72,dur:1300,hold:4800,draw,
     margin:w=>w<520?[14,8,16,8]:[18,14,18,180],
     // token steps move in on the generator, the proposals, the posteriors and the mixture; Sequence moves to its outputs, then looks down on the bar field
-    view:k=>{const near={cam:[.28,.6],bounds:[[-5.6,0,-2.8],[-1.2,1.4,2.8]]};if(mode==='tok')return k===0?near:k<=RT.steps.length?{cam:[.3,.6],bounds:[[-2.5,0,-2.8],[3.4,1.5,2.8]]}:{cam:[.32,.75],bounds:[[-3.0,0,-2.9],[4.0,1.4,2.8]]};
+    view:k=>{const near={cam:[.28,.6],bounds:[[-5.6,0,-2.8],[-1.2,1.4,2.8]]};if(mode==='tok')return k===0?near:k<=RT.steps.length?(innerWidth<520?{cam:[.2,.95],bounds:[[-2.3,0,-2.6],[3.1,1.3,2.6]]}:{cam:[.3,.6],bounds:[[-2.5,0,-2.8],[3.4,1.5,2.8]]}):{cam:[.32,.75],bounds:[[-3.0,0,-2.9],[4.0,1.4,2.8]]};
       return k===0?near:k===1?{cam:[.28,.62],bounds:[[-5.6,0,-2.8],[1.0,1.4,2.8]]}:k>=2?{cam:[.4,.85],bounds:[[-2.4,0,-2.8],[nx()+.7,1.4,ZF+.6]]}:null}});
   function show(){$('sx-mx-tok').hidden=mode!=='tok';$('sx-mx-seq').hidden=mode!=='seq';if(st)st.list('sx-mx-'+mode)}
   segBind('mxM',m=>{$('mxM').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m?'true':'false'));mode=m;show()});

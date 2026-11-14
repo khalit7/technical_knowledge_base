@@ -45,7 +45,7 @@
     });
   }
   const full={cam:[.18,.5],bounds:[[-4.6,0,-.7],[4.6,2.3,.7]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · 250 answers marked wrong, by label',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:4600,draw,
+  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · 250 answers marked wrong, by label',cam:full.cam,bounds:full.bounds,aspect:.48,dur:1500,hold:4600,draw,
     margin:w=>w<520?[16,8,24,8]:[22,16,26,16],
     view:k=>k===2?{cam:[.1,.32],bounds:[[-4.6,0,-.7],[4.6,2.6,.7]]}:full});
 })();

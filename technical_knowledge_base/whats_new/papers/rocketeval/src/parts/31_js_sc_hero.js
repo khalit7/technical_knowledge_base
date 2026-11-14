@@ -47,6 +47,6 @@
   }
   const B0=[[-6.3,0,-2.5],[3.4,1.1,2.5]],B1=[[-6.3,0,-2.5],[5.9,3.1,2.5]];
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · checklists once, a small judge per cell',cam:[.42,.72],bounds:B1,aspect:.66,dur:1500,hold:4800,draw,
-    view:k=>k<3?{cam:[.42,.78],bounds:B0}:{cam:[.5,.42],bounds:[[-4.8,0,-2.4],[5.9,3.1,2.4]]},
+    view:k=>{const ph=innerWidth<520;return k===0&&ph?{cam:[.42,.78],bounds:[[-6.3,0,-2.5],[-2.6,1.1,2.5]]}:k<3?{cam:[.42,.78],bounds:B0}:ph?{cam:[.5,.42],bounds:[[1.0,0,-1.6],[6.3,3.2,1.6]]}:{cam:[.5,.42],bounds:[[-4.8,0,-2.4],[5.9,3.1,2.4]]}},
     margin:w=>w<520?[14,10,26,10]:[16,16,28,16]});
 })();

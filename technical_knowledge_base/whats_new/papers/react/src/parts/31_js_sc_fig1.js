@@ -72,5 +72,5 @@
   S3.stage({id:'stg-fig1',list:'sx-fig1',fig:'Fig. 1 · one question, four prompts (the paper\'s own episode)',cam:full.cam,bounds:full.bounds,aspect:.5,dur:2600,hold:5200,draw,
     margin:w=>w<520?[14,8,12,8]:[16,12,10,132],
     view:k=>k===1?{cam:[.25,.62],bounds:[[-2.2,0,2.4],[2.4,1.3,4.0]]}:k===2?{cam:[.25,.62],bounds:[[-2.2,0,.8],[3.4,1.3,3.9]]}
-      :k===3?{cam:[.12,.8],bounds:[[-2.2,0,-4.4],[10.6,.3,1.0]]}:k>=4&&k<=6?{cam:[.12,.92],bounds:[[-2.2,0,-4.4],[11.6,.3,-.6]]}:k===7?sumv:full});
+      :k===3?{cam:[.12,.8],bounds:[[-2.2,0,-4.4],[10.6,.3,1.0]]}:k>=4&&k<=6?{cam:[.12,.92],bounds:[[-2.2,0,-4.4],[12.3,.3,-.6]]}:k===7?sumv:full});
 })();

@@ -32,7 +32,7 @@
       MS.forEach((m,r)=>{const z=RZ(r),rowA=k===1?(r===0?1:0):k===2?Math.min(1,Math.max(0,e*9-r)):1;if(rowA<=.01)return;
         // the row's plinth
         R.box([(GX(0)+GX(8))/2,0,z],[GX(8)-GX(0)+.8,.04,.5],{fill:P.paper,a:ba*rowA*(k===4?.25:k>=3?.6:1),shadow:false});
-        if(k>=1&&(r===0||k>=2))R.label([GX(0)-.5,0,z],NAME[m]+(k===3&&r===0?' · leads 5 of 9':''),{al:'right',dx:-6,fs:12,c:r===0?P.ink:P.mute,b:r===0,a:ba*rowA,grp:'rows'});
+        if(k>=1&&(r===0||k>=2))R.label([GX(0)-.5,0,z],(k===3&&r===0?'Opus 5 · leads 5 of 9':NAME[m]),{al:'right',dx:-6,fs:12,c:r===0?P.ink:P.mute,b:r===0,a:ba*rowA,grp:'rows'});
         ORD.forEach((i,c)=>{const v=TB.T2[m][i],isB=best[i]===m;let a=ba*rowA,fill=mix(P.paper,MC[r],.5);
           if(k===3){a*=isB?1:.22;if(isB)fill=mix(P.paper,MC[r],.8)}
           if(k===4){a*=i===HW?1:Math.max(0,.25*(1-1.5*e));if(i===HW&&isB)fill=mix(P.paper,MC[r],.8)}
@@ -40,7 +40,7 @@
           const h=Math.max(.012,v*HS*(k===1&&r===0?Math.min(1,Math.max(0,2*e-1)):1));
           R.box([GX(c),.04,z],[.5,h,.34],{fill,a,shadow:false,lw:.6});
           if(k===1&&r===0)R.label([GX(c),.04+h,z],v.toFixed(1),{mono:true,fs:12,b:1,dy:-10,c:MC[0],a:ba});
-          if(k===3&&isB&&r>0){const L=m==='GLM 5.2';R.label([GX(c),.04+h,z],SHORT_M(m)+' '+v.toFixed(1),{mono:true,fs:12,b:1,dy:-10,al:L?'right':'left',dx:L?-6:6,c:MC[r],a:e})}
+          if(k===3&&isB&&r>0){const L=m==='GLM 5.2';R.label([GX(c)+(L?-.27:.27),.04+h,z],SHORT_M(m)+' '+v.toFixed(1),{mono:true,fs:12,b:1,dy:-6,al:L?'right':'left',dx:L?-4:4,c:MC[r],a:e})}
           if(k===4&&i===HW)R.label([GX(c)+.32,.04+h,z],v.toFixed(1),{al:'left',mono:true,fs:12,b:isB,dx:4,c:isB?MC[r]:P.ink,a:e});
           // step 6: the front row streams into Full, dots in proportion to the category's tasks
           if(k===5&&r===0)R.flowArc([GX(c),.1+h,z],[XF,.1+TB.T2[m][9]*HS,z],.5+.04*(8-c),{c:MC[0],a:1,r:.05,n:Math.max(1,Math.round(N[i]/2)),speed:1.2})});
@@ -56,7 +56,7 @@
     }
   }
   function SHORT_M(m){return {'Claude Opus 5':'Opus','Kimi K3':'Kimi','Qwen3.8 Max':'Qwen3.8','GPT 5.6 Sol':'GPT','GLM 5.2':'GLM','Claude Sonnet 5':'Sonnet','Qwen3.7 Max':'Qwen3.7','DeepSeek V4Pro':'DeepSeek'}[m]}
-  const full={cam:[.06,1.02],bounds:[[-5.1,0,-2.6],[5.1,1.6,2.9]]},wide={cam:[.06,1.02],bounds:[[-5.1,0,-2.6],[XF+.8,1.6,2.9]]};
+  const full={cam:[.06,1.02],bounds:[[-5.1,0,-2.6],[5.1,1.6,2.9]]},wide={cam:[.06,1.14],bounds:[[-5.1,0,-2.6],[XF+.8,1.6,2.9]]};
   const hwv=()=>{const c=ORD.indexOf(HW);return {cam:[.3,.6],bounds:[[GX(c)-1.6,0,RZ(7)-1.3],[GX(c)+1.6,.9,RZ(0)+.6]]}};
   S3.stage({id:'stg-cat',list:'sx-cat',fig:'3D · Table 2 over Figure 4',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1700,hold:5000,draw,
     margin:w=>w<520?[16,10,22,10]:[18,16,26,150],

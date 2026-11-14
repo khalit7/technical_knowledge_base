@@ -22,10 +22,10 @@ function drawF2(){const host=$('f2P');fit(host,W=>{const D=RC.fig2[f2k],ks=Objec
   const lo=Math.floor(Math.min(...all)-1),hi=Math.ceil(Math.max(...all)+.5),H=Math.min(320,Math.max(230,W*.5)),pl=38,pr=10,pt=10,pb=34;
   const x=v=>pl+(W-pl-pr)*(v)/22,y=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));let s='';
   const st=hi-lo>12?5:2;for(let v=Math.ceil(lo/st)*st;v<=hi;v+=st){s+=ln2(pl,y(v),W-pr,y(v),'var(--line)');s+=tx(pl-4,y(v)+4,v,{fs:11,a:'end',c:'var(--mute)'})}
-  [1,5,10,15,20].forEach(v=>s+=tx(x(v),H-pb+14,v,{fs:11,a:'middle',c:'var(--mute)'}));s+=tx((W+pl)/2,H-4,'CoT-SC samples',{fs:11,a:'middle',c:'var(--mute)'});
+  [1,5,10,15,20].forEach(v=>s+=tx(x(v),H-pb+14,v,{fs:11,a:'middle',c:'var(--mute)'}));s+=tx(x(21.6),H-pb+14,'T1',{fs:11,a:'middle',c:'var(--ink)',w:600});s+=tx((W+pl)/2,H-4,'CoT-SC samples',{fs:11,a:'middle',c:'var(--mute)'});
   ks.forEach(k=>{const dash=(k==='ReAct'||k==='CoT');s+='<polyline fill="none" stroke="'+F2C[k]+'" stroke-width="2.4"'+(dash?' stroke-dasharray="6 4"':'')+' points="'+D[k].map(p=>x(p[0]).toFixed(1)+','+y(p[1]).toFixed(1)).join(' ')+'"/>';if(!dash)D[k].forEach(p=>s+='<circle cx="'+x(p[0]).toFixed(1)+'" cy="'+y(p[1]).toFixed(1)+'" r="2.2" fill="'+F2C[k]+'"/>')});
   const tk=f2k==='hotpotqa'?'hq':'fv';ks.forEach(k=>{const tv=+t1(k)[tk];s+='<circle cx="'+x(21.6).toFixed(1)+'" cy="'+y(tv).toFixed(1)+'" r="3.5" fill="none" stroke="'+F2C[k]+'" stroke-width="1.6"/>'});
-  const L=legend(ks.map(k=>[arrow(k),F2C[k],(k==='ReAct'||k==='CoT')?'5 3':null]).concat([['Table 1 value (ring)','var(--mute)']]),pl,H+16,W-pl);
+  const L=legend(ks.map(k=>[arrow(k),F2C[k],(k==='ReAct'||k==='CoT')?'5 3':null]).concat([['Table 1 value (ring, T1)','var(--mute)']]),pl,H+16,W-pl);
   host.innerHTML=svgW(W,H+L.h+8,s+L.s,'Figure 2 rebuilt')});
   const tk=f2k==='hotpotqa'?'hq':'fv';
   $('f2T').innerHTML='<thead><tr><th>Method</th><th class="num">1 sample</th><th class="num">5</th><th class="num">21</th><th class="num">Table 1</th><th class="num">Figure minus table</th></tr></thead><tbody>'+Object.keys(RC.fig2[f2k]).map(k=>{const P=RC.fig2[f2k][k],at=n=>P.find(p=>Math.abs(p[0]-n)<.5)[1],d=at(21)-(+t1(k)[tk]);

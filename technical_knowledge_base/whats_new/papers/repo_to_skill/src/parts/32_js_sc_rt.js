@@ -24,7 +24,7 @@
   window.R2S_RT={groups:G.map(g=>({t:g.t,n:g.f.length,b:g.b,cum:g.cum})),lib:LIB.meta.library_bytes,graphs:{vllm:GR.vllm.total,sglang:GR.sglang.total},fam:REP.length,
     hours:LIB.session.seconds/3600,calls:LIB.session.tool_calls};
   function draw(R,k,e){const P=R.P;R.grid(-5.4,5,-3.3,2.8,.5);
-    const libA=k===0?.45:k<=2?1:.3;
+    const libA=k===0?.45:k<=2?1:k===6?.3:k===3?.3*(1-e):0;
     // the library: 20 area towers, each a stack of its families
     AR.forEach((a,i)=>{let y=0;const on=i===IA&&k>=1&&k<=2;a.f.forEach(f=>{const h=f.m*HS,fam=on&&f.n==='Inference Serving';
         R.box([XA(i),y,ZL],[.36,Math.max(.006,h-.006),.36],{fill:fam&&k===2?P.c3:on?mix(P.paper,P.c3,.45):P.paper,a:on?1:libA,shadow:y===0,lw:.6});y+=h});
@@ -36,7 +36,7 @@
     for(let y=.2;y<.82;y+=.16)R.line([[-4.44,y,2.04],[-3.96,y,2.04]],{c:P.c3,w:1.3,a:ra*.8});
     R.label([-4.2,.9,2.0],'router SKILL.md',{mono:true,fs:12.5,b:k===0,c:P.c3,dy:-10,a:k===0?1:.6});
     // step 3: the family page lists its 51 repositories; two are picked
-    if(k>=2&&k<=3){const fa=k===2?e:.35;REP.forEach((ri,j)=>{const n=LIB.repos[ri][0],pick=n==='vllm-project/vllm'||n==='sgl-project/sglang';
+    if(k>=2&&k<=3){const fa=k===2?e:.18;REP.forEach((ri,j)=>{const n=LIB.repos[ri][0],pick=n==='vllm-project/vllm'||n==='sgl-project/sglang';
         R.box([XF(j),0,ZF],[.075,pick?.32:.16,.22],{fill:pick?P.c1:mix(P.paper,P.c3,.25),a:pick?Math.max(fa,.8):fa,shadow:false,lw:.5});
         if(pick&&k===2)R.label([XF(j),.32,ZF],n.split('/')[1],{fs:12.5,b:1,c:P.c1,dy:-10,a:e,grp:'pick'})});
       if(k===2)R.label([XF(0)-.1,.1,ZF],'Inference Serving · 51 repositories',{al:'right',dx:-8,fs:12.5,c:P.c3,a:e,wide:1})}
@@ -57,6 +57,6 @@
   const full={cam:[.25,.78],bounds:[[-5.2,0,-3],[4.6,1.6,2.6]]};
   const V=[full,{cam:[.3,.62],bounds:[[-3.2,0,-3],[1.9,1.6,2.5]]},{cam:[.3,.62],bounds:[[-3.4,0,-3],[2,1.4,2.5]]},
     {cam:[.2,.62],bounds:[[-5,0,-1.6],[1.6,1.2,2.6]]},{cam:[.2,.62],bounds:[[-5,0,-1],[1.6,1.2,2.6]]},{cam:[.2,.62],bounds:[[-5,0,-1],[1.6,1.2,2.6]]},full];
-  S3.stage({id:'stg-rt',list:'sx-rt',fig:'The released session · 16 library reads',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:5000,draw,view:k=>V[k],
+  S3.stage({id:'stg-rt',list:'sx-rt',fig:'The released session · 16 library reads',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:5000,draw,view:k=>innerWidth<520?{cam:[V[k].cam[0],Math.min(1.2,V[k].cam[1]+.35)],bounds:V[k].bounds}:V[k],
     margin:w=>w<520?[16,10,14,10]:[18,14,14,30]});
 })();

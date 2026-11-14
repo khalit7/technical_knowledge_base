@@ -94,7 +94,7 @@
   function draw(R,k,e){R.grid(-6.6,6.6,-3,2.6,.5);if(M==='flag')flag(R,k,e);else small(R,k,e)}
   const FULL={flag:{cam:[.14,.92],bounds:[[-6.2,0,-2],[6.4,1.9,1.7]]},small:{cam:[.1,.68],bounds:[[-4.4,0,-2.5],[4.4,1.9,2]]}};
   const close=i=>({cam:[.32,.6],bounds:[[X[i]-1.4,0,-1.95],[X[i]+1.75,1.35,2.05]]});
-  function view(k){if(M==='flag')return k>=1&&k<=4?close(k):k===0?{cam:[.22,.62],bounds:[[-6.4,0,-2],[-1.6,1.5,2]]}:FULL.flag;
+  function view(k){if(M==='flag')return k>=1&&k<=4?close(k):k===0?{cam:[.22,.62],bounds:[[-6.4,0,-2],[-1.6,1.5,2]]}:innerWidth<520?{cam:[.95,.9],bounds:FULL.flag.bounds}:FULL.flag;
     return k===2?{cam:[.28,.55],bounds:[[-.4,0,-2.5],[2.6,1.4,2.1]]}:k===3?{cam:[.2,.55],bounds:[[-1.4,0,-.3],[2.6,1.9,2]]}:FULL.small}
   const stg=S3.stage({id:'stg-post',list:'sx-post-flag',fig:'Fig. 1 · post-training, the two routes',cam:FULL.flag.cam,bounds:st=>FULL[M].bounds,aspect:.6,dur:1500,hold:5200,draw,view,
     margin:w=>w<520?[14,10,14,10]:[18,16,16,16]});

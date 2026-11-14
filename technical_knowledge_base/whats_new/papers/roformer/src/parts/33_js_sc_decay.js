@@ -46,7 +46,7 @@
       R.label([0,2.2,0],'one Gaussian q and k · distance '+Math.round(r),{fs:13,b:1,dy:-6,a:ga})}
   }
   const full={cam:[-.32,.5],bounds:[[-4.4,0,-1.9],[4.6,3.6,1.9]]};
-  S3.stage({id:'stg-decay',list:'sx-decay',fig:'Fig. 3 · why the bound falls: 64 arrows added head to tail',cam:full.cam,bounds:full.bounds,aspect:.62,dur:2200,hold:5200,draw,
-    view:k=>k>=4?{cam:[-.2,.75],bounds:[[-3.2,0,-2.6],[3.4,2.2,2.6]]}:k===1?{cam:full.cam,bounds:[[-4.4,0,-1.9],[2.4,2.9,1.9]]}:k===2?{cam:full.cam,bounds:[[-4.4,0,-1.7],[.5,2.1,1.7]]}:k===3?{cam:full.cam,bounds:[[-4.4,0,-1.5],[-.4,1.7,1.5]]}:full,
+  S3.stage({id:'stg-decay',list:'sx-decay',fig:'Fig. 3 · why the bound falls: 64 arrows added head to tail',cam:full.cam,bounds:full.bounds,aspect:.52,dur:2200,hold:5200,draw,
+    view:k=>{const c=innerWidth<520?[-.85,.62]:full.cam;return k>=4?{cam:[-.2,.75],bounds:[[-3.2,0,-2.6],[3.4,.9,2.6]]}:k===1?{cam:c,bounds:[[-4.4,0,-1.9],[2.4,2.9,1.9]]}:k===2?{cam:c,bounds:[[-4.4,0,-1.7],[.5,2.1,1.7]]}:k===3?{cam:c,bounds:[[-4.4,0,-1.5],[-.4,1.7,1.5]]}:{cam:c,bounds:full.bounds}},
     margin:w=>w<520?[16,8,12,8]:[18,16,14,16]});
 })();
