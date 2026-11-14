@@ -52,7 +52,7 @@
   }
   const api=S3.stage({id:'stg-diff',list:'sx-diff',fig:'Fig. · one block of 256 tokens, three decoders',cam:[.42,.52],aspect:.62,dur:2600,hold:4200,draw,
     bounds:[[-6.3,0,-2.4],[6.3,C*HP+.3,2.3]],
-    view:k=>k===0?{cam:[.42,.55],bounds:[[-6.3,0,-2.4],[6.3,1.3,2.3]]}:k===1?{cam:[.5,.62],bounds:[[1.9,0,-2.4],[6.3,1.4,2.2]]}:k===2?{cam:[.45,.55],bounds:[[-2.4,0,-2.4],[6.3,1.9,2.2]]}:null});
+    view:k=>k===0?{cam:[.42,.55],bounds:[[-6.3,0,-2.4],[6.3,1.3,2.3]]}:k===1?{cam:[.5,.62],bounds:[[1.9,0,-2.4],[6.3,1.4,2.2]]}:k===2?{cam:[.45,.55],bounds:[[-6.1,0,-2.4],[6.3,1.6,2.2]]}:null});
   // sliders: the drafter's tokens kept per pass and the diffusion passes; moving one is a reader control (stops autoplay) and updates the step text
   const fx=(v,d)=>v.toLocaleString('en-GB',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
   function text(){const P=st.P,m=pm(),set=(k,v)=>document.querySelectorAll('#sx-diff [data-dg="'+k+'"]').forEach(x=>x.textContent=v);

@@ -15,7 +15,7 @@
     ratLo:Math.min(...rat),ratHi:Math.max(...rat),wins:T.runs.filter(r=>atS(r.merge.mean[String(N)],DUR)<atS(r.wsd['1-sqrt'],DUR)).length,
     ling:{wsd:F.WSD_best[0],merge:F.WSM_best_le400[0],raw:+(F.WSM_best_le400[0]-F.merge_over_raw_400).toFixed(2),best:F.WSM_best[0],bestAt:F.WSM_best[1]}};
   // layout: x is the branch's steps (0 to 1,600), z separates the walls, the plates and the bars
-  const X0=-5.2,SX=8.2/DUR,xs=s=>X0+s*SX,ck=j=>(j+1)*CK,H=1.05,YB=.62,ZW=-.7,ZP=.25,ZB=1.05,ZD=-1.5,XM=4.25,BH=5,LB=12,XL=[5.6,6.7,7.8],Z6=2.3;
+  const X0=-5.2,SX=8.2/DUR,xs=s=>X0+s*SX,ck=j=>(j+1)*CK,H=1.05,YB=.62,ZW=-.7,ZP=.25,ZB=1.05,ZD=-1.5,XM=4.25,BH=5,LB=12,XL=[5.5,6.85,8.2],Z6=2.3;
   const ckX=j=>xs(ck(j));
   // a staircase: the rate each update interval runs at, as a share of the peak; before the oldest checkpoint every update is kept in full
   function stairs(w){const p=[[xs(0),0],[xs(0),1],[ckX(0),1]];for(let i=1;i<N;i++){p.push([ckX(i-1),w[i-1]],[ckX(i),w[i-1]])}p.push([ckX(N-1),0]);return p}
@@ -47,7 +47,7 @@
       if(k===2){const i=3,xm=(ckX(i-1)+ckX(i))/2;R.glow([xm,YB+H*ww[i-1],ZW+.05],.28,{c:P.c1,a:e});
         for(let j=i;j<N;j++)R.flowArc([xm,YB+.02,ZW+.05],[ckX(j),.4,ZP],.1+.03*(j-i),{c:P.c1,a:.75*e,r:.05,n:4,speed:1.3});
         R.label([xm,YB+H*ww[i-1],ZW],'update 3: inside checkpoints 3 to 15, w = 13/16',{al:'left',fs:12.5,b:1,c:P.c1,dx:8,dy:-22,a:e})}
-      if(k===2||k===4)R.label([xs(1000),YB+H*.12,ZW],k===2?'linear decay':'1 − √t',{al:'left',fs:12.5,b:1,c:P.c1,a:a3})}
+      if(k===2||k===4)R.label([xs(1000),YB+H*.12,ZW],k===2?'linear decay':'1 − √t',{al:'left',fs:12.5,b:1,c:P.c1,a:a3,wide:1})}
     // 4. a run that really decayed: from the oldest checkpoint, the rate at peak × w_i, the same batches (the toy's equivalence test)
     if(k===3||k===4){const a4=k===3?e:1-e;
       const run=[];for(let i=1;i<N;i++){run.push([ckX(i-1),YB+H*D.wMean[i-1]+.03,ZW+.06],[ckX(i),YB+H*D.wMean[i-1]+.03,ZW+.06])}
@@ -66,8 +66,10 @@
       b.forEach(([n,v,c,lc],i)=>{const x=-1.6+1.6*i;bar(R,x,Z6,v-58,.32,c,e,v.toFixed(2),{pw:.6,pd:.5,bw:.36,bd:.3,fs:13,b:1,lc});R.label([x,0,Z6+.3],n,{fs:12.5,b:1,c:lc,dy:14,a:e})});
       R.label([0,2.1,Z6],'Ling-mini, 400B tokens · bars from 58',{fs:12,mono:true,c:P.mute,dy:-8,a:e,wide:1})}
   }
-  const full={cam:[-.06,.5],bounds:[[-5.5,0,-.8],[8.1,1.7,1.4]]};
+  const full={cam:[-.06,.5],bounds:[[-5.5,0,-.8],[8.5,1.7,1.4]]};
+  // on a phone the long row turns into depth (a rotated, steeper camera), so the plates and bars come out larger
+  const ph=v=>innerWidth<520?{cam:[v.cam[0]-.62,Math.min(1.1,v.cam[1]+.28)],bounds:v.bounds}:v;
   S3.stage({id:'stg-merge',list:'sx-merge',fig:'Fig. 1 · a merge of 16 checkpoints is a decay applied to the updates',cam:full.cam,bounds:full.bounds,aspect:.36,dur:1500,hold:5200,draw,
-    margin:w=>w<520?[16,10,16,10]:[22,16,18,92],
-    view:k=>k===1||k===2||k===4?{cam:[-.02,.34],bounds:[[-5.5,0,-.8],[4.8,1.7,1.3]]}:k===3?{cam:[-.04,.58],bounds:[[-5.5,0,-1.6],[8.1,1.7,1.4]]}:k===0?{cam:[-.04,.42],bounds:[[-5.4,0,-.8],[3.4,1.7,.9]]}:k===5?{cam:[-.15,.4],bounds:[[-2.4,0,1.8],[2.4,2.1,2.8]]}:full});
+    margin:w=>w<520?[16,10,16,10]:[22,16,18,124],
+    view:k=>ph(k===1||k===2||k===4?{cam:[-.02,.34],bounds:[[-5.5,0,-.8],[4.8,1.7,1.3]]}:k===3?{cam:[-.04,.58],bounds:[[-5.5,0,-1.6],[8.5,1.7,1.4]]}:k===0?{cam:[-.04,.42],bounds:[[-5.4,0,-.8],[3.4,1.7,.9]]}:k===5?{cam:[-.15,.4],bounds:[[-2.4,0,1.8],[2.4,2.1,2.8]]}:full)});
 })();

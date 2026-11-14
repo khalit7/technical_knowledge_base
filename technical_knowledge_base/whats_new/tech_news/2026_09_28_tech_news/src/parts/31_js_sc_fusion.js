@@ -71,9 +71,9 @@
       return '<tr><td>'+n+'</td><td class="num">'+s.cached+'K</td><td class="num">'+s.fresh+'K</td><td class="num">'+s.hit+'%</td><td class="num">'+s.miss+'</td></tr>'}).join('');
     el.innerHTML='<caption class="small mute">After turn '+t+' of this illustrative session</caption><thead><tr><th>Session</th><th class="num">From cache</th><th class="num">Full price</th><th class="num">Cache hit</th><th class="num">Full re-reads</th></tr></thead><tbody>'+rows+'</tbody>'}
   const full={cam:[.2,.82],bounds:[[-6.1,0,-2.6],[4.9,2.4,2.5]]};
-  const near={cam:[.2,.7],bounds:[[XC(3)-.5,0,ZR[1]-.7],[XC(11)+.5,2.4,ZR[1]+.7]]};
-  S3.stage({id:'stg-fusion',list:'sx-fusion',fig:'Fig. · one illustrative session, three ways',cam:full.cam,bounds:full.bounds,aspect:.45,dur:1700,hold:4600,draw,
-    margin:w=>w<520?[14,10,14,10]:[16,140,10,150],onStep:k=>table(k),
+  const near={cam:[.2,.7],bounds:[[XP-.4,0,ZR[1]-.7],[XC(11)+.5,2.4,ZR[1]+.7]]};
+  S3.stage({id:'stg-fusion',list:'sx-fusion',fig:'Fig. · one illustrative session, three ways',cam:full.cam,bounds:full.bounds,aspect:.37,dur:1700,hold:4600,draw,
+    margin:w=>w<520?[14,10,14,10]:[16,150,10,182],onStep:k=>table(k),
     view:k=>(k===3||k===5)&&innerWidth>=520?near:full}); // on a phone the close view would crop the rows, so it keeps the full view
   window.TN_FUSION={ONE,ROUTE,FU,STEPS,sums}; // read by src/check_stages.mjs
 })();

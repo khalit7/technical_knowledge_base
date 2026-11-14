@@ -13,7 +13,7 @@
   function draw(st){
     const g=st.m==='sr',box=$('rdSvg'),W=Math.max(300,Math.round(box.clientWidth||340)),narrow=W<560,H=narrow?250:270;
     const prev=st.k?STOPS[st.k-1]:0,upto=Math.round(prev+(STOPS[st.k]-prev)*Math.max(0,Math.min(1,st.t)));
-    const pl=narrow?58:70,pr=12,pt=14,pb=34,y0=G0-ULP*0.35,y1=G0+ULP*1.6;
+    const pl=narrow?58:70,pr=12,pt=14,pb=34,y0=G0-ULP*0.27,y1=G0+ULP*1.36;
     const X=t=>pl+(W-pl-pr)*t/N,Y=v=>pt+(H-pt-pb)*(1-(v-y0)/(y1-y0));
     let s='';
     [0,1].forEach(k=>{const v=G0+k*ULP;s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--mute)" stroke-dasharray="2 3"/><text x="'+(pl-6)+'" y="'+(Y(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+v.toFixed(6)+'</text>'});

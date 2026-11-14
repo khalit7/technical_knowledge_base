@@ -38,7 +38,8 @@
     const dA=k>=3?1:.35;R.box([XP,0,ZW],[.9,.22,.7],{fill:mix(P.paper,P.c5,.3),a:dA,lw:.6});R.label([XP,.22,ZW],'disk',{fs:12,dy:-9,c:P.mute,a:Math.max(.5,dA)});
     // the two rows of columns
     [[CA,ZA,'a'],[CB,ZB,'b']].forEach(([C,z,l])=>{
-      R.quad([[XC(0)-.5,0,z-.5],[XC(5)+.5,0,z-.5],[XC(5)+.5,0,z+.5],[XC(0)-.5,0,z+.5]],{fill:P.soft,a:.7,ec:P.line});
+      const xe=XC(fin?5:Math.min(5,turn+1))+.5; // the lane grows with the turns, so turns not reached yet stay out of the frame
+      R.quad([[XC(0)-.5,0,z-.5],[xe,0,z-.5],[xe,0,z+.5],[XC(0)-.5,0,z+.5]],{fill:P.soft,a:.7,ec:P.line});
       for(let i=0;i<=5;i++){if(i>turn&&!fin)continue;
         const isCur=!fin&&i===turn,grow=isCur?(k===0?e:1):1;let c=C[i];
         if(isCur&&i>0){const p=C[i-1];c={base:BASE,f:lerp(p.f,c.f,e),m:lerp(p.m,c.m,e),o:lerp(p.o,c.o,e)}}
@@ -48,7 +49,7 @@
         else if(isCur)R.label([XC(i),h,z],(i===0?nm+': ':'')+fx(tot(c)*grow),{mono:i>0,fs:12.5,dy:-10,b:1})}
       if(fin)R.label([XC(5)+.85,0,z],'Σ '+fx(proc(C))+(narrow?'':' in 5 calls'),{mono:true,fs:13,b:1,al:'left',dx:6,c:l==='a'?P.c2:P.c3})
     });
-    for(let i=0;i<=5;i++)R.label([XC(i),0,ZB+.5],i?'turn '+i:'start',{fs:12,dy:12,c:P.mute,a:i<=turn||fin?1:.4,wide:1});
+    for(let i=0;i<=5;i++)if(fin||i<=turn+1)R.label([XC(i),0,ZB+.5],i?'turn '+i:'start',{fs:12,dy:12,c:P.mute,a:i<=turn||fin?1:.4,wide:1});
     // what moves on this turn
     if(cur){const top=FILES.reduce((s,n)=>s+n*TPL*HK,0)*.6,src=[XP+.3,top,-.6],cA=[XC(k),.9,ZA],cB=[XC(k),.6,ZB],gate=[XG,.6,ZB],wk=[XG,.65,ZW];
       if(cur.a.rd==='claude')R.flowArc(src,cA,.35,{c:P.c2,n:cur.a.f>20000?16:cur.a.f>5000?8:4,r:cur.a.f>20000?.085:.06,speed:1.5});

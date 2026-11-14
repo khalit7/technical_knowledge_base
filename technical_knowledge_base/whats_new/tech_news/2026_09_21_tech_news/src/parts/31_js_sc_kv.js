@@ -33,18 +33,20 @@
         R.box([x,0,0],[.24,.012,4.5],{fill:s?mix(P.paper,P.c1,.2):l<2?P.soft:P.paper,a:newA*(l<2?.5:.8),shadow:false,lw:.4});
         if(s){const old=slots(mPrev(l));slots(m(l)).forEach(t=>entry(R,x,t,main,newA*(old.includes(t)?1:(k===2?e:1)),col,ci))}
         else if(l>=2){const sx=x41(srcOf(l)),top=(main+IDX)*HS;   // the reuse: the source's cache streams to the layer that reads it
-          R.flowArc([sx,top+.05,ZT(TOK-1)],[x,.04,ZT(TOK-1)],.35+.03*Math.abs(l-srcOf(l)),{c:P.c1,a:newA*(k===1?1:.55),r:.055,n:5,speed:1})}}
+          const A0=[sx,top+.05,ZT(TOK-1)],B0=[x,.04,ZT(TOK-1)],hh=.35+.03*Math.abs(l-srcOf(l)),aa=newA*(k===1?1:.55);
+          R.line(Array.from({length:17},(_,i)=>R.arcPt(A0,B0,hh,i/16)),{c:P.c1,w:1,a:aa*.35}); // a faint track, so the dots read as arcs
+          R.flowArc(A0,B0,hh,{c:P.c1,a:aa,r:.045,n:7,speed:1})}}
       SRC.forEach(s=>R.label([x41(s),((k<3?MAIN:main)+IDX)*HS+.05,ZT(0)],'layer '+s,{mono:true,fs:12,b:1,c:P.c1,a:newA,dy:-10,grp:'src'}));
       R.label([x41(9.5),0,2.45],'encoder · layers 0 to 19',{mono:true,fs:12,c:P.mute,a:newA,dy:14,grp:'half'});
       R.label([x41(29.5),0,2.45],'decoder · layers 20 to 39',{mono:true,fs:12,c:P.mute,a:newA,dy:14,grp:'half'});
     }
     R.label([-6.5,0,ZT(TOK-1)],'token 16',{mono:true,fs:12,c:P.mute,al:'right',dx:-4,wide:1});
-    R.label([2.6,1.95,-2.4],TOT[k]+' bytes per token',{mono:true,fs:14,b:1,dy:-4});
+    R.label(R.W<520?[2.6,1.95,-2.4]:[3.9,1.5,-2.4],TOT[k]+' bytes per token',{mono:true,fs:14,b:1,dy:-4});
   }
   // a phone looks down more steeply, so the rows in depth spread over the taller card
-  const ph=()=>innerWidth<520,full={cam:[.38,.62],bounds:[[-6.9,0,-2.5],[6.4,2.1,2.6]]};
-  S3.stage({id:'stg-kv',list:'sx-kv',fig:'Fig. · KV cache by layer, token and entry size',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:5200,draw,
+  const ph=()=>innerWidth<520,full={cam:[.38,.62],bounds:[[-6.9,0,-2.5],[6.4,1.6,2.6]]};
+  S3.stage({id:'stg-kv',list:'sx-kv',fig:'Fig. · KV cache by layer, token and entry size',cam:full.cam,bounds:full.bounds,aspect:.43,dur:1500,hold:5200,draw,
     // steps 3 and 4 are about the four source columns: the camera drops a little lower so their heights read
-    view:k=>ph()?{cam:[.9,.75],bounds:full.bounds}:k>=2?{cam:[.3,.5],bounds:[[-6.6,0,-2.4],[6.2,2.05,2.6]]}:full,
+    view:k=>ph()?{cam:[.9,.75],bounds:full.bounds}:k>=2?{cam:[.3,.5],bounds:[[-6.6,0,-2.4],[6.2,1.6,2.6]]}:full,
     margin:w=>w<520?[14,10,14,10]:[22,14,16,14]});
 })();

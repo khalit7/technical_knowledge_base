@@ -29,7 +29,7 @@
     if(k<=2)TW.forEach(T=>R.flow([[T.xc*.25,.05,2.3],[T.xc*.9,.05,1.9],[T.xc,.05,SD/2]],{c:P.c5,a:k===0?e:1-.5*(k===2?e:0),r:.06,n:5,speed:1.2}));
     TW.forEach((T,m)=>{
       // focus: steps 4 and 5 are about V4.1-Flash only; V4-Flash recedes
-      const foc=m===0&&(k===3||k===4)?.28:1;
+      const foc=m===0&&(k===3||k===4)?.07:1;
       // how far up the stack the prompt has run in this step
       const pre=r=>{if(r<2)return k>1?1:k===1?S3.cl(e*2-r,0,1):0;
         if(m===0)return k>2?1:k===2?S3.cl(e*41-(r-2),0,1):0;
@@ -38,7 +38,7 @@
         const fill=f>0?mix(ghost,KC[kd],(kd==='swa'?.75:.55)*f):ghost;
         R.box([T.xc,y,0],[SW,TH,SD],{fill,a:foc*(f>0?1:.6),shadow:r===0,lw:.5,ea:f>0?.5:.3});
         // the cache plate: written while the layer runs (V4.1's layer 20 is written by projection in step 4)
-        const b=T.b(r);if(!b)continue;
+        const b=T.b(r);if(!b||foc<.1)continue; // in the close-up V4-Flash keeps only its faint slabs
         const len=Math.max(.03,b*K),x0=T.xc+T.side*SW/2,proj=m===1&&r===20;
         const ca=proj?at(k,e,3):f;if(ca<=0)continue;
         if(proj)R.glass([x0,y+TH/2,-SD/2],[T.side*len*ca,0,0],[0,0,SD],{c:P.c2,a:foc,nu:8,nv:6,th:.04});
@@ -76,6 +76,7 @@
   const full={cam:[.36,.36],bounds:[[-2.9,0,-1.4],[3.5,4.5,2.8]]};
   const api=S3.stage({id:'stg-ced',list:'sx-ced',fig:'Fig. · one agent turn, two architectures',cam:full.cam,bounds:full.bounds,aspect:.82,dur:2400,hold:4800,draw,
     // steps 4 and 5 are about V4.1-Flash's decoder: the camera moves in on it
+    margin:w=>w<520?[18,18,18,18]:[18,150,18,18], // room on the right for the decoder's note on wide screens
     view:k=>k===3||k===4?{cam:[.55,.34],bounds:[[-.2,0,-1.4],[3.4,4.4,2.2]]}:full,
     onStep:k=>{try{counters(k)}catch(e){}}});
   // the counters on the left, at the end of the current step, for the chosen prompt length

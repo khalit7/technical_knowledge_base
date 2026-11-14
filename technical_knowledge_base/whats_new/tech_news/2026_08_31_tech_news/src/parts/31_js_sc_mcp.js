@@ -62,10 +62,10 @@
   const fmtN=v=>String(v);
   function counters(k){const S=STEPS[M];let rt=0,hs=0,parse=0,fail=0,hold=0;for(let j=0;j<=k;j++){const s=S[j];rt+=s.rt;hs+=s.hs*(s.rt>1?2:1);parse+=s.parse;fail+=s.fail;hold+=s.hold}
     return stat('Round trips',fmtN(rt),'HTTP requests and replies')+stat('Handshake round trips',fmtN(hs),'initialize and initialized')+stat('Bodies parsed by the gateway',fmtN(parse),M==='old'?'to learn the method':'routing on Mcp-Method, Mcp-Name')+stat('Calls failed by the restart',fmtN(fail),'')+stat('Connections held for a human',fmtN(hold),M==='old'?'elicitation over an open stream':'input_required, then retry')}
-  const full={cam:[.42,.72],bounds:[[-6,0,-3],[3.9,1.4,3.2]]},near={cam:[.5,.62],bounds:[[1.0,0,-3],[4.4,1.3,3]]},phone={cam:[.3,.98],bounds:[[-6,0,-2.9],[3.6,1.2,3]]}; // on a phone the camera looks down more, so the instances spread vertically
+  const full={cam:[.42,.72],bounds:[[-6,0,-3],[3.9,1.4,3.2]]},fullW={cam:[.42,.72],bounds:[[-6,0,-3],[6.4,1.4,3.2]]},near={cam:[.5,.62],bounds:[[1.0,0,-3],[4.4,1.3,3]]},phone={cam:[.3,.98],bounds:[[-6,0,-2.9],[3.6,1.2,3]]}; // on a phone the camera looks down more, so the instances spread vertically
   const stg=S3.stage({id:'stg-mc',list:'sx-mc-old',fig:'MCP · the same six calls, two protocol versions',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:4400,draw,
     // the restart is about the instances: the camera moves in close; every other step shows the whole path
-    view:k=>STEPS[M][k]&&STEPS[M][k].restart?near:innerWidth<520?phone:full,
+    view:k=>STEPS[M][k]&&STEPS[M][k].restart?near:innerWidth<520?phone:fullW, // fullW: room on the right for the instance notes
     margin:w=>w<520?[22,8,14,8]:[26,16,16,16],
     onStep:k=>{const c=document.getElementById('mcCnt');if(c)c.innerHTML=counters(k)}});
   const seg=document.getElementById('mcM');if(seg&&stg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
