@@ -46,6 +46,10 @@ Editing only, no new runs: every visual still draws from `out/` through `parts/2
 - **Deleted as fat**: tab-bar and nav labels of the old layout, pointers to removed tabs, a wind-up and a restatement (10 units).
 
 ## Length judgement
+
+**2026-11-16 condensing pass** (Khalid's decision to condense the longest pages). Reading core 10,056 words (43.7 min) to 8,767 (38.1 min); closed 5,577 (24.2) to 5,295 (23.0). What went: prose restating a figure's step list (the fusion paragraph after Fig. 2, the e^x paragraph after Fig. 7, the prediction answer after Fig. 3, the constant-bank offsets repeated from Fig. 4), wordy intros and captions tightened in every section, the hidden other-mode step lists (`sx-nvccp`, `sx-fatn`, `sx-tcb`) cut to one short line per step, the recompile paragraph reduced to a link to torch.compile from the user's side section 4 (which carries the six calls under five strategies, checked), the `-arch=sm_90a` ptxas error log and the TORCH_LOGS/TORCH_TRACE how-to moved into closed blocks, and in the closed depth the ten interview answers and two mistakes that restated sections 2 to 8 (fat, with notes in the ledger). Why stop at 38 rather than 35: 756 core words (3.3 min) are the PTX listing itself, scanned with the highlighter rather than read, and about 1,250 are the step lists of the seven figures (one item per step); without the listing the core is 35 min, every remaining paragraph carries a unit the ledger marks core, and the closed time is almost all machine output (the 2,058-word instruction table, generated kernels, graphs, Tile IR).
+
+Earlier judgement:
 | | Before (audit 2026-10-23) | After |
 |---|---|---|
 | Reading, core | 43.2 min | 36.6 min |
@@ -64,6 +68,7 @@ Why about 37 minutes is right: the page covers two complete roads (nvcc and torc
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 304 units: core 236, depth 58, fat 10, owned 0, volatile 0. 297 drafted from the page as built on 2026-10-19 by `ledger.py init` (keys found by a script that looks for the longest phrase of each unit on the rebuilt page, then 24 set by hand); 7 added for the new cross-cutting content. Units from the two folded tabs carry a `note`.
+After the 2026-11-16 pass: 304 units, core 224, depth 37, fat 38, owned 5, problems 0; about 85 re-keyed to the condensed wording, 193 to 195 relabelled depth (moved into a closed block), 207 to 209 and 219 to 243 fat with a `note`.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-10
 Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cs-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still rebuilt byte for byte from `out/` by `check_embed.py`).

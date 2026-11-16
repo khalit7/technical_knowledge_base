@@ -90,3 +90,12 @@ Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `0
 **Ledger**: 420 units, core 281, depth 93, fat 46, problems 0. Re-keyed 321, 322, 327 (the widget's caption became the stage's note and step lists); 53 and 59 to 65 relabelled core (nesting fix); added 415 to 420, one per new figure and one for the traffic claim of Fig. 6.
 
 **Checks.** `check/check_stages.mjs` (new), `check/check_page.mjs` (its never-autoplay assertion now applies to the FA-3 widget only, and it runs under reduced motion), `check/check_js.mjs` and `check/check_embed.py` (paths of the renamed parts updated).
+
+## The 2026-11-16 condense (Khalid's decision to condense the longest pages)
+Editing only; no new runs. Reading core 42 min (about 9,600 words) to 37 min (8,530 words); closed 14 to 15 min.
+- **Cut repetition**: Blelloch's last step stated its comparison twice; R2's summary repeated its 4-way step; section 1's bullets no longer re-say the hero's steps; "compare against compiled, not eager" said once; FA-2's split-K quote and the step lists no longer restate each other.
+- **Moved to the owner**: assert_close's formula and default table stay with Profiling, benchmarking and correctness (section 5, confirmed present there; the closed table here keeps its owner line); honest timing linked there.
+- **Closed**: the RMSNorm-prologue experiment (a one-sentence result with both timings stays in core); rungs 1 and 2's per-target instruction counts (into the closed compiled table).
+- **Tightened**: intros of sections 2, 4, 5, 6, 7 and 8, the decode-split paragraph, the FA-3 model caption.
+- **Why 37 and not 35**: every figure's step list carries numbers the stage checks compare with the data (the hero's per-rung bytes, registers, GFLOP/s and M1 times; the reduction and scan counts in all modes); about 600 core words are bar-chart labels and data tables; the page owns eight kernel patterns plus FlashAttention across versions, each with a measured result.
+- **Ledger**: 420 units, core 280, depth 93, fat 47, problems 0 (about 60 units re-keyed; 139, a wind-up, relabelled fat with a note). Topic root ledger unaffected (problems 0).

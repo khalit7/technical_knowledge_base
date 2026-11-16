@@ -113,3 +113,17 @@ The 2,560 extra words are all step lists: 1,216 for the five new stages, about 7
 
 ### Checks (2026-11-12)
 `check_data.py` (claims 57, bad 0, BKD.scn embedded exactly), `check_ui.mjs` (1,675 controls at 390 dark and 920 light, 0 errors), `checkpage.sh` (fail=0, emdash 0, errbox 1, clipped 0), `check_stages.mjs` (see the report).
+
+## Condensed 2026-11-16 (Khalid's decision to condense the longest pages)
+| | Before (2026-11-12) | After (2026-11-16) |
+|---|---|---|
+| Reading, core (230 words a minute) | 10,458 words, 45 min | 8,782 words, 38 min |
+| Reading, closed details | 4,300 words, 19 min | 4,787 words, 21 min |
+
+What was cut, with no fact, number, caveat or source lost (ledger problems 0):
+- **Step lists tightened** to one short sentence or two per step, every number the scene shows kept (and `check_stages.mjs`'s phrases unchanged); the hidden other-mode lists (tensor batching, paged mode, SGLang and TensorRT-LLM preemption) cut to what differs from the shown mode.
+- **Prose restating a figure or the header** removed or merged: "step through both ways" lead-ins, the paragraph after the paging figure that repeated its steps, the replay's how-to-use paragraph, intros that restated the section title.
+- **Moved into closed blocks**: the tuning table (section 9, as the 2026-10-23 judgement proposed), the VTC fairness bound, vLLM's priority tie-breaks and victim choice, Sarathi-Serve's reported capacity gains, the Mooncake Table 1 and FAST'25 Fig. 9 reproduction (was a predict box; it is provenance), CachedAttention (a row of the tier systems table), how each engine switches the host tier on.
+- **Ledger**: about 110 keys re-pointed at the shortened text; unit 36 (an instruction to step through a figure) now fat; unit 266 (the compression methods) owned by Long context, which carries them; units 132 to 134 now depth.
+
+Why 38 minutes and not 35: about 1,700 core words are step lists (one item per figure step, in every mode) and about 700 are script-written captions, counters and provenance notes of the 16 visuals; check_data.py pins 57 prose claims to the data. What remains in the open text is the seven mechanisms, each with its numbers and a check. Further cuts would mean moving a mechanism's evidence (the eviction policy results, the tier hit rates, the VTC run) out of sight of its figure.

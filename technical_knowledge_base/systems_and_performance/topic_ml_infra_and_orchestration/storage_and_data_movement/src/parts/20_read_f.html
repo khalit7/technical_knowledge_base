@@ -16,19 +16,18 @@
 <div class="tw"><table class="io-tbl">
 <thead><tr><th>Model</th><th class="num">Parameters</th><th class="num">Training checkpoint at 14 B</th><th class="num">Per GPU, fully sharded</th><th class="num">Inference weights at 2 B</th></tr></thead>
 <tbody id="io-scale-rows"></tbody></table></div>
-<p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs ({{Llama 3 &sect;3.3|https://arxiv.org/html/2407.21783v3#S3.SS3}}); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs ({{DeepSeek-V3 report|https://arxiv.org/abs/2412.19437}}); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p>
+<details class="dp"><summary>How the rows were computed, and the published checks <span class="mute">(provenance)</span></summary><div class="b"><p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs ({{Llama 3 &sect;3.3|https://arxiv.org/html/2407.21783v3#S3.SS3}}); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs ({{DeepSeek-V3 report|https://arxiv.org/abs/2412.19437}}); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p></div></details>
 </div>
 <div class="io-moved">
 <div class="s3sp"><div class="s3R"><div id="stg-burst"></div></div>
 <div class="s3L">
 <h3>The burst, measured: every rank writes at once</h3>
-<p>Training is synchronous: at the checkpoint step every rank reaches the save at the same moment, and they share whatever aggregate write bandwidth there is. Who writes what decides both the bytes and the time.</p>
-<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>; Fig. 4 walks through them.</p>
+<p>At the checkpoint step every rank reaches the save at the same moment and shares the aggregate write bandwidth; who writes what decides the bytes and the time. Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>; Fig. 4 walks through them.</p>
 <p class="sxh">Fig. 4, step by step: four ways to write one checkpoint</p>
 <ol class="sx" id="sx-burst"><li><b>Four ranks, one model state.</b> 38.6 MB of state (the 3.2M-parameter GPT): a full copy per rank with DDP, a quarter with FSDP or ZeRO-3. In the runs all four share one container and one path to storage.</li><li><b>Rank 0 writes everything.</b> train.py's way, fine for DDP, where every rank holds a full copy: one writer, one link. 0.98 s on the slow shared folder (56 ms on the Docker volume).</li><li><b>Every rank writes everything.</b> The forgotten <code>if rank == 0</code>. Same file content, written N times: 154 MB in 2.95 s, three times as long.</li><li><b>Consolidated: gather, then one file.</b> With a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory. 1.51 s, 0.43 s of it gathering; on the fast volume the gather (0.50 s) took longer than the write.</li><li><b>Sharded: every rank its own file (DCP).</b> Every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer. 1.67 s here: not faster, because the four ranks share one path.</li><li><b>On a cluster, every node has its own link.</b> N nodes use N links at once; a consolidated write squeezes the whole state through one (a DGX B200 has two storage ports at up to 400 Gb/s each). The four nodes are <span class="sim">illustrative</span>.</li></ol>
 </div></div>
 <div class="s3sp"><div class="s3L">
-<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: four copies took about three times as long as one. Sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel. On a cluster every node has its own link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, {{NVIDIA|https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html}}), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one; the {{Sizing calculator|#t-sdsize}} does that arithmetic. The local run does show the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it. Save sharded during training; consolidate once, offline, when exporting.</p>
+<p><b>What this shows, and what it cannot.</b> Sharding was not faster here only because all four ranks share one container and one channel; on a cluster the node links add up (the DGX B200's two ports are BlueField-3, {{NVIDIA|https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html}}; the {{Sizing calculator|#t-sdsize}} does the arithmetic). The hidden cost of consolidating does show: on the fast volume, the gather took longer than the write. Save sharded during training; consolidate once, offline, when exporting.</p>
 <details class="dp"><summary>Why DCP on a replicated model still writes one copy: the de-duplication code <span class="mute">(source)</span></summary><div class="b">
 <div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
 <pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
@@ -55,7 +54,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <p>DCP "produces multiple files per checkpoint, with at least one per rank" and "handles load-time resharding which enables saving in one cluster topology and loading into another" ({{DCP docs, 2.14|https://docs.pytorch.org/docs/stable/distributed.checkpoint.html}}). Our 4-rank save:</p>
 <div class="tw" id="sd-dcpfiles"></div>
 <p>The <code>.metadata</code> file is the map: for each of the <span id="sd-dcp-n"></span> entries (102 weight tensors, 204 Adam moments, 102 step counters), the global shape, and for each of its chunks the offsets in the global tensor and the file, byte offset and length where it lives. FSDP2 shards every tensor along its first dimension, so <code>tok.weight</code> (65 x 512) is four chunks of 17, 17, 17 and 14 rows:</p>
-<div class="tw" id="sd-dcpchunks"></div>
+<details class="dp"><summary><code>tok.weight</code>'s four chunks in the map <span class="mute">(measured)</span></summary><div class="b"><div class="tw" id="sd-dcpchunks"></div></div></details>
 <p class="small">Each chunk is stored as a small <code>torch.save</code> record, so 384 x 512 fp32 values (786,432 bytes) take 788,009 bytes on disk. File 0 is smaller than the others because DCP's de-duplication gave the replicated entries to the ranks with less to write (the parent's lab quotes the code).</p>
 
 <div class="s3sp"><div class="s3R"><div class="rd-card" id="sd-rs-card">
@@ -67,7 +66,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <div class="an-ctl" id="sd-rs-ctl"></div>
 </div></div>
 <div class="s3L">
-<p><b>Resharding is a set of byte-range reads.</b> Load the same 4-rank checkpoint into 4, 2 or 3 ranks (toggle on the card) and follow what each new rank reads:</p>
+<p>Follow what each new rank reads:</p>
 <ol class="sx" id="sx-rs-4"></ol>
 <ol class="sx" id="sx-rs-2" hidden></ol>
 <ol class="sx" id="sx-rs-3" hidden></ol>
@@ -94,7 +93,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 </div></div>
 
 <h3>safetensors: a header that maps every tensor to a byte range</h3>
-<p>The format is "8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header", then N bytes of JSON giving each tensor's "dtype", "shape" and "data_offsets" relative to the data buffer, then the bytes; the header is capped at 100 MB ({{safetensors README|https://github.com/huggingface/safetensors}}). Our model's weights, saved by rank 0 <span class="meas">measured</span>:</p>
+<p>The format (owned by {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}}, section 3): "8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header", then N bytes of JSON giving each tensor's "dtype", "shape" and "data_offsets", then the bytes; the header is capped at 100 MB ({{safetensors README|https://github.com/huggingface/safetensors}}). Our model's weights, saved by rank 0 <span class="meas">measured</span>:</p>
 <details class="dp"><summary>The header of our model's file, as written <span class="mute">(measured)</span></summary><div class="b">
 <pre class="rd-code" id="sd-sthdr"></pre>
 </div></details>
@@ -139,11 +138,13 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 
 <section id="rd-s10">
 <h2>10. Checking a real system</h2>
+<p>Five checks, from the layout of one file to a live job: <code>lfs df</code> and <code>lfs getstripe</code>, <code>strace -c</code> on the start-up, IOR, mdtest and MLPerf Storage for the store, and per-rank write times, per-server metrics and S3 503 counts during a job.</p>
+<details class="dp"><summary>The commands, and what to read in each <span class="mute">(how to check)</span></summary><div class="b">
 <ul class="tight">
 <li><b>What is it, and how full?</b> <code>mount | grep -E 'lustre|nfs|fuse'</code>; on Lustre <code>lfs df -h /mnt</code> lists every MDT and OST with its use (an imbalanced OST is a hot spot).</li>
 <li><b>How is this file laid out?</b> <code>lfs getstripe &lt;file&gt;</code> (count, size, which OSTs); set defaults on the checkpoint directory before the first save with <code>lfs setstripe</code>.</li>
 <li><b>How many metadata calls does my start-up make?</b> <code>strace -f -c -e trace=%file python -c 'import yourpkg'</code>, as in section 4, then multiply by ranks.</li>
 <li><b>What does the store really do?</b> Benchmark with the access pattern of the job: IOR for bandwidth and mdtest for metadata ({{hpc/ior|https://github.com/hpc/ior}}), MLPerf Storage's checkpointing workload, which writes and reads ten checkpoints with fsync and reads them back "by different hosts than wrote the data" ({{MLPerf Storage v2.0 rules|https://github.com/mlcommons/storage/blob/v2.0/Submission_guidelines.md}}); for object stores, time a parallel copy of one real shard set.</li>
 <li><b>During a job:</b> checkpoint write time per rank in the training log (the slowest rank is the stall), the store's own per-server metrics (FSx publishes per-MDT and per-OST CloudWatch metrics every minute), and 503 SlowDown counts from S3 clients.</li>
-</ul>
+</ul></div></details>
 </section>

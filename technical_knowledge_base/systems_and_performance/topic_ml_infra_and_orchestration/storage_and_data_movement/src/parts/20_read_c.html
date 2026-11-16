@@ -6,7 +6,8 @@
 <div class="s3R"><div class="s3side"><div class="rd-card" id="sd-fam-card"><h4>Two families: a separate metadata tier that hands out layouts, or metadata spread over every server</h4>
 <div class="rd-svg" id="sd-fam-svg"></div>
 <p class="small">Left: the client asks the metadata tier once, then reads and writes the storage servers directly; data I/O never touches the metadata tier, but every name does. Right: every server holds data and metadata, so there is no single metadata tier to size, at the price of distributed locking (GPFS's token manager, "one metanode per open file"). Tectonic and 3FS put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.</p></div></div></div></div>
-<div class="tw sd-tw"><table class="rd-cmp">
+<p>The published systems, by family: <b>Lustre</b> (dedicated MDS, layouts; Argonne Polaris "100 PB @ 650GB/s") and <b>3FS</b> (stateless metadata over a transactional key-value store, client-computed chunk placement; "approximately 6.6 TiB/s" from 180 nodes) hand out placement; <b>GPFS</b>, <b>WEKA</b> and <b>VAST</b> spread metadata over every server or shared flash; <b>DAOS</b> is a user-space object store with POSIX on top (Aurora "220PB @ 30 TB/s"); Meta's <b>Tectonic</b> held Llama 3's "240 PB of storage out of 7,500 servers". Sources, placement rules and scales are in the closed table.</p>
+<details class="dp"><summary>Seven systems compared: metadata, data placement, published scale <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>System</th><th>Metadata</th><th>Data placement</th><th>Published scale</th></tr></thead>
 <tbody>
 <tr><td>Lustre</td><td data-h="Metadata">dedicated MDS/MDT; more with DNE</td><td data-h="Placement">layout (objects on OSTs) chosen at create, RAID 0 by stripe size</td><td data-h="Scale">Argonne Polaris: "Lustre: 100 PB @ 650GB/s" ({{Argonne at SNIA SDC, 2025-09-17|https://www.snia.org/sites/default/files/2025-10/SNIA-SDC25-Zheng-Beyond-Throughput-Benchmarking-Storage.pdf}}) <span class="indep">independent</span></td></tr>
@@ -18,6 +19,7 @@
 <tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files ({{Tectonic, FAST 2021|https://www.usenix.org/conference/fast21/presentation/pan}})</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak; "A major challenge is supporting the highly bursty checkpoint writes that saturate the storage fabric for short durations" ({{Llama 3, section 3.3.1|https://arxiv.org/html/2407.21783v3}}) <span class="pub">authors</span></td></tr>
 </tbody></table></div>
 <p class="small">The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
+</div></details>
 </section>
 
 <section id="rd-s4">
@@ -42,7 +44,6 @@
 <p class="rd-codecap">Run 1 of 3. "errors" are failed calls.</p></div></details>
 
 <div class="s3sp"><div class="s3L">
-<p><b>The same four operations on three stores</b> (the chart beside this): each process works in its own directory and creates, <code>stat</code>s, misses and deletes names in lock step.</p>
 <p>A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host: network file systems cache what exists far better than what does not. The object store pays a full HTTP request for everything, even a HEAD.</p>
 <details class="dp"><summary>The same runs as a table, with the toy's one-server rate <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw" id="sd-mreal"></div></div></details>
 </div>
@@ -74,7 +75,7 @@
 <h3>More clients, one metadata server: the rate flattens and every operation waits longer</h3>
 <p>On the toy, 16 client processes each create, <code>stat</code> and delete 300 files of their own through one metadata server held to half a CPU, then through two (the idea of Lustre's <dfn>DNE</dfn>, Distributed Namespace: names hashed over servers).</p>
 <p>Two metadata servers served 16 clients at 2,635 operations per second against 1,603 for one <span class="meas">measured</span>. The server, not the clients, was the limit: at 16 and 32 clients its container used all of its half CPU while the client container used about a fifth of its two, and 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
-<p class="small">The card beside this replays the run on one clock (the bar is completed operations, each client's dot busy while it waits); the curve under it is the whole sweep from 1 to 16 clients.</p>
+
 <details class="dp"><summary>CPU use during the runs, and DNE on real Lustre <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw" id="sdm-cpu"></div>
 <p>One MDS serves a whole Lustre file system until DNE adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)".</p>
@@ -82,7 +83,7 @@
 </div>
 <div class="s3R"><div class="s3side"><div class="rd-card" id="sdm-anim-card">
 <h4>The same 14,400 operations from 16 clients: a second metadata server gives 1.6 times the rate, not 2</h4>
-<p class="small">16 processes x 300 files x (create, stat, unlink). It opens on the finished run; pick one or two servers and press play to replay it. The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
+<p class="small">16 processes x 300 files x (create, stat, unlink). Pick one or two servers and press play: the bar is completed operations at the measured rate, on one clock; each client's dot is busy while it waits. Below: the sweep from 1 to 16 clients.</p>
 <div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
 <div class="sv" id="sdm-svg"></div>
 <div class="an-cap" id="sdm-cap"></div>

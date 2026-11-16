@@ -41,6 +41,6 @@
     s+='<polyline fill="none" stroke="var(--acc)" stroke-width="1.6" points="'+xs.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ')+'"/>';
     s+=RD.t(pl,H-5,'instruction 0',{fill:'var(--mute)'})+RD.t(W-8,H-5,'instruction '+(N-1),{a:'end',fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'Live registers per instruction');
-    document.getElementById('cs-liveTxt').innerHTML='At most <b>'+mx+'</b> registers hold a live value at once, yet ptxas reports 18 (sm_80 '+D.sass_regs.sm_80+', sm_100a '+D.sass_regs.sm_100a+', sm_120 '+D.sass_regs.sm_120+'): the count is the highest register number used plus one, and the live-range table’s columns run from R0 to R17. Allocation, not liveness, sets occupancy; for a kernel this small it does not matter, but on a kernel near a register cliff the gap between the two is what a different schedule or <code>__launch_bounds__</code> can win back.';}
+    document.getElementById('cs-liveTxt').innerHTML='At most <b>'+mx+'</b> registers are live at once, yet ptxas reports 18 (sm_80 '+D.sass_regs.sm_80+', sm_100a '+D.sass_regs.sm_100a+', sm_120 '+D.sass_regs.sm_120+'): the count is the highest register number used plus one (R0 to R17). Allocation, not liveness, sets occupancy; near a register cliff the gap is what a different schedule or <code>__launch_bounds__</code> can win back.';}
   live();RD.onRender(live);RD.onResize(live);
 })();

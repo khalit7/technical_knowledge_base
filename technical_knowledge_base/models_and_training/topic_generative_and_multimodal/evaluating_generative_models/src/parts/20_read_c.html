@@ -48,6 +48,28 @@
 </section></div></div>
 <div class="s3sp"><div class="s3L"><section id="ev-s3b">
 <p>Hence the convention: <b>50,000 generated images against statistics of the whole training set</b> (since Heusel et al.; stated for ADM by {{Dhariwal and Nichol 2021|https://arxiv.org/abs/2105.05233}} and for EDM2 by {{Karras et al. 2024|https://arxiv.org/abs/2312.02696}}). The official FID code warns: "We recommend using a minimum sample size of 10,000 to calculate the FID otherwise the true FID of the generative model is underestimated" ({{TTUR README|https://github.com/bioinf-jku/TTUR}}; read "misestimated": the finite-N error is an overestimate, as the curves show). Below 2,048 samples the covariance is not even full rank.</p>
+<details class="dp"><summary>The bias with nothing else going on: two samples of the same Gaussian <span class="mute">(depth, code)</span></summary><div class="b"><p>FID is biased upwards at small counts even with nothing wrong. Two samples drawn from the <i>same</i> distribution still get a positive FID, and it shrinks as the count grows:</p><pre class="rd-code">import numpy as np
+from scipy import linalg
+
+def fid(a, b):  # the Frechet distance FID uses, on any features
+    m1, m2 = a.mean(0), b.mean(0)
+    s1, s2 = np.cov(a, rowvar=False), np.cov(b, rowvar=False)
+    covmean = linalg.sqrtm(s1 @ s2).real
+    return float(((m1 - m2) ** 2).sum() + np.trace(s1 + s2 - 2 * covmean))
+
+d = 64                                   # Inception features have 2,048 dimensions; 64 keeps this fast
+rng = np.random.default_rng(0)
+A = rng.normal(size=(d, d)) / np.sqrt(d)
+cov = A @ A.T + 0.1 * np.eye(d)          # one fixed "true" feature distribution
+L = np.linalg.cholesky(cov)
+draw = lambda n: rng.normal(size=(n, d)) @ L.T
+
+for n in [500, 2000, 10000, 50000]:
+    scores = [fid(draw(n), draw(n)) for _ in range(3)]
+    print(f"n = {n:&gt;6}: FID between two samples of the SAME distribution = {np.mean(scores):.4f} (3 draws: {', '.join(f'{s:.4f}' for s in scores)})")</pre><pre class="rd-code rd-out">n =    500: FID between two samples of the SAME distribution = 3.3324 (3 draws: 3.3952, 3.3297, 3.2723)
+n =   2000: FID between two samples of the SAME distribution = 0.8557 (3 draws: 0.8410, 0.8715, 0.8546)
+n =  10000: FID between two samples of the SAME distribution = 0.1669 (3 draws: 0.1666, 0.1617, 0.1726)
+n =  50000: FID between two samples of the SAME distribution = 0.0331 (3 draws: 0.0338, 0.0334, 0.0322)</pre><span class="rd-codecap" style="display:block"><span class="meas">measured</span> on Apple M1 Pro CPU (numpy 2.5.4, scipy 1.18.1; the root&#8217;s <code>src/read/fid_bias.py</code>). The true distance is 0; the estimate falls roughly as 1 / n, and with 2,048 Inception dimensions instead of 64 the bias is far larger. So "FID 3.3" at 500 samples and "FID 0.03" at 50,000 can be the same model: compare only at equal n, and prefer 50,000.</span></div></details>
 <div class="pr" id="ev-pr2" data-right="2"><div class="q">Predict: a teammate scores your model on 1,000 samples and gets FID 40, and says "real Fashion-MNIST would get about 0". What would real data get at 1,000 samples?</div>
 <div class="opts"><button data-a="0">About 0</button><button data-a="1">About 3</button><button data-a="2">About 16</button></div>
 <div class="ans" hidden>About <span data-ev="floor:1000"></span> (topic setup: 15.4 to 15.8 over three draws of 1,000 real training images against the 10,000 test images), and this page's draws give <span data-ev="m:real:fid:1000"></span>. A 40 at N = 1,000 is a gap of about 24 over the floor, not 40. And the gap itself is biased, because the model's slope K differs from the real data's.</div></div>

@@ -69,8 +69,9 @@ has('vlm_halluc', f"{dq['right']} of {dq['n']}"); has('vlm_halluc', f"{scq['qa']
 po = scq['pope']['4x4+1 (1088, default)']['yes']
 has('vlm_halluc', f"{po['absent_random'][0]} of {po['absent_random'][1]}"); has('vlm_halluc', f"{po['absent_adversarial'][0]} of {po['absent_adversarial'][1]}"); has('vlm_halluc', f"{po['present'][0]} of {po['present'][1]}")
 tm = J('vlm', 'out', 'timing.json')['runs'][2]; has('vlm_halluc', f"{tm['vision_seconds']:.1f} s"); has('vlm_halluc', f"{round(tm['peak_mps_mb']):,} MiB")
-# the FID-bias demo output pasted on the page is the recorded run
+# the FID-bias demo output pasted on Evaluating generative models (section 3, since 2026-11-16) is the recorded run
+ev = open(os.path.join(H, '..', '..', 'evaluating_generative_models', 'index.html'), encoding='utf-8').read()
 out = open(os.path.join(H, 'fid_bias.out')).read().strip().split('\n')
 for line in out:
-    assert line.replace('&', '&amp;') in page, line
-print('OK: embedded data identical;', n, "lab numbers match the labs' recorded outputs; fid_bias output pasted verbatim")
+    assert line.replace('&', '&amp;') in ev, line
+print('OK: embedded data identical;', n, "lab numbers match the labs' recorded outputs; fid_bias output pasted verbatim on Evaluating generative models")

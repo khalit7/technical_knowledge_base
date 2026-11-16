@@ -14,16 +14,16 @@ def ok(c, msg):
 ok(m is not None and json.loads(m.group(1)) == D, "page embeds exactly runs/out/sd_data.json")
 T = D["tpfs"]; f1 = lambda x: "%.1f" % x
 prose = {  # literal in the HTML -> value from the data
-    "22.2 MB/s": f1(T["stripe"]["1"]["write_MBps"]) + " MB/s", "44.8 with 2": f1(T["stripe"]["2"]["write_MBps"]) + " with 2",
-    "88.7 with 4": f1(T["stripe"]["4"]["write_MBps"]) + " with 4", "88.9 MB/s for four files": f1(T["nproc"]["fpp_balanced"]["MBps"]) + " MB/s for four files",
-    "97.8 MB/s for one file": f1(T["nproc"]["shared_c4"]["MBps"]) + " MB/s for one file", "25.0 and 24.9 MB/s": f1(T["nproc"]["fpp_ost0"]["MBps"]) + " and " + f1(T["nproc"]["shared_c1"]["MBps"]) + " MB/s",
+    "22.2 MB/s": f1(T["stripe"]["1"]["write_MBps"]) + " MB/s", "<b>44.8 MB/s</b>": "<b>" + f1(T["stripe"]["2"]["write_MBps"]) + " MB/s</b>",
+    "<b>88.7 MB/s</b>": "<b>" + f1(T["stripe"]["4"]["write_MBps"]) + " MB/s</b>", "88.9 against 97.8 MB/s": f1(T["nproc"]["fpp_balanced"]["MBps"]) + " against " + f1(T["nproc"]["shared_c4"]["MBps"]) + " MB/s",
+    "(25.0 MB/s, Fig. 1)": "(" + f1(T["nproc"]["fpp_ost0"]["MBps"]) + " MB/s, Fig. 1)", "count 1 (24.9)": "count 1 (" + f1(T["nproc"]["shared_c1"]["MBps"]) + ")",
     "2,635 operations per second against 1,603": r0(T["meta"]["2_16"]["ops_per_s"]) + " operations per second against " + r0(T["meta"]["1_16"]["ops_per_s"]),
     "17,983 file-system calls": "{:,.0f} file-system calls".format(D["import"]["import torch"]["total_calls"]),
     "652 failed lookups": "{:,.0f} failed lookups".format(D["import"]["import torch"]["total_errors"]),
-    "(363 to 477 MB/s)": "(%s to %s MB/s)" % (r0(D["multipart"]["download_8_1"]["MBps"]), r0(D["multipart"]["download_8_8"]["MBps"])),
-    "(80 to 112 MB/s)": "({:.0f} to {:.0f} MB/s)".format(D["multipart"]["upload_8_1"]["MBps"], D["multipart"]["upload_8_8"]["MBps"]),
+    "ranges read 363 MB/s": "ranges read %s MB/s" % r0(D["multipart"]["download_8_1"]["MBps"]), "at once.</b> 477 MB/s": "at once.</b> %s MB/s" % r0(D["multipart"]["download_8_8"]["MBps"]),
+    "parts: 80 MB/s one at a time, 112 MB/s": "parts: {:.0f} MB/s one at a time, {:.0f} MB/s".format(D["multipart"]["upload_8_1"]["MBps"], D["multipart"]["upload_8_8"]["MBps"]),
     "after 16 uploads": "after %d uploads" % D["multipart_try1"]["uploads_before_error"],
-    "0.49 s to": "%.2f s to" % D["semantics"]["rename"]["copy_delete_s"], "0.66 s to upload": "%.2f s to upload" % D["semantics"]["rename"]["put_s"],
+    "0.49 s, against": "%.2f s, against" % D["semantics"]["rename"]["copy_delete_s"], "0.66 s to upload": "%.2f s to upload" % D["semantics"]["rename"]["put_s"],
     "4 ranks to 3 read 1.50 times": "4 ranks to 3 read %.2f times" % D["load_amp"]["3"], "4 to 2 read 1.00 times": "4 to 2 read %.2f times" % D["load_amp"]["2"],
     "1,386,049 bytes": "1,386,049 bytes", "25,319,489-parameter": "{:,}-parameter".format(D["dcp"]["params"]),
 }
