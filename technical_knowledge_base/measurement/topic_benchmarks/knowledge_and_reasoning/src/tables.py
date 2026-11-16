@@ -71,7 +71,7 @@ HLED = [('GPT-6 Astra', 59.9, 74.2, 45.6), ('Claude Opus 5.5', 54.6, 62.4, 46.8)
         ('Claude Fable 5.1', 50.7, 60.8, 40.6), ('Gemini 3.8 Flash', 33.3, 36.6, 30.0), ('Claude Sonnet 5.5', 33.1, 42.4, 23.8),
         ('GPT-6 Sol', 32.8, 42.2, 23.4), ('Muse Spark 1.3', 24.6, 30.0, 19.2), ('Grok 4.7', 22.8, 31.2, 14.4)]
 
-# Hero: best score at or near launch, best dated reading (October 2026), human reference, all published and sourced in
+# Hero: best score at or near launch, best dated reading (October to November 2026), human reference, all published and sourced in
 # the page's sections (start, who; now, who; human or None, its kind). Values in percent.
 HERO = [
     ('ARC-AGI-1', 2019, 20.0, 'Kaggle 2020 winner, private set', 98.5, 'ten entries, semi-private, 1 Oct 2026', 97.0, 'two people, 97 and 98%'),
@@ -81,7 +81,7 @@ HERO = [
     ('MMLU-Pro', 2024, 72.6, 'GPT-4o, CoT', 91.16, 'Gemini 3.1 Pro (TIGER-Lab, 11 Mar 2026)', None, ''),
     ('HLE', 2025, 9.1, 'o1', 54.8, 'GPT-6 Astra (Scale, 9 Sep 2026)', None, ''),
     ('ARC-AGI-2', 2025, 4.0, 'o3 preview, Dec 2024', 95.0, 'GPT-6 Astra, $1.12 a task', 100.0, 'every task solved by two or more people'),
-    ('ARC-AGI-3', 2026, 0.51, 'frontier AI at launch', 62.7, 'GPT-6 Astra, standard harness', 100.0, 'people, by construction'),
+    ('ARC-AGI-3', 2026, 0.51, 'frontier AI at launch', 81.2, 'Claude Fable 5.2, standard harness, 9 Nov 2026', 100.0, 'people, by construction'),
 ]
 # Expert re-grading of six physics benchmarks (arXiv 2609.13009): 250 answers marked wrong for GPT-5.6 Sol
 PHYS = {'bench': 143, 'grader': 95, 'model': 12,
