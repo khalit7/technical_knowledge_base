@@ -613,6 +613,22 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
+### Resolved 2026-11-16 (lead's judgement, at Khalid's request: "condense the list of questions to a max of 5 and do your best judgement on the other questions")
+- Every "Keep?" item below is kept as built: the rebuilt figures, removed or widget-ised controls, illustrative inputs (each labelled on its page), defaults, colours and section moves stay. All are reversible from git history.
+- Accepted corrections: Sequence models' LSTM story, Normalisation's nn.Linear factor 0.162, Physics re-grading 96.6%, Sharpening Tax 0.075 to 0.265, LLM Modules' leak step, Dream-RSI's reading, RoFormer's decay point.
+- Measured inputs already made during the rollout are kept (Loss functions' SmolLM2 token losses, Contrastive's sphere run, Normalisation's twice-He run, Alignment's Mac-made digits).
+- Ownership: OpenAI keeps its caching break-even widget; Zhipu keeps the slime stage (links RL for LLMs); the DeepSeek-R1 recipe flow stays on the paper page and the DeepSeek lab page keeps its own. No OWNERS.md change.
+- Fixed by the lead: Extraction and filtering's third-party crawled text scrubbed; ML fundamentals lab's sigmoid preset claim restated to what the engine reproduces; Libraries on top of PyTorch's "no maths calls" note reworded to match its table.
+- Not done (no new evidence to add): sourcing the DeepSeek V4 indexer key size and Minitron's kept layers, a citation for the XOR weights, new hardware photos, the Tech news 2026-11-02 hybrid-stack stage (would invent layer order), template patch to open a closed block a link points into (kept per page). Tech-news issues keep remembering the last tab, like every other page.
+
+### Open (at most five, for Khalid)
+1. Length. Many headers count the step lists of every mode, though a reader sees one (1 to 4 min over the one-path time), and six pages are long: Local and on-device inference (48 plus 53 closed), Storage and data movement (50), Batching, KV cache and scheduling (45), Compiler stack (44 plus 24), Triton and Gluon (44), Writing kernels (42). Quote one-path times, condense the six, both, or leave?
+2. Local runs to replace illustrative or borrowed data: nsys and ncu traces on the RTX 5090s (Profiling), cold compiles per torch.compile mode, a recorded JAX scan jaxpr, pj_hunt logits (PyTorch to JAX), a `uv lock -v` resolver trace (Python toolchain), `ar/tokenize_data.py` on test16() (Native multimodal), and Sequence models' torch cell check. Run all, some, or none?
+3. Generative and multimodal root: move the facts in its "Kept from the retired labs" block into its five children (Vision encoders, VLMs, Diffusion, Autoencoders, Evaluating), or keep the block?
+4. Narrated videos made before the rollout (for example the LLM landscape root's) describe the old pages. Remake them with the explainer-video skill, or leave them?
+
+### Record of the original questions (all resolved above unless listed under Open)
+
 - Extraction and filtering: the labels data carries third-party crawled text (another site's PHP error path under its /home, a googleusercontent host). Not this machine's data; pre-existing. Scrub it or leave it?
 - Maths root, Gradient lab panel 3: keep as practice or drop (Calculus and optimisation has an eight-method lab).
 - Python toolchain page: no resolver stage because no trace was recorded; recording `uv lock -v` on a small project with a deliberate conflict would allow one. Record it?
