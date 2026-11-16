@@ -621,11 +621,11 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Fixed by the lead: Extraction and filtering's third-party crawled text scrubbed; ML fundamentals lab's sigmoid preset claim restated to what the engine reproduces; Libraries on top of PyTorch's "no maths calls" note reworded to match its table.
 - Not done (no new evidence to add): sourcing the DeepSeek V4 indexer key size and Minitron's kept layers, a citation for the XOR weights, new hardware photos, the Tech news 2026-11-02 hybrid-stack stage (would invent layer order), template patch to open a closed block a link points into (kept per page). Tech-news issues keep remembering the last tab, like every other page.
 
-### Open (at most five, for Khalid)
-1. Length. Many headers count the step lists of every mode, though a reader sees one (1 to 4 min over the one-path time), and six pages are long: Local and on-device inference (48 plus 53 closed), Storage and data movement (50), Batching, KV cache and scheduling (45), Compiler stack (44 plus 24), Triton and Gluon (44), Writing kernels (42). Quote one-path times, condense the six, both, or leave?
-2. Local runs to replace illustrative or borrowed data: nsys and ncu traces on the RTX 5090s (Profiling), cold compiles per torch.compile mode, a recorded JAX scan jaxpr, pj_hunt logits (PyTorch to JAX), a `uv lock -v` resolver trace (Python toolchain), `ar/tokenize_data.py` on test16() (Native multimodal), and Sequence models' torch cell check. Run all, some, or none?
-3. Generative and multimodal root: move the facts in its "Kept from the retired labs" block into its five children (Vision encoders, VLMs, Diffusion, Autoencoders, Evaluating), or keep the block?
-4. Narrated videos made before the rollout (for example the LLM landscape root's) describe the old pages. Remake them with the explainer-video skill, or leave them?
+### Answered by Khalid, 2026-11-16
+1. Length: both. Headers quote the one-path reading time (every mode stays on the page), and the six longest pages are condensed without losing knowledge (ledger-checked).
+2. Local runs: none. Illustrative and borrowed data stay, labelled as now.
+3. Generative and multimodal root: the "Kept from the retired labs" facts move into the children that own them.
+4. Narrated videos made before the rollout: remove. None was left on Notion (the landscape and 2026-09-21 video blocks were already gone); the landscape root's HyperFrames project was deleted from the repo and the 2026-09-21 issue's video note removed.
 
 ### Record of the original questions (all resolved above unless listed under Open)
 
