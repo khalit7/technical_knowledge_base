@@ -6,7 +6,7 @@ How a page's source is laid out, how parts are named and assembled, and the fail
 A page folder sits where the Notion tree puts it: `technical_knowledge_base/<section>/<topic>/` for a root, a child's folder inside its parent's, names as snake_case slugs of the Notion titles (exact title and Notion id in `pages.json` and the folder's `README.md`).
 ```
 <page folder>/
-  index.html            built; the whole Notion page (never edited by hand)
+  index.html            built; the whole page (never edited by hand)
   README.md             title, Notion id, what the page is
   src/
     build.sh            writes ../index.html from parts/

@@ -3,7 +3,7 @@
 One week of AI/ML and big-tech news as a dated record: the issue's own words verbatim, re-checked against sources, with what happened next added beside them, never over them.
 
 Approved on 2026-08-24: tech news (2026-10-02), then used for the five issues after it.
-- **Reference folder**: `technical_knowledge_base/whats_new/tech_news/2026_08_24_tech_news/`.
+- **First approved issue**: `technical_knowledge_base/whats_new/tech_news/2026_08_24_tech_news/` (the shape below); copy the machinery from the newest issue, not this one.
 - **Newest scripts**: copy from `2026_11_02_tech_news/` (the issue written fresh into `src/issue.md`; older issues kept a `live.md` copied from Notion). Its `src/README.md` describes the machinery and the 2026-11-06 layout: `mk_issue.py` builds the splits from `viz_after` and the `<!--L-->`/`<!--R-->`/`<!--A-->`/`<!--RFIRST-->` markers, animations run on the template's `RD.anim` with static step lists, and `src/check_stages.mjs` checks the motion and splits. For an issue with a 3D stage (renderer v2, [../visuals/three-d.md](../visuals/three-d.md)), copy the stage machinery from `2026_09_07_tech_news/` or `2026_09_21_tech_news/` (`25_js_s3.js` from the templates, the scene, its step list and its `check_stages.mjs`).
 - **Layout (the 2026-11-06 standard, as on every page)**: an item with a visual is a split, its card left and the visual right; items without one are full width. Every animation plays once half in view, stops on any control or at its last step, never moves under reduced motion, and is explained by a static step list on the left (no per-step caption repeating it). A long replay the reader drives is a widget that never autoplays and opens on its finished frame. Use a 3D stage only where the week's mechanism has spatial structure; most issues have none.
 - **Checks before publishing** (from the repo root): `sh html_utils/checkpage.sh <issue>` (`fail=0, emdash 0, errbox 1, clipped 0`), `node <issue>/src/check_stages.mjs <shots dir>`, `node html_utils/verify_layout.mjs <issue> <shots dir>` (problems 0), `python3 <issue>/src/mk_coverage.py` (`all_found`), `python3 <issue>/src/recompute.py`, and `python3 html_utils/whats_new.py check`. Look at one screenshot of each visual mid-step at 1400 px and 390 px.
@@ -42,7 +42,7 @@ The reader's questions: **"what happened, what connects it, and did it hold?"** 
 - **`mk_issue.py`** generates the tabs; `relink()` restores the issue's own inline links.
 - **`mk_coverage.py`** proves every item, number and inline link survived (`all_found`).
 - **`recompute.py`** asserts every derived number.
-- **`10b_js_anim.js`** is a shared step-animation controller (modes, play, pause, step, scrub, speed, visibility, reduced motion), reusable by later issues; it must follow the motion rules of `RD.anim` in the templates (plays once half in view, stops on any control or at the last step, never under reduced motion), or use `RD.anim` itself. An item with a visual is a split: its text left, the visual right ([../visuals/mechanics.md](../visuals/mechanics.md)).
+- **Animations** run on the template's `RD.anim` (`21_js_rd_common.js`): plays once half in view, stops on any control or at its last step, never moves by itself under reduced motion. Only the 2026-08-31 and 2026-09-28 issues keep the older `10b_js_anim.js`; do not copy it. An item with a visual is a split: its text left, the visual right ([../visuals/mechanics.md](../visuals/mechanics.md)).
 
 A new issue copies the machinery and writes new annotations.
 

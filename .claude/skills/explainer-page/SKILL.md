@@ -39,7 +39,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 - One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)).
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
 - **Split layout everywhere** (Khalid, 2026-11-06): a section with a visual is text on the left, the visual on the right (sticky); a section without one is full width ([teaching/teaching-contract.md](teaching/teaching-contract.md), [visuals/mechanics.md](visuals/mechanics.md)). **3D stages when reasonable, never forced** ([visuals/three-d.md](visuals/three-d.md)). Every animation is explained step by step on the left.
-- Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll; animations play by themselves once in view, pause off screen, stop on any reader control, and never move by themselves under reduced motion.
+- Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll; animations play by themselves once in view, pause off screen, stop on any reader control, and never move by themselves under reduced motion (a long replay the reader drives is a widget that never autoplays).
 - Every specific fact sourced inline and dated; measured results labelled with the machine; anything not run says "not run here" and why.
 - No em-dashes anywhere (prose, HTML, captions, commits).
 - Privacy: never write the home path, the scratchpad path, hostnames, network addresses, git identity, emails or tokens into the repo or a page.
@@ -50,7 +50,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 ## Reference pages in this repo
 - Split layout, 3D stages, step lists and autoplay (the 2026-11-06 standard): `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`.
 - Root built by a team with labs and children: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/` (children inside it).
-- Before/after animation Khalid likes most: `technical_knowledge_base/models_and_training/topic_llm_landscape/deepseek/` (the MLA explainer).
+- Before/after animation Khalid likes most: the MLA explainer, first built on the DeepSeek page and now Fig. 4 of `technical_knowledge_base/models_and_training/topic_llm_architecture/attention_variants/` (`src/parts/44_js_sc_mla.js`, rebuilt as a 3D stage in the 2026-11-06 rollout).
 - Paper: `technical_knowledge_base/whats_new/papers/ddpm/`, `.../clip/`.
 - Each page's `src/README.md` says how it was built and `src/viz_ideas.md` lists the visuals built and rejected.
 

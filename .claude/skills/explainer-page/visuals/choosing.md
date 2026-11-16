@@ -11,7 +11,7 @@ How to decide which visuals a page gets, where each goes, and how their numbers 
 - **Every visual goes in the right column of its section** (the split layout, [../teaching/teaching-contract.md](../teaching/teaching-contract.md)); a section without one is full width.
 
 ## 2. The two most valuable kinds
-1. **Recompute a published figure with one movable parameter.** Rebuild a number the source reports from its formula and configuration, let the reader move one input, and land the defaults on the published value (DeepSeek's Cache tab rebuilds KV memory for every attention design; the Compute tab does FLOPs per token).
+1. **Recompute a published figure with one movable parameter.** Rebuild a number the source reports from its formula and configuration, let the reader move one input, and land the defaults on the published value (Long context's KV-cache calculator tab rebuilds KV memory for any config; the LLM architecture root's Config calculator does parameters and FLOPs per token).
 2. **Lay the whole subject on one axis,** usually time (Lineage, release timelines, a model map's year sweep).
 
 Both teach what prose cannot: a crossover where one cost overtakes another, a dominant term that changes as a parameter moves, a shape (a funnel, a pipeline bubble), a trajectory over years. And for mechanisms: **a before/after animation on the same input** ([animation-types.md](animation-types.md) type 1), which Khalid asks for often.
@@ -37,7 +37,7 @@ Pages that are not about mechanisms fit the scoring poorly: categorical facts (l
 Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is the Reading flow**: a visual that proves a claim sits beside that claim, in the right column of its section (split layout). The audit of 2026-10-23 found the strongest animations of most pages one click away in lab tabs while the Reading tab described them in words.
 - **Own tab** when the visual answers "across all of X, how does Y change" (every model, every release, every config), or is a lab with several sections and controls.
 - **Inside Reading** when it explains one mechanism at the moment the text introduces it.
-- **Inside an existing tab** when it shares that tab's axis (the DeepSeek config diff shares the Lineage tab's set of models).
+- **Inside an existing tab** when it shares that tab's axis.
 - **On a root** the Reading tab stays as short as it can while self-sufficient: one visual per idea at most, a "Go deeper" link per section; hands-on depth goes to the children. **On a child** the core carries what is needed to understand and the remaining detail sits in closed blocks.
 - **One owner per concept**: before building, grep the knowledge base for the concept (`python3 html_utils/audit_pages.py <audit.jsonl> --concepts`). If another page owns it and already draws it, link to that page's tab instead of drawing it again; if this page should own it, say so in the report so the others can link here.
 - Each fact is said once, where it is owned, and linked from elsewhere (`{{text|#t-tab}}` between tabs, `{{text|n:<id>}}` to other pages).

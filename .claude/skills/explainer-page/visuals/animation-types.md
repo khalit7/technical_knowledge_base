@@ -12,10 +12,10 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **When to use it.** Whenever a page explains a mechanism that replaced an earlier one, or a process that unfolds in steps. Khalid asks for it by name; root pages carry at least one per axis where a mechanism replaced another, and each lab tab at least one where it fits.
 
-**Anatomy of the reference (the DeepSeek MLA explainer, Khalid's favourite).** `models_and_training/topic_llm_landscape/deepseek/src/parts/18_js_mlx.js`, in the Reading tab's MLA section.
+**Anatomy of the reference (the MLA explainer, Khalid's favourite).** First built on the DeepSeek page; now Fig. 4 of Attention variants, rebuilt as a 3D stage in the 2026-11-06 rollout: `models_and_training/topic_llm_architecture/attention_variants/src/parts/44_js_sc_mla.js`, in the Reading tab's MLA section.
 - **One input, two methods.** One token through one attention layer under MLA (compress to a 512-number latent, add the 64-number decoupled RoPE key, cache 576 numbers, rebuild heads in prefill, absorb in decode), and a toggle that runs the same token through standard multi-head attention.
 - **Drawn to scale.** One square is 64 numbers, so 576 against 32,768 numbers cached per token per layer is visible as area, not just stated. The scale is printed on the card.
-- **An explanation for every step** (now a step-list item on the left, in HTML): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
+- **An explanation for every step** (now a step-list item on the left, in HTML): what happens and why it matters, with the formula and the number at that step. Seven steps for MLA, six for standard attention, each mode with its own step list.
 - **Running counters** that tie the picture to the numbers the text quotes (numbers cached, bytes per token over 61 layers, read per decoded token).
 - **Controls:** play and pause, step back and forward, a scrubber over the steps, and a speed control (0.5x, 1x, 2x), so a reader can stop on the step they are thinking about.
 - **Good manners:** it plays by itself once in view, pauses off screen, stops for good when the reader takes a control or reaches the last step ([mechanics.md](mechanics.md), Khalid 2026-11-06), and under `prefers-reduced-motion` never moves by itself and steps without tweening.
@@ -23,9 +23,9 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** The static switch shows two end states; the animation shows how one becomes the other. The earlier rejection of this animation as duplicating the static mode switch was wrong, and the log says so.
 
 **Other examples to read.**
-- `models_and_training/topic_generative_and_multimodal/src/parts/24_js_rd_gen.js`: one real Fashion-MNIST image made three ways (autoregressive tokens, DDIM steps, Euler flow steps), every frame exact arithmetic on the real image and one seeded noise draw.
-- `models_and_training/topic_generative_and_multimodal/src/parts/33_tab_flow_b.html` with `33_js_fw_3img.js`: one noise, ten steps, flow against diffusion.
-- `systems_and_performance/topic_ml_infra_and_orchestration/src/parts/34_js_io_3anim.js`: the same 60 training steps with no checkpoints, synchronous and asynchronous checkpoints, from measured step times.
+- `models_and_training/topic_generative_and_multimodal/src/parts/26_js_sc_fam.js` (Fig. 1 of the generative root): one real Fashion-MNIST image made by five families of generator, one lane each, every frame exact arithmetic on the real image and one seeded noise draw.
+- `models_and_training/topic_generative_and_multimodal/flow_matching/src/parts/26_js_sc6rf.js` (Fig. 6): the same noise under 1-RF and 2-RF, one Euler step of each.
+- `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement/src/parts/27_js_sd_io_async.js`: the same 60 training steps with no checkpoints, synchronous and asynchronous checkpoints, from measured step times (a long replay, so a widget that never autoplays).
 - `models_and_training/topic_llm_landscape/anthropic_claude_family/src/parts/12_js_sim.js`: the same 16-turn agent session with and without prompt caching, one square per 1,000 tokens, cost counters.
 - `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale/src/parts/32_js_ft_rec.js`: one failure under two recovery designs on one clock.
 - Shared controller to reuse: `RD.anim` in [../build/templates/21_js_rd_common.js](../build/templates/21_js_rd_common.js).
@@ -41,7 +41,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** Real intermediate values (real vectors, real token counts, real shapes) instead of decorative ones; a step-list item per stage with the shape and the number; counters that end on a number the text quotes.
 
 **Reference folders.**
-- `models_and_training/topic_generative_and_multimodal/src/parts/31_js_lt_2walk.js`: one image through each autoencoder model, five stages.
+- `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes/src/parts/28_js_sc1hero.js` (Fig. 1): one test image through the ConvAE hourglass, the three bottlenecks from its recorded codes, the recorded reconstructions.
 - `models_and_training/topic_generative_and_multimodal/src/parts/35_js_vl_2pipe.js`: one image through SmolVLM-500M with real vectors, or LLaVA-1.5 with config-derived shapes (colours labelled illustrative).
 - `whats_new/papers/zero/src/parts/14_js_step.js`: one 8-layer training step on 2, 4 or 8 GPUs, two ZeRO stages at once, memory strips to scale (2 : 2 : 12 bytes), arrows for all-gather and reduce-scatter, counters against 2 or 3 times the parameter count.
 
@@ -56,8 +56,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** Same input, same scale, same layout, so only what differs moves. Counters or a short table under the drawing name the difference in numbers.
 
 **Reference folders.**
-- `models_and_training/topic_generative_and_multimodal/src/parts/34_js_vs_2patch.js`: one image as patches, sequence and tokens under CLIP B/32 and SigLIP 2 B/16.
-- `models_and_training/topic_llm_landscape/deepseek/src/parts/11_js_mla.js`: the MLA prefill and decode switch that preceded the animation.
+- `models_and_training/topic_generative_and_multimodal/vision_encoders/src/parts/27_js_sc2patch.js` (Fig. 2): one image as patches, tokens and readouts, with a patch-size switch (32, 16, 14).
 
 ---
 
@@ -70,7 +69,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** Every position is a run that happened, with its numbers from the run's log; the default lands on the setting the text discusses; the axis covers the failure end too (over-guidance saturating pixels, one step too few).
 
 **Reference folders.**
-- `models_and_training/topic_generative_and_multimodal/src/parts/32_js_df_5cfg.js`: guidance scale against class accuracy, diversity, FD and share of saturated pixels, with samples.
+- `models_and_training/topic_generative_and_multimodal/diffusion_from_zero/src/parts/27_js_dz_guide.js` (section 6): the guidance cards over the tiny model's recorded runs and the SD 1.5 sets.
 - `models_and_training/topic_generative_and_multimodal/diffusion_from_zero/` (Sampler workbench tab): sampler and step count over recorded runs of the tiny model.
 
 ---
@@ -99,7 +98,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** The field is the trained network itself, run live in the page (small MLPs shipped as int8 weights with per-row scales), so solver choice and step count change the result honestly; a straight-path against curved-path toggle shows reflow; a step count control shows discretisation error. `requestAnimationFrame` only while visible.
 
 **Reference folders.**
-- `models_and_training/topic_generative_and_multimodal/src/parts/33_js_fw_2toy.js` (Flow lab section 1): 400 noise points flowing onto a ring of 8 Gaussians, the four trained MLPs from `src/flow/toy2d.py`.
+- `models_and_training/topic_generative_and_multimodal/flow_matching/src/parts/24_js_fm_field.js`: noise points flowing onto a ring of 8 Gaussians under the exact field or the trained networks (int8 weights from the root's `src/flow/toy2d.py` and the page's `src/runs/fm_toy.py`).
 - `models_and_training/topic_generative_and_multimodal/flow_matching/` (2-D flow playground tab): two panels on the same noise, exact fields, ODE against SDE, reflow rounds.
 
 ---
@@ -130,8 +129,8 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `models_and_training/topic_llm_training_and_post_training/src/parts/34_tab_scale.html` and `34_js_scale2_calc.js` (Scaling calculator): residual over published per preset, the lab's own MFU or a stated 40%.
 - `models_and_training/topic_generative_and_multimodal/src/parts/35_js_vl_3budget.js`: SmolVLM's processor arithmetic, checked against the real processor.
-- `systems_and_performance/topic_ml_infra_and_orchestration/src/parts/33_js_fl_7goodput.js`: exact expected goodput with Young and Daly marked and a seeded simulation check.
-- `models_and_training/topic_llm_landscape/deepseek/src/parts/15_js_cache.js`: KV memory of every attention design rebuilt from its configuration, landing on the lab's numbers.
+- `systems_and_performance/topic_hardware/power_cooling_and_reliability/src/parts/28_js_pw_ckpt.js` (section 6, with the model in `23_js_pw_engine.js`): exact expected efficiency against the checkpoint interval with Young and Daly marked and a seeded simulation check.
+- `models_and_training/topic_llm_architecture/long_context/src/parts/34_js_kc_2ui.js` (KV-cache calculator tab, core `19_js_kc_1core.js`): KV memory for any config, the same arithmetic as the topic's `calc.py`.
 
 ---
 
@@ -146,7 +145,6 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `models_and_training/topic_llm_landscape/deepseek/src/parts/24_js_cfg.js`: nine models' configs side by side with derived KV per token.
 - `models_and_training/topic_generative_and_multimodal/src/parts/36_js_mm_4pick.js` (Model map): which model for which job, filtered by licence need and a weights-only memory estimate.
-- `models_and_training/topic_generative_and_multimodal/src/parts/34_js_vs_3sim.js`: similarity-matrix explorer under cosine and softmax views.
 
 ---
 
@@ -174,7 +172,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **Reference folders.**
 - `models_and_training/topic_llm_landscape/alibaba_qwen/src/parts/11_js_moe.js`: expert grid, Qwen3 against Qwen3-Next, to scale.
-- `models_and_training/topic_llm_landscape/deepseek/src/parts/18_js_mlx.js`: the cache bars inside the MLA explainer.
+- `models_and_training/topic_llm_architecture/attention_variants/src/parts/44_js_sc_mla.js`: the cached arrays inside the MLA explainer, one cell = 64 numbers.
 - `models_and_training/topic_llm_architecture/llm_architecture_gallery/src/parts/`: layer strips and the attention ladder (one token through MHA, GQA, MQA, MLA, sliding window, Gated DeltaNet, KDA with MHA dashed behind each).
 
 ---
@@ -187,7 +185,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **What makes it good.** Held-out accuracy reported with how the test set was drawn; JS against PyTorch agreement stated; ablations that do not reproduce the paper's effect at toy scale say so beside the paper's figure.
 
-**Reference folders.** `whats_new/papers/attention_is_all_you_need_transformer/` (35,184-parameter Transformer, logits within 1.1e-5 of PyTorch); `models_and_training/topic_generative_and_multimodal/src/parts/33_js_fw_2toy.js` (live flow networks).
+**Reference folders.** `whats_new/papers/attention_is_all_you_need_transformer/` (35,184-parameter Transformer, logits within 1.1e-5 of PyTorch); `models_and_training/topic_generative_and_multimodal/flow_matching/src/parts/24_js_fm_field.js` (live flow networks).
 
 ---
 

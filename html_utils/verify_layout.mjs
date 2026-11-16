@@ -6,7 +6,9 @@
 // 1.5 s; widgets (auto:false) and cards hidden behind a lesson toggle show this legitimately.
 import puppeteer from 'puppeteer';
 import path from 'node:path'; import fs from 'node:fs';
-const [dir, out] = process.argv.slice(2); fs.mkdirSync(out, { recursive: true });
+const [dir, out] = process.argv.slice(2);
+if (!dir || !out) { console.error('usage: node html_utils/verify_layout.mjs <page folder> <out dir for screenshots, outside the repo>'); process.exit(2); }
+fs.mkdirSync(out, { recursive: true });
 const file = 'file://' + path.resolve(dir, 'index.html'), sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox'] });
 const problems = [], info = [];

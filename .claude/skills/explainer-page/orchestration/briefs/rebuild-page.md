@@ -1,6 +1,6 @@
 # Brief: rebuild an existing page to the teaching contract
 
-Fill in the `{{...}}` slots and give it to one agent per page. Used for the 2026-10-23 rollout; reuse it whenever a built page is condensed, restructured or re-visualised. Children of a topic run first (they are the owners), its root last.
+Fill in the `{{...}}` slots and give it to one agent per page. Used for the 2026-10-23 rollout and, with [layout-rollout.md](layout-rollout.md), the 2026-11-06 layout rollout; reuse it whenever a built page is condensed, restructured or re-visualised. Children of a topic run first (they are the owners), its root last.
 
 ---
 
@@ -8,7 +8,7 @@ You are rebuilding one page of Khalid's technical knowledge base (repo root: the
 
 GOAL: Khalid (MSc-level AI engineer with production LLM experience, a visual learner) understands the subject deeply in the least time. Every section, visual and sentence earns its place; nothing important is lost.
 
-READ FIRST and follow: `.claude/skills/explainer-page/teaching/teaching-contract.md` (governs), then `page-kinds/{{KIND}}.md`, `teaching/page-quality.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/three-d.md`, `visuals/mechanics.md`, `teaching/writing-style.md`, `build/checks.md`, and `technical_knowledge_base/OWNERS.md` (one page owns each concept). Then this page (`src/README.md`, `src/parts`, `index.html`). Reference for the split layout, 3D stages, step lists and autoplay: `whats_new/papers/attention_is_all_you_need_transformer` (read its `src/README.md`, the scenes `31_js_sc_model.js` to `36_js_sc_pe.js`, above all `33_js_sc_att.js`, and `src/check_page.mjs`). Copy `02_split.html` and `25_js_s3.js` from the templates, never from that page: its `01b_css_split.html` is an older copy with other class names. Earlier examples of the contract: `models_and_training/topic_llm_architecture/attention_variants` and the root `.../topic_llm_architecture`.
+READ FIRST and follow: `.claude/skills/explainer-page/teaching/teaching-contract.md` (governs), then `page-kinds/{{KIND}}.md`, `teaching/page-quality.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/three-d.md`, `visuals/mechanics.md`, `teaching/writing-style.md`, `build/checks.md`, and `technical_knowledge_base/OWNERS.md` (one page owns each concept). Then this page (`src/README.md`, `src/parts`, `index.html`). Reference for the split layout, 3D stages, step lists and autoplay: `whats_new/papers/attention_is_all_you_need_transformer` (read its `src/README.md`, the scenes `31_js_sc_model.js` to `36_js_sc_pe.js`, above all `33_js_sc_att.js`, and `src/check_page.mjs`). Copy `02_split.html` and `25_js_s3.js` from the templates, never from that page: its `02_split.html` and `30_js_s3.js` are older copies. Earlier examples of the contract: `models_and_training/topic_llm_architecture/attention_variants` and the root `.../topic_llm_architecture`.
 
 BASELINE (audit 2026-10-23): {{BASELINE}} (Reading core minutes + closed, other-tab minutes, visuals inline).
 OWNERSHIP for this page: {{OWNERSHIP}} (what this page owns per OWNERS.md; what it must link to instead of teaching; units it should absorb from other pages, if any).

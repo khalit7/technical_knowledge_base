@@ -42,7 +42,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920], ['light', 1400]]) 
 }
 await b.close();
 ```
-Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm it plays by itself (within about 2 s its play button reads Pause for `RD.anim`, or its `data-frames` rises for `S3.stage`; `data-draws` counts every redraw, including flows, which must stop off screen and under reduced motion); emulate `prefers-reduced-motion: reduce` once and confirm none moves by itself; step each to its last step and confirm its step list has one item per step. Check the split layout at 1400 px (two columns where a section has a visual, full width where it has none) as well as 920 and 390 px. The Attention Is All You Need paper page's `src/check_page.mjs` has code to copy.
+Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm it plays by itself (within about 2 s its play button reads Pause for `RD.anim`, or its `data-frames` rises for `S3.stage`; `data-draws` counts every redraw, including flows, which must stop off screen and under reduced motion); emulate `prefers-reduced-motion: reduce` once and confirm none moves by itself; step each to its last step and confirm its step list has one item per step. Check the split layout at 1400 px (two columns where a section has a visual, full width where it has none) as well as 920 and 390 px. The Attention Is All You Need paper page's `src/check_page.mjs` has code to copy. Pages rebuilt in the 2026-11-06 layout rollout keep these motion and split checks in a script under `src/` (usually `check_stages.mjs`; rerun it after any change to the page). The lead then runs `node html_utils/verify_layout.mjs <page folder> <shots dir outside the repo>`, which must end `problems 0`.
+
+A page check script takes its shots folder as an argument, creates it (`fs.mkdirSync(dir, {recursive: true})`) and has no default inside the repo or `/tmp`.
 
 ## 3. Data and prose numbers
 - A script proves the page embeds exactly the recorded data: parse the built `index.html`'s data globals and compare them with `src/<tab>/out/*.json` (or the recompute script's output), field by field.
@@ -52,7 +54,7 @@ Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm
 - For a migrated page, `src/coverage.json` accounts for every fact of `src/live.md` (carried where, or dropped with the reason).
 
 ## 4. Look at the screenshots
-Open the PNGs in `.shots/` (every tab, both themes) and a few mid-animation frames, and fix what a reader would see: overlapping labels, unreadable contrast in dark mode, empty charts in a hidden tab, a caption that wraps badly at 390 px, text under 11 px. A check passing is not the same as the page looking right.
+Open the PNGs in `.shots/` (every tab, both themes) and a few mid-animation frames, and fix what a reader would see: overlapping labels, unreadable contrast in dark mode, empty charts in a hidden tab, a caption that wraps badly at 390 px, text under 11 px. A check passing is not the same as the page looking right. Look at every stage mid-step at 920 px as well as 1400 and 390 (a stage's `aspect` sizes its card only at 1100 px and wider), and check that nothing in view beside a prediction prompt (step list, caption, visual) already shows its answer.
 
 ## 5. Privacy grep
 Grep everything you will commit (the built page and all of `src/`) and fix every hit:
