@@ -1,6 +1,6 @@
 # 2026-09-21: tech news, source
 
-`../index.html` is the whole Notion page "2026-09-21: tech news" (https://app.notion.com/p/3e25c17b0d0d813dba03fa81f5d8cc39, child of Tech news). The page has **a video block** (`<video>` block `3e45c17b-0d0d-81a4-a26c-d732344a2c81`, file `tech_news_2026_09_21.mp4`, caption "Tech news, week to 21 September 2026: four stories, and the rest of the week at the end"); it stays on the Notion page under the HTML, and the header carries its caption and description and links the block. No child pages or databases. Build with `sh build.sh`.
+`../index.html` is the whole Notion page "2026-09-21: tech news" (https://app.notion.com/p/3e25c17b0d0d813dba03fa81f5d8cc39, child of Tech news). The issue's text opens with a video section, but that video no longer exists (the Notion page is now only a link page), so the page carries no video note. No child pages or databases. Build with `sh build.sh`.
 
 ## Layout
 Nine tabs, as in the approved 2026-08-24 issue: **At a glance** (`t-read`, open by default: lead, the week's theme, week strip, one row per section, follow-ups in one line each), one tab per section (`t-top`, `t-models`, `t-research`, `t-industry`, `t-compute`, `t-dev`, `t-talk`) with its own lead, its items as cards (verbatim text; Checked, Correction, Unconfirmed, Links and Related boxes; Hacker News points from the issue and comment counts from 2026-10-02 as separate badges; follow-ups in full under the item; the topic pages the item feeds) and its visuals, then **Further reading** (`t-more`).
@@ -17,7 +17,7 @@ Visuals, each beside the item it explains (the split layout since 2026-11-13, be
 
 ## Files
 - `recompute.py`: every derived number, with asserts on the published ones (task-horizon crossings, 2% and 4.6%, Z.ai's step product, Rubin ratios and per-GW cost, all 29 BITCOS rows and 26 of 29, Bonsai's bits, the KV steps 3,514 / 652 / 1,630 / 890 and 437x, Huawei pull-ins, harness-tax geometric means, and the smaller checks in the notes).
-- `coverage.json` (from `mk_coverage.py`, run after `build.sh`): every item verbatim, its 415 numbers and 27 source links found in the built page, the video, the replaced read-time line, 6 dropped Notion auto-links, corrections and follow-ups. `all_found` true.
+- `coverage.json` (from `mk_coverage.py`, run after `build.sh`): every item verbatim, its 415 numbers and 27 source links found in the built page, the video (recorded as dropped), the replaced read-time line, 6 dropped Notion auto-links, corrections and follow-ups. `all_found` true.
 - `viz_ideas.md`: candidates, scores, data, rejections, and what the methodology lacked.
 - `inputs/`: source extracts read on 2026-10-02, plus `next_issue_2026_09_28.md` (the next issue, used to find follow-ups, each checked against a primary source).
 - Checks: `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/tech_news/2026_09_21_tech_news` from the repo root.

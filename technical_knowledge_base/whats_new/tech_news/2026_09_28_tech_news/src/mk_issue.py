@@ -64,6 +64,8 @@ out.append('<div class="tabs" role="tablist" id="tabs">' + f'<button role="tab" 
            '<button role="tab" data-t="t-more" aria-selected="false">Further reading</button></div>')
 TABOF = {q['name']: q for q in SEC}
 fu_sorted = sorted(A['followups'], key=lambda f: f['d'])
+# A follow-up shown under several items gets one card per item; each copy's id ends -0, -1, ... (its place in f['for']) so ids stay unique.
+def fid(f, n): return f'f-{f["id"]}' if len(f['for']) == 1 else f'f-{f["id"]}-{f["for"].index(n)}'
 # At a glance
 g = [f'<div class="tab" id="{G["tab"]}" role="tabpanel">']
 top = f'<p class="lead">{TL(G["lead"])}</p>\n<p>{TL(G["theme"])}</p>\n'
@@ -77,7 +79,7 @@ g.append(f'<h2>{esc(G["next_title"])}</h2><ul class="fulist">')
 for f in fu_sorted:
     k = f['for'][0]; an = A['items'][str(k)]
     q = TABOF[I['items'][k-1]['section']]
-    g.append(f'<li><span class="dt">{dd(f["d"])}</span> {esc(f["t"])} <a href="#f-{f["id"]}" data-jump="f-{f["id"]}">in {esc(q["label"])}</a></li>')
+    g.append(f'<li><span class="dt">{dd(f["d"])}</span> {esc(f["t"])} <a href="#{fid(f, k)}" data-jump="{fid(f, k)}">in {esc(q["label"])}</a></li>')
 g.append('</ul><p class="small mute">Each follow-up is given in full, with its sources, under the item it updates. The issue\'s own text is never changed.</p></div>')
 out.append('\n'.join(g))
 cur = None
@@ -111,7 +113,7 @@ for it in I['items']:
         lbl = '' if re.sub(r"<[^>]+>", "", txt).lower().startswith(NOTE_LBL[kind].lower()) else f'<span class="nl">{NOTE_LBL[kind]}</span> '
         h.append(f'<div class="nt {kind}">{lbl}{TL(txt)}</div>')
     for f in [f for f in fu_sorted if n in f['for']]:
-        h.append(f'<div class="fuc" id="f-{f["id"]}"><div class="ih"><span class="nl">What happened next</span> <span class="dt">{dd(f["d"])}</span></div><h3>{esc(f["t"])}</h3><p>{TL(f["html"])}</p></div>')
+        h.append(f'<div class="fuc" id="{fid(f, n)}"><div class="ih"><span class="nl">What happened next</span> <span class="dt">{dd(f["d"])}</span></div><h3>{esc(f["t"])}</h3><p>{TL(f["html"])}</p></div>')
     if an.get('feeds'):
         h.append('<div class="fd">Feeds ' + ', '.join(L(esc(FEEDS[k][0]), 'n:' + FEEDS[k][1]) for k in an['feeds']) + '</div>')
     h.append('</article>')

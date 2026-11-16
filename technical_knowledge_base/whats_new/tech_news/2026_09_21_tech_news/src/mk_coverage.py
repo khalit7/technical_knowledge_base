@@ -17,9 +17,7 @@ ok &= fi
 out['intro'] = {'text': I['intro'], 'where': 'header subtitle (final full stop replaced by a colon)', 'found': fi}
 v = I.get('video')
 if v:
-    fv = v['description'] in ptext and v['caption'] in ptext and v['block'].replace('-', '') in page
-    ok &= fv
-    out['video'] = {'tag': '<video> block ' + v['block'] + ' (' + v['file'] + ')', 'where': 'header video note: caption and description verbatim, link to the block; the video itself stays on the Notion page under the HTML', 'found': fv}
+    out['video'] = {'tag': '<video> block ' + v['block'] + ' (' + v['file'] + ')', 'where': 'not on the page: the video no longer exists (the Notion page is a link page), so the header note and its link were removed', 'found': 'dropped'}
 out['readtime_line'] = {'text': I.get('readtime'), 'where': 'replaced by the header read-time line computed over all tabs (the foot of Further reading says so)', 'found': 'replaced'}
 for it in I['items']:
     an = A['items'][str(it['n'])]

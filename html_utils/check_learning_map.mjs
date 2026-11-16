@@ -99,9 +99,14 @@ const exists = href => { const u = new URL(href, BASE); if (u.origin !== new URL
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const setEq = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
 const fmt = s => [...s].sort().join(', ');
+// One decimal the way Python's '{:.1f}' writes it (learning_map.py): an exact tie (x.25, x.75) rounds half to even, where toFixed rounds up.
+const pyF1 = x => { if (x >= 0 && Number.isInteger(x * 4) && !Number.isInteger(x * 2)) { let n = Math.floor(x * 10); if (n % 2) n++; return (n / 10).toFixed(1) } return x.toFixed(1) };
 
+// Emulate a mouse: chrome-headless-shell reports (hover:none) and (pointer:none), which turn off the hover growth checked below.
+// (CDP Emulation.setEmulatedMedia ignores the hover and pointer features in this build; Blink's settings do not.)
+const MOUSE = '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4';
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined,
-  args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
+  args: [MOUSE, ...(process.platform === 'linux' ? ['--no-sandbox'] : [])] });
 
 async function open(width, scheme, reduced = false) {
   const p = await b.newPage();
@@ -224,7 +229,7 @@ const checkFocus = (s, f, where) => {
     if (!w) { bad('card for an unknown topic', s); continue }
     if (seenT.has(s)) bad('two cards for', s); seenT.add(s);
     if (c.l !== layerMemo[s]) bad(`card ${s} in layer ${c.l + 1}, the rule gives ${layerMemo[s] + 1}`);
-    if (!c.text.includes(`${w.n} pages, ${(w.m / 60).toFixed(1)} h`)) bad(`card ${s}: want "${w.n} pages, ${(w.m / 60).toFixed(1)} h" in "${c.text}"`);
+    if (!c.text.includes(`${w.n} pages, ${pyF1(w.m / 60)} h`)) bad(`card ${s}: want "${w.n} pages, ${pyF1(w.m / 60)} h" in "${c.text}"`);
     if (c.text.includes('need no other topic')) bad(`card ${s}: still shows the "need no other topic" line`);
     if (c.cells !== nst || c.cnts.join() !== w.st.join()) bad(`card ${s}: strip ${c.cnts} want ${w.st}`);
     if (c.sl !== [...Array(nst).keys()].map(g => g + 1).join(' ')) bad(`card ${s}: stage labels "${c.sl}"`);
