@@ -1,6 +1,7 @@
-// ---- Shared price list (pricing page and models overview, read 19 Oct 2026): input, output, cache read; $/MTok. old: previous tokenizer; hi: the rates for requests whose input exceeds hi.over tokens (Haiku 5.5) ----
+// ---- Shared price list (pricing page and models overview, read 16 Nov 2026): input, output, cache read; $/MTok. old: previous tokenizer; hi: the rates for requests whose input exceeds hi.over tokens (Haiku 5.5) ----
 const PRICES=[
-  {n:'Fable 5.1',i:10,o:50,c:0.25,win:1e6,old:false,cur:true},
+  {n:'Fable 5.2',i:8,o:40,c:0.20,win:1e6,old:false,cur:true},
+  {n:'Fable 5.1',i:10,o:50,c:0.25,win:1e6,old:false},
   {n:'Fable 5',i:10,o:50,c:1.00,win:1e6,old:false},
   {n:'Opus 5.5',i:4,o:20,c:0.20,win:1e6,old:false,cur:true},
   {n:'Opus 5 (and 4.5 to 4.8)',s:'Opus 5',i:5,o:25,c:0.50,win:1e6,old:false},
@@ -17,7 +18,7 @@ const TIER=(p,ctx)=>p.hi&&ctx>p.hi.over?Object.assign({},p,p.hi):p;
 
 // ---- Price ladder bars beside the lineup table ----
 (function(){
-  const rows=['Haiku 5.5','Sonnet 5.5','Opus 5.5','Fable 5.1'].map(PBY),cols=[['i','Input','var(--c1)'],['o','Output','var(--c4)'],['c','Cache read','var(--good)']];
+  const rows=['Haiku 5.5','Sonnet 5.5','Opus 5.5','Fable 5.2'].map(PBY),cols=[['i','Input','var(--c1)'],['o','Output','var(--c4)'],['c','Cache read','var(--good)']];
   let s='';cols.forEach(([k,lab,col])=>{const mx=Math.max(...rows.map(r=>r[k]));s+='<div class="band">'+lab+' per 1M tokens</div>';
     rows.forEach(r=>{s+='<div class="row"><span class="nm">'+(r.s||r.n)+'</span><span class="track"><span class="fill" style="width:'+(100*r[k]/mx).toFixed(1)+'%;background:'+col+'"></span></span><span class="val">'+usd(r[k],2)+'</span></div>'})});
   $('ladder').innerHTML=s;
@@ -79,6 +80,7 @@ const TIER=(p,ctx)=>p.hi&&ctx>p.hi.over?Object.assign({},p,p.hi):p;
   const D=[
     ['Opus 5.5',T(A,A,X,X,X),'medium',1,1],
     ['Sonnet 5.5',T(A,A,X,'Up-front thinking off at high effort or below',X),'high',1,1],
+    ['Fable 5.2 / Mythos 5.2',T(A,A,X,X,X),'high',1,1],
     ['Fable 5.1 / Mythos 5.1',T(A,A,X,X,X),'high',1,1],
     ['Fable 5 / Mythos 5',T(A,A,X,X,X),'high',1,1],
     ['Opus 5',T(A,A,X,X,HB),'high',1,1],

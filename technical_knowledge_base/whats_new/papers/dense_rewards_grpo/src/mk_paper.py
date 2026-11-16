@@ -32,8 +32,8 @@ def card():
     if P.get('verdict'):
         h.append('<p class="tk" style="margin-top:10px"><b>How far to trust it:</b> %s <a href="#" data-tab="t-read" data-to="s-trust">The evidence, judged</a>.</p>' % html.escape(P['verdict']))
     code = A(P['code']['url'], 'code (' + P['code']['title'] + ')') if P.get('code') else 'no code released (%s)' % A(P['code_alt']['url'], 'baseline code: ' + P['code_alt']['title'].split(' ')[0])
-    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="t-sim">%s</a></div>'
-             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), code, html.escape(P['run_label'])))
+    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s">%s</a></div>'
+             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), code + ' (announced, not yet released)', P.get('run_tab', 't-sim'), html.escape(P['run_label'])))
     h.append('</div>')
     return '\n'.join(h)
 
@@ -47,7 +47,6 @@ def where_label(at):
     if m: return 'Figure ' + m.group(1)
     m = re.fullmatch(r'S\d+\.E(\d+)', at)
     if m: return 'Eq. ' + m.group(1)
-    if at == 'S5.SS5': return '§5.5'
     nums = re.findall(r'\d+', at)
     return '§' + '.'.join(nums)
 

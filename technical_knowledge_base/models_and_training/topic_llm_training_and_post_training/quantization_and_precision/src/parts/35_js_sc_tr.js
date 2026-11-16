@@ -1,4 +1,4 @@
-// ---- Scene (training in low precision, Fig. 10): one linear layer's three matmuls per training step, the format of each input under five recipes (renderer v2) ----
+// ---- Scene (training in low precision, Fig. 10): one linear layer's three matmuls per training step, the format of each input under six recipes (renderer v2) ----
 // Each matmul's two inputs stand as glass plates tinted by bit width (16-bit blue, 8-bit orange, 4-bit green); a plate's grid is its scaling
 // (one cell: no scale or one per tensor; strips: 1 x 128 tiles or 1 x 16 blocks; squares: 128 x 128 or 16 x 16 blocks; the cell counts are illustrative, the sizes are in the labels).
 // Dots stream from both inputs into the sum, which accumulates in higher precision, and on to the output; the last step sends dW to the optimiser
@@ -11,7 +11,8 @@
     bf16:{rows:[['X','bf16',16,0],['W','bf16 copy',16,0],['dY','bf16',16,0],['W','bf16 copy',16,0],['dY','bf16',16,0],['X','bf16',16,0]],acc:'fp32',state:['master W · fp32','Adam m · fp32','Adam v · fp32']},
     te:{rows:[['X','E4M3, per tensor',8,0],['W','E4M3, per tensor',8,0],['dY','E5M2, per tensor',8,0],['W','E4M3, per tensor',8,0],['dY','E5M2, per tensor',8,0],['X','E4M3, per tensor',8,0]],acc:'higher precision',state:['master W · higher precision']},
     ds:{rows:[['X','E4M3, 1×128 tiles',8,1],['W','E4M3, 128×128',8,2],['dY','E4M3, fine-grained',8,1],['W','E4M3, 128×128',8,2],['dY','E4M3, fine-grained',8,1],['X','E4M3, fine-grained',8,1]],acc:'fp32 every 128',state:['master W · higher precision']},
-    nv:{rows:[['X','NVFP4, per 16',4,3],['W','NVFP4, 16×16',4,4],['dY','NVFP4, stoch. round',4,3],['W','NVFP4, 16×16',4,4],['dY','NVFP4 + Hadamard',4,3],['X','NVFP4 + Hadamard',4,3]],acc:'higher precision',state:['master W · higher precision']}};
+    nv:{rows:[['X','NVFP4, per 16',4,3],['W','NVFP4, 16×16',4,4],['dY','NVFP4, stoch. round',4,3],['W','NVFP4, 16×16',4,4],['dY','NVFP4 + Hadamard',4,3],['X','NVFP4 + Hadamard',4,3]],acc:'higher precision',state:['master W · higher precision']},
+    tm:{rows:[['X','NVFP4, per token',4,3],['W','NVFP4, per expert',4,3],['dY','MXFP8, stoch. round',8,1],['W','MXFP8, re-quantised',8,1],['dY','MXFP8, stoch. round',8,1],['X','MXFP8, re-quantised',8,1]],acc:'higher precision',state:['master W · higher precision']}};
   const G=[['Forward','Y = X · Wᵀ','Y','to the next layer'],['Data gradient','dX = dY · W','dX','to the layer below'],['Weight gradient','dW = dYᵀ · X','dW','to the optimiser']];
   const GX=[-3.7,0,3.7],PW=1.15,PH=1.2,PY=.35,ZI=0,ZS=1.35,ZO=2.35,OX=6.6;
   let rec='bf16';

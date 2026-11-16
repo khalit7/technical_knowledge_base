@@ -35,7 +35,7 @@ for (const [scheme, width, motion] of [['light', 920, 'no-preference'], ['dark',
   for (const m of ['hadamard', 'plain']) { await clk(`#rd-rtM button[data-m="${m}"]`); for (let t = 0; t < 16; t++) { await setv('#rd-rtTk', t); await scan('#rd-rt', `rot ${m} ${t}`) } }
   await setv('#rd-rtTk', 12);
   // training recipes (Fig. 10)
-  for (const k of ['fp16', 'te', 'ds', 'nv', 'bf16']) { await clk(`#rd-trM button[data-m="${k}"]`); await scan('#rd-trC', 'train ' + k);
+  for (const k of ['fp16', 'te', 'ds', 'nv', 'tm', 'bf16']) { await clk(`#rd-trM button[data-m="${k}"]`); await scan('#rd-trC', 'train ' + k);
     const vis = await p.$$eval('#rd-trC .rd-trx', ds => ds.filter(d => !d.hidden).map(d => d.dataset.k)); if (vis.join() !== k) bad.push(`${scheme} train caption ${k}: ${vis}`) }
   // bit explorer and the block calculator (open its details first)
   const pres = await p.$$eval('#bxP button', o => o.map(x => x.dataset.v));

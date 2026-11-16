@@ -12,11 +12,11 @@
   function hero(){
     const el=$('acHero'),W=Math.max(300,Math.min(880,RD.width(el))),narrow=W<640;let s='',H;
     const trained=[['boxo',['Pretraining','architecture, size, data:','undisclosed']],['box',['Constitutional AI + RLAIF','published (Bai et al., 2022)']],['box',['RLVR + agentic RL','named, not detailed']]];
-    const rungs=[['Fable 5.1','$10 / $50'],['Opus 5.5','$4 / $20'],['Sonnet 5.5','$2 / $10'],['Haiku 5.5','$0.10 / $0.50']];
+    const rungs=[['Fable 5.2','$8 / $40'],['Opus 5.5','$4 / $20'],['Sonnet 5.5','$2 / $10'],['Haiku 5.5','$0.10 / $0.50']];
     const dials=[['effort: low to max','how many tokens it writes'],['max_tokens','hard fuse: thinking + answer'],['prompt cache','Opus 5.5 reads at 5% of input'],['append-only history','or thinking blocks are invalid']];
     if(!narrow){
       const g=34,cw=(W-2*g)/3,x1=0,x2=cw+g,x3=2*(cw+g),top=24,bh=50,bg=10;
-      s+=T(x1,14,'Trained once per generation',{w:600,fs:12})+T(x2,14,'Sold as four rungs (Oct 2026)',{w:600,fs:12})+T(x3,14,'The caller keeps four dials',{w:600,fs:12,fill:'var(--acc)'});
+      s+=T(x1,14,'Trained once per generation',{w:600,fs:12})+T(x2,14,'Sold as four rungs (Nov 2026)',{w:600,fs:12})+T(x3,14,'The caller keeps four dials',{w:600,fs:12,fill:'var(--acc)'});
       const ht=(bh+bg)*4-bg,tb=(ht-2*bg)/3;
       trained.forEach(([c,l],i)=>{s+=box(x1,top+i*(tb+bg),cw,tb,c,l,11.5)});
       rungs.forEach(([n,p],i)=>{s+=box(x2,top+i*(bh+bg),cw,bh,'box',[n,p+' per 1M in / out'],11.5)});

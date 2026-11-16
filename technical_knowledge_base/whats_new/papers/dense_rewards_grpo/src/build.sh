@@ -13,15 +13,14 @@ set -e
 cd "$(dirname "$0")"
 # Everything below runs from the repo alone (inputs/ holds the extracts; see src/README.md).
 python3 mk_tables.py > /dev/null
-python3 recompute.py > /dev/null
+python3 recompute.py > /dev/null || { echo 'recompute.py: a check differs'; exit 1; }
 python3 mk_paper.py > /dev/null
-node check_sim.mjs > /dev/null
 python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '03d_paper.html', '04_sim.html', '06_tables.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_charts.js', '20_js_sim.js', '13_js_read.js', '23_js_sim.js', '24_js_tables.js', '25_js_s3.js', '31_js_sc_loop.js', '32_js_sc_dz.js', '99_js_tabs.js']
+HTML = ['00_top.html', '01_css.html', '02_split.html', '02_header.html', '03a_paper.html', '03b_paper.html', '03c_paper.html', '03d_paper.html', '03e_paper.html', '06_tables.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '21_js_rd_common.js', '30_js_figs.js', '24_js_tables.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 ANCH = set(open('inputs/anchors.txt').read().split())
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
@@ -49,7 +48,7 @@ out += '</div></body></html>\n'
 for bad, msg in (('{{', 'unexpanded link'), ('[[S', 'unexpanded margin label'), ('\u2014', 'EM DASH FOUND'), ('@@', 'unexpanded placeholder')):
     if bad in out: raise SystemExit(msg + ': ' + out[out.index(bad) - 80:out.index(bad) + 80])
 # reading time of The paper tab (230 words a minute) and the resources total
-a = out.index('id="t-read"'); b = out.index('id="t-sim"')
+a = out.index('id="t-read"'); b = out.index('id="t-tables"')
 t = re.sub(r'<script.*?</script>|<style.*?</style>', '', out[a:b], flags=re.S)
 closed = ''.join(re.findall(r'<details class="mist">(.*?)</details>', t, flags=re.S))
 t = re.sub(r'<details class="mist">.*?</details>', '', t, flags=re.S)

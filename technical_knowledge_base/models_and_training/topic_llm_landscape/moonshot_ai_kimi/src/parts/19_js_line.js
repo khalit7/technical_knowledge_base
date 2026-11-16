@@ -12,7 +12,7 @@
     {id:'k26',n:'Kimi K2.6',d:'2026-04-14',dl:'April 2026 (repository 14 April)',open:true,P:1027,act:32,lic:'Modified MIT',src:['Hugging Face','https://huggingface.co/moonshotai/Kimi-K2.6']},
     {id:'k27',n:'Kimi K2.7 Code',d:'2026-06-11',dl:'June 2026 (repository 11 June)',open:true,P:1027,act:32,lic:'Modified MIT',src:['Hugging Face','https://huggingface.co/moonshotai/Kimi-K2.7-Code']},
     {id:'k3',n:'Kimi K3',d:'2026-07-16',dl:'16 July 2026 (weights by 27 July)',open:true,P:2780,act:104.2,lic:'Kimi K3 License',src:['model card','https://huggingface.co/moonshotai/Kimi-K3']},
-    {id:'k31',n:'Kimi K3.1 Pro',d:'2026-10-23',dl:'23 October 2026 (API; weights promised by 4 November)',open:false,P:2780,act:104.2,lic:'not yet named',src:['Kimi blog','https://www.kimi.ai/blog/kimi-k3-1-pro']}];
+    {id:'k31',n:'Kimi K3.1 Pro',d:'2026-10-23',dl:'23 October 2026 (API); weights on Hugging Face by 4 November',open:true,P:2780,act:104.2,lic:'Kimi K3.1 Pro License (modified MIT)',src:['Hugging Face','https://huggingface.co/moonshotai/Kimi-K3.1-Pro']}];
   let sel='k3';
   const tm=s=>new Date(s+'T00:00:00Z').getTime(),t0=tm('2023-07-01'),t1=tm('2026-11-15');
   function draw(){
