@@ -6,8 +6,13 @@ header, then scans every page's src/parts/*.html for links to another page ({{te
 written within 160 characters after the link ("28 min", "about 31 min", "28 min, plus 3"). A quoted core time that
 differs from the target's header is printed as: <page part>: <target title> quotes N, header says M.
 Pages without a header in the new format are listed once as "no header" and their quotes are not judged.
-A time preceded by "Reading:" (the page's own header), a range ("17 to 27 min") or a tab name is skipped, as is a
-link to one tab (#t-...). Only the text up to the next link, list item, heading, summary or <a> is searched.
+A range ("17 to 27 min") or a tab name is skipped, as is a link to one tab (#t-...). Only the text up to the next
+link, list item, heading, summary or <a> is searched.
+A card quote "Reading: N min, plus M in closed details" after a link to another page (Further reading, child lists)
+is judged too, and may sit farther than 160 characters after its link, but not past an opening <div> (the next
+card). The page's own header (the first "Reading:" in its first part file named *head*) is never judged. When the
+card's block (from the last <div>, <li>, <tr>, <td> or heading) holds an earlier link to a different page, the quote
+is credited to that first link (the card's title) and printed as AMBIGUOUS.
 --fix rewrites the unambiguous quotes in place (core and, when quoted, the closed-details figure); a quote followed
 by a second time before the next link ("19 min and 20 min") is printed as AMBIGUOUS and left for a person.
 Tech-news issues are dated records and are never judged. --fix also re-keys ledger units on the fixed page whose
@@ -80,6 +85,21 @@ def rekey(path, swaps):
         lf.write_text(json.dumps(units, indent=1, ensure_ascii=False) + "\n")
 
 
+def quote(seg):
+    """The time quoted near a link: the first time within 160 visible characters that is not a range, a tab's time or a
+    duration ("streams for 3 minutes"), or None."""
+    tm = TIME.search(seg)
+    if not tm or len(re.sub(r"<[^>]+>", " ", seg[:tm.start()])) > 160:
+        return None
+    before = re.sub(r"<[^>]+>", " ", seg[:tm.start()])
+    if re.search(r"\b(tab|lab)\b", before) or re.search(r"(\bto|\d\s*[-\u2013]|calculator)\s*\(?\s*$", before):  # a range, a tab's time
+        return None
+    # a quoted reading time follows a tag, punctuation or "about"/"Reading"; "streams for 3 minutes" is a duration
+    if not (seg[:tm.start()].rstrip().endswith(">") or re.search(r"(^|[(~.,;:)]|about|About|Reading|read)\s*$", before.rstrip())):
+        return None
+    return tm
+
+
 def main():
     a = sys.argv[1:]
     only = a[a.index("--page") + 1].rstrip("/") if "--page" in a else None
@@ -91,7 +111,16 @@ def main():
             continue
         if only and p["path"] != only and p["path"] != "technical_knowledge_base/" + only:
             continue
-        for f in sorted((ROOT / p["path"] / "src/parts").glob("*.html")) if (ROOT / p["path"] / "src/parts").is_dir() else []:
+        parts = sorted((ROOT / p["path"] / "src/parts").glob("*.html")) if (ROOT / p["path"] / "src/parts").is_dir() else []
+        # the page's own header: the first "Reading:" in the first part file that has one, when that file is a header part
+        own_f, own_at = None, -1
+        for f in parts:
+            hm = HDR.search(f.read_text(errors="ignore"))
+            if hm:
+                if "head" in f.name:
+                    own_f, own_at = f, hm.end(1)
+                break
+        for f in parts:
             s = f.read_text(errors="ignore")
             links = [Link(m) for m in LINK.finditer(s)]
             edits = []
@@ -103,21 +132,37 @@ def main():
                 end = links[i + 1].start() if i + 1 < len(links) else len(s)
                 seg = s[m.end():min(end, m.end() + 400)]
                 seg = re.split(r"<(?:summary|/summary|details|/details|h[1-6]|li|/li|a\s)", seg)[0]  # stay in this item
-                tm = TIME.search(seg)
-                if not tm or len(re.sub(r"<[^>]+>", " ", seg[:tm.start()])) > 160:
+                tm, card = quote(seg), False
+                if tm is None:
+                    # a card's "Reading: N min" may sit after a long description, but stays inside this card
+                    long = re.split(r"<(?:summary|/summary|details|/details|h[1-6]|li|/li|a\s|div\b)", s[m.end():min(end, m.end() + 2000)])[0]
+                    rm = re.search(r"Reading:\s*", long)
+                    tm = TIME.match(long, rm.end()) if rm else None
+                    # "Labs tab. Reading: 12 min" would be a tab's time; only the words since the last tag or full stop count
+                    if tm is None or re.search(r"\b(tab|lab)\b[^.<>]*$", long[:rm.start()], re.I):
+                        continue
+                    seg, card = long, True
+                elif re.search(r"Reading:\s*$", seg[:tm.start()]):
+                    card = True
+                at = m.end() + tm.start()
+                if card and f == own_f and at + len(tm.group(1)) == own_at:  # the page's own header, not a quote
                     continue
-                before = re.sub(r"<[^>]+>", " ", seg[:tm.start()])
-                if re.search(r"\b(tab|lab)\b", before) or re.search(r"(Reading:|\bto|\d\s*[-\u2013]|calculator)\s*\(?\s*$", before):  # own header, a range, a tab's time
-                    continue
-                # a quoted reading time follows a tag, punctuation or "about"/"Reading"; "streams for 3 minutes" is a duration
-                if not (seg[:tm.start()].rstrip().endswith(">") or re.search(r"(^|[(~.,;:)]|about|About|Reading|read)\s*$", before.rstrip())):
-                    continue
+                amb_link = False
+                if card:
+                    # credit the quote to the first link of its block (the card's title), not an inner mention
+                    b0 = max([x.end() for x in re.finditer(r"<(?:div|li|tr|td|h[1-6])\b[^>]*>", s[:at])] + [0])
+                    first = next(x for x in links if x.start() >= b0 or x is m)
+                    if first is not m and first.group(2) != tid:
+                        ft = by_id.get(first.group(2))
+                        if not ft or ft is p:
+                            continue
+                        t, tid, amb_link = ft, first.group(2), True
                 h = hdr.get(t["id"].replace("-", ""))
                 if h is None:
                     missing.add(t["title"])
                     continue
                 if int(tm.group(1)) != h[0] or (tm.group(2) and int(tm.group(2)) != h[1]):
-                    amb = seg[tm.end():tm.end() + 6].strip().startswith("each") or TIME.search(seg, tm.end()) is not None and len(re.sub(r"<[^>]+>", " ", seg[tm.end():TIME.search(seg, tm.end()).start()])) < 40
+                    amb = amb_link or seg[tm.end():tm.end() + 6].strip().startswith("each") or TIME.search(seg, tm.end()) is not None and len(re.sub(r"<[^>]+>", " ", seg[tm.end():TIME.search(seg, tm.end()).start()])) < 40
                     out.append({"file": str(f.relative_to(ROOT)), "target": t["title"], "target_path": t["path"],
                                 "quoted": tm.group(0), "header": f"{h[0]} min, plus {h[1]}", "ambiguous": amb})
                     if not amb:
