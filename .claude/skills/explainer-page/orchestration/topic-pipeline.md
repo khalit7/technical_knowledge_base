@@ -77,7 +77,7 @@ The lead, with the `sync-kb-github` skill: check each page, `page_finalize.py` (
 ## Verify before committing an agent's work
 1. `git status --short` limited to the agent's folder: nothing outside its ownership changed.
 2. Privacy grep on everything to be committed: `grep -rIl -e '/Users/' -e 'Users-' -e '<login name>' -e 'claude-' -e 'glpat' -e 'sk-ant' -e '@' <paths>` and read every hit (emails, scratch paths, hostnames).
-3. `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `clipped 0`; look at the screenshots of the tabs it touched.
+3. `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 1`, `clipped 0`; look at the screenshots of the tabs it touched.
 4. No `__pycache__`, `.shots`, MP4s, PDFs or files over about 1 MB; page size within budget.
 5. The report's numbers match the files (spot-check two), and the reading time is stated.
 6. Commit with explicit paths, then note the commit in the memory log.

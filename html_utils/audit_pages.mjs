@@ -47,7 +47,7 @@ for (const d of dirs) {
         const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) {
           const el = n.parentElement;
-          if (!el || el.closest('script,style,svg,button,nav,[role=tablist],annotation,annotation-xml')) continue;
+          if (!el || el.closest('script,style,svg,button,nav,[role=tablist],annotation,annotation-xml,#kbAsk')) continue;  // #kbAsk: the Ask Claude panel (kb_ask.js)
           const k = el.closest('math') ? n.textContent.replace(/\s+/g, '').length / 6
             : n.textContent.split(/\s+/).filter(Boolean).length;
           if (!k) continue;
@@ -67,7 +67,7 @@ for (const d of dirs) {
           if (r.width >= 120 && r.height >= 80) vis++;
         }
         const ctl = root.querySelectorAll('input[type=range],select').length
-          + [...root.querySelectorAll('button')].filter(x => !x.dataset.t).length;
+          + [...root.querySelectorAll('button')].filter(x => !x.dataset.t && !x.closest('#kbAsk') && !/^kbAsk/.test(x.id)).length;
         const title = t ? (document.querySelector(`button[data-t="${t}"]`)?.textContent || t).trim() : 'page';
         return { tab: t, title, core, depth, core_all: coreAll, depth_all: depthAll, modes_off: off.size, h2: root.querySelectorAll('h2').length, vis, ctl };
       }, t));

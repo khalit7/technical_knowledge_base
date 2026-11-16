@@ -1,9 +1,13 @@
 // ---- Ask Claude: questions about this page, answered by the Claude API with the page's own text as context ----
-// Self-contained: injects its own style and panel, needs no HTML part. The reader's API key is kept only in this
-// browser (localStorage, never in the page or the repo); without a key the panel asks for one and sends nothing.
-// Requests go straight from the browser to api.anthropic.com (direct browser access), streamed.
+// Source of truth for every page: html_utils/apply_ask.py copies this file, as one marked script block (id kb-ask),
+// into the source part that closes each page's <head> (and into the template's 01_head.html); edit it here, then
+// rerun apply_ask.py --all and rebuild. Self-contained: injects its own style and panel once the DOM is ready.
+// The reader's API key is kept only in this browser (localStorage, never in the page or the repo); without a key
+// the panel asks for one and sends nothing. Requests go straight from the browser to api.anthropic.com, streamed.
 (function(){
   if (window.__kbAsk) return; window.__kbAsk = 1;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  function init(){
   const API = 'https://api.anthropic.com/v1/messages';
   const MODELS = {
     'claude-opus-5-5':   {name:'Claude Opus 5.5',   in:4, write:5, read:0.2, out:20},
@@ -50,6 +54,7 @@
 #kbAsk .ka-set input,#kbAsk .ka-set select{width:100%}
 #kbAsk .ka-set p{font-size:13px;color:var(--mute);margin:6px 0}
 #kbAsk a{color:var(--acc)}
+@media (max-width:520px){#kbAskBtn{right:12px;bottom:12px;padding:6px 12px;font-size:13px}}
 @media (max-width:700px){#kbAsk{top:auto;height:78vh;width:100vw;border-left:0;border-top:1px solid var(--line);border-radius:12px 12px 0 0}}
 @media print{#kbAskBtn,#kbAsk,#kbAskSel{display:none}}`;
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -98,6 +103,7 @@
     if (tabs.length) for (const t of tabs) { const o = []; walk(t, o); parts.push('=== Tab: ' + (tabName(t) || t.id) + ' ===\n' + clean(o.join(''))) }
     else { const o = []; walk(root, o); parts[0] = clean(o.join('')) }
     PAGE = 'Title: ' + document.title + '\n' + (/^https?:/.test(location.protocol) ? 'Address: ' + location.href.split('#')[0] + '\n' : '') + '\n' + parts.filter(Boolean).join('\n\n');
+    if (PAGE.length > 600000) PAGE = PAGE.slice(0, 600000) + '\n[page text cut here: the page is longer than the panel sends]';
     return PAGE;
   }
   function where(node){
@@ -277,4 +283,5 @@
       if (pinned) msgs.scrollTop = msgs.scrollHeight;
     }
   }
+}
 })();
