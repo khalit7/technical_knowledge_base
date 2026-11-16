@@ -5,6 +5,9 @@
 // undefined or sideways scroll; splits are two columns at 1400 px and one below 1100 px; scene labels do not overlap each other at 1400 px,
 // at the end of each step and in the middle of its tween; the step lists equal window.DTSTEP (the step-through model) and their numbers equal
 // window.ANIM and window.LAY (the page's own models, themselves checked against recompute.py by check_calc.mjs).
+// Speed (2026-11-16, 12.7 to about 3 min, no assertion dropped): each width and the reduced-motion pass run in their own browser at the same time;
+// waits poll the stage's own tween state (window.DTSTG[id].st.e: mid-tween at half way, the step's end when it reaches 1) instead of fixed sleeps;
+// a mode switch back to a stage's default mode, already stepped with shots and overlap checks in the first pass, is stepped again without them.
 // usage (from the repo root): node technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/distributed_training/src/check_stages.mjs [shots dir]
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -20,9 +23,13 @@ const STAGES = [['stg-mem', 'sx-mem'], ['stg-coll', 'sx-coll'], ['stg-dp', 'sx-d
 const MODES = [['stg-zero', 'stg-zero-m', [['ZeRO-1', 'sx-z1'], ['ZeRO-2', 'sx-z2'], ['HSDP', 'sx-hsdp'], ['ZeRO-3', 'sx-z3']]],
   ['stg-tpb', 'tpbM', [['sp', 'sx-tpbs'], ['tp', 'sx-tpb']]], ['stg-mesh', 'meshM', [['dsv3', 'sx-meshd'], ['l405_8k_16k', 'sx-mesh']]]];
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const problems = [];
-const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
+const launch = () => puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
+// the stage's tween: e runs 0 to 1 over its dur after each step
+const tween = (p, id, e, timeout) => p.waitForFunction((id, e) => { const s = (window.DTSTG || {})[id]; return s && s.st.e >= e }, { timeout, polling: 'raf' }, id, e).catch(() => { });   // a stuck tween is not itself a failure (as with the fixed waits before)
+const DEFAULT_MODE = { 'stg-zero': 'ZeRO-3', 'stg-tpb': 'tp', 'stg-mesh': 'l405_8k_16k' };
+async function runWidth(scheme, width) {
+  const problems = [];
+  const b = await launch();
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
@@ -54,8 +61,9 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     over.forEach(o => problems.push(`${tag}: right-column content wider than its column: ${o}`)) }
   // every stage plays once in view
   for (const [id] of STAGES) {
-    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2600);
-    if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${tag}: ${id} did not play when scrolled into view`);
+    await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
+    const played = await p.waitForFunction(id => +document.getElementById(id).dataset.frames > 0, { timeout: 2600, polling: 100 }, id).then(() => true, () => false);
+    if (!played) problems.push(`${tag}: ${id} did not play when scrolled into view`);
     if (shoot) { await wait(300); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}-autoplay-${scheme}-${width}.png` }) }
   }
   // flows stop off screen
@@ -63,7 +71,7 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   const d0 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0)); await wait(1200);
   const d1 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0));
   if (d1.some((v, i) => v !== d0[i])) problems.push(`${tag}: a stage redrew while off screen (${d0} -> ${d1})`);
-  const stepAll = async (id, lid, label) => {
+  const stepAll = async (id, lid, label, again = false) => {
     await p.$eval(`#${id}-b`, e => e.click());
     await p.evaluate(id => { const e = document.getElementById(id + '-r'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
     const n = await p.$eval(`#${id}-r`, e => +e.max + 1), lis = await p.$eval('#' + lid, e => e.children.length);
@@ -71,12 +79,12 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' }));
     for (let k = 0; k < n; k++) {
       if (k) await p.$eval(`#${id}-f`, e => e.click());
-      if (shoot) {
-        await wait(900); await overlaps(id, `${label} step ${k + 1} mid-tween`); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}${label}-s${k + 1}-midtween-${scheme}-${width}.png` });
-        await wait(1700); await overlaps(id, `${label} step ${k + 1}`); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}${label}-s${k + 1}-${scheme}-${width}.png` })
+      if (shoot && !again) {
+        await tween(p, id, .5, 4000); await overlaps(id, `${label} step ${k + 1} mid-tween`); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}${label}-s${k + 1}-midtween-${scheme}-${width}.png` });
+        await tween(p, id, 1, 6000); await wait(150); await overlaps(id, `${label} step ${k + 1}`); await (await p.$('#' + id)).screenshot({ path: `${shots}/x-${id}${label}-s${k + 1}-${scheme}-${width}.png` })
       } else await wait(250);
     }
-    await wait(2400);
+    await tween(p, id, 1, 6000); await wait(150);
     const sh = await p.$eval(`#${id} .stg-st`, e => e.textContent); if (sh !== `step ${n} of ${n}`) problems.push(`${tag}: ${id}${label} ended on ${sh}`);
     await audit(`${id}${label} last step`);
     for (let k = 0; k < n; k++) await p.evaluate((lid, k) => document.getElementById(lid).children[k].click(), lid, k);
@@ -89,7 +97,7 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     const st = await p.$eval(`#${id} .stg-st`, e => e.textContent), vis = await p.$eval('#' + lid, e => !e.hidden);
     const others = await p.evaluate((ms, lid) => ms.filter(x => x[1] !== lid).map(x => document.getElementById(x[1]).hidden), ms, lid);
     if (!/^step 1 of/.test(st) || !vis || others.some(h => !h)) problems.push(`${tag}: ${id} mode ${m} did not swap to ${lid} (${st})`);
-    await stepAll(id, lid, '-' + m);
+    await stepAll(id, lid, '-' + m, DEFAULT_MODE[id] === m);
   }
   if (width === 1400) { // the step lists are the page's own models, recomputed here
     const r = await p.evaluate(() => { const out = [], txt = el => el.textContent.replace(/\s+/g, ' ').trim();
@@ -115,17 +123,21 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   for (const t of ['t-calc', 't-more']) { await p.click(`#tabs button[data-t="${t}"]`); await wait(300); await audit(t, t) }
   await p.click('#tabs button[data-t="t-read"]');
   if (errs.length) problems.push(`${tag}: errors ${errs.join(' | ')}`);
-  console.log(tag, 'done'); await p.close();
+  console.log(tag, 'done'); await b.close();
+  return problems;
 }
-{ // reduced motion: nothing moves by itself
+async function runReduced() { // reduced motion: nothing moves by itself
+  const problems = [];
+  const b = await launch();
   const p = await b.newPage(); await p.setViewport({ width: 1400, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto(file);
   for (const [id] of STAGES) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
     const r = await p.$eval('#' + id, e => [+e.dataset.frames || 0, e.querySelector('.stg-st').textContent]); if (r[0] > 0 || !/^step 1 of/.test(r[1])) problems.push(`reduced motion: ${id} moved by itself (${r})`) }
   const d0 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0)); await wait(1200); const d1 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0));
   if (d1.some((v, i) => v !== d0[i])) problems.push(`reduced motion: flows kept redrawing (${d0} -> ${d1})`);
-  await p.close();
+  await b.close();
+  return problems;
 }
-await b.close();
+const problems = (await Promise.all([runWidth('light', 1400), runWidth('light', 920), runWidth('dark', 390), runReduced()])).flat();
 console.log('problems', problems.length); problems.forEach(x => console.log(' -', x));
 process.exit(problems.length ? 1 : 0);

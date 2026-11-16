@@ -35,7 +35,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="sys"]').click(); });
   for (let i = 0; i < 5; i++) await page.click('#stg-sys-f');
   await bad('read');
-  for (const id of ['rd-hero-card', 'stg-sys', 'rd-fit-card', 'rd-amd-card', 'stg-pod', 'stg-wafer']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
+  for (const id of ['rd-hero-card', 'stg-sys', 'rd-fit-card', 'rd-amd-card', 'rd-nc-card', 'stg-pod', 'stg-wafer']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="lanes"]').click(); });
   for (let i = 0; i < 3; i++) await page.click('#stg-sys-f');
   { const el = await page.$('#stg-sys'); await el.screenshot({ path: `${shots}/rd-sys-lanes-${w}-${scheme}.png` }); }

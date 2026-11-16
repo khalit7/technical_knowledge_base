@@ -18,7 +18,7 @@ fs.mkdirSync(shots, { recursive: true });
 // stage, its list, and an optional mode switch: [segment id, [[mode, list], ...]] (the last pair restores the default)
 const STAGES = [['stg-sys', 'sx-sys', ['rd-sys-mode', [['lanes', 'sx-lanes'], ['sys', 'sx-sys']]]], ['stg-pod', 'sx-pod'], ['stg-wafer', 'sx-wafer']];
 const WIDGETS = [['sy-anim-card', 'sy-actl', 'sy-det']];   // RD.anim widgets the reader drives: never play by themselves
-const SPLITS = 9;
+const SPLITS = 10;   // 10 since 2026-11-16: section 6's NeuronCore diagram
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const problems = [];
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -50,6 +50,18 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   const cols = await p.$$eval('#t-read .s3sp', xs => xs.map(x => getComputedStyle(x).display));
   if (width === 1400 && (cols.length !== SPLITS || cols.some(c => c !== 'grid'))) problems.push(`${tag}: splits are not ${SPLITS} two-column grids (${cols.length}: ${cols})`);
   if (width < 1100 && cols.some(c => c === 'grid')) problems.push(`${tag}: a split is two columns below 1100 px`);
+  { // section 6's static NeuronCore diagram (2026-11-16): five numbered paths as in the list beside it, no label overlapping another or leaving the drawing
+    const r = await p.evaluate(() => { const sv = document.querySelector('#rd-nc-svg svg'); if (!sv) return null; const W = +sv.getAttribute('width'), H = +sv.getAttribute('height');
+      const T = [...sv.querySelectorAll('text')], bx = T.map(t => [t.getBBox(), t.textContent]), out = [];
+      bx.forEach(([b, s]) => { if (b.x < 0 || b.x + b.width > W || b.y < 0 || b.y + b.height > H) out.push('outside the drawing: ' + s) });
+      for (let i = 0; i < bx.length; i++) for (let j = i + 1; j < bx.length; j++) { const A = bx[i][0], B = bx[j][0];
+        if (Math.min(A.x + A.width, B.x + B.width) - Math.max(A.x, B.x) > 1 && Math.min(A.y + A.height, B.y + B.height) - Math.max(A.y, B.y) > 1) out.push(bx[i][1] + ' / ' + bx[j][1]) }
+      const nums = T.filter(t => /^[1-5]$/.test(t.textContent)).map(t => t.textContent).sort().join('');
+      const li = document.querySelector('#rd-nc-card').closest('.s3sp').querySelectorAll('.s3L ol > li').length;
+      if (nums !== '12345') out.push('numbered paths are ' + nums + ', not 1 to 5'); if (li !== 5) out.push('the list beside it has ' + li + ' items, not 5');
+      return out });
+    if (r === null) problems.push(`${tag}: the NeuronCore diagram did not draw`); else r.forEach(x => problems.push(`${tag}: NeuronCore diagram: ${x}`));
+  }
   if (width === 1400) {
     const over = await p.$$eval('#t-read .s3R', xs => xs.map(x => { const r = x.getBoundingClientRect(), k = x.firstElementChild && x.firstElementChild.getBoundingClientRect(); return k && r.width && (k.right > r.right + 1 || k.left < r.left - 1) ? x.innerHTML.slice(0, 40) : '' }).filter(Boolean));
     over.forEach(o => problems.push(`${tag}: right-column content wider than its column: ${o}`));

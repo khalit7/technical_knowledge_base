@@ -84,6 +84,11 @@ R["ar_v5p_nowrap_s"] = round(2 * 2 * grad / 1.8e11, 3)
 # Trainium2: 128 x 128 PEs x 2 x 2.4 GHz per NeuronCore, 8 cores
 R["trn2_core_tf"] = round(128 * 128 * 2 * 2.4e9 / 1e12, 1)
 R["trn2_chip_tf"] = round(8 * 128 * 128 * 2 * 2.4e9 / 1e12)
+# Fig. 2b, a NeuronCore's memories (NKI architecture guides): SBUF 128 partitions of 224 KiB; PSUM 128 partitions of 8 banks of 512 fp32
+R["trn2_sbuf_mib"] = 128 * 224 // 1024                                       # 28
+R["trn2_psum_bank_kib"] = 512 * 4 // 1024                                    # 2
+R["trn2_psum_part_kib"] = 8 * R["trn2_psum_bank_kib"]                        # 16
+R["trn2_psum_mib"] = 128 * R["trn2_psum_part_kib"] // 1024                   # 2
 # AMD peaks from CUs x FLOPs per clock per CU x clock
 R["mi300x_bf16"] = round(304 * 2048 * 2.1e9 / 1e12, 1)
 R["mi355x_bf16"] = round(256 * 4096 * 2.4e9 / 1e12, 1)

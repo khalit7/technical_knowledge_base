@@ -28,6 +28,8 @@ need = [
     (f"= {fmt(R['mi355x_if'], 1)} GB/s", "MI355X IF"), (f"{R['grad_gb']} GB", "8B gradients"),
     (f"= {R['gaudi3_clock_ghz']} GHz", "Gaudi 3 clock"), (f"= {R['gaudi3_scaleup_tbps']})", "Gaudi 3 scale-up"),
     (f"8 &times; 7 / 2 = {R['amd_board_links']} links", "AMD board links"),
+    (f"128 &times; 224 KiB = {R['trn2_sbuf_mib']} MiB", "Trn2 SBUF"), (f"512 &times; 4 B = {R['trn2_psum_bank_kib']} KiB a bank", "PSUM bank"),
+    (f"8 banks = {R['trn2_psum_part_kib']} KiB per partition, 128 &times; {R['trn2_psum_part_kib']} KiB = {R['trn2_psum_mib']} MiB", "PSUM total"),
 ]
 bad = 0
 for s, what in need:

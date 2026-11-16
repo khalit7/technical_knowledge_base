@@ -320,6 +320,14 @@ for k, c in CP.items():
     c["ratio_pub"] = c["pub_hours"] / c["hours"]
     c["days"] = c["hours"] / c["gpus"] / 24 if c["gpus"] else None
 R["cost_presets"] = CP
+# Non-integer floats are written to 12 significant digits: Python 3.12's compensated sum() and other last-bit differences
+# across machines change the 16th digit (0.3159578742693017 against ...016); the page and its checks quote at most 6 digits.
+def r12(x):
+    if isinstance(x, float): return x if x.is_integer() else float("%.12g" % x)
+    if isinstance(x, dict): return {k: r12(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)): return [r12(v) for v in x]
+    return x
+R = r12(R)
 json.dump(R, open(os.path.join(OUT, "recompute.json"), "w"), indent=1)
 if __name__ == "__main__":
     for k in ("attn_8k_full_over_6n", "attn_8k_causal_over_matmul", "act_layer_flash_per_tok_h", "act_total_flash_GB", "act_total_eager_GB",

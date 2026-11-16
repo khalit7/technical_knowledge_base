@@ -180,7 +180,7 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 @media (max-width:520px){.stg{top:50px;height:min(52vh,400px);min-height:270px;border-radius:12px}.stg-bar{gap:4px;padding:5px 6px 6px}.stg .stg-bar button{padding:4px 9px}.stg .stg-bar select{padding:3px 4px}.stg-hint{display:none}ol.sx>li{padding:7px 10px 7px 36px}ol.sx>li::before{left:7px}}
 </style>
 <h1>TPUs and other accelerators: systolic arrays, TPU pods, AMD, Trainium, Groq, Cerebras</h1>
-<div class="sub">The machines that are not NVIDIA GPUs, as hardware: how a systolic array multiplies matrices, what is inside a TPU and how thousands of them form one pod, AMD's switchless boards, AWS Trainium, Groq, Cerebras, Gaudi, SambaNova and other ASICs, what each trades, who can get it, and what it changes in your training code. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026. <span id="rd-time">Reading: 38 min, plus 7 in closed details.</span></div>
+<div class="sub">The machines that are not NVIDIA GPUs, as hardware: how a systolic array multiplies matrices, what is inside a TPU and how thousands of them form one pod, AMD's switchless boards, AWS Trainium, Groq, Cerebras, Gaudi, SambaNova and other ASICs, what each trades, who can get it, and what it changes in your training code. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026. <span id="rd-time">Reading: 39 min, plus 7 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -496,19 +496,34 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 </section>
 
 <section id="rd-s6">
+<div class="s3sp"><div class="s3L">
 <h2>6. AWS Trainium: systolic arrays you can program, on AWS only</h2>
 <p><b>The bet.</b> Vertical integration: AWS designs the chip (through its Annapurna Labs team), the links, the SDK and the data centre, and rents it below the price of GPUs with NVIDIA's margin. You can only get it as an AWS instance.</p>
-<p class="vt">A NeuronCore is a small TPU core: one 128 &times; 128 systolic array, helper engines and a scratchpad</p>
 <p><b>Inside a NeuronCore.</b> A Trainium2 chip has 8 <dfn id="g-nc">NeuronCores</dfn>; each is "a fully-independent heterogenous compute unit" with four engines and its own scratchpad (<a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/neuron-core-v3.html" target="_blank" rel="noopener noreferrer">NeuronCore-v3</a>):</p>
 <div class="mech">
 <div><b>Tensor engine</b>A systolic array: "a grid of 128x128 processing elements" at 2.4 GHz. You load a stationary tile, then stream a moving tile across it ("LoadStationary", "MultiplyMoving"): the same weight-stationary idea as section 1. 79 bf16 TFLOPS per core; for fp8 each cell does two multiplies, which looks like a 256 &times; 128 array.</div>
 <div><b>Vector engine</b>Operations where each output depends on many inputs (layer norm, pooling).</div>
 <div><b>Scalar engine</b>Elementwise work: activations, exponentials.</div>
 <div><b>GpSimd engine</b>"Eight fully-programmable 512-bit wide vector processors" that run C code for custom operators.</div>
-<div><b>SBUF and PSUM</b>28 MiB of software-managed SRAM per core, laid out as 128 partitions (one per row of the array), plus a 2 MiB buffer for partial sums. Like a TPU, no cache: the compiler or your kernel moves data.</div>
+<div><b>SBUF and PSUM</b>Software-managed SRAM per core: SBUF, 128 partitions (one per row of the array) of 224 KiB, 128 &times; 224 KiB = 28 MiB; and PSUM, 2 MiB for partial sums. Like a TPU, no cache: the compiler or your kernel moves data.</div>
 </div>
-<details class="src"><summary>Sources for the NeuronCore</summary><p class="small mute">Sources: <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/nki/guides/architecture/trainium2_arch.html" target="_blank" rel="noopener noreferrer">Trainium2 architecture guide for NKI</a>; <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trainium2.html" target="_blank" rel="noopener noreferrer">Trainium2</a> and <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trainium3.html" target="_blank" rel="noopener noreferrer">Trainium3</a> pages, all fetched 2026-10-05.</p></details>
+<details class="src"><summary>Sources for the NeuronCore</summary><p class="small mute">Sources: <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/nki/guides/architecture/trainium2_arch.html" target="_blank" rel="noopener noreferrer">Trainium2 architecture guide for NKI</a>; <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trainium2.html" target="_blank" rel="noopener noreferrer">Trainium2</a> and <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trainium3.html" target="_blank" rel="noopener noreferrer">Trainium3</a> pages, all fetched 2026-10-05; the SBUF partitions, PSUM banks, DMA engines and data paths from the Trainium2 guide and the <a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/nki/guides/architecture/trainium_inferentia2_arch.html" target="_blank" rel="noopener noreferrer">Trainium and Inferentia2 architecture guide for NKI</a> (NeuronCore-v2; the Trainium2 guide says "PSUM capacity remains the same at 2MiB"), fetched 2026-11-16.</p></details>
 <p><b>Check the peak.</b> 128 &times; 128 cells &times; 2 FLOPs &times; 2.4 GHz = 78.6 TFLOPS per core, matching the docs' 79; &times; 8 cores = 629 TFLOPS, but the chip page says 667 <span class="der">derived</span>. The 6% gap is not explained in the docs (perhaps a different clock); the page shows it rather than hiding it.</p>
+<p><b>One matmul through a core</b> (the numbers on the diagram). Trainium2 has "a three-tiered memory hierarchy: HBM, SBUF and PSUM", and each engine reaches only some of it:</p>
+<ol>
+<li><b>In.</b> DMA engines copy tiles from HBM into SBUF, in parallel with compute; Trainium2 pairs each core "with 16x DMA engines".</li>
+<li><b>Operands.</b> The tensor engine reads both inputs from SBUF: a stationary tile of at most 128 &times; 128, then a moving tile of up to 128 &times; 512 streamed across it. Both run the contraction dimension along the 128 partitions, which is why a tile's first dimension is capped at 128.</li>
+<li><b>Partial sums.</b> "TensorE must read input matrices from SBUF and write output matrices to PSUM." A 128 &times; 512 result in fp32 is 512 values per partition, exactly one PSUM bank: 512 &times; 4 B = 2 KiB a bank, 8 banks = 16 KiB per partition, 128 &times; 16 KiB = 2 MiB <span class="der">derived</span>. A contraction longer than 128 is several matmuls added into the same bank ("near-memory accumulation", always in FP32).</li>
+<li><b>Evict.</b> The tensor engine can only write PSUM, never read it. The scalar or vector engine reads the sums, applies the activation, scale or reduction, and writes the result to SBUF: "Data movement between PSUM and SBUF is done through ISA instructions on the compute engines", not by DMA.</li>
+<li><b>Out.</b> DMA engines copy finished tiles from SBUF back to HBM.</li>
+</ol>
+<p>The compiler schedules this loop for you; an NKI kernel (below) writes it out: which tiles sit in SBUF, when each matmul fires, which engine empties PSUM.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-nc-card">
+<div class="vt">A NeuronCore is a small TPU core: one 128 &times; 128 systolic array, helper engines and a scratchpad, joined by fixed paths</div>
+<div class="rd-chart" id="rd-nc-svg"></div>
+<p class="small mute">One Trainium2 NeuronCore, schematic and not to scale: the boxes are the memories and engines of the NKI architecture guides, the arrows the only paths between them, numbered as in the list on the left. Stripes stand for the 128 partitions, one per row of the array. The GpSimd engine (not drawn) also reads and writes SBUF.</p>
+</div></div></div></div>
 <p><b>Chips into machines.</b> A Trn2 instance has 16 Trainium2 chips "connected using a 4x4, 2D Torus topology" over NeuronLink (1,024 GB/s per chip inside the instance), and a Trn2 UltraServer joins 4 instances, 64 chips, with chips at the same position linked in rings (256 GB/s more per chip): a small TPU-like torus (<a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trn2-arch.html" target="_blank" rel="noopener noreferrer">Trn2 architecture</a>). Trainium3 changes course: its UltraServers (64 or 144 chips) use switches, "replacing the previous 2D-torus architecture" with all-to-all connectivity (<a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/about-neuron/arch/neuron-hardware/trn3-arch.html" target="_blank" rel="noopener noreferrer">Trn3 architecture</a>). At scale: Project Rainier, "nearly half a million Trainium2 chips" across several US data centres, built for Anthropic (<a href="https://www.aboutamazon.com/news/aws/aws-project-rainier-ai-trainium-chips-compute-cluster" target="_blank" rel="noopener noreferrer">Amazon, Oct 29 2025</a>).</p>
 <details class="dp"><summary>Trainium3 link bandwidth: the docs disagree <span class="mute">(depth)</span></summary><div class="b"><p>The docs give three different per-chip link figures for Trainium3 (2.56 TB/s, 2,048 GiB/s, and 704 GB/s from the listed PCIe links), so no single number is quoted here.</p></div></details>
 <p><b>What it means for your training code.</b> Three ways in. The main one is TorchNeuron, a native PyTorch device, open source under Apache 2.0 and in public beta since 20 October 2026 on Trainium2 and Trainium3: "Change .to('cuda') to .to('neuron')" (<a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/frameworks/torch/index.html" target="_blank" rel="noopener noreferrer">PyTorch on Neuron</a>), run eagerly, or compile with <code>torch.compile(backend="neuron")</code>, which captures the graph with Dynamo and lowers it through Torch-MLIR to StableHLO for the Neuron compiler; DDP, FSDP2, tensor and pipeline parallelism and DTensor work, while the first release skips dynamic shapes, sparse tensors and NestedTensor (<a href="https://pytorch.org/blog/introducing-torchneuron-native-pytorch-backend-for-aws-trainium/" target="_blank" rel="noopener noreferrer">PyTorch blog, Oct 20 2026</a>). The older path is built on PyTorch/XLA (lazy tensors, whole graphs compiled ahead of time, so static shapes matter, as on a TPU), and JAX runs through a plugin in beta. Custom kernels are written in <dfn id="g-nki">NKI</dfn>, a Python kernel language "similar to numpy and Triton" whose tiles are bounded by the hardware: the first dimension is the partition dimension (at most 128), and a matmul's stationary tile is at most 128 &times; 128 and its moving tile 128 &times; 512 (<a href="https://awsdocs-neuron.readthedocs-hosted.com/en/latest/nki/get-started/about/index.html" target="_blank" rel="noopener noreferrer">NKI</a>). Anthropic says it writes "low-level kernels that allow us to directly interface with the Trainium silicon" (<a href="https://www.anthropic.com/news/anthropic-amazon-trainium" target="_blank" rel="noopener noreferrer">Anthropic, Nov 22 2024</a>). Inferentia is the inference-only sibling on the same SDK.</p>
@@ -1066,6 +1081,58 @@ window.SYS=(function(){
       RD.stat('AMD, links per GPU','7','7 x 64 = 448 GB/s each way, 896 GB/s aggregate (MI300X); highlighted: GPU 0\'s')+RD.stat('MI355X','1,075.2 GB/s','7 x 153.6 GB/s aggregate')+RD.stat('Scale-up domain','8 GPUs','72 only on a Helios rack (MI455X, UALink)');
   }
   RD.seg(document.getElementById('rd-amd-mode'),m=>{mode=m;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+// ---- Reading, section 6: one Trainium2 NeuronCore, its three memory tiers and the only paths between them (static; numbers = the list on the left) ----
+(function(){
+  const el=document.getElementById('rd-nc-svg');if(!el)return;
+  const f1=v=>v.toFixed(1);
+  const box=(x,y,w,h,fill)=>'<rect x="'+f1(x)+'" y="'+f1(y)+'" width="'+f1(w)+'" height="'+f1(h)+'" rx="6" fill="'+fill+'" stroke="var(--mute)"/>';
+  const arrow=(x1,y1,x2,y2,c)=>{const a=Math.atan2(y2-y1,x2-x1),s=7,b1=a+2.6,b2=a-2.6;
+    return '<line x1="'+f1(x1)+'" y1="'+f1(y1)+'" x2="'+f1(x2-Math.cos(a)*3)+'" y2="'+f1(y2-Math.sin(a)*3)+'" stroke="'+c+'" stroke-width="2.2"/>'+
+      '<path d="M'+f1(x2)+' '+f1(y2)+'L'+f1(x2+s*Math.cos(b1))+' '+f1(y2+s*Math.sin(b1))+'L'+f1(x2+s*Math.cos(b2))+' '+f1(y2+s*Math.sin(b2))+'Z" fill="'+c+'"/>'};
+  const num=(x,y,n)=>'<circle cx="'+f1(x)+'" cy="'+f1(y)+'" r="9" fill="var(--acc)"/>'+RD.t(f1(x),f1(y+4),n,{a:'middle',fs:11,w:600,fill:'var(--bg)'});
+  const stripes=(x,y,w,h,n)=>{let s='';for(let i=1;i<n;i++){const yy=y+h*i/n;s+='<line x1="'+f1(x+4)+'" x2="'+f1(x+w-4)+'" y1="'+f1(yy)+'" y2="'+f1(yy)+'" stroke="var(--line)"/>'}return s};
+  function draw(){
+    const w=RD.width(el),narrow=w<440,pad=2,g=narrow?30:40,cw=(w-2*pad-2*g)/3,fs=11;
+    const hb=Math.max(150,Math.min(200,cw*1.05)),hy=6,hh=40,y0=hy+hh+44,sy=y0+hb+44,sh=narrow?48:42;
+    const xs=pad,xt=pad+cw+g,xp=pad+2*(cw+g);
+    let h='';
+    // HBM, shared by the chip's 8 cores
+    h+=box(pad,hy,w-2*pad,hh,'var(--soft)')+RD.t(w/2,hy+17,'HBM, off the core',{a:'middle',fs:12,w:600})+RD.t(w/2,hy+32,'96 GiB per Trainium2, shared by its 8 NeuronCores',{a:'middle',fs:fs,fill:'var(--mute)'});
+    // SBUF, the tensor engine, PSUM: same height, 128 partitions = 128 rows of the array
+    h+=box(xs,y0,cw,hb,'var(--acc2)')+stripes(xs,y0+34,cw,hb-70,16);
+    h+=RD.t(xs+cw/2,y0+16,'SBUF',{a:'middle',fs:12,w:600})+RD.t(xs+cw/2,y0+30,'scratchpad',{a:'middle',fs:fs,fill:'var(--mute)'});
+    h+=RD.t(xs+cw/2,y0+hb-22,narrow?'128 × 224 KiB':'128 partitions × 224 KiB',{a:'middle',fs:fs})+RD.t(xs+cw/2,y0+hb-8,'= 28 MiB',{a:'middle',fs:fs});
+    h+=box(xt,y0,cw,hb,'var(--bg)');
+    const gx=xt+8,gy=y0+34,gw=cw-16,gh=hb-70;let gr='';
+    for(let i=0;i<=8;i++){gr+='<line x1="'+f1(gx+gw*i/8)+'" x2="'+f1(gx+gw*i/8)+'" y1="'+f1(gy)+'" y2="'+f1(gy+gh)+'" stroke="var(--c1)" stroke-opacity=".45"/>'+
+      '<line x1="'+f1(gx)+'" x2="'+f1(gx+gw)+'" y1="'+f1(gy+gh*i/8)+'" y2="'+f1(gy+gh*i/8)+'" stroke="var(--c1)" stroke-opacity=".45"/>'}
+    h+=gr+RD.t(xt+cw/2,y0+16,'Tensor engine',{a:'middle',fs:12,w:600})+RD.t(xt+cw/2,y0+30,'systolic array',{a:'middle',fs:fs,fill:'var(--mute)'});
+    h+=RD.t(xt+cw/2,y0+hb-22,'128 × 128 PEs',{a:'middle',fs:fs})+RD.t(xt+cw/2,y0+hb-8,'2.4 GHz',{a:'middle',fs:fs});
+    h+=box(xp,y0,cw,hb,'var(--soft)')+stripes(xp,y0+34,cw,hb-70,16);
+    h+=RD.t(xp+cw/2,y0+16,'PSUM',{a:'middle',fs:12,w:600})+RD.t(xp+cw/2,y0+30,'fp32 sums',{a:'middle',fs:fs,fill:'var(--mute)'});
+    h+=RD.t(xp+cw/2,y0+hb-22,narrow?'128 × 16 KiB':'128 partitions × 16 KiB',{a:'middle',fs:fs})+RD.t(xp+cw/2,y0+hb-8,'= 2 MiB, 8 banks',{a:'middle',fs:fs});
+    // scalar and vector engines under everything: they read PSUM and write SBUF
+    h+=box(xt,sy,xp+cw-xt,sh,'var(--soft)')+RD.t((xt+xp+cw)/2,sy+17,'Scalar + vector engines',{a:'middle',fs:12,w:600})+
+      RD.t((xt+xp+cw)/2,sy+32,narrow?'activations, reductions':'activations, scaling, reductions',{a:'middle',fs:fs,fill:'var(--mute)'});
+    const A='var(--acc)',C='var(--c2)';
+    // 1 and 5: DMA between HBM and SBUF
+    const d1=xs+cw*0.32,d5=xs+cw*0.68;
+    h+=arrow(d1,hy+hh+2,d1,y0-2,A)+num(d1-14,(hy+hh+y0)/2,'1')+arrow(d5,y0-2,d5,hy+hh+2,C)+num(d5+14,(hy+hh+y0)/2,'5');
+    h+=RD.t(xs+cw+8,(hy+hh+y0)/2+4,'DMA',{fs:fs,fill:'var(--mute)'});
+    // 2: two operands from SBUF into the array (stationary, then moving)
+    const ya=y0+hb*0.38,yb=y0+hb*0.62;
+    h+=arrow(xs+cw+2,ya,xt-2,ya,A)+arrow(xs+cw+2,yb,xt-2,yb,A)+num(xs+cw+g/2,(ya+yb)/2,'2');
+    // 3: the array writes PSUM only
+    const ym=y0+hb/2;
+    h+=arrow(xt+cw+2,ym,xp-2,ym,A)+num(xt+cw+g/2,ym-18,'3');
+    // 4: PSUM down to the scalar and vector engines, then back up into SBUF
+    const e1=xp+cw/2,e2=xs+cw/2;
+    h+=arrow(e1,y0+hb+2,e1,sy-2,A)+num(e1+14,(y0+hb+sy)/2,'4');
+    h+='<path d="M'+f1(xt-2)+' '+f1(sy+sh/2)+'H'+f1(e2)+'V'+f1(y0+hb+9)+'" fill="none" stroke="'+A+'" stroke-width="2.2"/>'+arrow(e2,y0+hb+12,e2,y0+hb+2,A);
+    el.innerHTML=RD.svg(w,sy+sh+4,h,'One Trainium2 NeuronCore: HBM, SBUF, the tensor engine, PSUM and the scalar and vector engines, with the five steps of a matmul');
+  }
   RD.onRender(draw);RD.onResize(draw);draw();
 })();
 </script>

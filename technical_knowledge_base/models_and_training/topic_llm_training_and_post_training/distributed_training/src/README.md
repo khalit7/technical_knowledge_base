@@ -23,7 +23,7 @@ Tabs: Reading (the idea in one screen with a hero, then 12 numbered sections, ea
 - `node check_calc.mjs` (from `src/`): the calculator, the step-through numbers and the ZeRO slider against `recompute.json`.
 - `python3 check_prose.py` (from `src/`): 30 numbers written into the Reading tab's static text and figure widths against `recompute.json`.
 - `node .../src/check_controls.mjs` (from the repo root): the slider, toggles, predict blocks and calculator in 920 light and 390 dark with reduced motion; fails on NaN, undefined, errors or a stage that plays by itself under reduced motion.
-- `node .../src/check_stages.mjs [shots dir]` (from the repo root): the ten stages play when scrolled into view, stop off screen, never move under reduced motion, step to the end with one list item per step, swap lists on mode switches; splits are two columns at 1400 px; canvas labels do not overlap at 1400 px; the step lists equal `DTSTEP`, and their numbers equal `ANIM` and `LAY`.
+- `node .../src/check_stages.mjs [shots dir]` (from the repo root): the ten stages play when scrolled into view, stop off screen, never move under reduced motion, step to the end with one list item per step, swap lists on mode switches; splits are two columns at 1400 px; canvas labels do not overlap at 1400 px; the step lists equal `DTSTEP`, and their numbers equal `ANIM` and `LAY`. About 3 minutes (12.7 before, 2026-11-16): the three widths and the reduced-motion pass run in parallel browsers, waits poll each stage's tween instead of sleeping, and the replay of a stage's default mode after the mode switches skips the shots and overlap checks the first pass already made.
 - `python3 html_utils/ledger.py check <page>`: problems 0.
 
 ## The 2026-10-23 rebuild: what changed and why

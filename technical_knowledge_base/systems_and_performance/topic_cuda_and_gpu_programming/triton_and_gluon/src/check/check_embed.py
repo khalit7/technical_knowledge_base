@@ -1,6 +1,11 @@
-"""Confirms (1) the built page embeds exactly the data build_data.py makes from src/out/ today, and (2) every number
-written by hand in the Reading prose agrees with the recorded data. Run: python3 check_embed.py (no dependencies)."""
-import os, re, json, subprocess, sys
+"""Confirms (1) the built page embeds exactly parts/22_js_data.js, and that file is what build_data.py makes from src/out/
+today, and (2) every number written by hand in the Reading prose agrees with the recorded data.
+Run: python3 check_embed.py (no dependencies, no GPU, no Docker; never rewrites a part).
+build_data.py is run into a temporary file. The LLVM IR (.llir), AMDGCN (.amdgcn), SASS (.sass) and some PTX files it
+excerpts are not committed (run_all.sh regenerates them in the kb-gpu-lab:1 Docker image), so on a fresh clone those
+excerpts are checked as they are embedded, and every other part of the data (compile.json counts, TTIR, TTGIR, the
+committed PTX, passes, sources, Inductor output, Gluon, interpreter results) must equal the regeneration exactly."""
+import os, re, json, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..")
@@ -9,20 +14,41 @@ page = open(os.path.join(SRC, "..", "index.html")).read()
 data_js = open(os.path.join(SRC, "parts", "22_js_data.js")).read()
 fail = 0
 
-# 1. regenerate the data file into memory and compare
-before = data_js
-subprocess.run([sys.executable, os.path.join(SRC, "code", "build_data.py")], check=True, capture_output=True)
-after = open(os.path.join(SRC, "parts", "22_js_data.js")).read()
-if before != after:
-    fail += 1
-    print("FAIL data file was stale; rebuilt it, run build.sh again")
-blob = after[after.index("window.TGD="):].strip()
+# 1. the page embeds the committed data file; regenerate the data into a temporary file and compare
+blob = data_js[data_js.index("window.TGD="):].strip()
 if blob not in page:
     fail += 1
-    print("FAIL index.html does not embed the current data")
+    print("FAIL index.html does not embed parts/22_js_data.js: run build.sh")
 else:
     print("embed ok:", len(blob), "bytes of data")
-D = json.loads(after[after.index("=") + 1:].strip().rstrip(";"))
+with tempfile.TemporaryDirectory() as td:
+    tmp = os.path.join(td, "22_js_data.js")
+    subprocess.run([sys.executable, os.path.join(SRC, "code", "build_data.py"), tmp], check=True, capture_output=True)
+    after = open(tmp).read()
+tgd = lambda t: json.loads(t[t.index("=") + 1:].strip().rstrip(";"))
+D, G = tgd(data_js), tgd(after)
+if after == data_js:
+    print("regeneration ok: byte for byte")
+else:
+    stale = [k for k in sorted(set(D) | set(G)) if k != "ir" and D.get(k) != G.get(k)]
+    skipped, checked = [], 0
+    for key in sorted(set(D["ir"]) | set(G["ir"])):
+        a, b = D["ir"].get(key, {}), G["ir"].get(key, {})
+        for stage in sorted(set(a) | set(b)):
+            if os.path.exists(os.path.join(OUT, "ir", key + "." + stage)):
+                checked += 1
+                if a.get(stage) != b.get(stage):
+                    stale.append("ir " + key + "." + stage)
+            elif stage in b:
+                stale.append("ir " + key + "." + stage + " (no source file, yet regenerated)")
+            else:
+                skipped.append(key + "." + stage)
+    if stale:
+        fail += 1
+        print("FAIL parts/22_js_data.js is stale (run build_data.py, then build.sh):", ", ".join(stale[:12]))
+    else:
+        print("regeneration ok:", checked, "IR excerpts and all other data equal;", len(skipped),
+              "IR excerpts checked as embedded only (source files not committed: %s)" % ", ".join(sorted({x.rsplit(".", 1)[1] for x in skipped})))
 main = {r["key"] + "." + r["target"]: r for r in D["main"]}
 sweep = {r["k"] + "." + r["t"]: r for r in D["sweep"]}
 pub = json.load(open(os.path.join(SRC, "inputs", "gluon_tutorial02_published.json")))
