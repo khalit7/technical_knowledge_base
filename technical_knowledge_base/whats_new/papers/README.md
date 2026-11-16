@@ -74,3 +74,4 @@ Not an HTML page: in Notion it is a one-line description followed by the Papers 
 - `scaffold_computational_separations/`: Understanding the Benefits of Scaffolds through Computational Separations
 - `graft/`: GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
 - `fair_cast/`: bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
+- `dense_rewards_grpo/`: Are Dense Rewards Worth Their Tokens in GRPO?
