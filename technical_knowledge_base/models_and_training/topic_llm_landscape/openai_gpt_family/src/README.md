@@ -96,3 +96,6 @@ The added 1,120 words are almost all the four step lists (25 items). The old ani
 - `viz_ideas.md`: candidates, scores, data and formulas with URLs, contradictions found, what the methodology lacked.
 - `live.md`, `live_before_delete.md`: the page as fetched on 1 October 2026 (signed embed URL shortened).
 - `src/`: fetched sources (docs markdown, ARC Prize, model card text, configs, press) used to check claims.
+
+## 2026-11-16: Astra section, visual considered and not added
+The Astra section stays full width without a visual. A drawing of Astra's loop would invent structure OpenAI has not published (the architecture is known only from reporting, and "limited" in extent); the mechanism has a stage on its owner, Test-time compute and reasoning, section 9 (`#stg-lp`); the three places to spend the budget are already a table; and what crosses between requests is Fig. 4 directly below. The section's link for the mechanism pointed at the landscape root, which no longer carries it; it now points at that section and its stage.

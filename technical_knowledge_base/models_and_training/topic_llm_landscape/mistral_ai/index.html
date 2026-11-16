@@ -299,7 +299,7 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <div class="s3R"><div class="s3side"><div class="hero card">
 <p class="vt">Three years of shapes: dense, eight big experts, 128 small ones, and dense again where it suits</p>
 <div id="hero"></div>
-<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: <a href="https://arxiv.org/abs/2310.06825" target="_blank" rel="noopener noreferrer">Mistral 7B paper</a>, <a href="https://arxiv.org/abs/2401.04088" target="_blank" rel="noopener noreferrer">Mixtral paper</a>, the configs (<a href="https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512/blob/main/params.json" target="_blank" rel="noopener noreferrer">Large 3</a>, <a href="https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/blob/main/params.json" target="_blank" rel="noopener noreferrer">Small 4</a>, <a href="https://huggingface.co/mistralai/Mistral-Medium-3.5-128B/blob/main/params.json" target="_blank" rel="noopener noreferrer">Medium 3.5</a>) and <a href="https://mistral.ai/news/mistral-large-4" target="_blank" rel="noopener noreferrer">Mistral</a> for Large 4, whose config is unpublished.</p>
+<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: <a href="https://arxiv.org/abs/2310.06825" target="_blank" rel="noopener noreferrer">Mistral 7B paper</a>, <a href="https://arxiv.org/abs/2401.04088" target="_blank" rel="noopener noreferrer">Mixtral paper</a>, the configs (<a href="https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512/blob/main/params.json" target="_blank" rel="noopener noreferrer">Large 3</a>, <a href="https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/blob/main/params.json" target="_blank" rel="noopener noreferrer">Small 4</a>, <a href="https://huggingface.co/mistralai/Mistral-Medium-3.5-128B/blob/main/params.json" target="_blank" rel="noopener noreferrer">Medium 3.5</a>, <a href="https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B/blob/main/params.json" target="_blank" rel="noopener noreferrer">Large 4</a>) and <a href="https://mistral.ai/news/mistral-large-4" target="_blank" rel="noopener noreferrer">Mistral</a> for Large 4's totals.</p>
 </div>
 </div></div></div>
 
@@ -322,28 +322,28 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <h3>The same 32,768-token input, three caches</h3>
 <p class="try"><b>Predict:</b> by how much does the rolling buffer grow between token 8,192 and token 32,768? It plays by itself; then switch to <b>Full GQA</b> (what Mixtral does) and <b>Full MHA</b> on the same input.</p>
 <ol class="sx" id="sx-swa-swa" aria-label="Steps, GQA + window (Mistral 7B)">
-<li><b>Tokens 1 to 4,096 arrive.</b> Each token leaves one key and one value in each of 32 layers, for 8 key-value heads of 128 numbers: 2 × 32 × 8 × 128 × 2 bytes = 131,072 bytes, 128 KiB. Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.</li>
+<li><b>Tokens 1 to 4,096 arrive.</b> Each token leaves 128 KiB of keys and values across the 32 layers (the sum above). Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.</li>
 <li><b>Token 4,097 overwrites token 1.</b> Position <i>i</i> (counting from 0) is written to slot <i>i</i> mod <i>W</i>. Position 4,096 lands in slot 4,096 mod 4,096 = 0, over the oldest token, which has just left every layer's window. The buffer is a fixed ring and never holds more than 4,096 positions.</li>
 <li><b>To 8,192 tokens, the context Mistral 7B was trained on.</b> The second lap overwrites every slot (colour shows the lap that wrote it). Still 512 MiB; the dashed outline is what a cache without the window would hold by now, 1 GiB.</li>
 <li><b>To 32,768 tokens.</b> Eight laps. Without a window the cache would hold 32,768 positions, 4 GiB; the rolling buffer still holds 4,096, 512 MiB. That is the 8x saving the paper reports for a 32k sequence.</li>
-<li><b>How far back can the last token reach?</b> Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, like stacked convolutions. After <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper's "theoretical attention span". It is an upper bound: anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention.</li>
+<li><b>How far back can the last token reach?</b> Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, so after <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper's "theoretical attention span", an upper bound.</li>
 <li><b>The two savings multiply.</b> GQA divides the per-token cost by 4 (8 key-value heads instead of 32); the window caps the positions at 4,096, a factor of 8 at this length. Together: 512 MiB against 16 GiB for full multi-head attention, 32 in all. Full MHA with no window would need more than the model's own 14.5 GB of weights.</li>
 </ol>
 <ol class="sx" id="sx-swa-gqa" hidden aria-label="Steps, Full GQA (Mixtral)">
 <li><b>Tokens 1 to 4,096 arrive.</b> Mixtral kept Mistral 7B's attention shape (32 query heads sharing 8 key-value heads), so a token still costs 128 KiB, but it dropped the window. The first 4,096 tokens look exactly like the rolling buffer: 512 MiB.</li>
 <li><b>Token 4,097 is appended.</b> Without a window nothing is overwritten: position 4,096 gets a new slot and the cache keeps growing by 128 KiB per token.</li>
 <li><b>To 8,192 tokens.</b> 1 GiB, twice the rolling buffer.</li>
-<li><b>To 32,768 tokens.</b> 4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB. Mixtral supports "a fully dense context length of 32k tokens".</li>
+<li><b>To 32,768 tokens.</b> 4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB.</li>
 <li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly, so recall is exact at any distance inside the context. That is what the window gave up, and why Mixtral and the field moved away from windowing every layer.</li>
 <li><b>Compared with the other two.</b> Eight times the rolling buffer at 32k, a quarter of full multi-head attention. GQA alone saves the factor of 4 at every length; the window's saving grows with the sequence.</li>
 </ol>
 <ol class="sx" id="sx-swa-mha" hidden aria-label="Steps, Full MHA">
 <li><b>Tokens 1 to 4,096 arrive.</b> A hypothetical Mistral 7B with one key-value head per query head: 2 × 32 × 32 × 128 × 2 = 524,288 bytes, 512 KiB per token. 4,096 tokens already need 2 GiB.</li>
-<li><b>Token 4,097 is appended.</b> No window and no sharing: every token keeps 32 heads of keys and values in every layer.</li>
+<li><b>Token 4,097 is appended.</b> As in full GQA, nothing is overwritten.</li>
 <li><b>To 8,192 tokens.</b> 4 GiB.</li>
-<li><b>To 32,768 tokens.</b> 16 GiB: four times the full GQA cache, and more than the 14.5 GB the model's weights take in 16-bit. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.</li>
-<li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly.</li>
-<li><b>Compared with the other two.</b> Thirty-two times the rolling buffer with GQA: the factor of 4 from sharing key-value heads times the factor of 8 from the window at 32k.</li>
+<li><b>To 32,768 tokens.</b> 16 GiB, four times the full GQA cache. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.</li>
+<li><b>How far back can the last token reach?</b> As far as with full GQA: sharing key-value heads costs no reach.</li>
+<li><b>Compared with the other two.</b> Four times full GQA, 32 times the rolling buffer (the two savings multiplied, step 6 of the window mode).</li>
 </ol>
 <p>In symbols: <span class="m"><i>b</i><sub>tok</sub> = 2 · <i>L</i> · <i>n</i><sub>kv</sub> · <i>d</i><sub>h</sub> · <i>s</i></span> bytes per token (key and value, layers, key-value heads, head dimension, bytes per number), and the buffer holds <span class="m"><i>M</i>(<i>n</i>) = <i>b</i><sub>tok</sub> · min(<i>n</i>, <i>W</i>)</span>; the reach bound is <span class="m"><i>R</i>(<i>k</i>) ≈ <i>k</i> · <i>W</i></span>, an upper bound on influence, not a guarantee the information survived. The general formula and every model's cache are on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>.</p>
 <p><b>What it bought.</b> Mistral 7B outperformed "the best open 13B model (Llama 2) across all evaluated benchmarks, and the best released 34B model (Llama 1) in reasoning, mathematics, and code generation" (<a href="https://arxiv.org/abs/2310.06825" target="_blank" rel="noopener noreferrer">paper</a>), which established the lab, and it became a common small base for fine-tuning <span class="q">(unconfirmed as "the default")</span>. <b>What did not last:</b> Mistral itself dropped the window in Mixtral, which supports "a fully dense context length of 32k tokens" (<a href="https://arxiv.org/abs/2401.04088" target="_blank" rel="noopener noreferrer">Mixtral paper</a>); every current Mistral model uses full grouped-query or latent attention. Treat the window as a 2023 Mistral choice, not a family trait.</p>
@@ -397,10 +397,10 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <li><b>One layer of each, to one scale.</b> Every tile's area is its parameter count. A Large 3 layer (from the fourth on; the first 3 are dense) holds 128 routed experts of 3 × 7,168 × 4,096 = 88.1M plus one shared, 11.55B with its attention (orange); a Small 4 layer holds 128 experts a seventh of the size of Mixtral's (25.2M against 176.2M) plus one shared, 3,275M; a Medium 3.5 layer is one dense block of 3 × 12,288 × 28,672 = 1,057M, 1,384M with attention.</li>
 <li><b>A token in the two MoE layers.</b> Each router keeps 4 of its 128 experts and the shared expert always runs: Large 3 reads 628M of a layer's 11.55B, Small 4 reads 154M of 3,275M, about 5% each. Which four are lit is illustrative.</li>
 <li><b>Medium 3.5 reads everything.</b> One token touches all 1,384M of a dense layer, 2.2 times what it touches in a Large 3 layer, and Medium 3.5 has 88 layers to Large 3's 61.</li>
-<li><b>Whole models, volume to scale.</b> Footprint and height per layer share one scale, so volume is parameters (layers only; embeddings and vision encoders left out). Large 3: 671.5B stored and 38.1B read per token (the solid column, its 3 dense layers at the base); Small 4: 117.9B and 5.6B; Medium 3.5: 121.8B, all read. Small 4 and Medium 3.5 take about the same memory; in the layers a token through Medium 3.5 does 22 times the work.</li>
-<li><b>The cache follows the attention.</b> Latent attention caches one vector per layer, 512 + 64 numbers on Large 3 and 256 + 64 on Small 4; grouped-query attention caches keys and values for 8 heads of 128 in each of Medium 3.5's 88 layers. In 16 bits that is 68.6 KiB, 22.5 KiB and 352 KiB per token, and one 256K sequence holds 17.2 GiB, 5.6 GiB and 88 GiB (the teal columns, height to scale). Cache sizing in general is on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>.</li>
+<li><b>Whole models, volume to scale.</b> Footprint and height per layer share one scale, so volume is parameters (layers only; embeddings and vision encoders left out). Large 3: 671.5B stored and 38.1B read per token (the solid column, its 3 dense layers at the base); Small 4: 117.9B and 5.6B; Medium 3.5: 121.8B, all read. Small 4 and Medium 3.5 take about the same memory; in the layers a token through Medium 3.5 does 22 times the work. Large 4 joins on the left: Large 3's pattern with wider experts (128 of 3 × 6,144 × 6,144 = 113.2M plus one shared) over 72 layers, the first dense, so 1,045.7B stored and 48.7B read, the card's "about 1T" and "49B active", 21 to 1 stored against read.</li>
+<li><b>The cache follows the attention.</b> Latent attention caches one vector per layer, 512 + 64 numbers on Large 3 and 256 + 64 on Small 4; grouped-query attention caches keys and values for 8 heads of 128 in each of Medium 3.5's 88 layers. In 16 bits that is 68.6 KiB, 22.5 KiB and 352 KiB per token, and one 256K sequence holds 17.2 GiB, 5.6 GiB and 88 GiB (the teal columns, height to scale). Large 4 writes its latent in only 63 of its 72 layers (nine read layer 35's), so it holds 70.9 KiB per token and 17.7 GiB at 256K, 3% more than Large 3 for a model half again as large, and 70.9 GiB at its full 1M context. Cache sizing in general is on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>.</li>
 </ol>
-<p class="small mute">Layer sums from the configs (<a href="https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512/blob/main/params.json" target="_blank" rel="noopener noreferrer">Large 3</a>, <a href="https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/blob/main/params.json" target="_blank" rel="noopener noreferrer">Small 4</a>, <a href="https://huggingface.co/mistralai/Mistral-Medium-3.5-128B/blob/main/params.json" target="_blank" rel="noopener noreferrer">Medium 3.5</a>) with the formulas of the <a href="#" data-tab="t-fit">Weights</a> tab; Large 4 is not drawn (the card gives its expert counts but no widths).</p>
+<p class="small mute">Layer sums from the configs (<a href="https://huggingface.co/mistralai/Mistral-Large-3-675B-Instruct-2512/blob/main/params.json" target="_blank" rel="noopener noreferrer">Large 3</a>, <a href="https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/blob/main/params.json" target="_blank" rel="noopener noreferrer">Small 4</a>, <a href="https://huggingface.co/mistralai/Mistral-Medium-3.5-128B/blob/main/params.json" target="_blank" rel="noopener noreferrer">Medium 3.5</a>) with the formulas of the <a href="#" data-tab="t-fit">Weights</a> tab; Large 4 from its <a href="https://huggingface.co/mistralai/Mistral-Large-4-1T-A52B/blob/main/params.json" target="_blank" rel="noopener noreferrer">params.json</a>, published with the weights on 29 October 2026; its sparse indexer's weights and cached keys are left out of its sums.</p>
 <p><b>Why both?</b> Memory is priced on total parameters and compute on active ones. Small 4 and Medium 3.5 occupy about the same memory (119B against 128B), but a token through Small 4 touches 6B to 8B parameters and a token through Medium 3.5 touches all 128B, 16 to 21 times more work. Sparse wins when throughput per GPU is the bill; dense keeps every parameter engaged on every token, avoids routing and all-to-all communication, and is simpler to fine-tune and serve, the trade Mistral made for its agentic coding flagship. The cache tells the same story (Fig. 3, step 5): the MoE models use latent attention and the dense one does not; every model is a preset in the <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator</a>.</p>
 </section>
 </div></div>
@@ -644,13 +644,15 @@ function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.
 // The formulas are recompute.py's (gqa_layer, mla_layer, ffn); check_stages.mjs compares the sums with parts_params.json, which recompute.py writes.
 window.MI=(function(){
   const gqa=(d,nh,nkv,hd)=>d*nh*hd+2*d*nkv*hd+nh*hd*d;
-  const mla=(d,nh,ql,kvl,nope,rope,v)=>d*ql+ql+ql*nh*(nope+rope)+d*(kvl+rope)+kvl+kvl*nh*(nope+v)+nh*v*d;
+  const mla=(d,nh,ql,kvl,nope,rope,v)=>(ql?d*ql+ql+ql*nh*(nope+rope):d*nh*(nope+rope))+d*(kvl+rope)+kvl+kvl*nh*(nope+v)+nh*v*d; // ql 0: no query latent (Large 4)
   const ffn=(d,f)=>3*d*f;
-  // configs: Mistral-7B-v0.1 and Mixtral-8x7B-v0.1 config.json; Mistral-Large-3, Mistral-Small-4 and Mistral-Medium-3.5 params.json
+  // configs: Mistral-7B-v0.1 and Mixtral-8x7B-v0.1 config.json; Mistral-Large-3, Mistral-Small-4, Mistral-Medium-3.5 and Mistral-Large-4-1T-A52B params.json
+  // (Large 4: kvL is the 63 layers that write a latent, nine of 72 reading layer 35's; its DSA indexer is left out of the sums)
   const C={
     m7:{name:'Mistral 7B',d:4096,L:32,nh:32,nkv:8,hd:128,ff:14336,V:32000,E:1,k:1,sh:0,win:4096},
     x7:{name:'Mixtral 8x7B',d:4096,L:32,nh:32,nkv:8,hd:128,ff:14336,V:32000,E:8,k:2,sh:0,win:0},
     l3:{name:'Mistral Large 3',d:7168,L:61,nh:128,mla:[1536,512,128,64,128],ff:4096,dense:3,dff:16384,E:128,k:4,sh:1},
+    l4:{name:'Mistral Large 4',d:6144,L:72,nh:64,mla:[0,512,64,64,128],ff:6144,dense:1,dff:24576,E:128,k:4,sh:1,kvL:63},
     s4:{name:'Mistral Small 4',d:4096,L:36,nh:32,mla:[1024,256,64,64,128],ff:2048,dense:0,E:128,k:4,sh:1},
     m35:{name:'Mistral Medium 3.5',d:12288,L:88,nh:96,nkv:8,hd:128,ff:28672,E:1,k:1,sh:0}};
   const out={};
@@ -660,11 +662,11 @@ window.MI=(function(){
     // layers only (no embeddings, final norm or vision encoder): what the towers draw
     const lt=c.L*(attn+norms)+nd*dff+(c.L-nd)*moeT+c.d,la=c.L*(attn+norms)+nd*dff+(c.L-nd)*moeA+c.d;
     // key-value cache per token, 16-bit: GQA stores K and V for every KV head; latent attention stores one latent plus one position key
-    const kvTok=c.mla?(c.mla[1]+c.mla[3])*c.L*2:2*c.L*c.nkv*c.hd*2;
+    const kvTok=c.mla?(c.mla[1]+c.mla[3])*(c.kvL||c.L)*2:2*c.L*c.nkv*c.hd*2;
     out[id]=Object.assign({},c,{attn,ex,router,moeLayerT:moeT+attn+norms,moeLayerA:moeA+attn+norms,dffn:dff,lt,la,kvTok,kv256:kvTok*262144});
   }
   // whole-model figures with embeddings, as each paper or card states them (B): Mistral 7B and Mixtral from the papers, the rest from the cards and announcements
-  out.m7.stated={tot:7.24,act:7.24};out.x7.stated={tot:46.7,act:12.9};out.l3.stated={tot:675,act:41};out.s4.stated={tot:119,act:6};out.m35.stated={tot:128,act:128};
+  out.m7.stated={tot:7.24,act:7.24};out.x7.stated={tot:46.7,act:12.9};out.l3.stated={tot:675,act:41};out.s4.stated={tot:119,act:6};out.m35.stated={tot:128,act:128};out.l4.stated={tot:1000,act:49};
   // Mistral 7B and Mixtral share one vocabulary of 32,000 rows: input and output tables
   out.m7.emb=out.x7.emb=2*32000*4096;
   out.m7.tot=out.m7.lt+out.m7.emb;out.x7.tot=out.x7.lt+out.x7.emb;out.x7.act=out.x7.la+out.x7.emb;
@@ -1259,13 +1261,14 @@ window.MI=(function(){
 // ---- Scene (Fig. 3): the current line, Large 3 and Small 4 (granular MoE) beside Medium 3.5 (dense), from their params.json (window.MI.l3, .s4, .m35).
 // Steps 1 to 3: one layer of each, every tile's area proportional to its parameters (one scale for all three); a token reads 4 routed + 1 shared
 // experts in each MoE layer and the whole block in the dense one. Step 4: the whole models as towers, footprint per layer and height per layer to one
-// scale, so volume is parameters (layers only), with the part a token reads as a solid column. Step 5: the 16-bit KV cache of one 256K sequence.
+// scale, so volume is parameters (layers only), with the part a token reads as a solid column; Large 4 (window.MI.l4) joins here. Step 5: the 16-bit KV
+// cache of one 256K sequence.
 // Which experts a token picks is illustrative. ----
 (function(){
-  if(!document.getElementById('stg-now')||!window.MI)return;const {lerp,mix}=S3,L3=MI.l3,S4=MI.s4,M35=MI.m35;
+  if(!document.getElementById('stg-now')||!window.MI)return;const {lerp,mix}=S3,L3=MI.l3,S4=MI.s4,M35=MI.m35,L4=MI.l4;
   const tw=(st,e,f)=>{const a=f(st.pk),b=f(st.k);return e>=1||a===b?b:lerp(a,b,e)};
   const la=(st,e,f)=>{const a=f(st.pk),b=f(st.k);if(e>=1||a===b)return b;return a>b?lerp(a,b,Math.min(1,4*e)):lerp(a,b,Math.max(0,2*e-1))};
-  const Mf=v=>Math.round(v/1e6).toLocaleString('en-GB')+'M',Lf=v=>v>=1e10?(v/1e9).toFixed(2)+'B':Mf(v),Bf=v=>(v/1e9).toFixed(1)+'B',G=v=>(v/2**30).toFixed(v<50*2**30?1:0)+' GiB';
+  const Mf=v=>Math.round(v/1e6).toLocaleString('en-GB')+'M',Lf=v=>v>=1e10?(v/1e9).toFixed(2)+'B':Mf(v),Bf=v=>(v/1e9).toLocaleString('en-GB',{minimumFractionDigits:1,maximumFractionDigits:1})+'B',G=v=>(v/2**30).toFixed(v<50*2**30?1:0)+' GiB';
   // one area scale for every tile in steps 1 to 3: a Large 3 expert (88.1M) is a 0.28-wide square
   const A=.28*.28/L3.ex,sd=p=>Math.sqrt(p*A),TH=.06;
   const plate=(m,x0,gap)=>{const s=sd(m.ex),cols=16,rows=8;return {s,gap,x0,w:cols*(s+gap)-gap,d:rows*(s+gap)-gap,at:j=>[x0+(j%cols)*(s+gap)+s/2,-(rows*(s+gap)-gap)/2+Math.floor(j/cols)*(s+gap)+s/2]}};
@@ -1303,25 +1306,25 @@ window.MI=(function(){
     // steps 4 and 5: whole models, one volume scale (layers only)
     const ta=tw(st,e,s=>s>=3?1:0);
     if(ta>.01){const B=2.42/L3.moeLayerT,H=.045,side=p=>Math.sqrt(p*B),T=[
-        {m:L3,x:-3.6,nd:3,dl:L3.attn+2*L3.d+L3.dffn},{m:S4,x:-.3,nd:0},{m:M35,x:2.6,nd:0}];
+        {m:L4,x:-7.4,nd:1,dl:L4.attn+2*L4.d+L4.dffn},{m:L3,x:-3.6,nd:3,dl:L3.attn+2*L3.d+L3.dffn},{m:S4,x:-.3,nd:0},{m:M35,x:2.6,nd:0}];
       const ca=tw(st,e,s=>s===4?1:0),tl=la(st,e,s=>s===3?1:0),cl=la(st,e,s=>s===4?1:0);
       T.forEach(t=>{const m=t.m,w=side(m.moeLayerT)*Math.SQRT2,d=side(m.moeLayerT)/Math.SQRT2,nd=t.nd,hm=(m.L-nd)*H,hd=nd*H,dense=m.E===1;
         if(nd){const s=side(t.dl);R.box([t.x,0,0],[s,hd,s],{fill:mix(P.paper,P.c1,.8),a:ta,shadow:true,lw:.5})}
         if(dense)R.box([t.x,0,0],[w,hm,d],{fill:mix(P.paper,P.c1,.8),a:ta,shadow:true,lw:.5});
         else{R.box([t.x,hd,0],[w,hm,d],{fill:P.paper,a:ta*.9,fa:.28,shadow:!nd,lw:.5});const s=side(m.moeLayerA);R.box([t.x,hd,0],[s,hm,s],{fill:mix(P.paper,P.c1,.85),a:ta,shadow:false,lw:.5})}
-        const top=(m.L)*H,tp=[t.x,top,-d/2];
-        if(tl>.01){R.label(tp,m.name.replace('Mistral ',''),{dy:-44,fs:13,b:1,a:tl});R.label(tp,Bf(m.lt)+' stored',{dy:-28,fs:12.5,mono:true,a:tl});
-          R.label(tp,Bf(m.la)+' read per token',{dy:-12,fs:12.5,mono:true,b:1,c:P.c1,a:tl})}
+        const top=(m.L)*H,tp=[t.x,top,-d/2],ph=R.W<520; // phones: four towers leave about 85 px per label, so short labels (the step list has the rest)
+        if(tl>.01){R.label(tp,m.name.replace('Mistral ',''),{dy:-44,fs:13,b:1,a:tl});R.label(tp,Bf(m.lt)+(ph?'':' stored'),{dy:-28,fs:12.5,mono:true,a:tl});
+          R.label(tp,Bf(m.la)+(ph?' read':' read per token'),{dy:-12,fs:12.5,mono:true,b:1,c:P.c1,a:tl})}
         // step 5: the cache one 256K sequence leaves, 16-bit, as a teal glass column beside the tower (height proportional to bytes)
         if(ca>.01){const ch=m.kv256/(88*2**30)*3.4,cx=t.x+w/2+.45,cz=0;R.glass([cx-.22,0,cz],[.44,0,0],[0,ch*Math.min(1,ca*1.2),0],{c:P.c6,a:ca,nu:1,nv:Math.max(1,Math.round(ch/.3))});
           R.flow([[t.x+w/2,.15,0],[cx-.22,.15,0]],{c:P.c6,a:ca*.8,r:.04,n:4,speed:.8});
-          R.label([cx+.22,ch,cz],G(m.kv256)+' at 256K',{al:'left',dx:6,fs:12.5,b:1,c:P.c6,a:cl});
-          R.label(tp,(m.kvTok/1024).toFixed(1).replace('.0','')+' KiB per token',{dy:-12,fs:12.5,mono:true,c:P.c6,a:cl})}
+          R.label([cx+.22,ch,cz],G(m.kv256)+(ph?'':' at 256K'),{al:'left',dx:6,fs:12.5,b:1,c:P.c6,a:cl});
+          R.label(tp,(m.kvTok/1024).toFixed(1).replace('.0','')+(ph?' KiB':' KiB per token'),{dy:-12,fs:12.5,mono:true,c:P.c6,a:cl})}
         if(cl>.01){R.label(tp,m.name.replace('Mistral ',''),{dy:-28,fs:13,b:1,a:cl})}});
     }
   }
   const V=[{cam:[.18,.95],bounds:[[-5.4,0,-1.4],[4.9,.4,2.2]]},{cam:[.2,.9],bounds:[[-5.4,0,-1.4],[2.8,.4,2.2]]},{cam:[.22,.85],bounds:[[1.6,0,-1],[5.2,.4,1.6]]},
-    {cam:[.4,.38],bounds:[[-5,0,-1],[3.6,4.1,1]]},{cam:[.4,.38],bounds:[[-5,0,-1],[4.6,4.1,1]]}];
+    {cam:[.4,.38],bounds:[[-8.8,0,-1],[3.6,4.1,1]]},{cam:[.4,.38],bounds:[[-8.8,0,-1],[4.6,4.1,1]]}];
   S3.stage({id:'stg-now',list:'sx-now',fig:'Fig. 3 · granular MoE against dense, from the params.json files',cam:V[0].cam,bounds:V[0].bounds,aspect:.54,dur:1600,hold:5200,draw,
     margin:w=>w<520?[34,10,16,10]:[46,20,20,20],view:k=>V[k]});
 })();

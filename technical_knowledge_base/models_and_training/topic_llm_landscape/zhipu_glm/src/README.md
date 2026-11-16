@@ -59,3 +59,6 @@ The added words are the three step lists (15 items). The old hybrid animation's 
 
 ### Knowledge ledger (2026-11-10; problems 0)
 300 units: core 199, depth 37, volatile 27, owned 16, fat 21. Changed: the navigation and "Against DeepSeek-V3" keys re-keyed for the new headings; the hybrid animation's controls (unit 110) fat, its "about 400 times" re-keyed to the stage's 425 and its "full attention" note to "dense MLA"; 10 units added for the stages (slab encoding, all-to-all count, mHC streams, DSA's 30 times, IndexShare's 3.7 and 13%, the 1M work totals, the four-factor 4.6, the slime stage and its two rules). Fifteen Further-reading keys that held a minutes figure were re-keyed to the words before it.
+
+## 2026-11-16: dense-layer counts rechecked
+DeepSeek-V3's 3 and Kimi K2's 1 dense layers (carried from the previous page) were checked against each model's published config.json on Hugging Face (`first_k_dense_replace` 3 and 1; layers, width, routed experts and heads also agree with the GLM-4.5 report's Table 1). Both are correct; the Shape stage caption now cites the two configs (aliases `cfgds3`, `cfgk2` in `build.sh`), and `mk_data.py` records the check. Ledger: one unit added (301 units, problems 0).

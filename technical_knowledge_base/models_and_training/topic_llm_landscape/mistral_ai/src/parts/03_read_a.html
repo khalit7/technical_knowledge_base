@@ -19,7 +19,7 @@
 <div class="s3R"><div class="s3side"><div class="hero card">
 <p class="vt">Three years of shapes: dense, eight big experts, 128 small ones, and dense again where it suits</p>
 <div id="hero"></div>
-<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: {{Mistral 7B paper|@m7p}}, {{Mixtral paper|@mixp}}, the configs ({{Large 3|@cfgl3}}, {{Small 4|@cfgs4}}, {{Medium 3.5|@cfgm35}}) and {{Mistral|@l4}} for Large 4, whose config is unpublished.</p>
+<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: {{Mistral 7B paper|@m7p}}, {{Mixtral paper|@mixp}}, the configs ({{Large 3|@cfgl3}}, {{Small 4|@cfgs4}}, {{Medium 3.5|@cfgm35}}, {{Large 4|@cfgl4}}) and {{Mistral|@l4}} for Large 4's totals.</p>
 </div>
 </div></div></div>
 
@@ -42,28 +42,28 @@
 <h3>The same 32,768-token input, three caches</h3>
 <p class="try"><b>Predict:</b> by how much does the rolling buffer grow between token 8,192 and token 32,768? It plays by itself; then switch to <b>Full GQA</b> (what Mixtral does) and <b>Full MHA</b> on the same input.</p>
 <ol class="sx" id="sx-swa-swa" aria-label="Steps, GQA + window (Mistral 7B)">
-<li><b>Tokens 1 to 4,096 arrive.</b> Each token leaves one key and one value in each of 32 layers, for 8 key-value heads of 128 numbers: 2 × 32 × 8 × 128 × 2 bytes = 131,072 bytes, 128 KiB. Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.</li>
+<li><b>Tokens 1 to 4,096 arrive.</b> Each token leaves 128 KiB of keys and values across the 32 layers (the sum above). Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.</li>
 <li><b>Token 4,097 overwrites token 1.</b> Position <i>i</i> (counting from 0) is written to slot <i>i</i> mod <i>W</i>. Position 4,096 lands in slot 4,096 mod 4,096 = 0, over the oldest token, which has just left every layer's window. The buffer is a fixed ring and never holds more than 4,096 positions.</li>
 <li><b>To 8,192 tokens, the context Mistral 7B was trained on.</b> The second lap overwrites every slot (colour shows the lap that wrote it). Still 512 MiB; the dashed outline is what a cache without the window would hold by now, 1 GiB.</li>
 <li><b>To 32,768 tokens.</b> Eight laps. Without a window the cache would hold 32,768 positions, 4 GiB; the rolling buffer still holds 4,096, 512 MiB. That is the 8x saving the paper reports for a 32k sequence.</li>
-<li><b>How far back can the last token reach?</b> Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, like stacked convolutions. After <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper's "theoretical attention span". It is an upper bound: anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention.</li>
+<li><b>How far back can the last token reach?</b> Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, so after <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper's "theoretical attention span", an upper bound.</li>
 <li><b>The two savings multiply.</b> GQA divides the per-token cost by 4 (8 key-value heads instead of 32); the window caps the positions at 4,096, a factor of 8 at this length. Together: 512 MiB against 16 GiB for full multi-head attention, 32 in all. Full MHA with no window would need more than the model's own 14.5 GB of weights.</li>
 </ol>
 <ol class="sx" id="sx-swa-gqa" hidden aria-label="Steps, Full GQA (Mixtral)">
 <li><b>Tokens 1 to 4,096 arrive.</b> Mixtral kept Mistral 7B's attention shape (32 query heads sharing 8 key-value heads), so a token still costs 128 KiB, but it dropped the window. The first 4,096 tokens look exactly like the rolling buffer: 512 MiB.</li>
 <li><b>Token 4,097 is appended.</b> Without a window nothing is overwritten: position 4,096 gets a new slot and the cache keeps growing by 128 KiB per token.</li>
 <li><b>To 8,192 tokens.</b> 1 GiB, twice the rolling buffer.</li>
-<li><b>To 32,768 tokens.</b> 4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB. Mixtral supports "a fully dense context length of 32k tokens".</li>
+<li><b>To 32,768 tokens.</b> 4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB.</li>
 <li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly, so recall is exact at any distance inside the context. That is what the window gave up, and why Mixtral and the field moved away from windowing every layer.</li>
 <li><b>Compared with the other two.</b> Eight times the rolling buffer at 32k, a quarter of full multi-head attention. GQA alone saves the factor of 4 at every length; the window's saving grows with the sequence.</li>
 </ol>
 <ol class="sx" id="sx-swa-mha" hidden aria-label="Steps, Full MHA">
 <li><b>Tokens 1 to 4,096 arrive.</b> A hypothetical Mistral 7B with one key-value head per query head: 2 × 32 × 32 × 128 × 2 = 524,288 bytes, 512 KiB per token. 4,096 tokens already need 2 GiB.</li>
-<li><b>Token 4,097 is appended.</b> No window and no sharing: every token keeps 32 heads of keys and values in every layer.</li>
+<li><b>Token 4,097 is appended.</b> As in full GQA, nothing is overwritten.</li>
 <li><b>To 8,192 tokens.</b> 4 GiB.</li>
-<li><b>To 32,768 tokens.</b> 16 GiB: four times the full GQA cache, and more than the 14.5 GB the model's weights take in 16-bit. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.</li>
-<li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly.</li>
-<li><b>Compared with the other two.</b> Thirty-two times the rolling buffer with GQA: the factor of 4 from sharing key-value heads times the factor of 8 from the window at 32k.</li>
+<li><b>To 32,768 tokens.</b> 16 GiB, four times the full GQA cache. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.</li>
+<li><b>How far back can the last token reach?</b> As far as with full GQA: sharing key-value heads costs no reach.</li>
+<li><b>Compared with the other two.</b> Four times full GQA, 32 times the rolling buffer (the two savings multiplied, step 6 of the window mode).</li>
 </ol>
 <p>In symbols: <span class="m"><i>b</i><sub>tok</sub> = 2 · <i>L</i> · <i>n</i><sub>kv</sub> · <i>d</i><sub>h</sub> · <i>s</i></span> bytes per token (key and value, layers, key-value heads, head dimension, bytes per number), and the buffer holds <span class="m"><i>M</i>(<i>n</i>) = <i>b</i><sub>tok</sub> · min(<i>n</i>, <i>W</i>)</span>; the reach bound is <span class="m"><i>R</i>(<i>k</i>) ≈ <i>k</i> · <i>W</i></span>, an upper bound on influence, not a guarantee the information survived. The general formula and every model's cache are on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}.</p>
 <p><b>What it bought.</b> Mistral 7B outperformed "the best open 13B model (Llama 2) across all evaluated benchmarks, and the best released 34B model (Llama 1) in reasoning, mathematics, and code generation" ({{paper|@m7p}}), which established the lab, and it became a common small base for fine-tuning <span class="q">(unconfirmed as "the default")</span>. <b>What did not last:</b> Mistral itself dropped the window in Mixtral, which supports "a fully dense context length of 32k tokens" ({{Mixtral paper|@mixp}}); every current Mistral model uses full grouped-query or latent attention. Treat the window as a 2023 Mistral choice, not a family trait.</p>

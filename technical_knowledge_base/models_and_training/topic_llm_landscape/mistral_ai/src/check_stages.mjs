@@ -91,8 +91,8 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     const r = await p.evaluate(PP => { const out = [], M = v => (v / 1e6).toFixed(1) + 'M', Mi = v => Math.round(v / 1e6).toLocaleString('en-GB') + 'M', B = (v, d) => (v / 1e9).toFixed(d) + 'B', G = v => (v / 2 ** 30).toFixed(v < 50 * 2 ** 30 ? 1 : 0) + ' GiB';
       const li = (lid, k) => document.getElementById(lid).children[k].textContent.replace(/\s+/g, ' ');
       const need = (lid, k, x) => { if (!li(lid, k).includes(String(x))) out.push(`${lid} item ${k + 1} lacks "${x}"`) };
-      const { m7, x7, l3, s4, m35 } = MI;
-      for (const k of ['m7', 'x7', 'l3', 's4', 'm35']) { if (Math.abs(MI[k].lt / 1e9 - PP[k].lt) > 1e-3) out.push(`${k} layer total ${MI[k].lt} against parts_params ${PP[k].lt}`); if (Math.abs(MI[k].la / 1e9 - PP[k].la) > 1e-3) out.push(`${k} layer active ${MI[k].la} against parts_params ${PP[k].la}`) }
+      const { m7, x7, l3, s4, m35, l4 } = MI;
+      for (const k of ['m7', 'x7', 'l3', 's4', 'm35', 'l4']) { if (Math.abs(MI[k].lt / 1e9 - PP[k].lt) > 1e-3) out.push(`${k} layer total ${MI[k].lt} against parts_params ${PP[k].lt}`); if (Math.abs(MI[k].la / 1e9 - PP[k].la) > 1e-3) out.push(`${k} layer active ${MI[k].la} against parts_params ${PP[k].la}`) }
       need('sx-mix', 0, M(m7.attn)); need('sx-mix', 0, M(m7.ex)); need('sx-mix', 0, 'all ' + m7.L);
       need('sx-mix', 1, m7.nh + ' query heads'); need('sx-mix', 1, m7.nkv + ' key-value heads'); need('sx-mix', 1, m7.win.toLocaleString('en-GB'));
       need('sx-mix', 2, '3 × 4,096 × 14,336 = ' + M(x7.ex)); need('sx-mix', 2, x7.E + ' experts');
@@ -104,6 +104,8 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
       if (Math.abs(l3.moeLayerA / l3.moeLayerT - .05) > .01 || Math.abs(s4.moeLayerA / s4.moeLayerT - .05) > .01) out.push('the "about 5%" is off');
       need('sx-now', 2, Mi(m35.moeLayerA)); need('sx-now', 2, (m35.moeLayerA / l3.moeLayerA).toFixed(1) + ' times'); need('sx-now', 2, m35.L + ' layers to Large 3\'s ' + l3.L);
       need('sx-now', 3, B(l3.lt, 1) + ' stored and ' + B(l3.la, 1) + ' read'); need('sx-now', 3, B(s4.lt, 1) + ' and ' + B(s4.la, 1)); need('sx-now', 3, B(m35.lt, 1) + ', all read'); need('sx-now', 3, Math.round(m35.la / s4.la) + ' times the work');
+      need('sx-now', 3, '3 × 6,144 × 6,144 = ' + M(l4.ex)); need('sx-now', 3, (l4.lt / 1e9).toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'B stored and ' + B(l4.la, 1) + ' read'); need('sx-now', 3, Math.round(l4.lt / l4.la) + ' to 1');
+      need('sx-now', 4, 'only ' + l4.kvL + ' of its ' + l4.L + ' layers'); need('sx-now', 4, (l4.kvTok / 1024).toFixed(1) + ' KiB per token and ' + G(l4.kv256) + ' at 256K'); need('sx-now', 4, Math.round(100 * (l4.kvTok / l3.kvTok - 1)) + '% more'); need('sx-now', 4, (l4.kvTok * 2 ** 20 / 2 ** 30).toFixed(1) + ' GiB at its full 1M');
       need('sx-now', 4, (l3.kvTok / 1024).toFixed(1) + ' KiB, ' + (s4.kvTok / 1024).toFixed(1) + ' KiB and ' + m35.kvTok / 1024 + ' KiB'); need('sx-now', 4, G(l3.kv256) + ', ' + G(s4.kv256) + ' and ' + G(m35.kv256));
       return out }, PP);
     r.forEach(x => problems.push(`${tag}: ${x}`));

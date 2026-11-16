@@ -29,7 +29,7 @@ m35lic=>$hf."Mistral-Medium-3.5-128B/blob/main/LICENSE", shieldhf=>$hf."Shieldst
 vttshf=>$hf."Voxtral-4B-TTS-2603", vrthf=>$hf."Voxtral-Mini-4B-Realtime-2602",
 min3=>$hf."Ministral-3-3B-Instruct-2512", min8=>$hf."Ministral-3-8B-Instruct-2512", min14=>$hf."Ministral-3-14B-Instruct-2512",
 cfg7=>$hf."Mistral-7B-v0.1/blob/main/config.json", cfgx7=>$hf."Mixtral-8x7B-v0.1/blob/main/config.json", cfgx22=>$hf."Mixtral-8x22B-v0.1/blob/main/config.json",
-cfgl3=>$hf."Mistral-Large-3-675B-Instruct-2512/blob/main/params.json", cfgs4=>$hf."Mistral-Small-4-119B-2603/blob/main/params.json",
+cfgl3=>$hf."Mistral-Large-3-675B-Instruct-2512/blob/main/params.json", cfgl4=>$hf."Mistral-Large-4-1T-A52B/blob/main/params.json", cfgs4=>$hf."Mistral-Small-4-119B-2603/blob/main/params.json",
 cfgm35=>$hf."Mistral-Medium-3.5-128B/blob/main/params.json", cfgd2=>$hf."Devstral-2-123B-Instruct-2512/blob/main/params.json",
 cfgds2=>$hf."Devstral-Small-2-24B-Instruct-2512/blob/main/params.json", cfgmin3=>$hf."Ministral-3-3B-Instruct-2512/blob/main/params.json",
 cfgmin8=>$hf."Ministral-3-8B-Instruct-2512/blob/main/params.json", cfgmin14=>$hf."Ministral-3-14B-Instruct-2512/blob/main/params.json",

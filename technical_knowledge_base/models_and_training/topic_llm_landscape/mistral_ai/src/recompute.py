@@ -2,7 +2,7 @@
 import json
 B=1e9
 def gqa_layer(d,nh,nkv,hd):return d*nh*hd+2*d*nkv*hd+nh*hd*d
-def mla_layer(d,nh,ql,kvl,nope,rope,v):return d*ql+ql+ql*nh*(nope+rope)+d*(kvl+rope)+kvl+kvl*nh*(nope+v)+nh*v*d
+def mla_layer(d,nh,ql,kvl,nope,rope,v):return (d*ql+ql+ql*nh*(nope+rope) if ql else d*nh*(nope+rope))+d*(kvl+rope)+kvl+kvl*nh*(nope+v)+nh*v*d  # ql 0: no query latent (Large 4)
 def ffn(d,f):return 3*d*f
 def vision(hv,L,fv,d,patch=14,merge=2):
     enc=3*patch*patch*hv+L*(4*hv*hv+3*hv*fv+2*hv)+hv
@@ -54,7 +54,7 @@ M['Small 4']=dict(tot=txt_t+enc+proj,act=txt_a+enc+proj,text_t=txt_t,text_a=txt_
 for n,m in M.items():
     print(n,{k:round(v/B,3) for k,v in m.items()},'r=%.2f'%(m['tot']/m['act']))
 # KV cache per token (bytes, 16-bit)
-kv={'Mistral 7B':2*32*8*128,'Mixtral 8x7B':2*32*8*128,'Mixtral 8x22B':2*56*8*128,'Medium 3.5':2*88*8*128,'Devstral Small 2':2*40*8*128,'Large 3':(512+64)*61,'Small 4':(256+64)*36}
+kv={'Large 4':(512+64)*63,'Mistral 7B':2*32*8*128,'Mixtral 8x7B':2*32*8*128,'Mixtral 8x22B':2*56*8*128,'Medium 3.5':2*88*8*128,'Devstral Small 2':2*40*8*128,'Large 3':(512+64)*61,'Small 4':(256+64)*36}
 for n,v in kv.items():print('kv',n,v*2,'B/token',v*2/1024,'KiB',' @256k GiB',v*2*262144/2**30)
 # Worked example
 b=2*32*8*128*2;print('b_tok',b,'full32k GiB',b*32768/2**30,'swa MiB',b*4096/2**20,'mha GiB',4*b*32768/2**30,'reach',32*4096,'ratio',4*b*32768/(b*4096))
@@ -80,6 +80,10 @@ def parts():
     d=4096;a=mla_layer(d,32,1024,256,64,64,128)+2*d;ef=ffn(d,2048)
     lt=36*(a+129*ef+128*d)+d;la=36*(a+5*ef+128*d)+d
     e,p=vision(1024,24,4096,d);put('s4',lt,la,V3*d,V3*d,e+p)
+    # Large 4 (params.json, 29 October 2026): no query latent, 72 layers, the first dense; the DSA indexer is left out (not drawn, structure not in the card)
+    d=6144;a=mla_layer(d,64,0,512,64,64,128)+2*d;ef=ffn(d,6144)
+    lt=72*a+ffn(d,24576)+71*(129*ef+128*d)+d;la=72*a+ffn(d,24576)+71*(5*ef+128*d)+d
+    put('l4',lt,la,204800*d,204800*d,0)
     return P
 P=parts();print(json.dumps(P))
 for n,p in P.items():

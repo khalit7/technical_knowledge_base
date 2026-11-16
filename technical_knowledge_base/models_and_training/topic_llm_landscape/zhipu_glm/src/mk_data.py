@@ -9,11 +9,12 @@ def cfg(m):
 a, g, f = cfg('GLM-4.5'), cfg('GLM-5.3'), cfg('GLM-5.3-Flash')
 
 # Layer towers (Shape stage). GLM-4.5, GLM-5 (the GLM-5 to 5.3 base, config of 5.3) and Flash from their configs;
-# DeepSeek-V3 and Kimi K2 from the GLM-4.5 report's Table 1 (layers, hidden size, routed experts, heads, dense layers).
+# DeepSeek-V3 and Kimi K2 from the GLM-4.5 report's Table 1 (layers, hidden size, routed experts, heads, dense layers);
+# all five rechecked 2026-11-16 against their config.json on Hugging Face (first_k_dense_replace 3 and 1).
 fl_types = ''.join('K' if t == 'linear_attention' else 'S' for t in f['layer_types'])
 towers = [
-    dict(id='ds3', n='DeepSeek-V3', L=61, dense=3, d=7168, E=256, H=128, src='GLM-4.5 report, Table 1'),
-    dict(id='k2', n='Kimi K2', L=61, dense=1, d=7168, E=384, H=64, src='GLM-4.5 report, Table 1'),
+    dict(id='ds3', n='DeepSeek-V3', L=61, dense=3, d=7168, E=256, H=128, src='GLM-4.5 report, Table 1; config.json'),
+    dict(id='k2', n='Kimi K2', L=61, dense=1, d=7168, E=384, H=64, src='GLM-4.5 report, Table 1; config.json'),
     dict(id='g45', n='GLM-4.5', L=a['num_hidden_layers'], dense=a['first_k_dense_replace'], d=a['hidden_size'], E=a['n_routed_experts'],
          H=a['num_attention_heads'], kvh=a['num_key_value_heads'], hd=a['head_dim'], src='config.json'),
     dict(id='g5', n='GLM-5', L=g['num_hidden_layers'], dense=g['first_k_dense_replace'], d=g['hidden_size'], E=g['n_routed_experts'],
