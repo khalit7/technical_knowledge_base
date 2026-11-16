@@ -104,11 +104,11 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   };
   for (const [id, lid] of STAGES) await stepAll(id, lid, '');
   // Fig. 10: every recipe stops the stage, redraws it and shows its own caption
-  for (const k of ['fp16', 'te', 'ds', 'nv', 'bf16']) {
+  for (const k of ['fp16', 'te', 'ds', 'nv', 'tm', 'bf16']) {
     await p.evaluate(k => document.querySelector(`#rd-trM button[data-m="${k}"]`).click(), k); await wait(150);
     const vis = await p.$$eval('#rd-trC .rd-trx', ds => ds.filter(d => !d.hidden).map(d => d.dataset.k)); if (vis.join() !== k) problems.push(`${tag}: recipe ${k} shows captions ${vis}`);
     const play = await p.$eval('#stg-tr-p', e => e.getAttribute('aria-label')); if (play !== 'Play') problems.push(`${tag}: recipe ${k} left the stage playing`);
-    if (k === 'nv' || k === 'ds') for (const s of [0, 2]) { await p.evaluate(s => document.getElementById('sx-tr').children[s].click(), s); await p.$eval('#stg-tr', e => e.scrollIntoView({ block: 'center' })); await wait(1900);
+    if (k === 'nv' || k === 'ds' || k === 'tm') for (const s of [0, 2]) { await p.evaluate(s => document.getElementById('sx-tr').children[s].click(), s); await p.$eval('#stg-tr', e => e.scrollIntoView({ block: 'center' })); await wait(1900);
       await overlaps('stg-tr', `${k} step ${s + 1}`); if (shoot) await (await p.$('#stg-tr')).screenshot({ path: `${shots}/x-stg-tr-${k}-s${s + 1}-${scheme}-${width}.png` }) }
     await audit('recipe ' + k);
   }
