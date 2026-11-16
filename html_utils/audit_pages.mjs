@@ -1,6 +1,8 @@
 // Measure what a reader actually gets on each page, tab by tab, from the rendered DOM.
 // usage: node html_utils/audit_pages.mjs <out.jsonl> <page folder>...
 // One JSON line per page: for every tab, core words (outside closed <details>), depth words (inside them),
+// counted on one pass with default modes: a step list (ol.sx) hidden at load because its figure shows another
+// mode's list is left out (Khalid, 2026-11-16); core_all/depth_all still count those lists (the measure before).
 // h2 sections, visuals drawn (svg, canvas, img at least 120x80 px at 920 px wide) and controls (sliders, selects, non-tab buttons).
 // Visuals are counted after the tab opens, so charts drawn by script count. Summarise with audit_pages.py.
 import puppeteer from 'puppeteer';
@@ -27,7 +29,21 @@ for (const d of dirs) {
         if (!root) return { tab: t, missing: true };
         // MathML: the TeX in <annotation> is never shown, and each symbol is its own text node, so a formula
         // counts as its visible characters / 6 (one average word plus space), not one word per symbol.
-        let core = 0, depth = 0;
+        // A figure with mode toggles keeps one static step list per mode and hides all but the default one:
+        // an ol.sx that is itself hidden (attribute or display:none) while a list of the same figure is shown.
+        // Lists hidden only because a wrapper is (a closed reveal, an answer) are not modes and still count.
+        const off = new Set();
+        const shown = ol => !ol.hidden && getComputedStyle(ol).display !== 'none';
+        for (const ol of root.querySelectorAll('ol.sx')) {
+          if (shown(ol)) continue;
+          for (let f = ol.parentElement; f && root.contains(f); f = f.parentElement) {
+            const sib = [...f.querySelectorAll('ol.sx')].filter(o => o !== ol);
+            if (!sib.length) continue;
+            if (sib.some(shown)) off.add(ol);
+            break;
+          }
+        }
+        let core = 0, depth = 0, coreAll = 0, depthAll = 0;
         const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) {
           const el = n.parentElement;
@@ -36,9 +52,13 @@ for (const d of dirs) {
             : n.textContent.split(/\s+/).filter(Boolean).length;
           if (!k) continue;
           const det = el.closest('details');
-          if (det && !el.closest('summary') && root.contains(det)) depth += k; else core += k;
+          const inDet = det && !el.closest('summary') && root.contains(det);
+          if (inDet) depthAll += k; else coreAll += k;
+          const sx = el.closest('ol.sx');
+          if (sx && off.has(sx)) continue;
+          if (inDet) depth += k; else core += k;
         }
-        core = Math.round(core); depth = Math.round(depth);
+        core = Math.round(core); depth = Math.round(depth); coreAll = Math.round(coreAll); depthAll = Math.round(depthAll);
         let vis = 0;
         for (const v of root.querySelectorAll('svg,canvas,img')) {
           if (v.tagName.toLowerCase() === 'svg' && v.parentElement.closest('svg')) continue;
@@ -49,7 +69,7 @@ for (const d of dirs) {
         const ctl = root.querySelectorAll('input[type=range],select').length
           + [...root.querySelectorAll('button')].filter(x => !x.dataset.t).length;
         const title = t ? (document.querySelector(`button[data-t="${t}"]`)?.textContent || t).trim() : 'page';
-        return { tab: t, title, core, depth, h2: root.querySelectorAll('h2').length, vis, ctl };
+        return { tab: t, title, core, depth, core_all: coreAll, depth_all: depthAll, modes_off: off.size, h2: root.querySelectorAll('h2').length, vis, ctl };
       }, t));
     }
     fs.writeSync(fd, JSON.stringify(res) + '\n');

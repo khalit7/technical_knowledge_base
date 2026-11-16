@@ -2,7 +2,9 @@
 
 usage: python3 html_utils/audit_pages.py <audit.jsonl> [--csv out.csv] [--concepts]
 Per page: Reading core minutes (outside closed <details>), depth minutes, other tabs' minutes, visuals inline in
-Reading vs in other tabs, and core words per inline visual. Minutes use 230 words per minute.
+Reading vs in other tabs, and core words per inline visual. Minutes use 230 words per minute and count one pass with
+default modes (hidden alternative-mode step lists left out, 2026-11-16); "was" and "dwas" are the core and depth
+minutes when those lists were counted too, so the change is visible.
 --concepts counts, for each concept below, the pages whose built text mentions it often enough to be teaching it,
 so each concept can be given one owner page.
 """
@@ -47,6 +49,8 @@ def load(fn):
         rows.append({
             "page": r["page"], "kb": r["bytes"] // 1024, "tabs": len(tabs),
             "read_min": round(read["core"] / WPM), "depth_min": round(read["depth"] / WPM),
+            "read_min_all": round(read.get("core_all", read["core"]) / WPM),
+            "depth_min_all": round(read.get("depth_all", read["depth"]) / WPM),
             "other_min": round(sum(t["core"] + t["depth"] for t in rest) / WPM),
             "h2": read["h2"], "vis_inline": read["vis"], "vis_tabs": sum(t["vis"] for t in rest),
             "words_per_inline_vis": round(read["core"] / max(read["vis"], 1)),
@@ -74,9 +78,9 @@ def main():
     for r in rows:
         if "error" in r:
             print("ERROR", r["page"], r["error"])
-    print(f"{'read':>4} {'dep':>4} {'oth':>4} {'h2':>3} {'vin':>3} {'vtb':>3} {'w/vis':>6}  page")
+    print(f"{'read':>4} {'dep':>4} {'was':>4} {'dwas':>4} {'oth':>4} {'h2':>3} {'vin':>3} {'vtb':>3} {'w/vis':>6}  page")
     for r in sorted(ok, key=lambda r: -r["read_min"]):
-        print(f"{r['read_min']:4} {r['depth_min']:4} {r['other_min']:4} {r['h2']:3} {r['vis_inline']:3} {r['vis_tabs']:3} {r['words_per_inline_vis']:6}  {r['page']}")
+        print(f"{r['read_min']:4} {r['depth_min']:4} {r['read_min_all']:4} {r['depth_min_all']:4} {r['other_min']:4} {r['h2']:3} {r['vis_inline']:3} {r['vis_tabs']:3} {r['words_per_inline_vis']:6}  {r['page']}")
     print(f"\npages {len(ok)}; Reading core {sum(r['read_min'] for r in ok) / 60:.0f} h, depth {sum(r['depth_min'] for r in ok) / 60:.0f} h,"
           f" other tabs {sum(r['other_min'] for r in ok) / 60:.0f} h; pages with no inline visual {sum(r['vis_inline'] == 0 for r in ok)}")
     if "--csv" in a:
