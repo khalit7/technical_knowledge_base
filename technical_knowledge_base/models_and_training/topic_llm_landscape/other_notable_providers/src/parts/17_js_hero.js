@@ -7,7 +7,7 @@
     ['s-trust','Auditability, on-prem','--c3','Cohere, IBM','Command A: 111B dense on two GPUs at 8-bit'],
     ['s-comp','Bits per weight','--c6','Prism ML Bonsai 2','27B weights in 5.94 GB at 1.76 bits'],
     ['s-dist','Distribution and billing','--c4','Amazon Nova and Bedrock, Microsoft Azure','many vendors, one bill, one IAM policy'],
-    ['s-scale','Open scale, low price','--c5','Tencent, Xiaomi, StepFun, NaiveAI; Arcee, Reflection, Aleph Alpha','MiMo-V2.6-Pro: 1.02T / 42B, last RL stage $2.62M'],
+    ['s-scale','Open scale, low price','--c5','Tencent, Xiaomi, StepFun, NaiveAI; Arcee, Reflection, Thinking Machines, Aleph Alpha','MiMo-V2.6-Pro: 1.02T / 42B, last RL stage $2.62M'],
     ['s-olmo','Openness itself','--acc','Ai2 OLMo, IFM K2 Horizon, Prime Intellect, Hugging Face','Olmo 3 32B: 718 public checkpoints, not 1'],
     ['s-route','Not a single model','--bad','Sakana Fugu, TypeSafe Jev, Cloudflare Clef','routes or decides; Jev answers in 70 to 500 ms']];
   const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');

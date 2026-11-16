@@ -3,7 +3,7 @@
   const RH=window.RH,R=RH.ROWS,$=id=>document.getElementById(id),esc=RH.esc;
   const LANES=['OpenAI','Anthropic','Google DeepMind','Meta','xAI/SpaceXAI','Microsoft (Phi)','Ai2 (OLMo)','Mistral','Cohere','DeepSeek','Alibaba (Qwen)','Moonshot (Kimi)','Zhipu (GLM)','MiniMax','Xiaomi (MiMo)','StepFun','Tencent (Hunyuan)','Others'];
   const lane=r=>LANES.indexOf(r.l)>=0?r.l:'Others';
-  const RANGES={all:[Date.UTC(2023,0,1),Date.UTC(2026,9,1),'q'],y26:[Date.UTC(2026,0,1),Date.UTC(2026,9,1),'m'],rec:[Date.UTC(2026,7,1),Date.UTC(2026,9,1),'w']};
+  const RANGES={all:[Date.UTC(2023,0,1),Date.UTC(2026,10,17),'q'],y26:[Date.UTC(2026,0,1),Date.UTC(2026,10,17),'m'],rec:[Date.UTC(2026,7,1),Date.UTC(2026,10,17),'w']};
   const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const st={rg:'all',firsts:false,sel:null};
   // each lab's first row matching the filters (rows are in date order); the Firsts section sets this up too
@@ -15,7 +15,7 @@
     const F=st.firsts?firstSet():new Set();
     let s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Release timeline by lab" style="max-width:none">';
     const ticks=[];if(bk==='q'){for(let y=2023;y<=2026;y++)for(let q=0;q<4;q++)ticks.push([Date.UTC(y,q*3,1),q?'':String(y),!q])}
-      else if(bk==='m'){for(let m=0;m<10;m++)ticks.push([Date.UTC(2026,m,1),MON[m],true])}
+      else if(bk==='m'){for(let m=0;m<11;m++)ticks.push([Date.UTC(2026,m,1),MON[m],true])}
       else{for(let t=t0;t<t1;t+=7*864e5)ticks.push([t,new Date(t).getUTCDate()+' '+MON[new Date(t).getUTCMonth()],new Date(t).getUTCDate()<=7])}
     ticks.forEach(([t,lab,major])=>{if(t>t1)return;const x=sx(t);
       s+='<line x1="'+x+'" x2="'+x+'" y1="'+(top-6)+'" y2="'+(top+LANES.length*lh)+'" stroke="var(--line)"'+(major?'':' stroke-dasharray="2 3"')+'/>';

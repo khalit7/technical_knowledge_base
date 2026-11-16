@@ -32,19 +32,20 @@
    ['2026-09-28','s','Claude Sonnet 5.5','Close to Opus 5.5 at half the price; between_tools replaces disabled thinking; thinking blocks bound to the account.','$2 / $10','{{Anthropic|@so55}}'],
    ['2026-09-30','a','Sonnet 4.5 deprecated','Retires 30 November 2026, 61 days later; replacement Sonnet 5.5.','','{{model deprecations|@depr}}'],
    ['2026-10-06','m','Cyber Verification Program tiers','Defense, Red Team and Specialized tiers, each with Opus 5.5, Sonnet 5.5 and Mythos 5.1; Project Glasswing folded into Specialized.','','{{Anthropic|@cvp}}'],
-   ['2026-10-07','h','Claude Haiku 5.5','1M context and adaptive thinking; two price tiers split at 100K input tokens, 90% below Haiku 4.5 under it and 50% above. Same post: Sonnet 5.5 cache reads halved to $0.10.','$0.10 / $0.50','{{Anthropic|@nh55}}']
+   ['2026-10-07','h','Claude Haiku 5.5','1M context and adaptive thinking; two price tiers split at 100K input tokens, 90% below Haiku 4.5 under it and 50% above. Same post: Sonnet 5.5 cache reads halved to $0.10.','$0.10 / $0.50','{{Anthropic|@nh55}}'],
+   ['2026-11-09','m','Fable 5.2 and Mythos 5.2','Still one model under two safeguard levels; the top rung cut 20% to $8 / $40, cache reads $0.20; Mythos reached through the Cyber and Life Sciences Verification programmes.','$8 / $40','{{Anthropic|@fab52}}']
   ].map(([d,k,n,t,pr,src],i)=>({d:new Date(d+'T00:00:00Z'),k,n,t,pr,src,id:'ln'+i}));
   let range='all',filt='all';const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dlab=e=>e.d.getUTCDate()+' '+mon[e.d.getUTCMonth()]+' '+e.d.getUTCFullYear();
-  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4').replace(' and Mythos 5.1','').replace('Cyber Verification Program tiers','CVP tiers').replace(' and Mythos 5','');
+  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4').replace(' and Mythos 5.1','').replace(' and Mythos 5.2','').replace('Cyber Verification Program tiers','CVP tiers').replace(' and Mythos 5','');
   function draw(){
     const narrow=$('lnSvg').clientWidth<560,W=narrow?580:880,pl=narrow?86:84,pr=14;
-    const t0=range==='all'?Date.UTC(2023,1,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,9,20),T26=Date.UTC(2026,0,1),split=range==='all'?0.45:0;
+    const t0=range==='all'?Date.UTC(2023,1,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,10,20),T26=Date.UTC(2026,0,1),split=range==='all'?0.45:0;
     const x=t=>{const w=W-pl-pr;if(range!=='all')return pl+w*(t-t0)/(t1-t0);return t<T26?pl+w*split*(t-t0)/(T26-t0):pl+w*(split+(1-split)*(t-T26)/(t1-T26))};
     const ev=E.filter(e=>+e.d>=t0&&(filt==='all'||(filt==='api')===(e.k==='a')));
     const lanes=['m','o','s','h','g','a'].filter(k=>range==='all'||k!=='g');const LH=46,top=18,H=top+lanes.length*LH+22;let s='';
     const tick=(xx,l)=>'<line x1="'+xx+'" x2="'+xx+'" y1="'+top+'" y2="'+(H-18)+'" stroke="var(--line)" stroke-dasharray="3 3"/><text x="'+(xx+3)+'" y="'+(H-5)+'" font-size="10.5" fill="var(--mute)">'+l+'</text>';
-    if(range==='all')[2024,2025,2026].forEach(y=>s+=tick(x(Date.UTC(y,0,1)),String(y)));else for(let m=1;m<=9;m++)s+=tick(x(Date.UTC(2026,m,1)),mon[m]);
+    if(range==='all')[2024,2025,2026].forEach(y=>s+=tick(x(Date.UTC(y,0,1)),String(y)));else for(let m=1;m<=10;m++)s+=tick(x(Date.UTC(2026,m,1)),mon[m]);
     lanes.forEach((k,li)=>{const y=top+li*LH+LH/2;s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(y+4)+'" font-size="11" text-anchor="end" fill="'+LC[k]+'" font-weight="600">'+L[k]+'</text>'});
     // labels: alternate above and below the lane line, pushed apart
     const placed={};

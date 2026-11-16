@@ -11,7 +11,7 @@
   sel.addEventListener('change',bars);bars();
 
   // the time-lapse: rows with a published size that match the filters
-  const card=$('spCard'),T0=Date.UTC(2023,0,1),T1=Date.UTC(2026,9,1),NQ=15,SC=1500;
+  const card=$('spCard'),T0=Date.UTC(2023,0,1),T1=Date.UTC(2026,10,17),NQ=16,SC=1500;
   const qEnd=q=>Date.UTC(2023+Math.floor((q+1)/4),((q+1)%4)*3,1);   // first ms after quarter q
   const qOf=t=>Math.min(NQ-1,Math.max(0,(new Date(t).getUTCFullYear()-2023)*4+Math.floor(new Date(t).getUTCMonth()/3)));
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -69,7 +69,7 @@
     let pm=0;R.filter(r=>r.o&&r.ts<qEnd(q-1)).forEach(r=>{if(r.t>pm)pm=r.t});
     const newRec=inQs.filter(r=>r.t>pm).sort((a,b)=>b.t-a.t)[0];
     const lo=qEnd(q-4),hi=Math.min(qEnd(q),tc+1),ta=R.filter(r=>r.o&&r.ts>=lo&&r.ts<hi).map(act),tm=med(ta),moes=op.filter(r=>r.moe);
-    $('spStep').textContent=RH.qName(q)+(st.v<SC?'':' (end of the table, 19 October 2026)')+(RH.active()?', filtered: '+RH.fText().replace(/&quot;/g,'"'):'');
+    $('spStep').textContent=RH.qName(q)+(st.v<SC?'':' (end of the table, 16 November 2026)')+(RH.active()?', filtered: '+RH.fText().replace(/&quot;/g,'"'):'');
     $('spCap').innerHTML=inQ.length+' release'+(inQ.length===1?'':'s')+' '+(RH.active()?'matching':'in the table')+' this quarter'+(st.v<SC&&qEnd(q)>tc?' so far':'')+', '+inQs.length+' open with a published size'+
       (inQs.length?': '+inQs.slice(0,6).map(r=>esc(r.m)+' ('+esc(r.sz)+')').join(', ')+(inQs.length>6?' and '+(inQs.length-6)+' more':''):'')+'. '+
       (newRec?'<b>New open record: '+esc(newRec.m)+' at '+RH.fB(newRec.t)+'</b>'+(newRec.moe?', computing each token with '+RH.fB(newRec.a):', dense')+'.':(rec?'Largest open total stays '+esc(rec.m)+' ('+RH.fB(rec.t)+').':''));

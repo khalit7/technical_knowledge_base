@@ -1,19 +1,22 @@
 // ---- Cost per task: C = (Tc*pc + Ti*pi + To*po) / 1e6 ----
 (function(){
   const $=id=>document.getElementById(id);
-  // [name, cached $/M, input $/M, output $/M, open?] from Artificial Analysis and the labs' price pages, read 1 and 19 Oct 2026 (each lab's own API price; null cached: no cache price published)
+  // [name, cached $/M, input $/M, output $/M, open?] from Artificial Analysis and the labs' price pages, read 1 and 19 Oct 2026, the Claude Fable 5.2, Kimi K3.1 Pro and Gemini 4 rows 16 Nov 2026 (each lab's own API price; null cached: no cache price published)
   const P=[
-    ['Claude Fable 5.1',0.25,10,50,0],
+    ['Claude Fable 5.2',0.20,8,40,0],
     ['GPT-6 Astra',1,10,50,0],
     ['Claude Opus 5.5',0.20,4,20,0],
     ['Kimi K3',0.30,3,15,1],
+    ['Kimi K3.1 Pro',0.20,2,10,1],
     ['Muse Wonder',0.20,4,20,0],
     ['Claude Sonnet 5.5',0.10,2,10,0],
     ['GPT-6.1 Sol',0.10,2,10,0],
     ['Gemini 4 Argon',0.10,2,10,0],
+    ['Gemini 4 Carbon',0.10,2,10,0],
+    ['Gemini 4 Hydrogen',0.075,1.5,7.5,0],
     ['Grok 4.7',0.50,2,6,0],
     ['GLM-5.3',0.26,1.4,4.4,1],
-    ['Mistral Large 4 (preview)',null,1.36,4.18,0],
+    ['Mistral Large 4 (preview)',null,1.36,4.18,1],
     ['Muse Spark 1.3',0.15,1.25,4.25,0],
     ['Gemini 3.8 Flash',0.075,0.75,3.75,0],
     ['Step 5 Preview',0.05,1.00,2.70,1],

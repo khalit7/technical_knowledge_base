@@ -1,8 +1,8 @@
 // ---- Thinking-level matrix (Reading) ----
 (function(){
-  const L=['minimal','low','medium','high'];
+  const L=['minimal','low','medium','high','xhigh'];
   const M=[
-    ['3.8 Flash','low medium high','medium'],['3.7 Flash','low medium high','medium'],['3.6 Flash','minimal low medium high','medium'],
+    ['4 Hydrogen','low medium high xhigh','high'],['3.8 Flash','low medium high','medium'],['3.7 Flash','low medium high','medium'],['3.6 Flash','minimal low medium high','medium'],
     ['3.5 Flash','minimal low medium high','medium'],['3.5 Flash-Lite','minimal low medium high','minimal'],['3.1 Pro (preview)','low medium high','high'],
     ['3 Flash Preview','minimal low medium high','high'],['2.5 Pro','low medium high','on'],['2.5 Flash','low medium high','on'],['2.5 Flash-Lite','low medium high','off']
   ].map(([n,h,d])=>({n,has:h.split(' '),d}));

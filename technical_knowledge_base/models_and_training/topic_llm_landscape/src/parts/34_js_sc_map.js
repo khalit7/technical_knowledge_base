@@ -12,7 +12,7 @@
   const LABS=[
     ['Anthropic: Claude','Claude Opus 5.5','P',0,0],['Meta: Llama and MSL','Muse Wonder','P',0,0],['Alibaba: Qwen','Qwen3.8 Max (0902)','R',0,0],
     ['Google: Gemini','Gemini 4 Argon','P',0,1],['xAI: Grok','Grok 4.7','P',0,1],['OpenAI: GPT','GPT-6 Astra','P',0,2],
-    ['Moonshot: Kimi','Kimi K3','P',1,0],['Other: StepFun','Step 5 Preview','P',1,0],['MiniMax','MiniMax M3.1 Flash','P',1,0],['Mistral AI','Mistral Large 4 (preview)','P',1,0],
+    ['Moonshot: Kimi','Kimi K3.1 Pro','P',1,0],['Other: StepFun','Step 5 Preview','P',1,0],['MiniMax','MiniMax M3.1 Flash','P',1,0],['Mistral AI','Mistral Large 4 (preview)','P',1,0],
     ['Other: Xiaomi','MiMo-V2.6-Pro','P',2,0],['DeepSeek','DeepSeek V4.1-Flash-1017','P',2,0],['Zhipu: GLM','GLM-5.3','P',2,0],['Other: Tencent','Hy3','R',2,0],
     ['Other: Ai2 OLMo','OLMo 3.1 32B Think',null,3,0],['Other: IFM K2 Horizon','K2 Horizon 375B',null,3,0]];
   const price=(m,src)=>{if(src==='P'){const r=(window.PCP||[]).find(p=>p[0]===m);return r?r[3]:NaN}if(src==='R'){const r=(window.IQR||[]).find(p=>p.m===m);return r?r.po:NaN}return null};

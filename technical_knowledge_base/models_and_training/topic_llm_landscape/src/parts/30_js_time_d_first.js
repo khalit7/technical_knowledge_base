@@ -13,7 +13,7 @@
   $('fsF').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.k;on.has(k)?on.delete(k):on.add(k);b.classList.toggle('on',on.has(k));b.setAttribute('aria-pressed',on.has(k));plot()}));
   $('fsGo').innerHTML=F.map(x=>'<button class="rh-go" data-k="'+x.k+'">'+x.n+'</button>').join(' ');
   $('fsGo').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const x=F.find(y=>y.k===b.dataset.k);RH.tlFirsts(Object.assign({q:'',lab:'',year:''},x.p))}));
-  const T0=Date.UTC(2023,0,1),T1=Date.UTC(2026,9,1),W=900,H=360,pl=40,pr=150,pt=14,pb=34,NL=RH.LABS.length;
+  const T0=Date.UTC(2023,0,1),T1=Date.UTC(2026,10,17),W=900,H=360,pl=40,pr=150,pt=14,pb=34,NL=RH.LABS.length;
   const X=t=>pl+(W-pl-pr)*(t-T0)/(T1-T0),Y=v=>pt+(H-pt-pb)*(1-v/NL);
   function endLabels(ends,x){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+14);last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
   function plot(){let s='';
@@ -25,7 +25,7 @@
     F.filter(x=>on.has(x.k)).forEach(x=>{const rs=Object.values(FIRST[x.k]).sort((a,b)=>a.ts-b.ts);let p='M'+X(T0)+','+Y(0),dots='';
       rs.forEach((r,j)=>{p+=' H'+X(r.ts)+' V'+Y(j+1);dots+='<circle data-i="'+r.i+'" cx="'+X(r.ts)+'" cy="'+Y(j+1)+'" r="3.6" fill="'+x.c+'" style="cursor:pointer"><title>'+x.n+': '+esc(r.l)+' first, with '+esc(r.m)+' ('+r.d+'); '+(j+1)+' labs</title></circle>'});
       p+=' H'+X(T1);s+='<path d="'+p+'" fill="none" stroke="'+x.c+'" stroke-width="2"/>'+dots;
-      ends.push({y:Y(rs.length),c:x.c,n:x.n+' '+rs.length,how:x.n+': '+rs.length+' of '+NL+' labs by 19 October 2026'})});
+      ends.push({y:Y(rs.length),c:x.c,n:x.n+' '+rs.length,how:x.n+': '+rs.length+' of '+NL+' labs by 16 November 2026'})});
     s+=endLabels(ends,W-pr+6);
     $('fsPlot').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="min-width:600px" role="img" aria-label="Number of labs that had shipped each feature, by date">'+s+'</svg>';
     $('fsPlot').querySelectorAll('circle[data-i]').forEach(c=>c.addEventListener('click',()=>show(+c.dataset.i)))}

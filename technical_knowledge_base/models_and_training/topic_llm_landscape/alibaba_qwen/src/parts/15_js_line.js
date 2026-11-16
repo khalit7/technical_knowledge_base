@@ -7,10 +7,10 @@
     ['L-q2','Qwen2-72B','2024-05-28',1,'tq',72,0],['L-q2','Qwen2-7B','2024-06-04',1,'ap',7,1],['L-q25','Qwen2.5-72B','2024-09-19',1,'tq',72,0],['L-q25','Qwen2.5-32B','2024-09-19',1,'ap',32,1],['L-q25','QwQ-32B-Preview','2024-11-28',1,'ap',32.5,1],['L-q25','QwQ-32B','2025-03-05',1,'ap',32.5,1],
     ['L-q3','Qwen3-235B','2025-04-29',1,'ap',235,0],['L-2507','Qwen3-Coder-480B','2025-07-22',1,'ap',480,1],['L-2507','Qwen3-2507','2025-07-21',1,'ap',235,0],['L-next','Qwen3-Next','2025-09-09',1,'ap',80,1],['L-3max','Qwen3-Max','2025-09-24',0,'cl',1000,2],['L-3max','Qwen3-VL-235B','2025-09-23',1,'ap',235,0],
     ['L-35','Qwen3.5-397B','2026-02-16',1,'ap',397,0],['L-36','Qwen3.6-35B-A3B','2026-04-16',1,'ap',35,1],['L-36','Qwen3.6-Max preview','2026-04-20',0,'cl',null,2],['L-37','Qwen3.7-Max','2026-05-20',0,'cl',null,2],['L-37','Qwen3.7-Plus','2026-06-02',0,'cl',397,2],
-    ['L-38','Qwen3.8-Max','2026-08-03',0,'cl',2400,2],['L-38','Qwen3.8-2.4T-A95B','2026-08-12',1,'mx',2400,0],['L-27','Qwen3.8-27B','2026-08-14',1,'ap',27,1],['L-fn','Flash-Next','2026-08-26',1,'cm',125,1],['L-0902','Max-0902','2026-09-02',0,'cl',2400,2],['L-img','Qwen-Image-2.1','2026-09-14',1,'rs',null,1]];
+    ['L-38','Qwen3.8-Max','2026-08-03',0,'cl',2400,2],['L-38','Qwen3.8-2.4T-A95B','2026-08-12',1,'mx',2400,0],['L-27','Qwen3.8-27B','2026-08-14',1,'ap',27,1],['L-fn','Flash-Next','2026-08-26',1,'cm',125,1],['L-0902','Max-0902','2026-09-02',0,'cl',2400,2],['L-img','Qwen-Image-2.1','2026-09-14',1,'rs',null,1],['L-q4','Qwen4-Max','2026-11-16',0,'cl',null,2]];
   const yr=s=>{const d=new Date(s+'T00:00:00Z');const y=d.getUTCFullYear();return y+(d-Date.UTC(y,0,1))/(Date.UTC(y+1,0,1)-Date.UTC(y,0,1))};
   function draw(){
-    const W=Math.max(600,Math.min(880,$('tlSvg').clientWidth||800)),H=250,pl=86,pr=16,x0=2023.5,x1=2026.85,lx=v=>pl+(W-pl-pr)*(v-x0)/(x1-x0);
+    const W=Math.max(600,Math.min(880,$('tlSvg').clientWidth||800)),H=250,pl=86,pr=16,x0=2023.5,x1=2026.95,lx=v=>pl+(W-pl-pr)*(v-x0)/(x1-x0);
     const lanes=['Flagship, open','Mid and small, open','Closed, hosted'],ly=i=>40+i*68;
     let s='';lanes.forEach((n,i)=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(i)+'" y2="'+ly(i)+'" stroke="var(--line)"/><text x="4" y="'+(ly(i)+4)+'" font-size="11" fill="var(--mute)">'+n+'</text>'});
     for(let y=2024;y<=2026;y++){s+='<line x1="'+lx(y)+'" x2="'+lx(y)+'" y1="18" y2="'+(H-18)+'" stroke="var(--line)" stroke-dasharray="2 3"/><text x="'+lx(y)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+y+'</text>'}

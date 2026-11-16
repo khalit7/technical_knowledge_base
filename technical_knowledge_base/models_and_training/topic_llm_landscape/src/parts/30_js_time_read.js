@@ -3,7 +3,7 @@
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('hhM')||!window.RH||!window.RH.ROWS)return;
-  const RH=window.RH,esc=RH.esc,stat=RH.stat,ROWS=RH.byDate,NQ=15,card=$('hhCard');
+  const RH=window.RH,esc=RH.esc,stat=RH.stat,ROWS=RH.byDate,NQ=16,card=$('hhCard');
   const F=[{k:'moe',n:'MoE'},{k:'reasoning',n:'Reasoning'},{k:'hybrid-attention',n:'Hybrid attention'}];
   const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const FIRST={};F.forEach(x=>{FIRST[x.k]={};ROWS.forEach(r=>{if(r.k.includes(x.k)&&!FIRST[x.k][r.l])FIRST[x.k][r.l]=r})});
@@ -32,7 +32,7 @@
     $('hhQ').querySelectorAll('div').forEach(d=>{const k=+d.dataset.q;d.classList.toggle('on',k<=q);d.classList.toggle('cur',k===q)});
     const a=byQ[q],o=a.filter(r=>r.o).length,sofar=ROWS.filter(r=>r.q<=q),so=sofar.filter(r=>r.o).length;
     const labsQ=new Set(a.map(r=>r.l)).size;
-    $('hhStep').textContent=RH.qName(q)+(q===NQ-1?' (to 19 October 2026)':'');
+    $('hhStep').textContent=RH.qName(q)+(q===NQ-1?' (to 16 November 2026)':'');
     $('hhCap').innerHTML=(NOTE[q]?'<b>'+NOTE[q]+'</b> ':'')+(news.length?'New firsts: '+news.join('; ')+'. ':'No new firsts this quarter. ')+
       a.length+' release'+(a.length===1?'':'s')+' from '+labsQ+' lab'+(labsQ===1?'':'s')+', '+o+' with open weights.';
     $('hhCnt').innerHTML=stat('Labs with MoE',cnt[0],'of '+RH.LABS.length+' in the table')+stat('Labs with reasoning',cnt[1],'')+stat('Labs with hybrid attention',cnt[2],'')+

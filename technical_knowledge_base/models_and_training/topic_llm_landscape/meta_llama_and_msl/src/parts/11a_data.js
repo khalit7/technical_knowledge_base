@@ -45,7 +45,8 @@ const LINE=[
 ['2026-09-08','c',0,'The Meta Muse agent','Personal agent in a per-user cloud VM with surrogate credentials and Sentinel egress control; US, iOS, Android, web and WhatsApp.','https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/','Meta'],
 ['2026-09-22','g',0,'Mac client flaw disclosed','Local malware could redirect the Mac client\'s dictation traffic and capture its authentication data.','https://cybersecuritynews.com/metas-muse-ai-agent-0-day-vulnerability/','Cybersecurity News'],
 ['2026-10-12','c',0,'Muse Wonder and Wonder Full','Meta\'s first frontier model: Wonder on the API at $4 / $20 (52 on Intelligence Index v4.3); Wonder Full, 56, only in Muse Code subscriptions. Closed weights.','https://research.meta.ai/blog/muse-wonder','Meta'],
-['2026-10-15','o',1,'Muse Spark Open','816B total, 42B active MoE, 1M context, Muse Model License; 39 on Intelligence Index v4.3; first large open Meta model since Llama 4.','https://huggingface.co/meta-models/Muse-Spark-Open-816B-A42B','model card']
+['2026-10-15','o',1,'Muse Spark Open','816B total, 42B active MoE, 1M context, Muse Model License; 39 on Intelligence Index v4.3; first large open Meta model since Llama 4.','https://huggingface.co/meta-models/Muse-Spark-Open-816B-A42B','model card'],
+['2026-11-09','c',0,'Muse Ember','The smallest Muse model, for high-volume agent work; 1M context, closed weights, size undisclosed; "first model trained using Muse Wonder Full".','https://research.meta.ai/blog/muse-ember','Meta']
 ];
 // Training tokens per parameter for each Llama generation (Fig. 2, the overtraining stage): [generation, year, tokens note, source, models]
 // each model [name, parameters N (active per token for an MoE model), training tokens D, total stored parameters for an MoE model].

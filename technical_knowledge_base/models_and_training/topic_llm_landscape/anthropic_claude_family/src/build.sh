@@ -11,6 +11,12 @@ cd "$(dirname "$0")"
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 fab51=>"https://www.anthropic.com/claude-fable-and-mythos-5-1",
+fab52=>"https://www.anthropic.com/claude-fable-and-mythos-5-2",
+aaf52=>"https://artificialanalysis.ai/models/claude-fable-5-2",
+arclb=>"https://arcprize.org/leaderboard",
+valsidx=>"https://vals.ai/benchmarks/vals_index",
+s1a=>"https://www.sec.gov/Archives/edgar/data/2130357/000162828026068676/anthropicpbc-sx1ax1.htm",
+cnbcipo=>"https://www.cnbc.com/2026/11/10/anthropic-sets-price-range-of-70-to-78-in-upcoming-ipo.html",
 vb=>"https://venturebeat.com/technology/anthropics-claude-fable-5-1-and-mythos-5-1-arrive-with-a-75-cost-reduction-for-fable-cache-reads",
 op55=>"https://www.anthropic.com/claude-opus-5-5",
 so55=>"https://www.anthropic.com/claude-sonnet-5-5",
