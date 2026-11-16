@@ -3,7 +3,7 @@
 Notion: https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f
 Site: https://khalit7.github.io/technical_knowledge_base/whats_new/papers/
 
-Not an HTML page: in Notion it is a one-line description followed by the Papers database, one row per paper. Each row's page body becomes an interactive HTML page (method: `.claude/skills/explainer-page/page-kinds/paper.md`); the database properties stay in Notion. One folder per row:
+Not an HTML page: in Notion it is a one-line description followed by the Papers database, one row per paper. Each row's page body becomes an interactive HTML page (method: `.claude/skills/explainer-page/page-kinds/paper.md`); the database properties stay in Notion. On the site, `html_utils/whats_new.py` (called by the site build) writes this page's index of every paper; nothing for it is kept in this folder. One folder per row:
 
 - `attention_is_all_you_need_transformer/`: Attention Is All You Need (Transformer)
 - `bert/`: BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding

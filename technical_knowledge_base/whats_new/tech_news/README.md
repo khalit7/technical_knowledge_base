@@ -3,7 +3,7 @@
 Notion: https://app.notion.com/p/3c65c17b0d0d817297b0f28491701516
 Site: https://khalit7.github.io/technical_knowledge_base/whats_new/tech_news/
 
-Not an HTML page: in Notion it is a one-line description followed by one child page per issue. New issues are written by the `update-kb` skill (`.claude/skills/update-kb/`), named by the last day of the window they cover.
+Not an HTML page: in Notion it is a one-line description followed by one child page per issue. New issues are written by the `update-kb` skill (`.claude/skills/update-kb/`), named by the last day of the window they cover. On the site, `html_utils/whats_new.py` (called by the site build) writes this page's index of every issue; nothing for it is kept in this folder.
 
 Child pages in this repository (one folder each):
 

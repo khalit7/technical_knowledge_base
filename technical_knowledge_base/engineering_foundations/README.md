@@ -7,3 +7,4 @@ A heading on the Notion root page. Each folder is one page under it.
 - `topic_databases/`: Topic: databases
 - `topic_protocols/`: Topic: protocols (moved here from Agents and retrieval, 2026-10-24)
 - `topic_math/`: Topic: math
+- `topic_operating_systems/`: Topic: operating-systems

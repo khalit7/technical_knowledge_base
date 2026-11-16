@@ -7,7 +7,7 @@ Renamed from "Topic: llms" on 2026-10-18 (folder `topic_llms/` became `topic_llm
 
 `index.html` is the whole page (read it on the site). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
 
-The page also carries a narrated video (not in this repository; its HyperFrames project is in `video/`) and the child pages below, one folder each.
+The page has child pages, below, one folder each. Its old narrated video was removed from Notion on 2026-10-19; the HyperFrames project is still in `video/`.
 
 - `alibaba_qwen/`: Alibaba: Qwen
 - `anthropic_claude_family/`: Anthropic: Claude family
