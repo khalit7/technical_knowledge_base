@@ -21,13 +21,13 @@ const file = 'file://' + path.resolve(here, '../index.html'), shots = args.find(
 fs.mkdirSync(shots, { recursive: true });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const problems = [];
-// privacy: the root's own files only (its child pages are separate pages with their own checks)
+// privacy (a generic account name such as root or user, as in a cloud sandbox, is skipped; the login name must match as a whole word): the root's own files only (its child pages are separate pages with their own checks)
 {
   const user = os.userInfo().username, host = os.hostname(), files = [path.resolve(here, '../index.html'), path.resolve(here, '../README.md')];
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).forEach(e => { const f = path.join(d, e.name); if (e.isDirectory()) { if (!/^(__pycache__|node_modules|out)$/.test(e.name)) walk(f) } else if (/\.(html|js|mjs|md|py|sh|json)$/.test(e.name)) files.push(f) });
   walk(here);
   for (const f of files) { const s = fs.readFileSync(f, 'utf8'), rel = path.relative(path.resolve(here, '..'), f);
-    if (user && s.includes(user)) problems.push(`privacy: login name in ${rel}`);
+    if (user && !/^(root|user|runner|ubuntu|reader|node)$/.test(user) && new RegExp('(^|[^A-Za-z0-9_])' + user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Za-z0-9_]|$)').test(s)) problems.push(`privacy: login name in ${rel}`);
     if (host && host.length > 2 && new RegExp('\\b' + host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(s)) problems.push(`privacy: hostname in ${rel}`);
     const ip = s.match(/.{0,20}(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.]).{0,20}/);
     if (ip && !/arxiv|v\d|version|§/i.test(ip[0])) problems.push(`privacy? dotted quad in ${rel}: ${ip[0]}`);
