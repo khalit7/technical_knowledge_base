@@ -43,7 +43,7 @@ def window(t, anchor):
 def clean(t):
     if not t:
         return ""
-    t = t.replace("—", "--")
+    t = t.replace("\u2014", "--")
     import re
     t = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "email@example.com", t)
     return t[:CUT] + ("\n[... cut at 2,400 characters]" if len(t) > CUT else "")

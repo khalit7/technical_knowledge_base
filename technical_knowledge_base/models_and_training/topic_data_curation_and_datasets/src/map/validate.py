@@ -28,7 +28,7 @@ if "toy_check" in D:
 for f in glob.glob(os.path.join(ROOT, "src", "parts", "36_*")) + glob.glob(os.path.join(HERE, "**", "*"), recursive=True):
     if os.path.isdir(f) or f.endswith(".png") or os.path.abspath(f) == os.path.abspath(__file__): continue
     t = open(f, encoding="utf-8", errors="replace").read()
-    if "—" in t: fails.append("em dash in " + f)
+    if "\u2014" in t: fails.append("em dash in " + f)
     for bad in ("/Users/", "Users-", "glpat", "sk-ant", "/private/tmp"):
         if bad in t: fails.append(f"'{bad}' in {f}")
 for x in fails: print("FAIL", x)

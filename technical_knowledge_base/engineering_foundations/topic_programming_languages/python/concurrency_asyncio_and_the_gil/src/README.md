@@ -7,7 +7,7 @@ Child page 2 of Python: the essentials (page prefix `cg`, storage key `cg-tab`),
 Generated parts, never edited by hand:
 - `pa/gen.py` expands `pa/tpl/` into `parts/20_read_b.html` (section 1), `parts/20_read_c.html` (section 2) and `parts/22_js_cg_0pa.js` (`window.PA`: the GIL timings, the a2 trace, the fan-out timings), inlining the real code and recorded outputs (`[[run:]]`, `[[code:]]`, `[[out:]]`, `[[predict:]]`, and `[[drill:TITLE]]`, added here for the recorded drills).
 - `pb/build_data.py` writes `parts/22_js_cg_0pb.js` (`window.PB`: free-threading, subinterpreters, the C-extension, sys.path, NumPy and orjson transcripts, the wheel survey) from `pb/out/`.
-Hand-written parts: `01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js` (skill templates; storage key `cg-tab`), `10_header.html`, `20_read_a.html` (styles, nav, the idea in one screen), `20_read_d.html` (free-threading), `20_read_e.html` (subinterpreters), `20_read_f.html` (choosing), `20_read_z.html`, `23_js_cg_util.js` (transcripts, prediction prompts, bars), `24_js_cg_hero.js`, `25_js_cg_s12.js`, `26_js_cg_loop.js` (the event-loop stepper), `27_js_cg_ft.js` (sections 3 and 4), `39_tab_more.html`.
+Hand-written parts: `01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js` (skill templates; storage key `cg-tab`), `10_header.html`, `20_read_a.html` (styles, nav, the idea in one screen), `20_read_d.html` (free-threading), `20_read_e.html` (subinterpreters), `20_read_f.html` (choosing), `20_read_z.html`, `23_js_cg_util.js` (transcripts, prediction prompts, bars), `25_js_cg_s12.js`, `27_js_cg_ft.js` (sections 3 and 4), `39_tab_more.html`; since 2026-11-07 also `02_split.html`, `25_js_s3.js` (templates) and the stages `30_js_sc_hero.js` and `31_js_sc_loop.js`, which replaced `24_js_cg_hero.js` and the event-loop stepper `26_js_cg_loop.js` (both deleted then; see below).
 Order after a rerun: `sh pa/run_all.sh`, `sh pb/run_all.sh` (it ends with the build and `check_embed.py`), `python3 pa/check_numbers.py`, `python3 pa/gen.py`, `sh build.sh`, `node check_controls.mjs`.
 
 ## Provenance (copied with `cp -R` from the language page's `src/`, which was left unchanged)
@@ -19,7 +19,7 @@ Order after a rerun: `sh pa/run_all.sh`, `sh pb/run_all.sh` (it ends with the bu
 | `pb/ft`, `pb/interp`, `pb/pack`, `pb/out`, `pb/env.sh` | `src/pb/` | free-threading, subinterpreter and wheel-survey runs; the JIT, lazy-import, types, uv, ruff, pytest and versions material went to the siblings |
 | `pb/build_data.py`, `pb/run_all.sh`, `pb/check_embed.py` | `src/pb/` | trimmed; `run_all.sh` walks up to `topic_programming_languages` for the root's shared data generator (`src/rosetta/data/gen_chat.py`, read-only) |
 | `parts/20_read_d.html`, `20_read_e.html`, `27_js_cg_ft.js` | `40_tab_pb_read_g.html` (sections 9 and 11), `42_js_pb_read_d.js`, `42_tab_pb_lab.html` and `44_js_pb_lab.js` (Runtime lab parts 1, 2, 4 and 5) | |
-| `parts/26_js_cg_loop.js`, `23_js_cg_util.js` | `36_js_pa_loop.js`, `41_js_pb_util.js` | |
+| `parts/26_js_cg_loop.js`, `23_js_cg_util.js` | `36_js_pa_loop.js`, `41_js_pb_util.js` | `26_js_cg_loop.js` replaced by `31_js_sc_loop.js` on 2026-11-07 |
 `pa/coverage.json` and `pb/coverage.json` are the old-Notion-page checks, trimmed to the claims about threads, the GIL, processes, free-threading and asyncio. `a2_trace.py`'s docstring now names the stepper on this page instead of the old Event loop tab (the output is unchanged).
 
 ## Departures from the topic-child shape, and why

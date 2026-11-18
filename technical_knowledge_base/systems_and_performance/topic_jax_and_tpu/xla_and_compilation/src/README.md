@@ -32,7 +32,7 @@ node ../check_stages.mjs                # the 2026-11 rollout checks: stages and
 
 ## Sources
 - JAX at tag `jax-v0.11.2` (32544801e261) and its docs folder; XLA at 91888df6 (pinned by that tag): `cpu_compiler.cc`, `gpu_compiler.cc` and 48 further files fetched one by one (list with sha256 in the shared SETUP.md; pass headers in `inputs/xla_headers_fetched.txt`); MaxText at 1a95d1e5.
-- `inputs/`: StableHLO `compatibility.md` (main, 2026-10-15), XLA `docs/tiled_layout.md`, `docs/shapes.md`, `docs/architecture.md` at 91888df6.
+- `inputs/`: StableHLO `compatibility.md` (main, 2026-10-15) as `stablehlo_compatibility.md`; XLA `docs/tiled_layout.md`, `docs/shapes.md`, `docs/architecture.md` at 91888df6 as `xla_tiled_layout.md`, `xla_shapes.md`, `xla_architecture.md`; `xla_headers_fetched.txt`.
 
 ## Labels
 measured here (CPU, deterministic unless a time), read in source, Google docs, derived, not run here. Times: Apple M1 Pro CPU, shared machine (1-minute load 35 to 60), 4 threads, `nice -n 15`.

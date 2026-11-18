@@ -10,7 +10,7 @@ os.makedirs(os.path.join(OUT, "data"), exist_ok=True)
 os.makedirs(os.path.join(OUT, "code"), exist_ok=True)
 SCRATCH = os.path.dirname(os.path.dirname(HERE))  # .../scratchpad
 HOME = os.path.expanduser("~")
-EMDASH = "—"
+EMDASH = "\u2014"
 emdash_count = [0]
 
 

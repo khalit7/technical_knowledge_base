@@ -21,6 +21,8 @@ What the text needs to be understood: how one address becomes a physical one; wh
 What the methodology lacked: guidance for measured-replay visuals (a time series recorded once and replayed with the step controller); used RD.anim with one step per sample.
 
 ## Added in the 2026-10-24 rebuild (teaching contract)
+Status as of 2026-10-24: the hero, walk and copy-on-write steppers (`28_js_rd_hero.js`, `28_js_rd_walk.js`, `28_js_rd_cow.js`) were replaced by 3D stages and deleted on 2026-11-07 (next section; in git history).
+
 | Idea | Kind | Placement | Status |
 |---|---|---|---|
 | Hero: one process, virtual ranges through the TLB and page tables onto page cache, anonymous frames and the zero page, swap and files below, the cgroup charge around RAM | static annotated diagram | top | built (`28_js_rd_hero.js`) |

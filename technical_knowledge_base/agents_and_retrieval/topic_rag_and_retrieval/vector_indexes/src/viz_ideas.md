@@ -20,7 +20,7 @@ Central question: "how does each index avoid comparing the query with every vect
 | V13 | Tombstone cost vs rebuilt graph | 8 | `e_updates.py` | Reading 10 |
 | V14 | Memory calculator from formulas, with formula-vs-file checks | 9 | code reading + serialized sizes | Reading 11 |
 | V15 | Work per query against N at fixed recall (exact, IVF, HNSW) on Quora prefixes | 10 | `e_scale.py` | Reading 12 |
-| V16 | **Hero (2026-10-24)**: four ways to read less on one query, side by side (exact, IVF cells, a graph walk, codes plus a rescored shortlist), true neighbours found and missed ringed, the measured SciFact work and recall under each panel; points illustrative and seeded | 11 | `23_vix_hero.js`, results.json | Reading top |
+| V16 | **Hero (2026-10-24)**: four ways to read less on one query, side by side (exact, IVF cells, a graph walk, codes plus a rescored shortlist), true neighbours found and missed ringed, the measured SciFact work and recall under each panel; points illustrative and seeded | 11 | `23_vix_hero.js` (replaced by the 3D stage `28a_sc_hero.js` in the 2026-11-06 pass and removed), results.json | Reading top |
 | V17 | **DiskANN node layout on SSD (2026-10-24)**: sectors drawn to scale, SIFT (768-byte nodes, five per sector) against Qwen3-Embedding (4,224 bytes, two sectors per hop), arithmetic in the caption | 9 | section 7's own arithmetic | Reading 7 |
 
 ## Rejected

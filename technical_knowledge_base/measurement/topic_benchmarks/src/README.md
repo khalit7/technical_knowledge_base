@@ -8,7 +8,7 @@ Part ownership (parallel build): `20_read*`, `2x_js_*`, `39_tab_more*` Reading a
 
 ## 2026-11-09: split layout, one 3D stage (renderer v2), explained and autoplaying animations (layout rollout)
 
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all seven children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `bench-tab`, unchanged). `build.sh` writes the em-dash check as bytes. Replaced parts are kept in `read/retired/parts_2026-11-09/`.
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all seven children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `bench-tab`, unchanged). `build.sh` writes the em-dash check as bytes. Replaced parts were kept in `read/retired/parts_2026-11-09/`; retired parts were deleted on 2026-11-18 (in git history).
 
 **Reading tab.**
 - *The idea*: a split; the text left, the static hero `#rd-hero` (every family's chain of replacements) right. Terms full width below; the pass@k entry links Agentic Fig. 3.

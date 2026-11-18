@@ -1,6 +1,6 @@
 # Reading and Further reading (Topic: data-curation-and-datasets)
 
-**2026-10-24:** the Reading tab was rebuilt as a map at the topic close; parts are now `20_read.html` (top and hero) and `20_read_a` to `20_read_e`, the description below is of the first build, whose parts are in `../retired/parts/`. See `../README.md`.
+**2026-10-24:** the Reading tab was rebuilt as a map at the topic close; parts are now `20_read.html` (top and hero) and `20_read_a` to `20_read_e`, the description below is of the first build, whose parts were retired (retired parts were deleted on 2026-11-18, in git history). See `../README.md`.
 
 Owned by the Reading agent (prefix `rd`). Parts: `../parts/20_read.html` (style, nav, section 0), `20_read_a` (1 why data, 2 sources), `20_read_b` (3 pipeline), `20_read_c` (4 dedup), `20_read_d` (5 quality), `20_read_e` (6 decontamination), `20_read_f` (7 mixing and staging), `20_read_g` (8 synthetic, 9 post-training data), `20_read_h` (10 storage and tools), `20_read_i` (11 choosing, mistakes, interview, child pages), `39_tab_more.html`. JS: `22_js_rd_data.js` (published figures), `23_js_rd_s012.js` (drills, bars helper, corpus chart), `24_js_rd_pipe.js` (page-through-pipeline animation, FineWeb funnel), `25_js_rd_dedup.js` (S-curve, global dedup bars), `26_js_rd_s56.js` (FineWeb-Edu vs DCLM, n-gram decontamination demo), `27_js_rd_s789.js` (OLMo 2 mid-training, model-collapse simulation), `28_js_rd_calc.js` (interview calculator).
 

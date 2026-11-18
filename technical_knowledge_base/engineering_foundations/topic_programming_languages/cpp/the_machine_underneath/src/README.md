@@ -5,7 +5,7 @@ A topic child, split on 2026-10-26 from Part 2 ("The machine underneath") of the
 ## Source
 - `build.sh`, `parts/01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js` (storage key `cbm-tab`) from the explainer-page templates.
 - `cb/`: the measurement folder, copied with `cp -R` from the C++ page's `src/cb/` (programs, recorded outputs, `gen_data.py`, checks). See `cb/README.md`.
-- `parts/40_js_cb_0data.js` is written by `cb/gen_data.py` (identical to the C++ page's copy). `40_js_cb_1core.js`, `40_js_cb_2read.js`, `41_js_cb_ladder.js`, `42_js_cb_cache.js`, `43_js_cb_simd.js` copied from the C++ page and retargeted from the lab tabs to the Reading; `44_js_cb_hero.js` is new. The prose parts `20_read_*.html` were rewritten from `40_tab_cb_read_*.html` and the four lab tabs.
+- `parts/40_js_cb_0data.js` is written by `cb/gen_data.py` (identical to the C++ page's copy). `40_js_cb_1core.js`, `40_js_cb_2read.js`, `41_js_cb_ladder.js`, `42_js_cb_cache.js`, `43_js_cb_simd.js` copied from the C++ page and retargeted from the lab tabs to the Reading (`43_js_cb_simd.js` was replaced by the 3D stage `47_js_sc_simd.js` and deleted on 2026-11-07, see below); `44_js_cb_hero.js` is new. The prose parts `20_read_*.html` were rewritten from `40_tab_cb_read_*.html` and the four lab tabs.
 
 ## Shape and departures
 - Core idea, hero (one operation's time on a log scale), "You need" (C++ essentials, the ownership sibling), new terms, an "In one screen" table, then twelve sections, each with its measurement inline and depth (code listings, assembly, provenance, x86 and llama.cpp detail) in closed blocks.

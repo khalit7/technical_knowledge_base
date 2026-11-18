@@ -20,7 +20,7 @@ Root of the topic (storage key `pt-tab`). Built 2026-10-12 by a team of tab agen
 | Ecosystem map `t-map` | **Kept**: the dated atlas a root owns. Model formats wording repointed in `map/atlas_a.py`, `atlas_b.py` and the chooser. |
 | Further reading `t-more` | Child cards with current titles and each header's time; this page's tabs with measured times; neighbour times set to their headers, dropped where the header states none. |
 
-Retired part: `retired/parts/24_js_rd_s23.js` (the dispatcher walk, the two-layer autograd graph and the checkpoint bars of the old Reading, now owned by Tensors, the dispatcher and autograd).
+Retired part: `24_js_rd_s23.js` (the dispatcher walk, the two-layer autograd graph and the checkpoint bars of the old Reading, now owned by Tensors, the dispatcher and autograd); it went to `retired/parts/`, and retired parts were deleted on 2026-11-18 (in git history).
 
 ## What changed in the Reading tab
 - **Top**: the core idea in one sentence; a hero that is a static annotated map of one training step from the libraries and your loop down through eager or compiled execution, the dispatcher (highlighted), the autograd graph and the storage, with processes and measuring at the side, each box naming its owner; "You need"; eight new terms; and the comparison only the root can make: one step of the running example, the cost of each layer, the lever measured, and the owning page.

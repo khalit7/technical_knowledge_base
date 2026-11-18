@@ -180,7 +180,7 @@ def example():
         out = []
         for x in lines:
             s = x.strip()
-            out.append({"t": s.replace("—", "--"), "c4": rem.get(s), "c4p": rem2.get(s), "rw": rw_flag(x)})
+            out.append({"t": s.replace("\u2014", "--"), "c4": rem.get(s), "c4p": rem2.get(s), "rw": rw_flag(x)})
         E.save("ef_lines_example.json", {"host": host, "lines": out, "c4_doc": reason, "c4p_doc": reason2,
                                          "rw_share": r["rw_share"], "rw_drop": r["rw_drop"]})
         print("saved", host, len(out))

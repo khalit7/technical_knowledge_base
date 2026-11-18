@@ -1,5 +1,7 @@
 # Agent memory layers: source
 
+> The absorbed page's own README, kept as its run log (see `../README.md`, "Memory layers folded in"). Paths below are that page's: its `parts/`, `build.sh` and `index.html` went with its folder on 2026-10-24 (commit 084fb3fdb); this page's section 8 is built by `make_memory.py`.
+
 Child page of Topic: agentic-frameworks (new page, Notion 3f15c17b0d0d8170a200ce4476385ff5). `sh build.sh` runs `build_data.py` (recordings to `parts/22_js_fmem_data.js`) and writes `../index.html`.
 
 ## Tabs

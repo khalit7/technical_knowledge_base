@@ -1,6 +1,6 @@
 # Reading and Further reading tabs (`t-read`, `t-more`): sources and how to rebuild
 
-Owns `../parts/20_read.html` (styles, nav), `20_read_a.html` to `20_read_k.html` (sections 0 to 10, mistakes, interview questions), `22_js_rd_data.js` (generated), `23_js_rd_s01.js`, `24_js_rd_s23.js`, `25_js_rd_s568.js`, `26_js_rd_s7.js`, and `39_tab_more.html`. `21_js_rd_common.js` (RD.anim) is the scaffold's.
+Owns `../parts/20_read.html` (styles, nav), `20_read_a.html` to `20_read_k.html` (sections 0 to 10, mistakes, interview questions), `22_js_rd_data.js` (generated), `23_js_rd_s01.js`, `25_js_rd_s568.js`, `26_js_rd_s7.js`, and `39_tab_more.html`. `21_js_rd_common.js` (RD.anim) is the scaffold's. `24_js_rd_s23.js` was retired (see `../README.md`); retired parts were deleted on 2026-11-18 (in git history).
 
 | File | What it is |
 |---|---|

@@ -1,6 +1,6 @@
 # Kernel lab tab (t-lab): sources, scripts, outputs
 
-Owner files: `../parts/33_tab_lab.html` (HTML, CSS scoped under `#t-lab`), `../parts/33_js_lab_0data.js` (generated, `window.LABD`), `33_js_lab_1core.js` (helpers, `LABX.calc`, animation controller), `33_js_lab_2soft.js` (setup, softmax ladder, passes animation), `33_js_lab_3mm.js` (matmul ladder), `33_js_lab_4fuse.js` (fused softmax + matmul), `33_js_lab_5attn.js` (online softmax animation, attention chart), `33_js_lab_6rest.js` (H100 table, Triton side, method, interview questions). Ids and classes start with `lab-`.
+Owner files: `../parts/33_tab_lab.html` (HTML, CSS scoped under `#t-lab`), `../parts/33_js_lab_0data.js` (generated, `window.LABD`), `33_js_lab_1core.js` (helpers, `LABX.calc`, animation controller), `33_js_lab_2setup.js` (setup; the softmax ladder `33_js_lab_2soft.js` and the matmul ladder `33_js_lab_3mm.js` were retired to Writing kernels and deleted on 2026-11-18, in git history), `33_js_lab_4fuse.js` (fused softmax + matmul), `33_js_lab_5attn.js` (online softmax animation, attention chart), `33_js_lab_6rest.js` (H100 table, Triton side, method, interview questions). Ids and classes start with `lab-`.
 
 ## What is real
 - `code/k_softmax.py`, `code/k_matmul.py`, `code/k_fused.py`: the Metal kernel bodies, shown verbatim on the page and timed by `code/lab_m1.py` on the Apple M1 Pro GPU through `mx.fast.metal_kernel` (MLX 0.32.3). Every kernel is checked against a float64 NumPy reference at the measured size before timing. Three full runs: `out/run_{1,2,3}.json` and logs.

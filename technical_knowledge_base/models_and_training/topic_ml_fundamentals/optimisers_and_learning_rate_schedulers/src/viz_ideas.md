@@ -44,10 +44,10 @@ Checking an implementation against a reference on a chaotic surface: a fixed tol
 | Idea | Kind | Decision |
 |---|---|---|
 | Hero: gradient, smooth, reshape, schedule, apply, with state per box | static annotated diagram | built (`22_js_rd_hero.js`) |
-| Momentum on the ravine (SGD, momentum, Nesterov) | stepped race, one input | built (`47_js_mini.js`, m1) |
-| Axis-aligned against rotated ravine (five optimisers) | before/after on the same surface | built (m2) |
-| Noisy ravine under constant, cosine, WSD (Adam, Nesterov) | before/after | built (m3) |
-| Muon's Newton-Schulz on a real gradient's singular values | stepper | built (`46_js_ns.js`); this page owns Muon, the parent should link here |
+| Momentum on the ravine (SGD, momentum, Nesterov) | stepped race, one input | built (`47_js_mini.js`, m1); now the stage `61_js_sc_mom.js` (2026-11-06) |
+| Axis-aligned against rotated ravine (five optimisers) | before/after on the same surface | built (m2); now the stage `62_js_sc_ad.js` (2026-11-06) |
+| Noisy ravine under constant, cosine, WSD (Adam, Nesterov) | before/after | built (m3); now the stage `65_js_sc_nz.js` (2026-11-06) |
+| Muon's Newton-Schulz on a real gradient's singular values | stepper | built (`46_js_ns.js`); now the stage `64_js_sc_ns.js` (2026-11-06); this page owns Muon, the parent should link here |
 | L2 in Adam against AdamW: shrink per step against gradient noise | static derived chart | built (`48_js_wd.js`); the animation is Regularisation's (section 3), linked |
 | Critical batch: steps against data, one slider | parameter slider, defaults on McCandlish et al.'s "twice" | built (`49_js_batch.js`) |
 | Real photo | | rejected: no physical object on a mechanism page |

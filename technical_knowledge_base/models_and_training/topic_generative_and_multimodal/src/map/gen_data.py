@@ -69,7 +69,7 @@ for r in ROWS:
             if r.get('dk', '').startswith('paper v1') and r['d'] != p['published']:
                 errs.append('%s paper date %s != arXiv %s' % (r['id'], r['d'], p['published']))
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', r.get('d', '')): errs.append('%s bad date %r' % (r['id'], r.get('d')))
-    if re.search('—', json.dumps(r, ensure_ascii=False)): errs.append('%s em dash' % r['id'])
+    if re.search('\u2014', json.dumps(r, ensure_ascii=False)): errs.append('%s em dash' % r['id'])
 for j, (lab, lst) in JOBS.items():
     for i in lst or []:
         if i not in ids: errs.append('job %s unknown id %s' % (j, i))

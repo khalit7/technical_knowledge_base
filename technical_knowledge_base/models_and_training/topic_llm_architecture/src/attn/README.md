@@ -2,6 +2,8 @@
 
 The root's Attention lab: what each token must store and why that is the whole story of attention variants. Built 2026-10-18 by the attention-lab agent.
 
+**Removed from the page on 2026-10-23** (see `../README.md`): Attention variants and Long context carry every unit. The parts listed below were deleted the same day (commit bc10a299b; in git history); the scripts and `out/` stay here for provenance (Attention variants' `make_stage_data.py` reads `out/`). `make_page_data.py` would still write `parts/32_js_at_0data.js`, which no build reads.
+
 ## Parts
 | Part | What |
 |---|---|

@@ -28,7 +28,7 @@ Scoring as in `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; 
 - CMR (Gu et al. 2024, arXiv 2407.17467v2): Table 5 coefficients, R = α₄ T^s₄ + β₃, T in units of 0.2B tokens (T = 100 is the paper's 20B; 10,000 × 512 × 4,096 = 20.97B). Table 2 power-law fit L(R) = αR^s + β on four ratios predicts the 25% row within 0.01% (paper's own predictions within 0.05%). Extract `inputs/cmr2024_extract.txt`.
 - D-CPT (Que et al. 2024, arXiv 2406.01375): Table 5 rows; crossing interpolated linearly; extract `inputs/dcpt2024_extract.txt`.
 - Recipes: `inputs/recipes.json` (curated), `inputs/recipes_research.md` (verbatim quotes and anchors per recipe).
-- Toy: `toy/train.py`, `toy/runs/`; packed by `recompute.py` into `parts/20_js_data.js`; summary in `inputs/recompute.json`.
+- Toy: `toy/train.py`, `toy/runs/`; packed by `cpt/recompute_cpt.py` into `parts/26_js_cpt_data.js` (`window.CPT`); summary in `cpt/inputs/recompute.json`.
 
 ## Inspiration
 Ibrahim et al. Figures 4 and 5 (loss curves for both datasets during CPT) suggested plotting both loss families on one axis; the Pretraining page's anneal toy gave the toy format (character model, three seeds, CPU).

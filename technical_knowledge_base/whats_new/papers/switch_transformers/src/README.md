@@ -12,7 +12,7 @@
 | Then and now | `t-then` | Switch's eight recipe lines against GLaM, ST-MoE, MegaBlocks, Mixtral, DeepSeek-V3 and Qwen3, one step each with a step list, every cell sourced. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
-## Departures from `papers.md`, and why
+## Departures from `papers.md` (then `html_utils/methods/papers.md`, now the explainer-page skill's `page-kinds/paper.md`), and why
 
 - **The live ingredient is trained in the page, not shipped as weights.** The paper's mechanism is one layer (router, capacity, loss), and a toy Switch layer trains in about 5 seconds in plain JS, so the reader watches the training the paper is about (collapse without the loss, drops against capacity) instead of a frozen result. Everything is float64 and seeded, so the page reproduces the offline sweep exactly; the check is stronger than a forward-pass comparison: the loss, the capacity masks and every gradient match an independent PyTorch implementation (`check_grad.py`). No quantisation, so nothing to report there.
 - **No generic MoE rebuild.** Topic: llms has a "Deeper: inside an MoE" tab with the generic router, capacity animation, global-batch balancing and expert parallelism; this page links it and builds only the paper's specifics (top-1 against top-2 on one batch, the f · P loss, selective precision, Table 9's arithmetic, Figure 9).

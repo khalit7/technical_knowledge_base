@@ -1,5 +1,7 @@
 # Coverage: "Reasoning models and test-time compute" folded into Topic: llms
 
+**Historical record** of the 2026-10-01 fold: the parts named below are as they were then; many were later removed or renamed (see `../README.md`, and git history).
+
 Source: `reasoning_models_and_test_time_compute/src/` (parts, inputs, viz_ideas.md, recompute.py). Destinations:
 - **DEEP** = `parts/34_tab_ttc.html` (tab `t-ttc`) with `parts/34_js_ttc0_common.js` to `34_js_ttc4_lab.js`; section ids in brackets.
 - **DRAFT** = merged into the Reading section `s-think` in `src/parts/20_read.html`.

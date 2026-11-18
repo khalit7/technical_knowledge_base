@@ -11,7 +11,7 @@
 | The paper's tables and figures, rebuilt | `t-tables` | Tables 1 to 9 with every derived number recomputed, Figures 4 and 5 rebuilt, Table 7 against Figure 10's labels, the parameter recount, and all 90 checks. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
-**Departures from `papers.md`, and why.** No "Then and now" tab: a 2025 result paper whose method has not been superseded; adoption and prior art fit in "Why it matters". The tables tab also rebuilds figures, because this paper's evidence is mostly in figures (Figures 3, 4, 5) and its tables are the best points of those curves; the matched-token restatement needs the curves. The live ingredient is a training-recipe toy trained live (as the Switch Transformers and DPO pages do) rather than shipped weights: the whole experiment takes about 2.4 s per seed in the browser. The Reading tab was about 17 minutes against the old page's 8 before the 2026-10-25 light pass (see below).
+**Departures from `papers.md` (then `html_utils/methods/papers.md`, now the explainer-page skill's `page-kinds/paper.md`), and why.** No "Then and now" tab: a 2025 result paper whose method has not been superseded; adoption and prior art fit in "Why it matters". The tables tab also rebuilds figures, because this paper's evidence is mostly in figures (Figures 3, 4, 5) and its tables are the best points of those curves; the matched-token restatement needs the curves. The live ingredient is a training-recipe toy trained live (as the Switch Transformers and DPO pages do) rather than shipped weights: the whole experiment takes about 2.4 s per seed in the browser. The Reading tab was about 17 minutes against the old page's 8 before the 2026-10-25 light pass (see below).
 
 ## Files
 

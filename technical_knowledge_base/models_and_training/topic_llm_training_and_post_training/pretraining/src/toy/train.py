@@ -29,7 +29,7 @@ ALLOWED = "abcdefghijklmnopqrstuvwxyz0123456789 .,;:!?'\"-()\n+="
 def clean(t):
     s = t.find('*** START'); e = t.find('*** END')
     t = t[t.find('\n', s) + 1:e] if s >= 0 and e > s else t
-    t = t.lower().replace('\r', '').replace('’', "'").replace('‘', "'").replace('“', '"').replace('”', '"').replace('—', '-').replace('_', '')
+    t = t.lower().replace('\r', '').replace('’', "'").replace('‘', "'").replace('“', '"').replace('”', '"').replace('\u2014', '-').replace('_', '')
     t = re.sub(r'[0-9+=]', '', t)            # digits, + and = belong to the maths domain only
     t = ''.join(c for c in t if c in ALLOWED)
     t = re.sub(r'\n{3,}', '\n\n', t); t = re.sub(r' {2,}', ' ', t)

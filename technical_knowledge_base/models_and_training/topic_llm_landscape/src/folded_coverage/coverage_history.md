@@ -1,5 +1,7 @@
 # Coverage: "LLM release history" (child) into Topic: llms
 
+**Historical record** of the 2026-10-01 fold: the parts named below are as they were then; many were later removed or renamed (see `../README.md`, and git history).
+
 Child: `llm_release_history/` (index.html built from `src/parts/`). Parent destinations: tab `t-time` (`src/parts/30_tab_time.html`, sections `#rh-tl`, `#rh-fs`, `#rh-sz`, `#rh-cd`, `#rh-tb`, `#rh-ab`), the Reading section "How we got here" in `src/parts/20_read.html` (`#s-hist`), and the parent's Further reading tab (links listed at the end, for the orchestrator).
 
 ## Data: all 140 rows

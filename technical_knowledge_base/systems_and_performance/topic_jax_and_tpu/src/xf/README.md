@@ -2,7 +2,7 @@
 
 The functional core of JAX taught from zero on the running example (`../data/README.md`): tracing and jaxprs, static against dynamic values and structured control flow, jit's cache and what recompiles, purity and side effects, immutable arrays, PRNG keys, pytrees, grad against `loss.backward()`, vmap and per-example gradients, the transformations as interpreters in the pinned JAX source, a toy JAX, and the footguns with their real messages. Reading section 2 gives the overview; this tab goes deeper and does not repeat its print-in-jit example or its eager-against-jit animation.
 
-Page parts: `../parts/31_tab_xf_a.html` to `_e.html` (HTML and scoped CSS), `../parts/31_js_xf_0data.js` (generated data, about 65 KB), `31_js_xf_1core.js` (helpers, step animation, inline numbers), `_2trace.js`, `_3drill.js`, `_4basics.js`, `_5grad.js`, `_6inside.js`.
+Page parts: `../parts/31_tab_xf_a.html` to `_e.html` (HTML and scoped CSS), `../parts/31_js_xf_0data.js` (generated data, about 65 KB), `31_js_xf_1core.js` (helpers, step animation, inline numbers), `_2trace.js`, `_4basics.js`, `_5grad.js`, `_6inside.js` (`_3drill.js` was retired in the 2026-10-23 root rebuild, its drills now on JAX core; in git history).
 
 ## Scripts (each wrote `out/<name>.json`)
 

@@ -30,8 +30,8 @@ Why these tabs: the five suggested ones fitted the content as they were. "Run a 
 
 ## Parts
 
-HTML: `00_top`, `01_css` (the lab pages' CSS plus paper additions: hero card, margin labels, predict widget, chips), `02_header` (breadcrumb and tab bar), `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card` and `_gen_more`.
-JS: `10_js_common` (page copy of the shared helpers, tick text raised to 11 px), `_gen_data`, `11_js_ui` (reusable: `fit` for width-measured drawing, `makeAnim` step animation controller, predict-then-reveal, `placeLabels`, `legend`), `12_js_rnn`, `13_js_read`, `20_model_data` (generated weights), `21_js_lang`, `22_js_model` (forward pass, also run by node in the check), `23_js_run`, `24_js_tables`, `30_js_s3` to `37_js_sc_thx` (renderer and scenes), `90_js_tabs`.
+HTML: `00_top`, `01_css` (the lab pages' CSS plus paper additions: hero card, margin labels, predict widget, chips), `02_split` (template, since 2026-11-06), `02_header` (breadcrumb and tab bar), `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card` and `_gen_more`.
+JS: `10_js_common` (page copy of the shared helpers, tick text raised to 11 px), `_gen_data`, `11_js_ui` (reusable: `fit` for width-measured drawing, `makeAnim` step animation controller, predict-then-reveal, `placeLabels`, `legend`), `13_js_read`, `20_model_data` (generated weights), `21_js_lang`, `22_js_model` (forward pass, also run by node in the check), `23_js_run`, `24_js_tables`, `30_js_s3` to `37_js_sc_thx` (renderer and scenes), `90_js_tabs`.
 
 ## Reusing this skeleton for another paper
 

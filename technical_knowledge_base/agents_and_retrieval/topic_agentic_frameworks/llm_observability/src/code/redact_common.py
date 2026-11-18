@@ -29,7 +29,7 @@ def scrub(t):
         t = re.sub(re.escape(g), "user", t, flags=re.I)
     t = EMAIL.sub(lambda m: m.group(0) if m.group(0) in ALLOWED_EMAILS else "user@example.invalid", t)
     t = re.sub(re.escape(LOGIN), "user", t, flags=re.I)
-    return t.replace("—", ", ")
+    return t.replace("\u2014", ", ")
 
 
 def leaks(t):

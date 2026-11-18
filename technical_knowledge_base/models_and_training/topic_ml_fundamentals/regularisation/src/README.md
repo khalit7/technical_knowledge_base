@@ -61,7 +61,7 @@ Editing only, no new training runs (one new cheap check, `check_wd.py`).
 - **Every core idea has its visual inline**:
   - bias-variance: the held-out error against λ chart with the training-size slider moved from the Coefficient paths tab into section 1, with a predict prompt and the answer in numbers (49% at m = 20, 14.6% at 40, 3.2% at 100, under 1% from 200);
   - L1 against L2: the geometry animation (unchanged), then the formula table;
-  - weight decay: **absorbed** from the parent root's Reading thread 4 (Adam with L2 against AdamW on the same noise), because OWNERS.md gives this page "why AdamW decouples it" (`26_js_wd_sim.js`, `27_js_wd.js`; checked against torch);
+  - weight decay: **absorbed** from the parent root's Reading thread 4 (Adam with L2 against AdamW on the same noise), because OWNERS.md gives this page "why AdamW decouples it" (`26_js_wd_sim.js`, then `27_js_wd.js`, now the stage `34_js_sc_wd.js`; checked against torch);
   - dropout as an ensemble: the thinned-network stepper moved inline from the Dropout tab; the Monte Carlo against weight-scaling chart is a closed block, with its does-not-reproduce box visible;
   - train against inference, augmentation, what each buys, double descent: unchanged, each with a title saying what to notice.
 - **Tabs**: the Dropout as an ensemble tab was removed (its three visuals explain one mechanism each, so they moved beside the claims). Coefficient paths stays as a tab: an explorer across all ten coefficients, with Efron et al.'s reproduction now in static text (the script line recomputes it).

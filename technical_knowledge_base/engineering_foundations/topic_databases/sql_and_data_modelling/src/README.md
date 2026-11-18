@@ -9,7 +9,7 @@ Shape (rebuilt 2026-10-24 to the teaching contract, below): Reading (the idea in
 - `examples.py`: every Reading example (SQLite text, Postgres text where different). `ex/exercises.py`, `ex/check.py`: the lab.
 - `pg/`: PostgreSQL 16.2 measurements (pgserver wheel): `run_examples.py`, `measure_alter.py`, `measure_queue.py`, `measure_keys.py`, `measure_n1.py` (+ `delay_proxy.py`), `alembic_demo.py`; helpers in `pgc.py`. Outputs in `inputs/`.
 - `parts/22_js_vis.js`: small drawing helpers (`window.SV`: word wrap for SVG, mini schema diagrams). New figure parts 47 to 55 (below).
-- `check_noautoplay.mjs`: scrolls every animation into view, presses its mode buttons and confirms no step slider moves.
+- `check_stages.mjs` (from Query planning and performance): autoplay on view, one list item per step, reduced motion, the scenes' and lists' numbers (see the 2026-11-06 pass). It replaced `check_noautoplay.mjs`, deleted then.
 - `gen_js.py` builds the data part; `recompute.py` checks 54 claims independently and writes `recompute_out.json`; `check_page.mjs` clicks every control at 390 dark and 920 light, grades all 28 solutions in the page and compares the page's JavaScript with recompute; `shot_cards.mjs` screenshots each visual.
 
 ## Reproduce (from a scratch directory; never `uv run` inside the repo without --no-project)

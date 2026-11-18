@@ -35,6 +35,6 @@ vals = {i for v in C.VALUES.values() for i, _ in v["items"]}
 for c in C.CELLS.values(): assert c["value"] in vals, c["value"]
 assert len(C.CELLS) == len(C.AXES) * len(C.LANGS)
 js = "window.DS_DATA = " + json.dumps(data, ensure_ascii=False, separators=(",", ":")) + ";\n"
-assert "—" not in js, "em-dash"
+assert "\u2014" not in js, "em-dash"
 open(os.path.join(HERE, "..", "parts", "30_js_ds_data.js"), "w", encoding="utf-8").write(js)
 print("snippets", len(S), "cells", len(C.CELLS), "ffs", len(C.FFS), "bytes", len(js))

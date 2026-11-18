@@ -12,7 +12,7 @@
 | Then and now | `t-then` | The recipe's seven lines through eight later sources, each change quoted; the fate of each line. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
-## Departures from `papers.md`, and why
+## Departures from `papers.md` (then `html_utils/methods/papers.md`, now the explainer-page skill's `page-kinds/paper.md`), and why
 
 - **The live ingredient is a training pipeline, trained in the page.** The paper is a method on top of a model (the table's RLHF row suggests "a preference pair through the loss"); a pair through Eq. 1 is here (the RM widget), but the paper's claims are about what PPO does against a learned reward (over-optimisation, the KL penalty, the alignment tax, the ptx fix), so the toy runs all three steps. Following the Switch lesson, nothing is shipped as weights: the whole pipeline takes about 1 second and a PPO run about 2 seconds in V8, everything is float64 and seeded, and every preset reproduces the offline sweep to the 4 stored decimals (checked by `check_page.mjs`). Following the LoRA lesson, the toy has a known ground truth (the labelers' utility), which the paper never had, so proxy against truth can be shown.
 - **"The tables, rebuilt" is mostly figures, decoded.** The paper's results are figures, and its arXiv HTML embeds them as SVGs whose glyphs carry their characters; `decode_figs.py` reads ticks, labels, bars, points and error bars from the vector coordinates (exact, not read off a plot). The tab is renamed "The paper's numbers, rebuilt".

@@ -1,6 +1,6 @@
 # Vision lab (tab `t-vision`, prefix `vs`)
 
-Parts: `src/parts/34_tab_vision_a.html` to `_c.html` (prose, CSS scoped under `#t-vision`), `34_js_vs_0data.js` (generated), `34_js_vs_1core.js` (helpers, animation controller), `34_js_vs_2patch.js` (patch animation), `34_js_vs_3sim.js` (similarity explorer, loss calculator, sigmoid scaling), `34_js_vs_4zs.js` (zero-shot, probes, typographic animation).
+Parts (since the 2026-10-24 slimming to the Zero-shot lab, see `../README.md`): `src/parts/34_tab_vision_a.html` (prose, CSS scoped under `#t-vision`), `34_js_vs_0data.js` (generated), `34_js_vs_1core.js` (helpers, animation controller), `34_js_vs_4zs.js` (zero-shot, probes, typographic animation). Removed then (in git history): `34_tab_vision_b.html` and `_c.html`, `34_js_vs_2patch.js` (patch animation), `34_js_vs_3sim.js` (similarity explorer, loss calculator, sigmoid scaling); Vision encoders teaches those.
 
 Everything was run on the CPU of an Apple M1 Pro (float32, 4 threads, `nice -n 15`), so the shared GPU bench lock was never taken. Run from this folder with the shared venv (see `../data/README.md`):
 

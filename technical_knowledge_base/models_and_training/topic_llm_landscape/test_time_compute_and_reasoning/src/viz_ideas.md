@@ -2,7 +2,7 @@
 
 2026-10-24: the tab became this child page. Built for it: a static hero (score 11: structure, central, absent elsewhere); a beam-search-against-PRM stepper (11: a process, Snell Section 5.2, illustrative scores); a cost slider over thinking tokens (10: one variable, list prices, recomputed); budget forcing as two trace strips (8); Snell's difficulty findings as a three-panel static diagram (8). Changed: the KV calculator is one slider (T) because Long context owns KV sizing; the published curves were split, selector bars and Yue inline in Reading, Brown fits in the lab tab. Rejected: a Snell accuracy-by-difficulty chart (values only in figures, not read by eye); a Lightman ORM-against-PRM curve (same reason).
 
-Written for the former child page; that page is now the "Deeper: test-time compute" tab of Topic: llm-landscape (`parts/34_tab_ttc.html`). "Reading" below means that page's Reading tab, whose visuals now sit in the deep tab; the Sampling lab and Published curves tabs are sections of it.
+Below: written for the former child page, which then became the "Deeper: test-time compute" tab of Topic: llm-landscape (`parts/34_tab_ttc.html`, moved back here as this page on 2026-10-24; see the note above). "Reading" below means that page's Reading tab, whose visuals then sat in the deep tab; the Sampling lab and Published curves tabs are sections of it.
 
 Central question: how much thinking to buy and where to spend it (longer, wider, or deeper inside the network), and what each choice returns. Lab pages already own OpenAI's ARC-AGI-3 harness animation, Anthropic's effort and cost per task, and Google's thinking-level matrix, so this page is the general, comparative one.
 

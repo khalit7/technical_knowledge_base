@@ -1,6 +1,6 @@
 # Failure lab (tab t-fail, prefix fl) of Topic: ml-infra-and-orchestration
 
-Built 2026-10-16. Parts: `src/parts/33_tab_fail_[a-d].html`, `src/parts/33_js_fl_*.js` (`33_js_fl_0data.js` is generated).
+Built 2026-10-16. Parts: `src/parts/33_tab_fail_[a-b].html` (`_c` and `_d` were removed in the 2026-10-19 overlap fix, see below; in git history), `src/parts/33_js_fl_*.js` (`33_js_fl_0data.js` is generated).
 
 Rebuild the data: `python3 scripts/fl_recompute.py && python3 scripts/fl_make_data.py`, then `sh ../build.sh`.
 

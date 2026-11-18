@@ -7,7 +7,7 @@ measurement from the shared lab image `kb-os-lab:1` where one exists.
 |---|---|---|---|
 | CPU scheduling: FIFO, SJF, STCF, RR, MLFQ, simplified CFS | 7, 8, 9 | `scheduler.py` (FIFO, SJF, RR), `mlfq.py`; CFS against Linux v5.10 `kernel/sched/fair.c` and `core.c` (`inputs/kernel_v5.10_sched_extract.txt`) | `real/nice_share.c` (CFS weights), `real/ctxsw.c` (context-switch cost) |
 | Address translation (linear, two-level), TLB on an array walk, page replacement (OPT, FIFO, LRU, CLOCK) | 18 to 22 | `paging-linear-translate.py`, `paging-multilevel-translate.py` (its `-s 1` memory is embedded: `inputs/ostep_multilevel_s1.txt`), `paging-policy.py` (not CLOCK: OSTEP's picks random pages) | `real/tlb.c` (4 KiB against 2 MiB pages, and the 2-D walk) |
-| Copy-on-write after fork | 5, 23 | a real fork | `real/cow.py` (`/proc/<pid>/smaps_rollup`) |
+| Copy-on-write after fork (retired from the tab on 2026-10-24: Virtual memory section 7 owns it; its core stays in `31_js_sim_b_core.js` for `check_js.mjs`) | 5, 23 | a real fork | `real/cow.py` (`/proc/<pid>/smaps_rollup`) |
 | Races, locks, deadlock | 26, 28, 32 | `x86.py` on `looping-race-nolock.s` and `test-and-set.s` | `real/inc.c` (asm), `real/race.c`, `real/deadlock.c` |
 | Crash consistency (fsck, data, ordered and two unsafe journaling protocols) | 42 | the six cases listed in OSTEP 42.1 | none (explained on the page) |
 

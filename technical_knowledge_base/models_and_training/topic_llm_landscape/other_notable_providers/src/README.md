@@ -18,10 +18,10 @@ Run from the repo root unless noted:
 | Part | What |
 |---|---|
 | `20_read_a` | core idea, hero (`17_js_hero.js`: eight constraints, labs, the number that shows each bet), You need, new terms |
-| `20_read_b` | Data quality per parameter (Phi); Memory per token (Nemotron hybrid cache animation `11_js_hyb.js`, hybrid camp) |
+| `20_read_b` | Data quality per parameter (Phi); Memory per token (Nemotron hybrid cache, now the 3D stage `stg-mem` in `50_js_sc_mem.js`, which replaced `11_js_hyb.js` on 2026-11-10; hybrid camp) |
 | `20_read_c` | Auditability (Cohere, IBM; two-lever chart `13_js_mem.js`); Bits per weight (Bonsai 2); Distribution (Nova, Bedrock) |
 | `20_read_d` | Open scale: sparsity chart (`16_js_size_*`, moved from the old Scale and sparsity tab), Tencent, Xiaomi, NaiveAI before/after layer strip (`18_js_naive.js`, new), StepFun, Atria and the rest of China, cost frontier (`14_js_aa_*`), Arcee, Reflection, Aleph Alpha |
-| `20_read_e` | Ai2 OLMo (merged): six artefacts, model-flow animation (`41_js_ol_flow.js`), question explorer, AA bars, stability before/after (moved from the old Training log tab, `43_js_ol_log.js`), stage scores, token bar, Think table (`42_js_ol_read.js`); lineage, Tulu 3, Ettin, uses in closed blocks |
+| `20_read_e` | Ai2 OLMo (merged): six artefacts, model flow (now the 3D stage `stg-fa` in `52_js_sc_fa.js`, which replaced `41_js_ol_flow.js` on 2026-11-10), question explorer, AA bars, stability before/after (moved from the old Training log tab, `43_js_ol_log.js`), stage scores, token bar, Think table (`42_js_ol_read.js`); lineage, Tulu 3, Ettin, uses in closed blocks |
 | `20_read_f` | IFM K2 Horizon, Prime Intellect DiLoCo animation (`12_js_dl.js`), SmolLM3, Nous, Upstage, Reka |
 | `20_read_g` | Not a single model: call-shape diagram (`19_js_route.js`, new), Fugu, Jev, the decision-model tier |
 | `30_tab_cmp` | Compare labs: the page's one dated lineup table (`15_js_cmp_*`; Ai2, Reflection AI, Aleph Alpha rows added) |

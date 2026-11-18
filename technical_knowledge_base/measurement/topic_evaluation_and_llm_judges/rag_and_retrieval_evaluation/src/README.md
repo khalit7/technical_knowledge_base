@@ -55,7 +55,7 @@ Reproduction (independent): dense nDCG@10 and R@100 equal MTEB's published all-M
 ## Human readings, stated on the page
 - The claim split and verdicts in the faithfulness stepper (`parts/26_js_faith.js`): ours, made as a RAGAS-style judge is prompted to; they agree with RAGTruth's spans. The scores are each tool's documented rule applied to them, not runs of the tools.
 - End-to-end correctness of the six "carry on cast" answers against MS MARCO's reference answer (in `parts/24_js_anim.js`, `E2E`).
-- The verdicts on the two Qwen answers for SciFact claim 54 (`parts/24_js_a54.js`).
+- The verdicts on the two Qwen answers for SciFact claim 54 (the Fig. 1 step list in `parts/20_read_a.html`, drawn by `27_js_sc_halves.js`; they were in `24_js_a54.js`, removed on 2026-11-09).
 - Deaths of four of the six actors since the passage: Wikipedia, read 2026-10-04; Kenneth Williams's death in 1988 (stepper caption): Wikipedia.
 
 ## Corrections found

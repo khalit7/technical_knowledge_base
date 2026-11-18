@@ -21,7 +21,7 @@ Shape: child page per `.claude/skills/explainer-page/page-kinds/topic-child.md`,
 | `20_read_c.html` | contest problems (LiveCodeBench monthly chart; closed: board for a window, five-model split, ratings ladder); SWE-bench (one task's patches and the harness stepper, Verified stats, the harness effect); SWE-bench's flaws (probes chart, leak list) |
 | `20_read_d.html` | SWE-bench Pro (versions and splits to scale); three answers to contamination (SWE-rebench null result, Real-SWE drop-a-task, SchrodingerRepo bars) |
 | `20_read_e.html` | other benchmarks; how to read a reported coding score; what to use; dated readings (closed table); closes the tab |
-| JS | `21_js_rd_common.js` (skill template, never autoplays), `22_js_data.js` (generated), `23_js_math.js`, `24_js_rd_pk.js`, `25_js_rd_he.js`, `26_js_rd_misc.js`, `27_js_rd_hero.js` (hero and probes chart, `window.RDB`), `28_js_rd_pklab.js`, `29_js_rd_lcb.js`, `30_js_rd_task.js`, `99_js_tabs.js` (skill template) |
+| JS | `21_js_rd_common.js` (skill template, never autoplays), `22_js_data.js` (generated), `23_js_math.js`, `24_js_rd_pk.js`, `25_js_rd_hecode.js` (the code of Fig. 2's three samples; replaced `25_js_rd_he.js` on 2026-11-09), `25_js_s3.js` (renderer v2), `26_js_rd_misc.js`, `27_js_rd_hero.js` (hero and probes chart, `window.RDB`), `28_js_rd_pklab.js`, `29_js_rd_lcb.js`, `30_js_rd_task.js`, the stages `31_js_sc_hero.js`, `32_js_sc_he.js`, `33_js_sc_swe.js` (below), `99_js_tabs.js` (skill template) |
 | `39_tab_more.html` | Further reading |
 
 Scripts: `recompute.py`, `mk_data.py`, `mk_inputs.py`, `mk_coverage.py` (56 coding facts from the old Math and coding page; 56 verified after the rebuild), `check_controls.mjs` (replaces `check_page.mjs`), `ledger.json`, `viz_ideas.md`.

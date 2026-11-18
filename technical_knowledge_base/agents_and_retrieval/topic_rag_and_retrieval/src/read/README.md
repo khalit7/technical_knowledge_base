@@ -15,5 +15,5 @@ python3 html_utils/ledger.py check <page>
 
 ## Notes
 - `old/`: the old root and its four old children, saved verbatim from read-only Notion fetches on 2026-10-14. `coverage.md`: the claims of the old root with a verdict (written for the 2026-10-14 page).
-- The 2026-10-14 Reading tab (taught from zero, about 46 minutes), its data script `make_data.py` and its checks are in `../retired/`.
+- The 2026-10-14 Reading tab (taught from zero, about 46 minutes), its data script `make_data.py` and its checks were in `../retired/`, deleted on 2026-11-18; they are in git history (before commit 2437dfc6e).
 - `viz_ideas.md`: visuals built and rejected for the old tab.

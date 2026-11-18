@@ -113,7 +113,7 @@ def main():
     with open(os.path.join(D, "ef_facts.json"), "w") as f:
         json.dump(F, f, indent=1, ensure_ascii=False)
     js = json.dumps(EF, ensure_ascii=False, separators=(",", ":"))
-    js = js.replace("—", "--").replace("{{", "{\\u007b").replace("</", "<\\/")
+    js = js.replace("\u2014", "--").replace("{{", "{\\u007b").replace("</", "<\\/")
     with open(os.path.join(HERE, "parts", "22_js_data.js"), "w") as f:
         f.write("window.EF=" + js + ";\n")
     print(len(js), "bytes of data;", len(F), "facts")

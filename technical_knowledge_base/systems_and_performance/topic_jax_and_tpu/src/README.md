@@ -21,7 +21,7 @@ Root of the topic (storage key `jx-tab`). Built 2026-10-15 by a team of tab agen
 | Tool map `t-map` | Kept: the dated atlas a root owns. |
 | Further reading `t-more` | This page's tabs with measured times; child cards with current titles and each header's time. |
 
-Retired parts are in `retired/parts/` (HTML and scripts, for reference; the data stays in the `0data` files).
+Retired parts (HTML and scripts) went to `retired/parts/`; retired parts were deleted on 2026-11-18 (in git history). The data stays in the `0data` files.
 
 ## What changed in the Reading tab
 - **Top**: the core idea in one sentence; a hero that is a static map of one train step through five layers, each passing a program to the next (highlighted), with the PyTorch counterpart and the owning child and lab of each layer; "You need"; eleven new terms; the running example.

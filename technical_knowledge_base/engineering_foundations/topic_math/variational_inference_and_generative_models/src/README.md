@@ -3,7 +3,7 @@
 Child of Topic: math (page prefix `vi`, storage key `vi8-tab`). Built October 2026; rebuilt 2026-10-24 to the teaching contract (editing only, no new runs).
 
 ## Build
-`sh build.sh` writes `../index.html`: it generates `parts/23_js_data.js` from `inputs/numbers.json`, `inputs/vae.json` and `inputs/dm.json`, concatenates the parts, expands `{{text|url}}` links, and converts LaTeX to MathML with `html_utils/tex2mathml.mjs` (display formulas sit in a scrolling `div.dm`).
+`sh build.sh` writes `../index.html`: it generates `parts/23_js_data.js` from `inputs/numbers.json` and `inputs/vae.json`, concatenates the parts, expands `{{text|url}}` links, and converts LaTeX to MathML with `html_utils/tex2mathml.mjs` (display formulas sit in a scrolling `div.dm`).
 
 ## Tabs and parts
 | Tab | Parts | What |

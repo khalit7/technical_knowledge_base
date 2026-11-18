@@ -1,5 +1,7 @@
 # Flow lab (tab `t-flow`, parts `33_*`, prefix `fw`)
 
+**Status (2026-10-24):** this tab was removed from the root when the root was rebuilt as a map; Flow matching teaches it from the recordings in `out/`. Its parts are no longer in `src/parts/` (in git history before commit `6a39c3922`). The table below describes the lab as built; rerunning the data script would write its part back into `src/parts/`, and `build.sh` would put it in the page.
+
 Flow matching and rectified flow from zero: a 2-D toy the page runs live, then the Diffusion lab's tiny U-Net trained with the flow-matching objective under the same recipe, compared with the Diffusion lab's DDPM at equal network evaluations. Everything on the tab comes from the scripts here and their recorded outputs in `out/`.
 
 | file | what | runs on |

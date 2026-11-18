@@ -1,8 +1,8 @@
 # Pipeline lab (tab `t-pipe` of Topic: rag-and-retrieval)
 
-> **Retired tab, kept runs (2026-10-24).** The Pipeline lab tab this folder built was retired when the topic was closed to the teaching contract: every stage it measured is taught, with these runs, on the child page that owns it. The scripts and `out/` stay because the child pages import and read them; `make_data.py`, `check_numbers.py` and `check_tab.mjs` (which built and checked the tab) moved to `../retired/pipe/` and the tab's parts to `../retired/parts/` (paths inside them assume their old folders).
+> **Retired tab, kept runs (2026-10-24).** The Pipeline lab tab this folder built was retired when the topic was closed to the teaching contract: every stage it measured is taught, with these runs, on the child page that owns it. The scripts and `out/` stay because the child pages import and read them; `make_data.py`, `check_numbers.py` and `check_tab.mjs` (which built and checked the tab) moved to `../retired/pipe/` and the tab's parts to `../retired/parts/`; that `retired/` folder was deleted on 2026-11-18, so all of them are only in git history, at their original paths in `pipe/` and `parts/` (before commit 2437dfc6e, 2026-10-24).
 
-The tab's parts are `../parts/31_tab_pip_*.html` (text and layout), `../parts/31_js_pip_*.js` (behaviour) and `../parts/31_js_pip_0data.js` (data, generated). Every id and class is prefixed `pip-`; CSS is scoped under `#t-pipe`.
+When the tab was live (to 2026-10-24), its parts were `../parts/31_tab_pip_*.html` (text and layout), `../parts/31_js_pip_*.js` (behaviour) and `../parts/31_js_pip_0data.js` (data, generated). Every id and class is prefixed `pip-`; CSS is scoped under `#t-pipe`.
 
 ## How to rerun
 
@@ -22,6 +22,7 @@ $P qtrans_gen.py; $P qtrans_eval.py bm25; $P qtrans_eval.py bge-small; $P qtrans
 $P semantic.py; $P embed_chunks.py bge-small <strategies...>; $P embed_chunks.py qwen3-emb-0.6b fixed-256-32 structure-256
 $P contextual.py; $P embed_chunks.py bge-small fixed-256-32+ctx; $P chunk_eval.py fixed-256-32+ctx fixed-256-32@sub
 $P latency.py
+# the last three steps built and checked the retired tab; make_data.py, check_numbers.py and check_tab.mjs are only in git history (before 2437dfc6e)
 $P chunk_explorer.py; $P make_data.py     # then sh ../build.sh
 $P check_numbers.py                       # prose numbers against out/*.json, page embeds the data
 node check_tab.mjs ../../index.html <screenshot folder>

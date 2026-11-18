@@ -5,7 +5,7 @@ Child 1 of Topic: generative-and-multimodal (storage key `av-tab`). Built 2026-1
 ## Tabs and parts
 | tab | id | parts |
 |---|---|---|
-| Reading | `t-read` | (2026-11-09: see the section at the end for the split parts and scenes) `20_read_a.html` (styles, nav, top: core idea, hero, five-kinds table closed, you need, new terms, running example) to `20_read_h.html` (sections 1 to 12), `20_read_z.html` (closed depth: mistakes, rehearsal, what transfers). JS: `21_js_rd_common.js` (skill template, never autoplays), `22_js_av_0data.js` (AVD, this page's runs), `22_js_av_1lab.js` (AVL, the Latent lab subset), `23_js_av_read.js` (predicts, sprites, hero, latent spaces, random codes, interpolation, &beta; slider, loss strips, three-loss toggle, scaling factor, channels crops, same-PSNR blur), `24_js_av_pub.js` (token calculator), `26_js_av_pc.js` (collapse), `27_js_av_vq1toy.js` (2-D quantizer toy), `27_js_av_vq2main.js` (VQ runs) |
+| Reading | `t-read` | (2026-11-09: see the section at the end for the split parts and scenes) `20_read_a.html` (styles, nav, top: core idea, hero, five-kinds table closed, you need, new terms, running example) to `20_read_h.html` (sections 1 to 12), `20_read_z.html` (closed depth: mistakes, rehearsal, what transfers). JS: `21_js_rd_common.js` (skill template, never autoplays), `22_js_av_0data.js` (AVD, this page's runs), `22_js_av_1lab.js` (AVL, the Latent lab subset), `23_js_av_read.js` (predicts, sprites, hero, latent spaces, random codes, interpolation, &beta; slider, loss strips, three-loss toggle, scaling factor, channels crops, same-PSNR blur), `24_js_av_pub.js` (token calculator), `26_js_av_pc.js` (collapse), `27_js_av_vq1toy.js` (2-D quantizer toy; removed 2026-11-09, its engine now inside the `28_js_sc5vq.js` scene), `27_js_av_vq2main.js` (VQ runs) |
 | Tokenizer comparator | `t-avtok` | `31_tab_avtok.html`, `31_js_avtok.js` |
 | Further reading | `t-more` | `39_tab_more.html` |
 
@@ -24,7 +24,7 @@ Python is `$GM_SCRATCH/venv/bin/python -I` under `nice -n 15`, 4 threads; GPU (M
 | `tok/roundtrip.py <key> [dtype]` | MPS | `out/tok/<key>_<dtype>.json`, reconstructions in `$GM_SCRATCH/av/tok/` |
 | `tok/metrics.py` | CPU | `out/tok/metrics.json` (PSNR, SSIM, LPIPS) |
 | `make_data.py` | CPU | `parts/22_js_av_0data.js` |
-| `absorb_lab.py` | CPU, seconds | `parts/22_js_av_1lab.js`: the root Latent lab's runs, sprites and SD VAE measurements, copied field by field from the root's committed `src/retired/parts/31_js_lt_0data.js` (read only; moved there when the Latent lab was retired, 2026-10-24) |
+| `absorb_lab.py` | CPU, seconds | `parts/22_js_av_1lab.js`: the root Latent lab's runs, sprites and SD VAE measurements, copied field by field from the root's `src/retired/parts/31_js_lt_0data.js` (read only; moved there when the Latent lab was retired, 2026-10-24). That folder was never committed: the file is in git history as root `src/parts/31_js_lt_0data.js` in the parent of commit `6a39c3922`, so a rerun needs it restored there; without it `check_data.py` skips its Latent lab comparisons |
 | `fill_static.py` | build | writes every `data-av` value into `../index.html` (fails on an unresolved path) |
 | `make_pub_table.mjs` | | the list behind the closed published-tokenizer table of section 10 (written once into `20_read_f.html`) |
 | `check_data.py`, `check_page.mjs` | | data match (both data parts against their sources), every `data-av` resolves and is filled; every control at 390 px dark and 920 px light, nothing playing after scrolling |

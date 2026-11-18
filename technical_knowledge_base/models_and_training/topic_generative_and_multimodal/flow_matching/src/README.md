@@ -39,7 +39,7 @@ Large files (pairs, checkpoints) live in the shared scratch folder under `fm/` a
 `inputs/published.md` (every published quote and number with its source), `inputs/sd3_tables.json` (SD3 Tables 1 and 2), `inputs/scheduler_configs.json` (six scheduler configs read from the Hub at pinned revisions).
 
 ## Checks
-`python3 check_data.py` (embedded data equals the recordings, including FMY against the root's data part; facts used exist and are filled; code and scheduler output equal their sources; literal numbers in sections 6, 8, 10, 11 and 12 checked), `node check_page.mjs [shots dir]` (every control at 390 px dark and 920 px light), `python3 ../../../../html_utils/ledger.py check <page>`. Notes: `viz_ideas.md`, `coverage.md`, `facts.md`, `ledger.json`.
+`python3 check_data.py` (embedded data equals the recordings, including FMY against the root's data part when present: `../../src/retired/parts/33_js_fw_0data.js` was never committed, it is in git history as root `src/parts/33_js_fw_0data.js` in the parent of commit `6a39c3922`, and without it that comparison is skipped; facts used exist and are filled; code and scheduler output equal their sources; literal numbers in sections 6, 8, 10, 11 and 12 checked), `node check_page.mjs [shots dir]` (every control at 390 px dark and 920 px light), `python3 ../../../../html_utils/ledger.py check <page>`. Notes: `viz_ideas.md`, `coverage.md`, `facts.md`, `ledger.json`.
 
 ## The 2026-10-24 rebuild: what changed and why
 - **Top**: the core idea in one sentence and a static three-panel hero; You need; New terms; the running example. The old "In one screen" bullets were recaps of sections and were cut (ledger: fat); the knob table stays as the page map.

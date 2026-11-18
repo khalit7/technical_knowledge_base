@@ -1,5 +1,7 @@
 # Coverage: the child page "Mixture-of-Experts (MoE) models" folded into Topic: llms
 
+**Historical record** of the 2026-10-01 fold: the parts named below are as they were then; many were later removed or renamed (see `../README.md`, and git history).
+
 Where every section and fact of `mixture_of_experts_moe_models/src/` now lives.
 Keys: **DEEP** = `src/parts/35_tab_moe.html` (tab "Deeper: inside an MoE", section id in brackets); **DRAFT** = merged into `src/parts/20_read.html` (s-serve and s-read); **LAND** = merged into the total-against-active scatter (`src/parts/22_js_scatter.js`); **PARENT** = already said in `src/parts/20_read.html` (quoted).
 

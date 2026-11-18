@@ -1,6 +1,6 @@
 # src/read: the Reading and Further reading tabs
 
-Parts: `parts/20_read.html` (tab wrapper, CSS, section nav), `20_read_a.html` to `20_read_f.html` (sections 0 to 10, mistakes, interview questions, child pages), `20_read_z.html` (closes the tab), `22_js_rd_data.js` (generated), `23_js_rd_drills.js`, `24_js_rd_gen.js` (section 1 animation), `25_js_rd_cost.js` (section 10 calculator), `39_tab_more.html` (Further reading). `21_js_rd_common.js` is the shared helper (not edited here).
+Parts: `parts/20_read.html` (tab wrapper, CSS, section nav), `20_read_a.html` to `20_read_f.html` (sections 0 to 10, mistakes, interview questions, child pages), `20_read_z.html` (closes the tab), `22_js_rd_data.js` (generated), `23_js_rd_drills.js`, `24_js_rd_gen.js` (section 1 animation; retired on 2026-11-09 in the layout rollout, its arithmetic moved into the families scene `26_js_sc_fam.js`, see `../README.md`; in git history), `25_js_rd_cost.js` (section 10 calculator), `39_tab_more.html` (Further reading). `21_js_rd_common.js` is the shared helper (not edited here).
 
 Files here:
 - `make_read_data.py`: writes `read_data.json` (the embedded Fashion-MNIST image and the lab numbers) and regenerates `parts/22_js_rd_data.js`. `python3 make_read_data.py <fashion-mnist raw folder>` the first time; `python3 make_read_data.py --js` after editing `lab` in the JSON.

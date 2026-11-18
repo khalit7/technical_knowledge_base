@@ -18,4 +18,4 @@ occupancy calculator and real `ptxas -v` output (from the Compiler explorer tab,
 - `viz_ideas.md`: ideas built and rejected.
 
 Page parts: `../parts/31_tab_sim_{1,2,3,9}.html` (HTML and scoped CSS), `../parts/31_js_sim_0data.js` (generated),
-`31_js_sim_1core.js` (simulators), `31_js_sim_2ui.js` (animation controller and helpers), `31_js_sim_3div.js` to `31_js_sim_8tile.js` (one per section).
+`31_js_sim_1core.js` (simulators), `31_js_sim_2ui.js` (animation controller and helpers), `31_js_sim_3div.js`, `31_js_sim_6occ.js`, `31_js_sim_7lat.js` (one per section; `31_js_sim_4coal.js`, `31_js_sim_5bank.js` and `31_js_sim_8tile.js` were retired and deleted on 2026-11-18, in git history).

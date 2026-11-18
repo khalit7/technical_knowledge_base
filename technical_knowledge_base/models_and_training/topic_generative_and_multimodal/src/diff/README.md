@@ -1,5 +1,7 @@
 # Diffusion lab (tab `t-diff`, parts `32_*`, prefix `df`)
 
+**Status (2026-10-24):** this tab was removed from the root when the root was rebuilt as a map; Diffusion from zero teaches it from the recordings in `out/`. Its parts are no longer in `src/parts/` (in git history before commit `6a39c3922`). The table below describes the lab as built; rerunning the data script would write its part back into `src/parts/`, and `build.sh` would put it in the page.
+
 Diffusion from zero on the running example, then the same experiments on Stable Diffusion v1.5. Everything on the tab comes from the scripts here and their recorded outputs in `out/`.
 
 | file | what | runs on |

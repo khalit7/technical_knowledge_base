@@ -10,7 +10,7 @@ Data: `mk_lengths.py` (network; `uv run --no-project --with tokenizers python mk
 ## Parts
 | Tab | Parts |
 |---|---|
-| Reading `t-read` | `20_read_a` (styles, nav, core idea, hero, you need, new terms, the stage table), `_b` (1 SFT, 2 batching), `_c` (3 reward models, 4 RL), `_d` (5 DPO family), `_e` (6 online or offline, 7 RLVR, 8 recipes), `_z` (foot); JS `21_js_rd_common.js` (skill template, never autoplays), `23_js_mask.js`, `24_js_pack.js`, `25_js_pair.js`, `26_js_figs.js` (hero, sum or mean, reward model, RL loop twice, online or offline, recipes) |
+| Reading `t-read` | `20_read_a` (styles, nav, core idea, hero, you need, new terms, the stage table), `_b` (1 SFT, 2 batching), `_c` (3 reward models, 4 RL), `_d` (5 DPO family), `_e` (6 online or offline, 7 RLVR, 8 recipes), `_z` (foot); JS `21_js_rd_common.js` (skill template, never autoplays), `23_js_mask.js`, `25_js_pair.js`, `26_js_figs.js` (hero, sum or mean, reward model, RL loop twice, online or offline, recipes), `27_js_lfx.js`, `25_js_s3.js` and the 3D stages `31_js_sc_pack.js` to `34_js_sc_pair.js` (2026-11-06; `24_js_pack.js` was removed) |
 | Method family tree `t-tree` | `30_tab_tree.html`, `30_js_tree.js` |
 | Further reading `t-more` | `39_tab_more.html` |
 

@@ -24,6 +24,8 @@ Scores are 1 to 5 on teaching value / data reality / cost to build; built ones f
 What the methodology lacked: guidance for systems measured on one laptop where the "network" is loopback; this page states it at the top and beside each latency, and adds a fair baseline (Postgres with a real SSD flush) where the systems flush differently.
 
 ## 2026-10-24 rebuild to the teaching contract
+Status as of 2026-10-24: the hero (`27_js_rd_hero.js`), read-your-writes (`29_js_rd_ryw.js`) and ranges (`33_js_rd_ranges.js`) visuals were replaced by 3D stages on 2026-11-06 and deleted (next section; in git history).
+
 | Idea | Kind | Placement | Data | Status |
 |---|---|---|---|---|
 | Hero: three ways to grow (one machine, copies, split) with where one request goes | static annotated diagram | top | schematic | built (`27_js_rd_hero.js`) |

@@ -20,7 +20,7 @@ OUTD = os.path.normpath(os.path.join(C.HERE, "..", "data"))
 F = {}      # facts for the prose
 Q = {}      # data for the page
 ROOT = json.load(open(os.path.join(C.ROOT_SRC, "qual", "out", "q_summary.json")))
-DASH = {"—": "[U+2014]"}
+DASH = {"\u2014": "[U+2014]"}
 
 
 def nodash(s):

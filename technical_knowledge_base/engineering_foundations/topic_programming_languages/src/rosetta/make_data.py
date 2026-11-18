@@ -88,7 +88,7 @@ data["versions"] = open(os.path.join(HERE, "outputs", "versions.txt")).read()
 data["input"] = {"lines": 2000, "bytes": os.path.getsize(os.path.join(HERE, "data", "chat.jsonl")),
                  "sample": open(os.path.join(HERE, "data", "chat.jsonl"), encoding="utf-8").read().split("\n")[:3]}
 js = "window.RO_DATA=" + json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/").replace("{{", "{\\u007b") + ";\n"
-assert "—" not in js, "em dash in rosetta data"
+assert "\u2014" not in js, "em dash in rosetta data"
 dst = os.path.join(HERE, "..", "parts", "31_js_data.js")
 open(dst, "w", encoding="utf-8").write(js)
 print(f"wrote {dst}: {len(js.encode())} bytes, {len(sources)} sources, {len(outputs)} outputs")

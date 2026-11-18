@@ -2,7 +2,7 @@
 
 Copied with `cp -R` on 2026-10-26 from the C++ page's `src/cl/` (Part 3) into this child page; the C++ page keeps its own copy until its essentials rebuild.
 
-Feeds `../parts/50_js_cl_0data.js` (`window.CL`), read by `50_js_cl_1core.js` to `55_js_rlc_hero.js`. Everything sits in the Reading tab (`t-read`): sections `#cl-s0` to `#cl-s13` and `#cl-notes`; element ids start with `cl-`, `tr-` (the code tour, section 13), `qb-` (the quant block, section 10), `rn-` (the raw outputs in How this was run).
+Feeds `../parts/50_js_cl_0data.js` (`window.CL`), read by `50_js_cl_1core.js` to `54_js_cl_run.js` and the stages `56_js_sc_hero.js` to `59_js_sc_kv.js`. Everything sits in the Reading tab (`t-read`): sections `#cl-s0` to `#cl-s13` and `#cl-notes`; element ids start with `cl-`, `tr-` (the code tour, section 13), `qb-` (the quant block, section 10), `rn-` (the raw outputs in How this was run).
 
 ## Reproduce
 - `bash run_all.sh`: builds the pinned llama.cpp (8e1642198dcd4e408f8776222d6ae31b74d01187) in the session scratchpad, downloads the model if missing (sha256 checked), runs every program and writes `out/` (about 4 minutes after the download).

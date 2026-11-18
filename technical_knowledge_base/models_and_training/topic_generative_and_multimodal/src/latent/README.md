@@ -1,5 +1,7 @@
 # Latent lab (tab `t-latent`, prefix `lt`)
 
+**Status (2026-10-24):** this tab was removed from the root when the root was rebuilt as a map; Autoencoders and VAEs teaches it from the recordings in `out/`. Its parts are no longer in `src/parts/` (in git history before commit `6a39c3922`). The table below describes the lab as built; rerunning the data script would write its part back into `src/parts/`, and `build.sh` would put it in the page.
+
 Parts: `src/parts/31_tab_latent_{a..e}.html` (text, CSS scoped under `#t-latent`) and `src/parts/31_js_lt_*.js` (`0data` generated, `1core` helpers and the step animation, `2walk` section 2, `3space` sections 3 to 5, `4beta` sections 6 and 7, `6sd` sections 8 and 9, `9init` inline numbers and predict buttons).
 
 Pipeline (all scripts take `GM_SCRATCH`, the shared setup folder; Python is the shared venv's, run with `-I` under `nice -n 15`; GPU scripts only while holding the bench lock):

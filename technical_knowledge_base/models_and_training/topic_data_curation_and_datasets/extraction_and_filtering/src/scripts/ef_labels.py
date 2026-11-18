@@ -26,7 +26,7 @@ def scrub(t, n=300):
     t = EMAIL.sub("email@example.com", t)
     t = IP.sub("0.0.0.0", t)
     t = PHONE.sub("[phone]", t)
-    t = t.replace("—", "--")
+    t = t.replace("\u2014", "--")
     return t[:n] + ("..." if len(t) > n else "")
 
 

@@ -10,7 +10,7 @@ import numpy as np
 import qc_common as C
 
 Q = C.Q
-TYPO = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "..."}
+TYPO = {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "\u2014": "-", "…": "..."}
 
 
 def typo(t, keys):
@@ -21,7 +21,7 @@ def typo(t, keys):
 
 P = {
     "quotes": lambda t: typo(t, "‘’“”"),
-    "dashes": lambda t: typo(t, "–—"),
+    "dashes": lambda t: typo(t, "–\u2014"),
     "typography": lambda t: typo(t, TYPO.keys()),
     "lowercase": lambda t: t.lower(),
     "one_paragraph": lambda t: " ".join(t.split()),     # layout gone; for fastText identical to the space join
@@ -40,7 +40,7 @@ base = np.array([d["dclm"] for d in docs])
 cut = C.DCLM_CUT
 res = {"n": len(docs), "dclm_cut": cut, "prevalence": {
     "curly_quotes": int(sum(any(c in t for c in "‘’“”") for t in texts)),
-    "dashes": int(sum(any(c in t for c in "–—") for t in texts)),
+    "dashes": int(sum(any(c in t for c in "–\u2014") for t in texts)),
     "ellipsis": int(sum("…" in t for t in texts))}, "dclm": {}}
 for name, f in P.items():
     new = np.array(Q.dclm_scores([f(t) for t in texts]))
