@@ -23,8 +23,12 @@ BLOCK = START + '\n' + JS.rstrip('\n') + '\n' + END
 RX = re.compile(re.escape(START) + r'.*?' + re.escape(END) + r'\n?', re.S)
 
 
+BUDDY = '<script id="kb-buddy">'   # a page with the AI buddy (html_utils/kb_buddy.js) has no Ask Claude
+
+
 def put(f, remove=False):
     s = open(f, encoding='utf-8').read()
+    remove = remove or BUDDY in s
     s2 = RX.sub('', s)
     if not remove:
         if '</head>' in s2:
@@ -53,7 +57,7 @@ def check():
     bad = []
     for d in pages():
         h = open(os.path.join(d, 'index.html'), encoding='utf-8').read()
-        if h.count(START) != 1 or BLOCK not in h:
+        if (h.count(START) != 0) if BUDDY in h else (h.count(START) != 1 or BLOCK not in h):
             bad.append(os.path.relpath(d, ROOT))
     for b in bad:
         print('MISSING or STALE', b)

@@ -1,7 +1,9 @@
 // ---- AI buddy: a toolbar of pens over the page, a notebook, and Claude reading both ----
 // Pilot (2026-11-18/19) on the Attention Is All You Need page. Source of truth: html_utils/apply_buddy.py copies this file, as one marked
 // script block (id kb-buddy), into the source part that closes the page's <head>; edit it here, rerun apply_buddy.py and rebuild.
-// On a page that has it, it replaces the Ask Claude button (kb_ask.js stays on the page but its button is hidden).
+// On a page that has it, Ask Claude (kb_ask.js) is left off the page: apply_ask.py skips pages with the kb-buddy block.
+// No literal closing-head or opening-body tag may appear anywhere in this file, comments included: build_site.py inserts its bar at
+// the first of each in the page, so write them split, as the iframe page builder does.
 // Toolbar: docked to an edge of the screen (top by default; drag its grip to any edge), or made small. Read (no pen), pen,
 //   highlighter, eraser, Text (tap the notebook and type there; Enter sends), six colours, two widths, Undo, Claude on or off (on: Claude reads after a pause, 3 s unless Settings say otherwise; off: marks are just
 //   notes, Send asks), the Notebook, Settings.
@@ -60,9 +62,9 @@
   const HAND = 'Caveat,"Bradley Hand","Segoe Print",cursive';
 
   const css = `
-#kbAskBtn,#kbAskSel{display:none!important}
 #kbBar{position:fixed;z-index:70;display:flex;align-items:center;gap:3px;padding:4px 6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18));touch-action:none;-webkit-user-select:none;user-select:none;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
-#kbBar.kb-v{flex-direction:column;padding:6px 4px}
+#kbBar{flex-wrap:wrap;justify-content:center}
+#kbBar.kb-v{flex-direction:column;padding:6px 4px;align-content:center}
 #kbBar.kb-drag{opacity:.85;transition:none}
 #kbBar button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:32px;height:32px;padding:0 6px;border:1px solid transparent;border-radius:9px;background:transparent;color:inherit;font-size:12.5px;font-weight:600;cursor:pointer;line-height:1}
 #kbBar button:hover{background:var(--soft)}
@@ -1055,7 +1057,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function visDoc(x){
     const cs = getComputedStyle(document.body), rs = getComputedStyle(document.documentElement), v = n => (cs.getPropertyValue(n) || rs.getPropertyValue(n)).trim();
     const vars = ['--ink', '--bg', '--acc', '--line', '--soft', '--card', '--mute'].map(n => n + ':' + (v(n) || (n === '--ink' ? cs.color : n === '--bg' ? cs.backgroundColor : '#888'))).join(';');
-    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style></head><body>' + x.html +
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style><\/he' + 'ad><bo' + 'dy>' + x.html +
       '<script>(function(){var f=function(){parent.postMessage({kbVis:' + JSON.stringify(x.id) + ',h:Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
   }
   window.addEventListener('message', e => { const d = e.data; if (!d || !d.kbVis) return; const f = visFrames.get(d.kbVis); if (f && e.source === f.contentWindow) f.style.height = Math.min(900, Math.max(80, +d.h || 0)) + 'px' });
@@ -1836,7 +1838,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
 
   // ---- drawing: pointer events from the pen and the mouse, caught before the page sees them ----
-  let live = null, lastStroke = 0;
+  let live = null, lastStroke = -1e9;   // no stroke yet (0 would swallow clicks in the first 0.4 s after load)
   const onPage = e => !(e.target && e.target.closest && e.target.closest(OURS_UI));
   document.addEventListener('pointerdown', e => {
     if (!penOn() || live || e.button > 0 || !(e.pointerType === 'pen' || e.pointerType === 'mouse') || !onPage(e)) return;

@@ -1,7 +1,7 @@
 #!/bin/sh
 # usage: sh html_utils/checkpage.sh <page folder>
 # Opens every tab of <page folder>/index.html in light at 920 and 1400 px (the split layout shows at 1100 px and wider) and dark at 390 px, checks for text cut off at 390 px (clipcheck.mjs), prints failures,
-# then one summary line. A page is publishable only with fail=0, emdash 0, errbox 1, ask 1 (the Ask Claude panel, html_utils/apply_ask.py) and clipped 0.
+# then one summary line. A page is publishable only with fail=0, emdash 0, errbox 1, ask 1 (the Ask Claude panel, html_utils/apply_ask.py; 0 on a page with the AI buddy, buddy 1) and clipped 0.
 # Screenshots land in <page folder>/.shots/ (gitignored) for you to look at.
 H=$(cd "$(dirname "$0")" && pwd)
 d="$1"; f="$d/index.html"; [ -f "$f" ] || { echo "no $f"; exit 1; }
@@ -16,5 +16,5 @@ done
 # text cut off at phone width (no scrollbar shows it, so the screenshots alone miss it)
 c=$(node "$H/clipcheck.mjs" "$f" dark 390 2>&1); clip=$(echo "$c" | grep -o 'clipped [0-9]*' | awk '{s+=$2} END{print s+0}')
 [ "$clip" = 0 ] || { echo "$c" | grep -v 'clipped 0$' | sed 's/^/CLIP /'; fail=1; }
-echo "$d: tabs $(grep -oh 'data-t="t-[a-z0-9-]*"' "$f" | sort -u | wc -l | tr -d ' '), bytes $(wc -c <"$f" | tr -d ' '), emdash $(grep -c "$(printf '\342\200\224')" "$f"), errbox $(grep -c 'id="jsErr"' "$f"), ask $(grep -c '<script id="kb-ask">' "$f"), scripts $(grep -o '<script' "$f" | wc -l | tr -d ' '), clipped $clip, fail=$fail"
+echo "$d: tabs $(grep -oh 'data-t="t-[a-z0-9-]*"' "$f" | sort -u | wc -l | tr -d ' '), bytes $(wc -c <"$f" | tr -d ' '), emdash $(grep -c "$(printf '\342\200\224')" "$f"), errbox $(grep -c 'id="jsErr"' "$f"), ask $(grep -c '<script id="kb-ask">' "$f"), buddy $(grep -c '<script id="kb-buddy">' "$f"), scripts $(grep -o '<script' "$f" | wc -l | tr -d ' '), clipped $clip, fail=$fail"
 [ $fail = 0 ]

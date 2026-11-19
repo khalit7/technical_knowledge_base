@@ -17,6 +17,8 @@ START, END = '<script id="kb-buddy">', '</script><!--/kb-buddy-->'
 OLD = re.compile(r'<script id="kb-diary">.*?</script><!--/kb-diary-->\n?', re.S)
 JS = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kb_buddy.js'), encoding='utf-8').read()
 assert '</script' not in JS and '\u2014' not in JS
+# build_site.py puts its bar at the page's first closing head tag and opening body tag: neither may appear inside the script
+assert '</head' not in JS.lower() and '<body' not in JS.lower(), 'kb_buddy.js holds a literal head or body tag; split it, as in the iframe page builder'
 BLOCK = START + '\n' + JS.rstrip('\n') + '\n' + END
 RX = re.compile(re.escape(START) + r'.*?' + re.escape(END) + r'\n?', re.S)
 
