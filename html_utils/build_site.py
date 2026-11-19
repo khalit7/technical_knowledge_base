@@ -9,7 +9,7 @@ usage: python3 html_utils/build_site.py [out dir, default site/] [base path, def
 then:  (cd html_utils && NPM_CONFIG_USERCONFIG= npx -y pagefind@1.3.0 --site ../site)   full-text search index
 The site is a build output (gitignored); CI builds and deploys it (.github/workflows/site.yml).
 Also written at the site root: kb_index.json (path, title, id, prereqs, headings and a one-line summary per page, for the AI buddy's
-knowledge-base search) and kb_buddy.js (the AI buddy, html_utils/kb_buddy.js), whose address, with a version stamp, goes into each
+knowledge-base search) kb_buddy.js (the AI buddy, html_utils/kb_buddy.js), kb_s3.js (the template's 3D renderer, for the buddy's generated visuals on pages without one), whose address, with a version stamp, goes into each
 page's buddy loader (the kb-buddy block) as data-src. The bar is inserted at each page's first closing head tag and opening body tag,
 so no inline script may contain those literally.
 """
@@ -277,6 +277,7 @@ def main():
                                           f'<script>location.replace({json.dumps(url(p))}+location.hash)</script><a href="{url(p)}">{html.escape(p["title"])}</a>')
     (OUT / "index.html").write_text(home())
     (OUT / "kb_buddy.js").write_text(BUDDY)
+    (OUT / "kb_s3.js").write_text((ROOT / ".claude/skills/explainer-page/build/templates/25_js_s3.js").read_text())   # the 3D renderer, for the buddy's visuals on pages without their own copy
     (OUT / "kb_index.json").write_text(json.dumps(kb_index(), ensure_ascii=False, separators=(",", ":")))
     print(f"site: {n} pages in {OUT}")
 
