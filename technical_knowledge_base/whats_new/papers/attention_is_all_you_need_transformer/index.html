@@ -531,7 +531,14 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 //   mouse (two fingers scroll), or type; Claude gets the new ink close up and the whole notebook page with free spots lettered on
 //   it, picks one (or a fresh page right after it) and its reply writes itself there in a handwriting face, with a small pen sketch when a
 //   picture helps and an arrow to an earlier mark when that makes the link clear. Typing is the chat.
-// Everything is kept in this browser (IndexedDB: the notebook, the page marks and notes, and History, the list of every exchange).
+// Everything is kept in this browser (IndexedDB 'recs': one record per mark, note thread, notebook page, stroke, typed note or reply,
+//   handwriting reading and History entry, each with an id, an updatedAt and a deleted marker), so it works offline. With a GitHub
+//   token in Settings it syncs through the private repo khalit7/kb-notes: pages/<page path>.json per page plus settings.json (the
+//   synced preferences); pushed about 10 s after a change and when the page is hidden, pulled on load and when the tab returns; merged
+//   record by record, the newer wins; a save rejected because the file changed is re-read, merged and retried. The Claude key, the
+//   token, the toolbar's and window's places, the current tool and History pictures stay on each device. The toolbar's cloud shows the
+//   sync state (tap to sync now). Marks and notes keep the start of their element's text, so after a rebuild of the page they find
+//   their place again; those that cannot are listed as unanchored in Marks.
 // Context sent with every turn (when "see the screen" is on): the page's full text (cached), the tab and section in view, the text
 //   in view, the values of the controls in view, the reader's highlight, and an image of the screen rebuilt in the browser (boxes and text as laid
 //   out, the figures, animations at their current frame and images at their positions, the highlight in yellow, the marks and notes),
@@ -549,11 +556,18 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
   };
   const mem = {};
+  // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
+  // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
+  const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.nudge', 'kbBuddy.prompts', 'kbBuddy.means'];
+  const rawGet = k => { try { return localStorage.getItem(k) } catch(e) { return mem[k] || null } };
+  const rawSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v) } catch(e) { mem[k] = v } };
+  let onSettingChange = () => {};
   const ls = (pre) => ({
-    get(k){ try { return localStorage.getItem(pre + k) } catch(e) { return mem[pre + k] || null } },
-    set(k, v){ try { v == null ? localStorage.removeItem(pre + k) : localStorage.setItem(pre + k, v) } catch(e) { mem[pre + k] = v } }
+    get(k){ return rawGet(pre + k) },
+    set(k, v){ rawSet(pre + k, v); if (SYNCED.includes(pre + k)) onSettingChange(pre + k) }
   });
   const store = ls('kbAsk.'), mine = ls('kbBuddy.');
+  const PAGE_ID = location.pathname.replace(/index\.html$/, '');   // this page's key in the browser's storage
   const model = () => MODELS[store.get('model')] ? store.get('model') : 'claude-opus-5-5';
   const seeOn = () => mine.get('see') !== 'off';
 
@@ -585,6 +599,12 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 #kbBar [data-b=nudge]{min-width:26px;padding:0}
 #kbBar .kb-glow{width:11px;height:11px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 var(--acc);animation:kbGlow 2.2s ease-out infinite}
 @keyframes kbGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+#kbBar [data-b=sync]{position:relative}
+#kbBar .kb-sdot{position:absolute;right:5px;bottom:5px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--card,var(--bg));background:var(--good,#2f9e44)}
+#kbBar [data-b=sync][data-s=wait] .kb-sdot{background:#f59f00}
+#kbBar [data-b=sync][data-s=busy] .kb-sdot{background:var(--acc);animation:kbGlow 1s ease-out infinite}
+#kbBar [data-b=sync][data-s=offline] .kb-sdot{background:var(--mute)}
+#kbBar [data-b=sync][data-s=error] .kb-sdot{background:#e03131}
 #kbBar .kb-dash{stroke-dasharray:3 2.4}
 #kbBar .kb-A{font:700 17px/1 Georgia,'Times New Roman',serif}
 #kbAskPop{position:fixed;z-index:66;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
@@ -778,7 +798,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="send" title=""Send your new marks to Claude now" hidden>Send</button>' +
     '<button type="button" data-b="over" title="Overview: every mark and note on this page" aria-label="Overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>' +
     '<button type="button" data-b="notebook" title=""Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
-    '<button type="button" data-b="set" title="Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
+    '<button type="button" data-b="sync" hidden aria-label="Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span class="kb-sdot"></span></button>' +
+    '<button type="button" data-b="set" title=""Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
     '<button type="button" data-b="min" title="Make the toolbar small" aria-label="Make the toolbar small">&#x2013;</button>');
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
@@ -925,6 +946,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.b === 'send') { commit(PG); commit(NB) }
     else if (b.dataset.b === 'notebook') P.hidden ? open() : close();
     else if (b.dataset.b === 'set') open('set');
+    else if (b.dataset.b === 'sync') { if (syncState === 'error' && /token|repository/.test(syncMsg)) open('set'); syncNow() }
     else if (b.dataset.b === 'nudge') takeNudge();
     else if (b.dataset.b === 'over') { if (!P.hidden && sub === 'marks') close(); else open('marks') }
     else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? '+' : '&#x2013;'; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; placeBar() }
@@ -1274,6 +1296,187 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   const costLine = r => MODELS[r.model].name + ' · ≈ ' + r.cents.toFixed(2) + '¢ (this visit ≈ ' + spent.toFixed(1) + '¢)';
 
+  // ================= Keeping it: records, local first, synced through a private GitHub repo =================
+  // Every mark, note thread, notebook page, stroke, typed note or reply, handwriting reading and History entry is a record with a
+  // stable id, an updatedAt (u) and, once removed, a deleted marker instead of vanishing. Changes are found by comparing what is on
+  // screen with the records it was built from (BASE), so a change merged in from another device is never mistaken for a local edit.
+  // IndexedDB ('recs') is the local copy, so everything works offline. With a GitHub token in Settings, the records go to one JSON file
+  // per knowledge-base page in the notes repo (pages/<page path>.json) plus settings.json: pushed about 10 s after the last change and
+  // when the page is hidden, pulled on load and when the tab comes back. Two copies merge record by record: the newer u wins. A save
+  // rejected because the file changed meanwhile is fetched again, merged and retried. History pictures stay on the device.
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  let REC = {}, LOCAL = {}, BASE = new Map(), recsReady = false, needApply = false, changeSeq = 0;
+  const canon = v => Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v === undefined ? null : v);
+  const bare = r => { const o = Object.assign({}, r); delete o.u; delete o.del; return o };
+  const sig = r => canon(bare(r));
+  const strokeRec = st => ({p:st.p.map(rq), c:st.c || null, w:st.w, h:!!st.h, sh:!!st.sh, t:st.t || 0});
+  // what is on screen now, as records (blank notebook pages are not kept)
+  function buildRecs(){
+    const out = {}, put = (k, o, body, extra) => { o.id = o.id || newId(); out[o.id] = Object.assign({k, id:o.id}, body, extra || {}) };
+    book.forEach((pg, i) => {
+      if (blank(pg) && !(pg.reads || []).length) return;
+      pg.id = pg.id || newId(); if (pg.order == null) pg.order = i;
+      out[pg.id] = {k:'npage', id:pg.id, order:pg.order};
+      for (const st of pg.ink) put('stroke', st, strokeRec(st), {pg:pg.id});
+      for (const it of pg.items) { const b = Object.assign({}, it); delete b.id; put('item', it, b, {pg:pg.id}) }
+      for (const r of pg.reads || []) { const b = Object.assign({}, r); delete b.id; put('read', r, b, {pg:pg.id}) }
+    });
+    for (const m of marks) { const b = Object.assign({}, m, {p:m.p.map(rq)}); delete b.id; put('mark', m, b) }
+    for (const n of notes) { const b = JSON.parse(JSON.stringify(n)); delete b.id; put('note', n, b) }
+    for (const e of entries) { const b = Object.assign({}, e); delete b.id; delete b.img; delete b.page; put('entry', e, b); if (e.img) LOCAL[e.id] = {img:e.img} }
+    return out;
+  }
+  // fold what changed on screen since the last build into the records, stamped now
+  function commitRecs(){
+    if (!recsReady) return;
+    const cur = buildRecs(), now = Date.now(); let n = 0;
+    for (const id in cur) { const sg = sig(cur[id]); if (BASE.get(id) !== sg) { REC[id] = Object.assign(cur[id], {u:now}); BASE.set(id, sg); n++ } }
+    for (const id of [...BASE.keys()]) if (!cur[id]) { const o = REC[id] || {}; REC[id] = {k:o.k, id, pg:o.pg, order:o.order, del:true, u:now}; BASE.delete(id); n++ }
+    if (n) { changeSeq++; persistRecs(true); schedulePush() } else persistRecs(false);
+  }
+  let dirty = false;
+  function persistRecs(d){ if (d) dirty = true; return tx('readwrite', st => st.put({page:PAGE_ID, recs:REC, local:LOCAL, dirty}), 'recs') }
+  // the screen rebuilt from the records: notebook pages in order (a page also shows while something live is on it), marks, notes, History
+  function fromRecs(){
+    const live = Object.values(REC).filter(r => r && !r.del), kids = k => live.filter(r => r.k === k), strip = r => { const o = bare(r); delete o.k; delete o.pg; return o };
+    const byT = (a, b) => (a.t || 0) - (b.t || 0) || (a.id < b.id ? -1 : 1);
+    const pgIds = new Set(kids('npage').map(r => r.id)); for (const r of live) if (r.pg && REC[r.pg]) pgIds.add(r.pg);
+    book = [...pgIds].map(id => REC[id]).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.id < b.id ? -1 : 1)).map(np => ({id:np.id, order:np.order || 0,
+      ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip), reads:kids('read').filter(r => r.pg === np.id).sort(byT).map(strip)}));
+    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip);
+    entries = kids('entry').sort(byT).map(r => Object.assign(strip(r), LOCAL[r.id] || {}));
+    BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
+  }
+  // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
+  // under way. Marks still waiting for Claude (Claude off, or before the pause) are carried over by their ids
+  const canApply = () => !live && !ed && !sel && !psel && !PG.busy && !NB.busy && !saveT && !pgs.some(p => p.ink.busy());
+  function applyRecs(){
+    if (!canApply()) { needApply = true; setTimeout(applyRecs, 2000); return }
+    needApply = false; const top = scr.scrollTop, pIds = pend.map(x => x.s.id), mIds = pendPage.map(m => m.id), tIds = pendTyped.map(x => x.it.id); fromRecs();
+    pend.length = 0; pendTyped.length = 0; book.forEach((pg, i) => { for (const st of pg.ink) if (pIds.includes(st.id)) pend.push({pg:i, s:st}); for (const it of pg.items) if (tIds.includes(it.id)) pendTyped.push({pg:i, it}) });
+    pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
+    book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
+    for (const g of markEl.values()) g.remove(); markEl.clear(); for (const e of noteEl.values()) e.remove(); noteEl.clear(); anchors.clear(); undoStack.length = 0;
+    placeMarks(); fillQuotes(); if (!pgView.hidden) renderLog(); if (!ovView.hidden) renderOverview(); syncBar();
+  }
+  // first run on this page: the bundle kept before records (IndexedDB 'books' and 'entries') becomes records, nothing dropped
+  async function loadRecs(){
+    const r = await tx('readonly', st => st.get(PAGE_ID), 'recs');
+    if (r && r.recs && Object.keys(r.recs).length) { REC = r.recs; LOCAL = r.local || {}; dirty = !!r.dirty; fromRecs() }
+    else {
+      const b = await tx('readonly', st => st.get(PAGE_ID), 'books'), old = await tx('readonly', st => st.index('page').getAll(PAGE_ID), 'entries');
+      book = b && Array.isArray(b.pages) ? b.pages.filter(p => p && Array.isArray(p.ink) && Array.isArray(p.items)) : [];
+      book.forEach((p, i) => { p.id = newId(); p.order = i; p.ink = p.ink.map(asStroke) });
+      marks = b && Array.isArray(b.marks) ? b.marks.filter(m => m && Array.isArray(m.p)) : []; notes = b && Array.isArray(b.notes) ? b.notes.filter(n => n && (Array.isArray(n.turns) || typeof n.text === 'string')) : [];
+      for (const n of notes) { turnsOf(n); delete n.q; delete n.text }
+      entries = (old || []).sort((a, c) => a.t - c.t).map(e => Object.assign({}, e, {id:newId()}));
+      BASE = new Map();
+    }
+    recsReady = true; book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook();
+    placeMarks(); fillQuotes(); commitRecs(); syncNow();
+  }
+
+  // ---- the GitHub side: the contents API, with the reader's fine-grained token (this browser only) ----
+  const ghTok = () => mine.get('ghToken'), ghRepo = () => (mine.get('ghRepo') || 'khalit7/kb-notes').trim();
+  const PAGE_FILE = 'pages/' + (decodeURIComponent(PAGE_ID).replace(/^.*?technical_knowledge_base\//, '').replace(/^\/+|\/+$/g, '') || 'home') + '.json';
+  const b64e = str => { const u = new TextEncoder().encode(str); let s2 = ''; for (let i = 0; i < u.length; i += 0x8000) s2 += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s2) };
+  const b64d = b => { const s2 = atob(b.replace(/\s/g, '')), u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return new TextDecoder().decode(u) };
+  const ghUrl = path => 'https://api.github.com/repos/' + ghRepo() + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
+  const ghHead = acc => ({Authorization:'Bearer ' + ghTok(), Accept:acc || 'application/vnd.github+json'});
+  const ghErr = async r => { let m = r.status + ''; try { m += ' ' + ((await r.json()).message || '') } catch(e) {} const e = new Error(r.status === 401 ? 'the GitHub token was not accepted' : r.status === 404 ? 'repository ' + ghRepo() + ' not found, or the token cannot see it' : r.status === 403 ? 'the token may not write to ' + ghRepo() + ' (' + m + ')' : m); e.gh = true; return e };
+  async function ghGet(path){
+    const r = await fetch(ghUrl(path), {headers:ghHead(), cache:'no-store'});
+    if (r.status === 404) { const t = await fetch('https://api.github.com/repos/' + ghRepo(), {headers:ghHead(), cache:'no-store'}); if (!t.ok) throw await ghErr(t); return {sha:null, data:null} }
+    if (!r.ok) throw await ghErr(r);
+    const j = await r.json(); let text = j.encoding === 'base64' && j.content ? b64d(j.content) : null;
+    if (text == null) { const r2 = await fetch(ghUrl(path), {headers:ghHead('application/vnd.github.raw+json'), cache:'no-store'}); if (!r2.ok) throw await ghErr(r2); text = await r2.text() }   // over 1 MB: the raw file
+    let data = null; try { data = JSON.parse(text) } catch(e) {} return {sha:j.sha, data};
+  }
+  async function ghPut(path, data, sha){
+    const r = await fetch(ghUrl(path), {method:'PUT', headers:Object.assign({'content-type':'application/json'}, ghHead()), body:JSON.stringify(Object.assign({message:'AI buddy: ' + path, content:b64e(JSON.stringify(data))}, sha ? {sha} : {}))});
+    if (r.status === 409 || (r.status === 422 && !sha)) return 'conflict';   // the file changed (or appeared) since it was read
+    if (!r.ok) throw await ghErr(r);
+    return 'ok';
+  }
+  // two copies of the records, merged record by record (the newer u wins; equal times fall to the same side on every device)
+  function mergeRecs(L, R){
+    const out = {}; let lc = false, rc = false;
+    for (const id of new Set([...Object.keys(L), ...Object.keys(R)])) {
+      const a = L[id], b = R[id];
+      if (!b) { out[id] = a; rc = true } else if (!a) { out[id] = b; lc = true }
+      else { const ca = canon(a), cb = canon(b); if (ca === cb) { out[id] = a; continue }
+        const w = (b.u || 0) > (a.u || 0) || ((b.u || 0) === (a.u || 0) && cb > ca) ? b : a; out[id] = w; if (w === b) lc = true; else rc = true }
+    }
+    return {recs:out, lc, rc};
+  }
+  // settings: one value and one time per synced key
+  const setU = () => { try { return JSON.parse(rawGet('kbBuddy.setU') || '{}') } catch(e) { return {} } };
+  let setDirty = false;
+  onSettingChange = k => { const u = setU(); u[k] = Date.now(); rawSet('kbBuddy.setU', JSON.stringify(u)); setDirty = true; schedulePush() };
+  function settingsDoc(){ const u = setU(), v = {}; for (const k of SYNCED) v[k] = rawGet(k); return {v:1, values:v, u} }
+  function mergeSettings(remote){
+    const u = setU(), ru = (remote && remote.u) || {}, rv = (remote && remote.values) || {}; let lc = false, rc = false;
+    for (const k of SYNCED) { const a = u[k] || 0, b = ru[k] || 0;
+      if (b > a) { rawSet(k, rv[k] == null ? null : rv[k]); u[k] = b; lc = true } else if (a > b || (a && !(k in rv))) rc = true }
+    rawSet('kbBuddy.setU', JSON.stringify(u)); return {lc, rc};
+  }
+  // ---- syncing: the state shown on the toolbar (off without a token; synced, waiting, syncing, offline, error); tap it to sync now ----
+  let pushT = 0, syncing = false, again = false, syncState = 'off', syncMsg = '', lastSync = 0;
+  function setSync(st, msg){
+    syncState = st; syncMsg = msg || ''; const b = bar.querySelector('[data-b=sync]'); if (!b) return;
+    b.hidden = !ghTok(); b.dataset.s = st;
+    b.title = st === 'ok' ? 'Synced' + (lastSync ? ' at ' + new Date(lastSync).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '') + '; tap to sync now' : st === 'wait' ? 'Changes waiting to sync; tap to sync now' : st === 'busy' ? 'Syncing…' : st === 'offline' ? 'Offline: your changes are kept here and sync when you are back online' : st === 'error' ? 'Sync error: ' + syncMsg + '. Tap to try again' : 'Sync is off';
+    const t = setv && setv.querySelector('#kbSyncSt'); if (t) t.textContent = b.title;
+  }
+  function schedulePush(ms){ if (!ghTok()) return; if (!syncing) setSync('wait'); clearTimeout(pushT); pushT = setTimeout(syncNow, ms == null ? 10000 : ms) }
+  async function syncFile(path, local, merge, apply){
+    for (let k = 0; k < 5; k++) {
+      const {sha, data} = await ghGet(path), m = merge(data);
+      if (m.lc) apply(m);
+      if (!m.rc && sha) return;
+      if (!m.rc && !sha && !local()) return;
+      if (await ghPut(path, local(), sha) === 'ok') return;
+    }
+    throw new Error('the notes file kept changing; try again');
+  }
+  async function syncNow(){
+    clearTimeout(pushT); if (!ghTok() || !recsReady) { setSync('off'); return }
+    if (syncing) { again = true; return }
+    if (navigator.onLine === false) { setSync('offline'); return }
+    syncing = true; setSync('busy');
+    try {
+      if (saveT) { clearTimeout(saveT); saveT = 0; commitRecs() }
+      const seq = changeSeq;
+      await syncFile(PAGE_FILE, () => Object.keys(REC).length ? {v:1, page:PAGE_FILE.slice(6, -5), records:REC} : null,
+        data => { const m = mergeRecs(REC, (data && data.records) || {}); REC = m.recs; return m },
+        () => { persistRecs(false); applyRecs() });
+      if (seq === changeSeq) { dirty = false; persistRecs(false) }
+      const sd = setDirty; setDirty = false;
+      await syncFile('settings.json', () => settingsDoc(), data => { const m = mergeSettings(data); m.rc = m.rc || sd; return m }, () => { syncBar(); if (!stView.hidden) renderSet() });
+      lastSync = Date.now(); setSync(dirty || setDirty ? 'wait' : 'ok');
+    } catch(e) {
+      setSync(e.gh ? 'error' : navigator.onLine === false || e instanceof TypeError ? 'offline' : 'error', String(e.message || e));
+    } finally { syncing = false; if (again) { again = false; schedulePush(1500) } }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (dirty || setDirty || saveT) syncNow() } else syncNow() });
+  window.addEventListener('online', () => syncNow()); window.addEventListener('offline', () => setSync('offline'));
+
+  // ---- marks find their place again after a page is rebuilt: each keeps the start of its element's text (qt); if the element at its
+  // path no longer starts with it, the exact text is searched for, then a close match; a mark that fits nowhere is listed as unanchored ----
+  const normT = t => String(t || '').replace(/\s+/g, ' ').trim();
+  const quoteOf = e => !e || e === pageRoot() ? '' : normT(e.textContent).slice(0, 160);
+  const bigrams = t => { const m = new Map(); for (let i = 0; i < t.length - 1; i++) { const g = t.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1) } return m };
+  function dice(a, b){ if (!a || !b) return 0; const A = bigrams(a), B = bigrams(b); let n = 0, na = 0, nb = 0; for (const v of A.values()) na += v; for (const v of B.values()) nb += v; for (const [g, v] of A) n += Math.min(v, B.get(g) || 0); return na + nb ? 2 * n / (na + nb) : 0 }
+  function refind(qt){
+    const head = qt.slice(0, 60), cands = [...pageRoot().querySelectorAll(CITE_SEL + ',figure,div,section,svg,table')].filter(e => !e.closest(OURS));
+    let best = null; for (const e of cands) { const t = normT(e.textContent); if (t.startsWith(head) && (!best || best.textContent.length > e.textContent.length)) best = e }
+    if (best) return best;
+    let sc = 0.62; for (const e of cands) { const d = dice(qt, normT(e.textContent).slice(0, 160)); if (d > sc) { sc = d; best = e } }
+    return best;
+  }
+  // give marks and notes made before quotes were kept the text of the element they sit on now
+  function fillQuotes(){ let n = 0; for (const x of marks.concat(notes)) if (x.qt == null && x.a != null) { const e = anchorEl(x.a); if (e) { x.qt = quoteOf(e); n++ } } if (n) saveBook() }
+
   // ================= The rest of the knowledge base =================
   // kb_index.json (html_utils/build_site.py) sits at the site's root: the nearest folder above this page that has it. Search uses the
   // site's full-text index (Pagefind) when it loads, else words over the index's titles, headings and summaries
@@ -1317,20 +1520,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
 
   // ================= Notebook =================
-  const PAGE_ID = location.pathname.replace(/index\.html$/, '');
   let entries = [];
   const db = new Promise(res => {
     try {
-      const r = indexedDB.open('kbDiary', 2);
+      const r = indexedDB.open('kbDiary', 3);
       r.onupgradeneeded = () => { const d = r.result;
         if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', {keyPath:'id', autoIncrement:true}).createIndex('page', 'page');
-        if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', {keyPath:'page'}) };
+        if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', {keyPath:'page'});
+        if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // since 2026-11-19: one record per thing, synced
       r.onsuccess = () => res(r.result); r.onerror = () => res(null);
     } catch(e) { res(null) }
   });
   const tx = async (m, f, name) => { const d = await db; if (!d) return null; name = name || 'entries'; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
-  tx('readonly', s => s.index('page').getAll(PAGE_ID)).then(r => { if (r) entries = r.sort((a, b) => a.t - b.t) });
-  const save = e => { entries.push(e); tx('readwrite', s => s.add(e)).then(id => { if (id != null) e.id = id }) };
+  const save = e => { e.id = newId(); entries.push(e); saveBook() };   // a History entry
 
   // ---- ink: a stroke is {p:[[x, y, pressure]...], c:colour (null: the ink colour of the page or theme), w:width, h:highlighter}; on a
   // notebook page in paper units (its canvas is lw units wide, scaled on screen) ----
@@ -1467,8 +1669,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const drop = (a, s) => { const k = a.findIndex(x => x === s || (x && (x.s === s || x.m === s))); if (k >= 0) a.splice(k, 1) };
   const r1 = v => Math.round(v * 10) / 10;
   let saveT = 0;
-  const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => tx('readwrite', s => s.put({page:PAGE_ID, t:Date.now(), pages:book.map(p => ({ink:p.ink.map(roundS), items:p.items, reads:p.reads || []})), marks:marks.map(m => Object.assign({}, m, {p:m.p.map(rq)})), notes}), 'books'), 400) };
-  const rq = q => [r1(q[0]), r1(q[1]), Math.round(q[2] * 100) / 100], roundS = s => ({p:s.p.map(rq), c:s.c || null, w:s.w, h:!!s.h, t:s.t});
+  const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = 0; commitRecs() }, 400) };
+  const rq = q => [r1(q[0]), r1(q[1]), Math.round(q[2] * 100) / 100];
   // how wide a typed note's text really is (its box runs to the margin)
   function measureW(it){ const e = elOf.get(it); if (!e) return it.w; const rg = document.createRange(); rg.selectNodeContents(e); const base = e.getBoundingClientRect(), k = base.width / it.w || 1; let r = 0; for (const q of rg.getClientRects()) r = Math.max(r, (q.right - base.left) / k); return Math.max(40, r) }
   const blank = p => !p.ink.length && !p.items.length;
@@ -1491,7 +1693,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const it of data.items) items.appendChild(itemEl(it));
     sizePage(pg); return pg;
   }
-  function addPage(){ book.push({ink:[], items:[]}); mountPage(book.length - 1); return book.length - 1 }
+  function addPage(){ const L = book[book.length - 1]; book.push({id:newId(), order:L ? (L.order || 0) + 1 : 0, ink:[], items:[]}); mountPage(book.length - 1); return book.length - 1 }
   // only pages within about a screen of the view keep a full-resolution canvas
   const nearObs = new IntersectionObserver(es => { for (const x of es) { const p = pgs.find(q => q.outer === x.target); if (!p) continue; p.near = x.isIntersecting; if (p.near) p.ink.size(); else p.ink.release() } }, {root:scr, rootMargin:'120% 0px'});
   // a scratch-out over writing in the notebook: the strokes and typed notes or replies mostly under it go, and so does the scratch
@@ -1507,7 +1709,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // a blank page put in at index at (right after the page being written on), so a reply that needs room stays next to its question
   function insertPage(at){
     if (at >= book.length) return addPage();
-    book.splice(at, 0, {ink:[], items:[]});
+    book.splice(at, 0, {id:newId(), order:at > 0 ? ((book[at - 1].order || 0) + (book[at].order || 0)) / 2 : (book[0].order || 0) - 1, ink:[], items:[]});   // an order between its neighbours, so pages from two devices interleave
     const fix = x => { if (x && x.pg >= at) x.pg++ };
     pend.forEach(fix); undoStack.forEach(fix); pendTyped.forEach(fix); fix(ed); if (NB.queued) fix(NB.queued);
     mountPage(at); pgs.forEach((p, k) => { p.no.textContent = String(k + 1) }); saveBook(); return at;
@@ -1523,13 +1725,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (loaded && !jumped) { jumped = true; jumpLatest() }
   }
   new ResizeObserver(() => { cancelAnimationFrame(layT); layT = requestAnimationFrame(() => { if (!nbView.hidden) layoutBook() }) }).observe(scr);
-  tx('readonly', s => s.get(PAGE_ID), 'books').then(r => {
-    book = r && Array.isArray(r.pages) ? r.pages.filter(p => p && Array.isArray(p.ink) && Array.isArray(p.items)) : [];
-    for (const p of book) p.ink = p.ink.map(asStroke);
-    book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook();
-    marks = r && Array.isArray(r.marks) ? r.marks.filter(m => m && Array.isArray(m.p)) : []; notes = r && Array.isArray(r.notes) ? r.notes.filter(n => n && (Array.isArray(n.turns) || typeof n.text === 'string')) : [];
-    placeMarks();
-  });
+  loadRecs();
 
   // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
   function styleItem(e, it){ if ((it.kind === 'reply' || it.kind === 'typed') && it.fs && it.fs !== 1) { const b = it.kind === 'reply' ? 30 : 22; e.style.fontSize = b * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
@@ -1966,6 +2162,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const notesBox = el('div', {id:'kbNotes'});
   document.body.append(marksSvg, notesBox);
   const pathOf = e => { const root = pageRoot(), out = []; while (e && e !== root) { const p = e.parentElement; if (!p) return ''; out.unshift([...p.children].indexOf(e)); e = p } return e === root ? out.join('.') : '' };
+  // the element a mark or note is pinned to: its path, checked against its quote; refound by the quote if the page changed
+  const lostSet = new Set();
+  function anchorOf(x){
+    const e = anchorEl(x.a); if (!x.qt) return e;
+    const k = x.a + '|' + x.qt; if (anchors.has(k)) { const c = anchors.get(k); if (c === null || c.isConnected) return c }
+    let f = e && normT(e.textContent).startsWith(x.qt.slice(0, 60)) ? e : refind(x.qt);
+    anchors.set(k, f || null); if (!f) { lostSet.add(x); return null } lostSet.delete(x);
+    if (f !== e) { x.a = pathOf(f); anchors.set(x.a + '|' + x.qt, f); saveBook() }
+    return f;
+  }
   function anchorEl(key){
     let e = anchors.get(key); if (e && e.isConnected) return e;
     e = pageRoot(); if (key) for (const i of key.split('.')) { e = e && e.children[+i]; if (!e) break }
@@ -1980,7 +2186,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return e;
   }
   // where a pinned thing's element is now (viewport), and its scale since it was pinned; null while it is hidden (another tab)
-  function frameOf(x){ const e = anchorEl(x.a); if (!e) return null; const r = e.getBoundingClientRect(); if (!r.width && !r.height) return null; return {x:r.left, y:r.top, s:x.aw ? r.width / x.aw : 1, e} }
+  function frameOf(x){ const e = anchorOf(x); if (!e) return null; const r = e.getBoundingClientRect(); if (!r.width && !r.height) return null; return {x:r.left, y:r.top, s:x.aw ? r.width / x.aw : 1, e} }
   // a mark's path: smooth curves through the pen's points (a snapped shape keeps its corners)
   const pathD = (p, sh) => {
     if (p.length === 1) return `M${p[0][0]} ${p[0][1]}h0.1`;
@@ -2141,7 +2347,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // keep a mark drawn in layer coordinates (o: the layer's rect then), pinned to its element: points relative to the element's corner
   function pin(m, o, g){
     const b = bbox([m]), an = anchorFor(o.left + (b.x0 + b.x1) / 2, o.top + (b.y0 + b.y1) / 2), r = an.getBoundingClientRect();
-    m.id = m.id || Math.random().toString(36).slice(2, 10); m.a = pathOf(an); m.aw = Math.round(r.width) || 1; const dx = r.left - o.left, dy = r.top - o.top;
+    m.id = m.id || newId(); m.a = pathOf(an); m.qt = quoteOf(an); m.aw = Math.round(r.width) || 1; const dx = r.left - o.left, dy = r.top - o.top;
     m.p = m.p.map(q => [r1(q[0] - dx), r1(q[1] - dy), Math.round(q[2] * 100) / 100]); m.t = Date.now();
     marks.push(m); if (g) { markEl.set(m, g); g.setAttribute('d', pathD(m.p, m.sh)) } placeMarks(); undoStack.push({m});
   }
@@ -2316,10 +2522,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       x = Math.max(8, Math.min(x, W - w - 8));
       for (let k = 0; k < 12; k++) { const hit = [...noteEl.values()].find(e => { if (e.hidden || e.classList.contains('kb-folded')) return false; const r = e.getBoundingClientRect(); return r.left < x + w && r.right > x && r.top < y + 80 && r.bottom > y }); if (!hit) break; y = hit.getBoundingClientRect().bottom + 8 }
       if (job.nudge) { x = Math.min(b.x0 + 24, W - w - 8); y = b.y1 + 6 }
-      const ar = job.anchorEl ? {a:pathOf(job.anchorEl), aw:Math.round(job.anchorEl.getBoundingClientRect().width) || 1} : null;
+      const ar = job.anchorEl ? {a:pathOf(job.anchorEl), qt:quoteOf(job.anchorEl), aw:Math.round(job.anchorEl.getBoundingClientRect().width) || 1} : null;
       const m0 = job.marks[0], f = m0 ? frameOf(m0) : ar && frameOf(ar), an = m0 && f ? m0 : ar && f ? ar : {a:'', aw:0}, fr = f || frameOf({a:''}) || {x:0, y:0, s:1};
       const t = {q:job.typed || '', a:''};
-      const n = {a:an.a, aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:Math.round((x - fr.x) / fr.s), y:Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
+      const n = {id:newId(), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:Math.round((x - fr.x) / fr.s), y:Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks();
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
     },
@@ -2378,7 +2584,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const n of notes) { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean); out.push({n, ms}); for (const m of ms) seen.add(m) }
     const loose = new Map(); for (const m of marks) if (!seen.has(m)) { const k = m.g || m.id; if (!loose.has(k)) loose.set(k, []); loose.get(k).push(m) }
     for (const ms of loose.values()) out.push({n:null, ms});
-    for (const g of out) { const m = g.ms[0], e = m ? anchorEl(m.a) : g.n && anchorEl(g.n.a); g.el = e || pageRoot(); g.y = m ? Math.min(...m.p.map(q => q[1])) : g.n ? g.n.y : 0 }
+    for (const g of out) { const m = g.ms[0], e = m ? anchorOf(m) : g.n && anchorOf(g.n); g.lost = !e; g.el = e || pageRoot(); g.y = m ? Math.min(...m.p.map(q => q[1])) : g.n ? g.n.y : 0 }
     return out.sort((a, b) => a.el === b.el ? a.y - b.y : (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   }
   function kindOf(g){ if (g.n) return 'note'; if (g.ms.every(m => m.h)) return 'highlight'; return 'ink' }
@@ -2389,15 +2595,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       cols.map(c => '<button type="button" data-col="' + c + '"' + (ovF.col === c ? ' aria-pressed="true"' : '') + '><i style="background:' + (c || 'var(--ink)') + '"></i>' + esc(M[c] || colName(c)) + '</button>').join('') +
       '<button type="button" data-done="1"' + (ovF.done ? ' aria-pressed="true"' : '') + '>Show resolved</button></div>';
     const list = gs.filter(g => (ovF.kind === 'all' || kindOf(g) === ovF.kind) && (ovF.col == null || g.ms.some(m => (m.c || '') === ovF.col)) && (ovF.done || !(g.n && g.n.resolved)));
+    const lost = gs.filter(g => g.lost);
     if (!gs.length) { ovList.innerHTML = '<p class="kb-hint">No marks on this page yet. Choose the pen or the highlighter on the toolbar, or select some text and ask.</p>'; return }
-    ovList.innerHTML = list.map((g, k) => {
+    ovList.innerHTML = list.filter(g => !g.lost).map((g, k) => {
       const c = g.ms[0] ? g.ms[0].c || '' : '', w = where(g.el), kind = kindOf(g), turns = g.n ? turnsOf(g.n) : [];
       const head = (g.ms[0] && g.ms[0].dash ? 'Loop' : kind === 'highlight' ? 'Highlight' : kind === 'note' ? (g.n.hl ? 'Highlight' : 'Drawing') : 'Drawing') + (g.n ? ' · ' + turns.length + ' exchange' + (turns.length > 1 ? 's' : '') + (g.n.resolved ? ' · resolved' : '') : '') + (M[c] ? ' · ' + M[c] : '');
       const quote = g.n && g.n.hl ? g.n.hl : (g.el.innerText || g.el.textContent || '').replace(/\s+/g, ' ').trim();
       const q = turns.find(t => t.q), a = turns.length ? plain(turns[turns.length - 1].a) : '';
       return '<button type="button" class="kd-ovi" data-g="' + k + '"><i style="background:' + (g.ms[0] ? (c || 'var(--ink)') : 'var(--acc)') + '"></i><span><b>' + esc(head) + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
         '<q>' + esc(quote.slice(0, 140)) + (quote.length > 140 ? '…' : '') + '</q>' + (q ? '<em>You: ' + esc(q.q) + '</em>' : '') + (a ? '<em class="kd-ova">' + esc(a.slice(0, 120)) + (a.length > 120 ? '…' : '') + '</em>' : '') + '</span></button>' }).join('') || '<p class="kb-hint">Nothing matches these filters.</p>';
-    ovList._g = list;
+    ovList._g = list.filter(g => !g.lost);
+    if (lost.length) ovList.insertAdjacentHTML('beforeend', '<h4 class="kd-relh">Unanchored: the page changed and these no longer find their place</h4>' + lost.map((g, k) => { const x = g.n || g.ms[0]; const t = g.n ? turnsOf(g.n).find(z => z.q || z.a) : null;
+      return '<div class="kd-ovi"><i style="background:var(--bad,#c2703a)"></i><span><b>' + (g.n ? 'Note' : 'Marks') + '</b><q>' + esc((x.qt || '').slice(0, 140)) + '</q>' + (t ? '<em>' + esc(t.q || plain(t.a).slice(0, 120)) + '</em>' : '') + '<button type="button" data-lost="' + k + '">Delete</button></span></div>' }).join(''));
+    ovList._lost = lost;
     relatedNotes().then(h => { if (h && !ovView.hidden) ovList.insertAdjacentHTML('beforeend', h) });
   }
   // the reader's notes on the pages this one builds on and the pages that build on it (the knowledge base's prerequisite map)
@@ -2406,14 +2616,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const here = new URL('.', location.href).href, me = KBI.find(e => KBROOT + e.p + '/' === here); if (!me) return '';
     const rel = KBI.filter(e => e !== me && ((me.pre || []).includes(e.id) || (e.pre || []).includes(me.id))).slice(0, 20), out = [];
     for (const e of rel) {
-      const r = await tx('readonly', st => st.get(new URL(e.p + '/', KBROOT).pathname), 'books'); const ns = r && Array.isArray(r.notes) ? r.notes : [];
+      const r = await tx('readonly', st => st.get(new URL(e.p + '/', KBROOT).pathname), 'recs'); const ns = r && r.recs ? Object.values(r.recs).filter(x => x.k === 'note' && !x.del) : [];
       for (const n of ns) { const t = (n.turns || [{q:n.q, a:n.text}]).find(x => x.q || x.a); if (t) out.push({e, n, t}) }
     }
     if (!out.length) return '';
     return '<h4 class="kd-relh">From related pages</h4>' + out.slice(0, 30).map(({e, n, t}) => '<a class="kd-ovi" href="' + esc(KBROOT + e.p + '/') + '"><i style="background:var(--acc)"></i><span><b>' + esc(e.t) + '</b>' + (n.hl ? '<q>' + esc(n.hl.slice(0, 120)) + '</q>' : '') + (t.q ? '<em>You: ' + esc(t.q) + '</em>' : '') + '<em class="kd-ova">' + esc(plain(t.a).slice(0, 120)) + '</em></span></a>').join('');
   }
   ovBar.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.k) ovF.kind = b.dataset.k; else if (b.dataset.col != null) ovF.col = ovF.col === b.dataset.col ? null : b.dataset.col; else if (b.dataset.done) ovF.done = !ovF.done; renderOverview() });
-  ovList.addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (b) goGroup(ovList._g[+b.dataset.g]) });
+  ovList.addEventListener('click', e => {
+    const d = e.target.closest('[data-lost]'); if (d) { const g = ovList._lost[+d.dataset.lost]; for (const m of g.ms) removeMark(m); if (g.n) { drop(notes, g.n); const ne = noteEl.get(g.n); if (ne) ne.remove(); noteEl.delete(g.n) } saveBook(); renderOverview(); return }
+    const b = e.target.closest('[data-g]'); if (b) goGroup(ovList._g[+b.dataset.g]);
+  });
   // go to a group of marks: its tab opened, scrolled to the middle of the screen, outlined for a moment, its note opened
   function showEl(e){ const tab = e.closest && e.closest('.tab'); if (tab && !tab.getClientRects().length) { const t = document.querySelector('[role=tab][data-t="' + tab.id + '"]'); if (t) t.click() } }
   function goGroup(g){
@@ -2476,6 +2689,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <input id="kbBuddyKey" type="password" autocomplete="off" spellcheck="false" placeholder="${k ? 'saved (ending ' + esc(k.slice(-4)) + ')' : 'sk-ant-...'}">
 <div class="kb-row"><button type="button" class="kb-go" data-a="save">Save</button>${k ? '<button type="button" data-a="forget">Forget key</button>' : ''}<span class="kb-meta"></span><button type="button" data-a="back">Back</button></div>
 <p>The same key and model as Ask Claude on the other pages. Create a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>; API use is billed per message, separately from a Claude subscription.</p>
+<label for="kbBuddyGh">Sync across devices: GitHub token</label>
+<input id="kbBuddyGh" type="password" autocomplete="off" spellcheck="false" placeholder="${ghTok() ? 'saved (ending ' + esc(ghTok().slice(-4)) + ')' : 'github_pat_...'}">
+<div class="kb-row"><button type="button" class="kb-go" data-a="ghsave">Save</button>${ghTok() ? '<button type="button" data-a="ghforget">Forget token</button><button type="button" data-a="ghsync">Sync now</button>' : ''}<span class="kb-meta" id="kbSyncSt"></span></div>
+<label for="kbBuddyRepo">Notes repository</label><input id="kbBuddyRepo" value="${esc(ghRepo())}" spellcheck="false">
+<p>Your marks, notes, notebook, History and these preferences sync through that private repository (one file per page). Make a fine-grained token at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">github.com/settings/personal-access-tokens/new</a>: Repository access, Only select repositories, ${esc(ghRepo())}; Permissions, Repository permissions, Contents: Read and write. It is saved only in this browser, like the Claude key. Your Claude key, the toolbar's and window's places and the current pen stay on each device.</p>
 <label for="kbBuddyModel">Model</label><select id="kbBuddyModel">${Object.keys(MODELS).map(m => '<option value="' + m + '"' + (m === model() ? ' selected' : '') + '>' + MODELS[m].name + '</option>').join('')}</select>
 <label for="kbBuddyWait">When Claude answers</label><select id="kbBuddyWait">${WAITS.map(v => '<option value="' + v + '"' + (claudeOn() && v === waitS() ? ' selected' : '') + '>' + v + ' s after you stop writing' + (v === 3 ? ' (default)' : '') + '</option>').join('')}<option value="never"${claudeOn() ? '' : ' selected'}>Never by itself: only when you press Send</option></select>
 <p>Typing waits twice as long (Enter sends at once). The Claude button on the toolbar switches between this wait and Send only.</p>
@@ -2501,7 +2719,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       else { mine.set('wait', v === '3' ? null : v); mine.set('claude', null); arm(PG); arm(NB) }
       syncBar();
     };
-    const inp = setv.querySelector('input'); if (!k) inp.focus();
+    const inp = setv.querySelector('input'); if (!k) inp.focus(); setSync(syncState, syncMsg);
   }
   setv.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'kbBuddyKey') { e.preventDefault(); setv.querySelector('[data-a=save]').click() } });
   P.addEventListener('click', async e => {
@@ -2516,13 +2734,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'back') { sub = null; show() }
     else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) store.set('key', v); sub = null; show() }
     else if (act === 'forget') { store.set('key', null); renderSet() }
+    else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); renderSet(); syncNow() }
+    else if (act === 'ghforget') { mine.set('ghToken', null); setSync('off'); renderSet() }
+    else if (act === 'ghsync') syncNow();
     else if (act === 'unhl') { hl = null; showHl() }
     else if (act === 'zoom') { const v = scr.getBoundingClientRect(), x = v.left + v.width / 2, y = v.top + v.height / 3; setZoom(1, paperAt(x, y), [x, y]) }
     else if (act === 'end') { grow(); const p = pgs[pgs.length - 1]; scr.scrollTo({top:p.outer.offsetTop - 10, behavior:'smooth'}) }
     else if (act === 'send') commit(NB);
     else if (act === 'wipe') {
       if (!confirm('Delete the whole notebook, your marks and Claude\'s notes on this page of the knowledge base, and their history? This cannot be undone.')) return;
-      for (const x of entries) if (x.id != null) await tx('readwrite', s => s.delete(x.id)); entries = []; renderLog();
+      entries = []; renderLog();
       book = []; pgs = []; book$.innerHTML = ''; pend.length = 0; pendPage.length = 0; pendTyped.length = 0; ed = null; undoStack.length = 0; grow();
       marks = []; notes = []; marksSvg.innerHTML = ''; notesBox.innerHTML = ''; markEl.clear(); noteEl.clear(); saveBook(); syncBar();
     }
