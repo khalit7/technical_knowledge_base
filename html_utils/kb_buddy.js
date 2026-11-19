@@ -13,6 +13,9 @@
 //   mouse (two fingers scroll), or type; Claude gets the new ink close up and the whole notebook page with free spots lettered on
 //   it, picks one (or a fresh page right after it) and its reply writes itself there in a handwriting face, with a small pen sketch when a
 //   picture helps and an arrow to an earlier mark when that makes the link clear. Typing is the chat.
+// Claude changing the page, on request (the Visualise and Rewrite prompts, or any ask): rewrite_block rewrites a text block in place
+//   (a tag switches to the original and back), add_visual adds an interactive visual after a block in a sandboxed frame (no access to
+//   the page, its storage or the keys). Each change is a synced record; the overview's Page changes lists them to keep or discard.
 // Everything is kept in this browser (IndexedDB 'recs': one record per mark, note thread, notebook page, stroke, typed note or reply,
 //   handwriting reading and History entry, each with an id, an updatedAt and a deleted marker), so it works offline. With a GitHub
 //   token in Settings it syncs through the private repo khalit7/kb-notes: pages/<page path>.json per page plus settings.json (the
@@ -108,6 +111,15 @@
 .kb-cite{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;margin:0 2px;vertical-align:.35em;border:0;border-radius:99px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);font:700 10.5px/1 system-ui,-apple-system,sans-serif;cursor:pointer;pointer-events:auto}
 .kb-cite:hover{background:var(--acc);color:var(--card,var(--bg))}
 .kb-kbl{color:var(--acc);text-decoration:underline;text-decoration-style:dotted;pointer-events:auto}
+.kb-edtag{display:inline-block;margin-left:6px;padding:0 7px;border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);border-radius:99px;background:color-mix(in srgb,var(--acc) 8%,transparent);color:var(--acc);font:600 11px/1.6 system-ui,-apple-system,sans-serif;vertical-align:.1em;cursor:pointer;white-space:nowrap}
+.kb-ed-on{box-shadow:inset 3px 0 0 color-mix(in srgb,var(--acc) 55%,transparent);padding-left:8px!important}
+.kb-vis{margin:14px 0;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;background:var(--card,var(--bg));overflow:hidden}
+.kb-vish{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--ink)}
+.kb-vish .kb-sp{flex:1}
+.kb-vish small{color:var(--mute)}
+.kb-vish button{padding:1px 9px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
+.kb-vis iframe{display:block;width:100%;border:0;background:transparent}
+#kbBuddy .kd-edi .kb-chips{margin-top:6px}
 .kb-cited{outline:3px solid var(--acc)!important;outline-offset:4px;border-radius:6px;transition:outline-color 2s ease}
 #kbNib{position:fixed;z-index:80;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(255,255,255,.7)}
 #kbNib[hidden]{display:none}
@@ -369,7 +381,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const claudeOn = () => mine.get('claude') !== 'off';
   const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off', nudgeOn = () => mine.get('nudge') !== 'off';
   // one-tap prompts beside every Ask box: "Label: prompt" per line; a prompt ending in "…" is put in the box to finish, not sent
-  const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …';
+  const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …\nVisualise: Add a visual to the page that shows this.\nRewrite: Rewrite this part of the page more clearly for me.';
   const prompts = () => (mine.get('prompts') || PROMPTS0).split('\n').map(l => { const i = l.indexOf(':'); return i > 0 ? {label:l.slice(0, i).trim(), text:l.slice(i + 1).trim()} : null }).filter(x => x && x.label && x.text).slice(0, 8);
   const chipsHtml = () => '<div class="kb-chips">' + prompts().map((x, i) => '<button type="button" data-q="' + i + '" title="' + esc(x.text) + '">' + esc(x.label) + '</button>').join('') + '</div>';
   // a chip: ask its prompt at once, or put an unfinished one ("…") in the box
@@ -717,6 +729,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- prompts ----
   const COMMON = `It sits beside one page of the reader's personal technical knowledge base (interactive explainer pages on AI/ML and systems). The page's full text is the document at the start of the conversation, one block per paragraph, heading, list item or caption; its figures and labs are not in it. Your answers are linked back to the page through the citations the API attaches when you draw on the document, so ground what you say in it. With each message you may also get what is on their screen right now: the tab and section in view, the text in view, the values of the controls in view (sliders, selects, steps), a passage they highlighted, and an image of the figures, animations (their current frame) and images in view at their screen positions. Use that to know exactly what they are looking at; refer to it naturally ("the heatmap on your screen", "step 3 of the animation"), and never describe the screen back to them unless asked.
 - Use the page first; when you go beyond it, say so briefly. Never invent numbers or citations; if unsure, say so.
+- You can change the page for this reader when they ask you to (rewrite this, make it clearer, visualise this, draw this, show me a figure of it): rewrite_block rewrites one text block in place (they can switch back to the original), add_visual adds an interactive visual after a block. Use them only when asked to change the page or for a visual, never on your own initiative. Pick the block the request is about (the highlight, the marks, or the block named in the message), call the tool, then say in one short sentence what you changed.
 - The page is one of about 300 in their knowledge base. When the answer needs another page (a prerequisite, a related method, a comparison), use the tools: search_kb to find pages, read_kb_page to read one. Name a page you used as [[its exact title]]; it becomes a link. Do not search when this page is enough.
 - Write maths in plain text with Unicode (softmax(QKᵀ/√d), ×, ², ᵀ), never LaTeX. Do not use em dashes.
 - When a picture says it better than words (a shape, a matrix, an arrow diagram, a curve, a tensor's dimensions), you may draw one small sketch: <svg viewBox="0 0 W H">...</svg> with W at most 600, using only g, path, line, polyline, polygon, rect, circle, ellipse and text (and a marker in defs for arrowheads); it is drawn in pen, so no colours, styles, images or scripts; labels of a few words; at most about 40 shapes. Always write a sentence with it, and do not sketch when words are enough.`;
@@ -741,9 +754,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   const TOOLS = [
     {name:'search_kb', description:'Search every page of the reader\'s knowledge base (about 300 explainer pages on AI/ML and systems) by words; returns the best matching pages with their path and a snippet. Use it when the answer needs another page.', input_schema:{type:'object', properties:{query:{type:'string', description:'A few key words'}}, required:['query']}},
-    {name:'read_kb_page', description:'Read the text of one page of the knowledge base, by the path search_kb returned.', input_schema:{type:'object', properties:{path:{type:'string'}}, required:['path']}}
+    {name:'read_kb_page', description:'Read the text of one page of the knowledge base, by the path search_kb returned.', input_schema:{type:'object', properties:{path:{type:'string'}}, required:['path']}},
+    {name:'rewrite_block', description:'Rewrite one text block of this page (a paragraph, list item, heading or caption; its 0-based index in the page document) for this reader, shown in place of the original, which they can switch back to. Only when the reader asked for it. Not for blocks inside figures or labs.', input_schema:{type:'object', properties:{block:{type:'integer', description:'Index of the block in the page document'}, text:{type:'string', description:'The new version: plain text, with <b>, <i>, <code>, <sub>, <sup> and <br> allowed; maths in Unicode'}, why:{type:'string', description:'A few words on what changed'}}, required:['block', 'text']}},
+    {name:'add_visual', description:'Add an interactive visual (diagram, chart, slider, small simulation) to this page, right after a block, when the reader asked for one. It runs in a sandboxed frame the width of the text column. Give a complete body: HTML plus inline <style> and <script>, under about 25 KB, no external requests (no libraries, fonts or images from the web). Draw with SVG or canvas. Colour it with the CSS variables --ink (text), --bg (background), --acc (accent), --line (rules), --soft and --card (panels), --mute (secondary text) so it suits light and dark; size it fluidly to the width, at most about 520 px tall; label it clearly; controls must work with touch.', input_schema:{type:'object', properties:{after_block:{type:'integer', description:'Index of the block in the page document to put it after'}, title:{type:'string', description:'A short title shown above it'}, html:{type:'string', description:'The body: HTML with inline <style> and <script>'}}, required:['after_block', 'title', 'html']}}
   ];
-  async function stream(system, messages, effort, maxTokens, onText, signal){
+  async function stream(system, messages, effort, maxTokens, onText, signal, onTool){
     const m = model(), usage = {}; let raw = '', stop = null; const blocks = [];
     const res = await fetch(API, {method:'POST', signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
@@ -759,7 +774,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const data = evt.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
         if (!data) continue; let d; try { d = JSON.parse(data) } catch(e) { continue }
         if (d.type === 'message_start') Object.assign(usage, d.message.usage || {});
-        else if (d.type === 'content_block_start') { const b = d.content_block || {}; blocks[d.index] = {type:b.type, text:'', id:b.id, name:b.name, json:'', cites:[]} }
+        else if (d.type === 'content_block_start') { const b = d.content_block || {}; blocks[d.index] = {type:b.type, text:'', id:b.id, name:b.name, json:'', cites:[]}; if (b.type === 'tool_use' && onTool) onTool(b.name) }
         else if (d.type === 'content_block_delta' && d.delta.type === 'text_delta') { raw += d.delta.text; if (blocks[d.index]) blocks[d.index].text += d.delta.text; else blocks[d.index] = {type:'text', text:d.delta.text, cites:[]}; onText(raw, false) }
         else if (d.type === 'content_block_delta' && d.delta.type === 'citations_delta') { const b = blocks[d.index]; if (b) b.cites.push(d.delta.citation) }
         else if (d.type === 'content_block_delta' && d.delta.type === 'input_json_delta') { const b = blocks[d.index]; if (b) b.json += d.delta.partial_json || '' }
@@ -805,6 +820,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     });
     for (const m of marks) { const b = Object.assign({}, m, {p:m.p.map(rq)}); delete b.id; put('mark', m, b) }
     for (const n of notes) { const b = JSON.parse(JSON.stringify(n)); delete b.id; put('note', n, b) }
+    for (const x of edits) { const b = Object.assign({}, x); delete b.id; put('edit', x, b) }
     for (const e of entries) { const b = Object.assign({}, e); delete b.id; delete b.img; delete b.page; put('entry', e, b); if (e.img) LOCAL[e.id] = {img:e.img} }
     return out;
   }
@@ -825,7 +841,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const pgIds = new Set(kids('npage').map(r => r.id)); for (const r of live) if (r.pg && REC[r.pg]) pgIds.add(r.pg);
     book = [...pgIds].map(id => REC[id]).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.id < b.id ? -1 : 1)).map(np => ({id:np.id, order:np.order || 0,
       ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip), reads:kids('read').filter(r => r.pg === np.id).sort(byT).map(strip)}));
-    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip);
+    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); edits = kids('edit').sort(byT).map(strip);
     entries = kids('entry').sort(byT).map(r => Object.assign(strip(r), LOCAL[r.id] || {}));
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
   }
@@ -839,7 +855,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
     book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
     for (const g of markEl.values()) g.remove(); markEl.clear(); for (const e of noteEl.values()) e.remove(); noteEl.clear(); anchors.clear(); undoStack.length = 0;
-    placeMarks(); fillQuotes(); if (!pgView.hidden) renderLog(); if (!ovView.hidden) renderOverview(); syncBar();
+    renderEdits(); placeMarks(); fillQuotes(); if (!pgView.hidden) renderLog(); if (!ovView.hidden) renderOverview(); syncBar();
   }
   // first run on this page: the bundle kept before records (IndexedDB 'books' and 'entries') becomes records, nothing dropped
   async function loadRecs(){
@@ -855,7 +871,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       BASE = new Map();
     }
     recsReady = true; book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook();
-    placeMarks(); fillQuotes(); commitRecs(); syncNow();
+    renderEdits(); placeMarks(); fillQuotes(); commitRecs(); syncNow();
   }
 
   // ---- the GitHub side: the contents API, with the reader's fine-grained token (this browser only) ----
@@ -946,7 +962,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- marks find their place again after a page is rebuilt: each keeps the start of its element's text (qt); if the element at its
   // path no longer starts with it, the exact text is searched for, then a close match; a mark that fits nowhere is listed as unanchored ----
   const normT = t => String(t || '').replace(/\s+/g, ' ').trim();
-  const quoteOf = e => !e || e === pageRoot() ? '' : normT(e.textContent).slice(0, 160);
+  const quoteOf = e => !e || e === pageRoot() ? '' : normT(origText(e)).slice(0, 160);
   const bigrams = t => { const m = new Map(); for (let i = 0; i < t.length - 1; i++) { const g = t.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1) } return m };
   function dice(a, b){ if (!a || !b) return 0; const A = bigrams(a), B = bigrams(b); let n = 0, na = 0, nb = 0; for (const v of A.values()) na += v; for (const v of B.values()) nb += v; for (const [g, v] of A) n += Math.min(v, B.get(g) || 0); return na + nb ? 2 * n / (na + nb) : 0 }
   function refind(qt){
@@ -973,8 +989,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const kbUrl = t => { if (!KBI) return null; const k = t.trim().toLowerCase(), e = KBI.find(x => x.t.toLowerCase() === k) || KBI.find(x => x.t.toLowerCase().startsWith(k) || k.startsWith(x.t.toLowerCase())); return e ? KBROOT + e.p + '/' : null };
   const kbTitle = p => { const e = KBI && KBI.find(x => x.p === String(p || '').replace(/^\/+|\/+$/g, '')); return e ? '"' + e.t + '"' : 'a page' };
   let pf = null;
-  async function runTool(u){
+  async function runTool(u, job){
     try {
+      if (u.name === 'rewrite_block' || u.name === 'add_visual') return pageEdit(u, job);
       await kbIndex(); if (!KBI) return 'The knowledge base index is not available here.';
       if (u.name === 'search_kb') {
         const q = String(u.input.query || '').trim(); if (!q) return 'Empty query.';
@@ -1000,6 +1017,75 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       return 'Unknown tool.';
     } catch(err) { return 'The tool failed: ' + String(err.message || err) }
   }
+
+  // ================= Claude changing the page =================
+  // On request, Claude rewrites a text block (shown in place; a tag at its end switches between Claude's version and the original) or
+  // adds an interactive visual after a block (in a sandboxed frame with no access to this page, its storage, the API key or the GitHub
+  // token; it reports its height by message). Each change is a record (kind 'edit': where, the quoted start of the block, the content,
+  // which version shows, new or kept) synced with the notes; the overview lists them to keep or discard.
+  const edited = new Map(), visFrames = new Map();   // element -> {frag (its original nodes), text}; edit id -> iframe
+  const origText = e => (edited.get(e) || {text:e.textContent}).text;
+  const REWRITABLE = /^(P|LI|H[1-6]|FIGCAPTION|DT|DD|BLOCKQUOTE|TD|TH|CAPTION|SUMMARY)$/;
+  const cleanRich = t => esc(String(t || '')).replace(/&lt;(\/?)(b|i|em|strong|code|sub|sup)&gt;/g, '<$1$2>').replace(/&lt;br\s*\/?&gt;/g, '<br>');
+  function blockOf(e){ const B = docBlocks(); for (let x = e; x && x !== pageRoot(); x = x.parentElement) { const i = B.els.indexOf(x); if (i >= 0) return i } return -1 }
+  function blockHint(job){
+    const e = job.marks && job.marks[0] ? anchorOf(job.marks[0]) : job.anchorEl; if (!e) return '';
+    const i = blockOf(e); return i >= 0 ? 'Their marks or highlight are on block ' + i + ' of the page document' + (job.hl ? '' : ' (or the blocks around it)') + '.' : '';
+  }
+  function pageEdit(u, job){
+    const B = docBlocks(), i = +(u.name === 'rewrite_block' ? u.input.block : u.input.after_block), e = B.els[i];
+    if (!e) return 'There is no block ' + i + ' (or it is a tab heading). Use the index of a text block in the page document.';
+    if (u.name === 'rewrite_block') {
+      if (!REWRITABLE.test(e.tagName) || e.querySelector('input,select,button,canvas,svg,textarea,iframe') || e.closest('figure,.lab,.stage,.viz,[class*=viz],[class*=lab]') && e.tagName !== 'FIGCAPTION')
+        return 'Block ' + i + ' is part of a figure, lab or control and cannot be rewritten; choose a plain text block, or add a visual instead.';
+      const text = String(u.input.text || '').trim(); if (!text) return 'The new text was empty.';
+      const old = edits.find(x => x.kind === 'rewrite' && anchorOf(x) === e); if (old) { old.html = text; old.why = u.input.why || ''; old.show = 'edit'; old.t = Date.now() }
+      else edits.push({id:newId(), kind:'rewrite', a:pathOf(e), qt:quoteOf(e), html:text, why:u.input.why || '', ask:job.typed || '', show:'edit', st:'new', t:Date.now()});
+      renderEdits(); saveBook(); flashEl(e);
+      return 'Done: block ' + i + ' now shows your version (the reader can switch back to the original).';
+    }
+    const html = String(u.input.html || ''); if (!html.trim()) return 'The visual was empty.'; if (html.length > 60000) return 'That visual is too big; keep it under about 25 KB.';
+    const x = {id:newId(), kind:'visual', a:pathOf(e), qt:quoteOf(e), title:String(u.input.title || 'Visual').slice(0, 120), html, ask:job.typed || '', st:'new', t:Date.now()};
+    edits.push(x); renderEdits(); saveBook();
+    const box = document.querySelector('.kb-vis[data-ed="' + x.id + '"]'); if (box) setTimeout(() => { box.scrollIntoView({block:'center', behavior:'smooth'}); flashEl(box) }, 300);
+    return 'Done: the visual "' + x.title + '" is on the page after block ' + i + '.';
+  }
+  const flashEl = e => { e.classList.remove('kb-cited'); void e.offsetWidth; e.classList.add('kb-cited'); setTimeout(() => e.classList.remove('kb-cited'), 2200) };
+  // a visual as a whole document for its frame: the page's colours and font, and a script that reports the height
+  function visDoc(x){
+    const cs = getComputedStyle(document.body), rs = getComputedStyle(document.documentElement), v = n => (cs.getPropertyValue(n) || rs.getPropertyValue(n)).trim();
+    const vars = ['--ink', '--bg', '--acc', '--line', '--soft', '--card', '--mute'].map(n => n + ':' + (v(n) || (n === '--ink' ? cs.color : n === '--bg' ? cs.backgroundColor : '#888'))).join(';');
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style></head><body>' + x.html +
+      '<script>(function(){var f=function(){parent.postMessage({kbVis:' + JSON.stringify(x.id) + ',h:Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
+  }
+  window.addEventListener('message', e => { const d = e.data; if (!d || !d.kbVis) return; const f = visFrames.get(d.kbVis); if (f && e.source === f.contentWindow) f.style.height = Math.min(900, Math.max(80, +d.h || 0)) + 'px' });
+  // put every change on the page: first everything back as it was, then each change where its block is now
+  function renderEdits(){
+    for (const [e, o] of edited) { e.replaceChildren(o.frag); e.classList.remove('kb-ed-on') } edited.clear();
+    for (const b of document.querySelectorAll('.kb-vis,.kb-edtag')) b.remove(); visFrames.clear();
+    for (const x of edits) {
+      const e = anchorOf(x); if (!e) continue;
+      if (x.kind === 'rewrite') {
+        if (x.show !== 'orig') { const frag = document.createDocumentFragment(); const text = e.textContent; while (e.firstChild) frag.appendChild(e.firstChild); edited.set(e, {frag, text}); e.innerHTML = cleanRich(x.html); e.classList.add('kb-ed-on') }
+        const tag = el('button', {type:'button', class:'kb-edtag', 'data-ed':x.id, title:x.show === 'orig' ? 'Show Claude\'s version' : 'Claude rewrote this' + (x.why ? ' (' + x.why + ')' : '') + '; tap for the original'}, x.show === 'orig' ? '\u270E Claude\'s version' : '\u270E edited \u00B7 original');
+        e.appendChild(tag);
+      } else {
+        const box = el('div', {class:'kb-vis', 'data-ed':x.id}), head = el('div', {class:'kb-vish'}, '<b>' + esc(x.title) + '</b><span class="kb-sp"></span><small>Claude\'s visual' + (x.st === 'kept' ? ' \u00B7 kept' : '') + '</small>' + (x.st !== 'kept' ? '<button type="button" data-ev="keep" title="Keep it for review">Keep</button>' : '') + '<button type="button" data-ev="discard" title="Remove it">\u2715</button>');
+        const f = el('iframe', {sandbox:'allow-scripts', title:x.title, referrerpolicy:'no-referrer'}); f.srcdoc = visDoc(x); f.style.height = '240px';
+        box.append(head, f); visFrames.set(x.id, f);
+        const par = e.parentElement, d = par ? getComputedStyle(par) : null, row = d && (/grid/.test(d.display) || (/flex/.test(d.display) && !/column/.test(d.flexDirection)));
+        if (row) e.appendChild(box); else { let after = e; while (after.nextElementSibling && after.nextElementSibling.classList.contains('kb-vis')) after = after.nextElementSibling; after.after(box) }
+      }
+    }
+  }
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('.kb-edtag,.kb-vis [data-ev]'); if (!t) return; e.preventDefault(); e.stopPropagation();
+    const id = t.dataset.ed || t.closest('.kb-vis').dataset.ed, x = edits.find(y => y.id === id); if (!x) return;
+    if (t.classList.contains('kb-edtag')) x.show = x.show === 'orig' ? 'edit' : 'orig';
+    else if (t.dataset.ev === 'keep') x.st = 'kept';
+    else if (t.dataset.ev === 'discard') { if (!confirm('Remove this visual?')) return; drop(edits, x) }
+    renderEdits(); saveBook(); if (!ovView.hidden) renderOverview();
+  }, true);
 
   // ================= Notebook =================
   let entries = [];
@@ -1146,7 +1232,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the reader's ink, their typed notes, Claude's replies and its arrows. Coordinates are paper units: a page is 800 x 1130, ruled
   // every 40; it is scaled to the window's width. There is always one blank page at the end. ----
   const PW = 800, PH = 1130, LH = 40, MX = 36, TOP = 42, BOT = 1096;
-  let book = [], pgs = [], scale = 1, zoom = 1, inkColor = '#222', gest = null, gestEnd = 0, loaded = false, jumped = false, marks = [], notes = [];
+  let book = [], pgs = [], scale = 1, zoom = 1, inkColor = '#222', gest = null, gestEnd = 0, loaded = false, jumped = false, marks = [], notes = [], edits = [];
   const pend = [], undoStack = [], elOf = new Map();   // strokes Claude has not read yet, and every stroke for Undo ({pg, s}); item -> element
   const drop = (a, s) => { const k = a.findIndex(x => x === s || (x && (x.s === s || x.m === s))); if (k >= 0) a.splice(k, 1) };
   const r1 = v => Math.round(v * 10) / 10;
@@ -1525,6 +1611,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.nb) content.push({type:'text', text:'Their notebook, page ' + (job.pg + 1) + ', as it is now (800 x 1130; the ruler on the edges gives coordinates): their ink in the colours they chose (a wide translucent stroke is a highlighter), what they just wrote outlined by a dashed blue box marked NEW, typed notes in black print, your earlier replies and arrows in brown, and the free spots for your reply outlined in green and lettered.'}, {type:'image', source:{type:'base64', media_type:'image/png', data:job.nb.split(',')[1]}});
     }
     content.push(...job.scr.blocks);
+    if (job.kind === 'page' && blockHint(job)) content.push({type:'text', text:blockHint(job)});
     content.push({type:'text', text:job.kind === 'page'
       ? job.nudge ? 'A quiet nudge: they ' + (job.nudge.reread ? 'came back to re-read' : 'just finished reading') + ' the section "' + job.nudge.name + '" and tapped the dot on the toolbar to hear your one thought on it. Offer the single most useful thing for understanding that section deeply: the key intuition, a connection they may have missed, or a gentle correction of something they marked there. One to three sentences, as a note beside the section heading. If nothing is genuinely worth adding, answer only NONE. No <at> or <point> here.'
       : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + noMarks(t.a)).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
@@ -1569,11 +1656,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       S.out.status('Reading…');
       let msgs = noteHistory().concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
-        r = await stream(SYS_NOTE, msgs, 'low', 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(before + raw, end) });
+        const big = /visual|visuali[sz]e|diagram|draw|figure|chart|animat|rewrite|rephrase|clearer|simpler version/i.test(job.typed || '');
+        r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(before + raw, end) }, undefined,
+          name => S.out.status(name === 'add_visual' ? 'Building a visual for the page…' : name === 'rewrite_block' ? 'Rewriting that part of the page…' : 'Looking further…'));
         cost += r.cents; const uses = r.content.filter(b => b.type === 'tool_use');
         if (r.stop !== 'tool_use' || !uses.length || turn >= 4) break;
         before += r.raw; msgs = msgs.concat([{role:'assistant', content:r.content}]);
-        const results = []; for (const u of uses) { S.out.status(u.name === 'search_kb' ? 'Searching the knowledge base for "' + (u.input.query || '') + '"…' : 'Reading ' + kbTitle(u.input.path) + '…'); results.push({type:'tool_result', tool_use_id:u.id, content:await runTool(u)}) }
+        const results = []; for (const u of uses) { S.out.status(u.name === 'search_kb' ? 'Searching the knowledge base for "' + (u.input.query || '') + '"…' : 'Reading ' + kbTitle(u.input.path) + '…'); results.push({type:'tool_result', tool_use_id:u.id, content:await runTool(u, job)}) }
         msgs = msgs.concat([{role:'user', content:results}]);
       }
       r = Object.assign({}, r, {raw:before + r.raw, cents:cost});
@@ -1649,7 +1738,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function anchorOf(x){
     const e = anchorEl(x.a); if (!x.qt) return e;
     const k = x.a + '|' + x.qt; if (anchors.has(k)) { const c = anchors.get(k); if (c === null || c.isConnected) return c }
-    let f = e && normT(e.textContent).startsWith(x.qt.slice(0, 60)) ? e : refind(x.qt);
+    let f = e && normT(origText(e)).startsWith(x.qt.slice(0, 60)) ? e : refind(x.qt);
     anchors.set(k, f || null); if (!f) { lostSet.add(x); return null } lostSet.delete(x);
     if (f !== e) { x.a = pathOf(f); anchors.set(x.a + '|' + x.qt, f); saveBook() }
     return f;
@@ -2073,7 +2162,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function renderOverview(){
     const M = means(), gs = groupsNow();
     const cols = [...new Set(gs.flatMap(g => g.ms.map(m => m.c || '')))];
-    ovBar.innerHTML = '<div class="kb-chips">' + [['all', 'All'], ['note', 'With a note'], ['highlight', 'Highlights'], ['ink', 'Drawings']].map(([k, t]) => '<button type="button" data-k="' + k + '"' + (ovF.kind === k ? ' aria-pressed="true"' : '') + '>' + t + '</button>').join('') +
+    ovBar.innerHTML = '<div class="kb-chips">' + [['all', 'All'], ['note', 'With a note'], ['highlight', 'Highlights'], ['ink', 'Drawings'], ['edit', 'Page changes']].map(([k, t]) => '<button type="button" data-k="' + k + '"' + (ovF.kind === k ? ' aria-pressed="true"' : '') + '>' + t + '</button>').join('') +
       cols.map(c => '<button type="button" data-col="' + c + '"' + (ovF.col === c ? ' aria-pressed="true"' : '') + '><i style="background:' + (c || 'var(--ink)') + '"></i>' + esc(M[c] || colName(c)) + '</button>').join('') +
       '<button type="button" data-done="1"' + (ovF.done ? ' aria-pressed="true"' : '') + '>Show resolved</button></div>';
     const list = gs.filter(g => (ovF.kind === 'all' || kindOf(g) === ovF.kind) && (ovF.col == null || g.ms.some(m => (m.c || '') === ovF.col)) && (ovF.done || !(g.n && g.n.resolved)));
@@ -2087,6 +2176,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       return '<button type="button" class="kd-ovi" data-g="' + k + '"><i style="background:' + (g.ms[0] ? (c || 'var(--ink)') : 'var(--acc)') + '"></i><span><b>' + esc(head) + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
         '<q>' + esc(quote.slice(0, 140)) + (quote.length > 140 ? '…' : '') + '</q>' + (q ? '<em>You: ' + esc(q.q) + '</em>' : '') + (a ? '<em class="kd-ova">' + esc(a.slice(0, 120)) + (a.length > 120 ? '…' : '') + '</em>' : '') + '</span></button>' }).join('') || '<p class="kb-hint">Nothing matches these filters.</p>';
     ovList._g = list.filter(g => !g.lost);
+    if (ovF.kind === 'edit') ovList.innerHTML = '';
+    if ((ovF.kind === 'all' || ovF.kind === 'edit') && edits.length) ovList.insertAdjacentHTML(ovF.kind === 'edit' ? 'beforeend' : 'afterbegin', '<h4 class="kd-relh">Page changes by Claude</h4>' + edits.map(x => {
+      const e = anchorOf(x), w = e ? where(e) : '';
+      return '<div class="kd-ovi kd-edi" data-edi="' + x.id + '"><i style="background:var(--acc)"></i><span><b>' + (x.kind === 'visual' ? 'Visual: ' + esc(x.title) : 'Rewrite') + ' \u00B7 ' + (x.st === 'kept' ? 'kept' : 'new') + (e ? '' : ' \u00B7 unanchored') + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
+        (x.kind === 'rewrite' ? '<q>' + esc(normT(String(x.html).replace(/<[^>]+>/g, '')).slice(0, 160)) + '</q>' : '') + (x.ask ? '<em>You: ' + esc(x.ask) + '</em>' : '') +
+        '<span class="kb-chips">' + (e ? '<button type="button" data-ea="go">Show</button>' : '') + (x.st !== 'kept' ? '<button type="button" data-ea="keep">Keep</button>' : '<button type="button" data-ea="unkeep">Undo keep</button>') + '<button type="button" data-ea="discard">Discard</button></span></span></div>' }).join(''));
     if (lost.length) ovList.insertAdjacentHTML('beforeend', '<h4 class="kd-relh">Unanchored: the page changed and these no longer find their place</h4>' + lost.map((g, k) => { const x = g.n || g.ms[0]; const t = g.n ? turnsOf(g.n).find(z => z.q || z.a) : null;
       return '<div class="kd-ovi"><i style="background:var(--bad,#c2703a)"></i><span><b>' + (g.n ? 'Note' : 'Marks') + '</b><q>' + esc((x.qt || '').slice(0, 140)) + '</q>' + (t ? '<em>' + esc(t.q || plain(t.a).slice(0, 120)) + '</em>' : '') + '<button type="button" data-lost="' + k + '">Delete</button></span></div>' }).join(''));
     ovList._lost = lost;
@@ -2106,6 +2201,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   ovBar.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.k) ovF.kind = b.dataset.k; else if (b.dataset.col != null) ovF.col = ovF.col === b.dataset.col ? null : b.dataset.col; else if (b.dataset.done) ovF.done = !ovF.done; renderOverview() });
   ovList.addEventListener('click', e => {
+    const ea = e.target.closest('[data-ea]'); if (ea) { const x = edits.find(y => y.id === ea.closest('[data-edi]').dataset.edi); if (!x) return;
+      if (ea.dataset.ea === 'keep') x.st = 'kept'; else if (ea.dataset.ea === 'unkeep') x.st = 'new'; else if (ea.dataset.ea === 'discard') drop(edits, x);
+      else if (ea.dataset.ea === 'go') { const t = anchorOf(x); if (t) { if (P.classList.contains('kb-full')) close(); else { sub = null; show() } showEl(t); setTimeout(() => { const v = x.kind === 'visual' ? document.querySelector('.kb-vis[data-ed="' + x.id + '"]') : t; (v || t).scrollIntoView({block:'center', behavior:'smooth'}); flashEl(v || t) }, 150) } return }
+      renderEdits(); saveBook(); renderOverview(); return }
     const d = e.target.closest('[data-lost]'); if (d) { const g = ovList._lost[+d.dataset.lost]; for (const m of g.ms) removeMark(m); if (g.n) { drop(notes, g.n); const ne = noteEl.get(g.n); if (ne) ne.remove(); noteEl.delete(g.n) } saveBook(); renderOverview(); return }
     const b = e.target.closest('[data-g]'); if (b) goGroup(ovList._g[+b.dataset.g]);
   });
