@@ -260,10 +260,11 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 - Format: short paragraphs and lists, **bold** sparingly, \`code\` for code and tensor shapes, fenced blocks for longer code. Write maths in plain text with Unicode (√, ·, ×, ², ᵀ, softmax(QKᵀ/√d)), never LaTeX. No tables. Do not use em dashes.`;
 
   // ---- markdown-lite renderer for answers (escapes everything first) ----
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // quotes too: escaped text also lands inside quoted attributes (a link's href), where a bare quote would end the attribute
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const inline = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?=[^*\w]|$)/g, '$1<i>$2</i>')
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   function md(s){
     const L = s.split('\n'), out = []; let i = 0, para = [], list = null;
     const flushP = () => { if (para.length) { out.push('<p>' + para.map(inline).join('<br>') + '</p>'); para = [] } };
@@ -1519,38 +1520,6 @@ window.FP=(function(){
   });
 })();
 </script>
-<script>/* 27_js_rd_prof.js */
-// ---- Reading section 3: the real torch.profiler trace of one training step, CPU against MPS, and its table ----
-(function(){
-  const P=PCD.profiler,f=MC.fmtN;let dev='cpu';
-  const el=document.getElementById('rd-prof-svg'),tab=document.getElementById('rd-prof-tab'),note=document.getElementById('rd-prof-note');
-  function colour(n){if(/^ProfilerStep/.test(n))return 'var(--dim)';if(n==='forward')return 'var(--c1)';if(n==='backward')return 'var(--c2)';if(n==='optimizer'||/^Optimizer/.test(n))return 'var(--c3)';
-    if(/mm|addmm|linear/.test(n))return 'var(--c4)';if(/Backward|backward/.test(n))return 'var(--c5)';return 'var(--c6)'}
-  function draw(){
-    const D=P[dev],W=RD.width(el),L=W<500?58:76,R=10,X=t=>L+t/D.step_us*(W-L-R);
-    // lanes: one per thread, rows by nesting depth inside a thread
-    const ths=[...new Set(D.events.map(e=>e.th))];const lanes=[];let y=8,s='';
-    ths.forEach((th,k)=>{const ev=D.events.filter(e=>e.th===th).sort((a,b)=>a.t-b.t||b.d-a.d),stack=[];let maxd=0;
-      ev.forEach(e=>{while(stack.length&&stack[stack.length-1].t+stack[stack.length-1].d<=e.t+0.001)stack.pop();e._dep=stack.length;maxd=Math.max(maxd,e._dep);stack.push(e)});
-      const rows=Math.min(maxd+1,6),h=15;
-      s+=RD.t(L-6,y+12,W<500?(k===0?'main':'autograd'):(k===0?'main thread':'autograd thread'),{a:'end',fs:10,fill:'var(--mute)'});
-      ev.forEach(e=>{if(e._dep>=rows)return;const x=X(e.t),w=Math.max(1,X(e.t+e.d)-x),yy=y+e._dep*(h+2);
-        s+='<rect x="'+x.toFixed(1)+'" y="'+yy+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="2" style="fill:'+colour(e.n)+';opacity:.85"><title>'+RD.esc(e.n)+': '+f(e.d,0)+' us at '+f(e.t/1000,2)+' ms</title></rect>';
-        const lab=e.n.replace(/^aten::/,'');if(w>lab.length*5.5+6)s+=RD.t(x+3,yy+11,RD.esc(lab),{fs:9.5,fill:'var(--bg)'})});
-      y+=rows*(h+2)+12});
-    const st=D.step_us/1000>10?5:1;for(let v=0;v<=D.step_us/1000+1e-9;v+=st){const x=X(v*1000);s+='<line x1="'+x+'" x2="'+x+'" y1="'+(y-4)+'" y2="'+y+'" style="stroke:var(--mute)"/>'+RD.t(x,y+12,f(v,0)+' ms',{a:'middle',fs:10,fill:'var(--mute)'})}
-    el.innerHTML=RD.svg(W,y+18,s,'torch.profiler trace of one training step');
-    tab.innerHTML='<table class="tbl-sm"><thead><tr><th>Operator (top 8 by self CPU time, 2 steps)</th><th class="num">calls</th><th class="num">self CPU, &micro;s</th><th class="num">per call</th><th class="num">GFLOP</th></tr></thead><tbody>'+
-      D.rows.slice(0,8).map(r=>'<tr><td class="mname">'+RD.esc(r.name)+'</td><td class="num">'+r.calls+'</td><td class="num">'+f(r.self_cpu_us,0)+'</td><td class="num">'+f(r.self_cpu_us/r.calls,1)+'</td><td class="num">'+(r.flops?f(r.flops/1e9,1):'')+'</td></tr>').join('')+'</tbody></table>';
-    note.innerHTML='<span class="meas">measured here</span> PyTorch '+P.torch+', '+(dev==='cpu'?'model on the CPU (2 threads)':'model on the M1 Pro GPU via MPS; CPU activity only')+'. '+RD.esc(D.step)+' lasted '+f(D.step_us/1000,2)+' ms; '+D.events.length+' of its '+D.events_total_in_step+' events are drawn (those of 25 &micro;s or more, plus the phase ranges; up to 6 nesting levels). Wall time per step, synchronised: '+D.wall.map(v=>f(v,1)).join(', ')+' ms (the first is the warm-up of section 2).'+(dev==='mps'?' The empty right part of the step is the CPU waiting in the final synchronise for the GPU to finish the work it queued.':'')+' Colours: grey step, blue forward, orange backward, green optimizer, purple matmuls.';
-  }
-  RD.seg(document.getElementById('rd-prof-seg'),v=>{dev=v;draw()});
-  RD.onRender(draw);RD.onResize(draw);draw();
-  const row=(d,n)=>P[d].rows.find(r=>r.name===n);
-  Object.assign(window.RDV=window.RDV||{},{pc_mm:f(row('cpu','aten::mm').self_cpu_us/row('cpu','aten::mm').calls,1),pm_mm:f(row('mps','aten::mm').self_cpu_us/row('mps','aten::mm').calls,1),
-    pm_step:f(row('mps','ProfilerStep*').self_cpu_us/1000,2),p_acts:P.activities.join(', ')});
-})();
-</script>
 <script>/* 27b_js_rd_sym.js */
 // ---- Reading section 3: six timeline shapes (illustrative, labelled so), chosen by a row of the static symptom table ----
 (function(){
@@ -1584,6 +1553,71 @@ window.FP=(function(){
   function pick(tr){if(!tr||!tr.dataset.k)return;k=+tr.dataset.k;tab.querySelectorAll('tbody tr').forEach(r=>r.classList.toggle('on',r===tr));draw()}
   tab.addEventListener('click',e=>{if(e.target.closest('a'))return;pick(e.target.closest('tr[data-k]'))});
   tab.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-k]');if(tr){e.preventDefault();pick(tr)}}});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 27_js_rd_prof.js */
+// ---- Reading section 3: the real torch.profiler trace of one training step, CPU against MPS, and its table ----
+(function(){
+  const P=PCD.profiler,f=MC.fmtN;let dev='cpu';
+  const el=document.getElementById('rd-prof-svg'),tab=document.getElementById('rd-prof-tab'),note=document.getElementById('rd-prof-note');
+  function colour(n){if(/^ProfilerStep/.test(n))return 'var(--dim)';if(n==='forward')return 'var(--c1)';if(n==='backward')return 'var(--c2)';if(n==='optimizer'||/^Optimizer/.test(n))return 'var(--c3)';
+    if(/mm|addmm|linear/.test(n))return 'var(--c4)';if(/Backward|backward/.test(n))return 'var(--c5)';return 'var(--c6)'}
+  function draw(){
+    const D=P[dev],W=RD.width(el),L=W<500?58:76,R=10,X=t=>L+t/D.step_us*(W-L-R);
+    // lanes: one per thread, rows by nesting depth inside a thread
+    const ths=[...new Set(D.events.map(e=>e.th))];const lanes=[];let y=8,s='';
+    ths.forEach((th,k)=>{const ev=D.events.filter(e=>e.th===th).sort((a,b)=>a.t-b.t||b.d-a.d),stack=[];let maxd=0;
+      ev.forEach(e=>{while(stack.length&&stack[stack.length-1].t+stack[stack.length-1].d<=e.t+0.001)stack.pop();e._dep=stack.length;maxd=Math.max(maxd,e._dep);stack.push(e)});
+      const rows=Math.min(maxd+1,6),h=15;
+      s+=RD.t(L-6,y+12,W<500?(k===0?'main':'autograd'):(k===0?'main thread':'autograd thread'),{a:'end',fs:10,fill:'var(--mute)'});
+      ev.forEach(e=>{if(e._dep>=rows)return;const x=X(e.t),w=Math.max(1,X(e.t+e.d)-x),yy=y+e._dep*(h+2);
+        s+='<rect x="'+x.toFixed(1)+'" y="'+yy+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="2" style="fill:'+colour(e.n)+';opacity:.85"><title>'+RD.esc(e.n)+': '+f(e.d,0)+' us at '+f(e.t/1000,2)+' ms</title></rect>';
+        const lab=e.n.replace(/^aten::/,'');if(w>lab.length*5.5+6)s+=RD.t(x+3,yy+11,RD.esc(lab),{fs:9.5,fill:'var(--bg)'})});
+      y+=rows*(h+2)+12});
+    const st=D.step_us/1000>10?5:1;for(let v=0;v<=D.step_us/1000+1e-9;v+=st){const x=X(v*1000);s+='<line x1="'+x+'" x2="'+x+'" y1="'+(y-4)+'" y2="'+y+'" style="stroke:var(--mute)"/>'+RD.t(x,y+12,f(v,0)+' ms',{a:'middle',fs:10,fill:'var(--mute)'})}
+    el.innerHTML=RD.svg(W,y+18,s,'torch.profiler trace of one training step');
+    tab.innerHTML='<table class="tbl-sm"><thead><tr><th>Operator (top 8 by self CPU time, 2 steps)</th><th class="num">calls</th><th class="num">self CPU, &micro;s</th><th class="num">per call</th><th class="num">GFLOP</th></tr></thead><tbody>'+
+      D.rows.slice(0,8).map(r=>'<tr><td class="mname">'+RD.esc(r.name)+'</td><td class="num">'+r.calls+'</td><td class="num">'+f(r.self_cpu_us,0)+'</td><td class="num">'+f(r.self_cpu_us/r.calls,1)+'</td><td class="num">'+(r.flops?f(r.flops/1e9,1):'')+'</td></tr>').join('')+'</tbody></table>';
+    note.innerHTML='<span class="meas">measured here</span> PyTorch '+P.torch+', '+(dev==='cpu'?'model on the CPU (2 threads)':'model on the M1 Pro GPU via MPS; CPU activity only')+'. '+RD.esc(D.step)+' lasted '+f(D.step_us/1000,2)+' ms; '+D.events.length+' of its '+D.events_total_in_step+' events are drawn (those of 25 &micro;s or more, plus the phase ranges; up to 6 nesting levels). Wall time per step, synchronised: '+D.wall.map(v=>f(v,1)).join(', ')+' ms (the first is the warm-up of section 2).'+(dev==='mps'?' The empty right part of the step is the CPU waiting in the final synchronise for the GPU to finish the work it queued.':'')+' Colours: grey step, blue forward, orange backward, green optimizer, purple matmuls.';
+  }
+  RD.seg(document.getElementById('rd-prof-seg'),v=>{dev=v;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+  const row=(d,n)=>P[d].rows.find(r=>r.name===n);
+  Object.assign(window.RDV=window.RDV||{},{pc_mm:f(row('cpu','aten::mm').self_cpu_us/row('cpu','aten::mm').calls,1),pm_mm:f(row('mps','aten::mm').self_cpu_us/row('mps','aten::mm').calls,1),
+    pm_step:f(row('mps','ProfilerStep*').self_cpu_us/1000,2),p_acts:P.activities.join(', ')});
+})();
+</script>
+<script>/* 28b_js_rd_stall.js */
+// ---- Reading section 4: where a warp's cycles go, before and after the fix (Warp State and Occupancy sections of NVIDIA's reports) ----
+(function(){
+  const el=document.getElementById('rd-stall-svg');if(!el||!window.NCU)return;
+  const f=MC.fmtN,leg=document.getElementById('rd-stall-leg'),cnt=document.getElementById('rd-stall-cnt');
+  // one clearly different colour per reason (2026-11-10: Drain and Selected no longer share MIO Throttle's and Barrier's colours)
+  const COL={'Long Scoreboard':'var(--c1)','MIO Throttle':'var(--c2)','Barrier':'var(--c3)','Short Scoreboard':'var(--c4)','Tex Throttle':'var(--c5)','LG Throttle':'var(--c6)','Drain':'#9c755f','Selected':'var(--mute)'};
+  const sec=(r,n)=>r.sections.find(s=>s.name===n);
+  function warp(r){const s=sec(r,'Warp State Statistics'),t0=s.tables[0].rows,t1=s.tables.find(t=>t.title==='Warp State (All Cycles)').rows;
+    const v=l=>+t0.find(x=>x[0]===l)[2];const parts=t1.map(x=>({n:x[0].replace(/^Stall /,''),v:+x[2]}));
+    const cpi=v('Warp Cycles Per Issued Instruction'),known=parts.reduce((a,p)=>a+p.v,0);
+    return {cpi,ipc:v('Issued Warp Per Scheduler'),parts,other:Math.max(0,cpi-known)}}
+  function occ(r){const rows=sec(r,'Occupancy').tables[0].rows,g=l=>+rows.find(x=>x[0]===l)[2];return {th:g('Theoretical Occupancy'),ach:g('Achieved Occupancy')}}
+  let k=1;
+  function draw(){
+    const p=NCU.PAIRS[k],B=NCU.byStem(p.b),A=NCU.byStem(p.a),wb=warp(B),wa=warp(A),ob=occ(B),oa=occ(A);
+    const W=RD.width(el),L=W<500?52:70,R=12,mx=Math.max(wb.cpi,wa.cpi),X=v=>v/mx*(W-L-R),bh=30;let s='';
+    [[wb,'before',14],[wa,'after',14+bh+30]].forEach(([w,lab,y])=>{
+      s+=RD.t(L-6,y+19,lab,{a:'end',fs:11,w:600});let x=L;
+      const segs=w.parts.map(q=>({n:q.n,v:q.v,c:COL[q.n]||'var(--dim)'})).concat([{n:'other',v:w.other,c:'var(--dim)'}]);
+      segs.forEach(q=>{const ww=X(q.v);if(ww<0.3)return;s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+ww.toFixed(1)+'" height="'+bh+'" style="fill:'+q.c+';opacity:.88;stroke:var(--bg);stroke-width:.6"><title>'+RD.esc(q.n)+': '+f(q.v,2)+' cycles</title></rect>';
+        const lab2=q.n+' '+f(q.v,q.v>=10?0:1);if(ww>lab2.length*5.9+6)s+=RD.t(x+4,y+19,RD.esc(lab2),{fs:10.5,fill:q.c==='var(--dim)'?'var(--ink)':'var(--bg)'});x+=ww});
+      s+=RD.t(Math.min(W-R,x+4),y+bh+13,f(w.cpi,w.cpi>=100?0:1)+' cycles per issued instruction',{a:x+200>W-R?'end':'start',fs:10.5,fill:'var(--mute)'})});
+    el.innerHTML=RD.svg(W,14+2*bh+30+18,s,'warp cycles per issued instruction by stall reason, before and after');
+    const names=[...new Set(wb.parts.concat(wa.parts).map(q=>q.n))].filter(n=>COL[n]&&n!=='Selected');
+    leg.innerHTML=names.map(n=>'<span style="--sw:'+COL[n]+'">'+n+'</span>').join('')+'<span style="--sw:var(--mute)">Selected (issuing)</span><span style="--sw:var(--dim)">other reasons</span>';
+    cnt.innerHTML=RD.stat('Cycles per issued instruction',f(wb.cpi,1)+' &rarr; '+f(wa.cpi,1),'per warp')+RD.stat('Issued warp per scheduler',f(wb.ipc,2)+' &rarr; '+f(wa.ipc,2),'1.00 would issue every cycle')+
+      RD.stat('Achieved occupancy',f(ob.ach,1)+'% &rarr; '+f(oa.ach,1)+'%','theoretical '+f(ob.th,0)+'% and '+f(oa.th,0)+'%')+(t=>RD.stat('Top stall before',RD.esc(t.n),f(t.v,1)+' cycles'))(wb.parts.filter(q=>q.n!=='Selected').sort((a,b)=>b.v-a.v)[0]);
+  }
+  RD.seg(document.getElementById('rd-stall-seg'),v=>{k=+v;draw()});
   RD.onRender(draw);RD.onResize(draw);draw();
 })();
 </script>
@@ -1629,37 +1663,35 @@ window.NCU=(function(){
     Object.assign(window.RDV,o)});
 })();
 </script>
-<script>/* 28b_js_rd_stall.js */
-// ---- Reading section 4: where a warp's cycles go, before and after the fix (Warp State and Occupancy sections of NVIDIA's reports) ----
+<script>/* 29b_js_rd_lab.js */
+// ---- Reading section 5, closed workbench (was the Numerics lab tab): dot-product error against format, length and order (window.FP model) ----
 (function(){
-  const el=document.getElementById('rd-stall-svg');if(!el||!window.NCU)return;
-  const f=MC.fmtN,leg=document.getElementById('rd-stall-leg'),cnt=document.getElementById('rd-stall-cnt');
-  // one clearly different colour per reason (2026-11-10: Drain and Selected no longer share MIO Throttle's and Barrier's colours)
-  const COL={'Long Scoreboard':'var(--c1)','MIO Throttle':'var(--c2)','Barrier':'var(--c3)','Short Scoreboard':'var(--c4)','Tex Throttle':'var(--c5)','LG Throttle':'var(--c6)','Drain':'#9c755f','Selected':'var(--mute)'};
-  const sec=(r,n)=>r.sections.find(s=>s.name===n);
-  function warp(r){const s=sec(r,'Warp State Statistics'),t0=s.tables[0].rows,t1=s.tables.find(t=>t.title==='Warp State (All Cycles)').rows;
-    const v=l=>+t0.find(x=>x[0]===l)[2];const parts=t1.map(x=>({n:x[0].replace(/^Stall /,''),v:+x[2]}));
-    const cpi=v('Warp Cycles Per Issued Instruction'),known=parts.reduce((a,p)=>a+p.v,0);
-    return {cpi,ipc:v('Issued Warp Per Scheduler'),parts,other:Math.max(0,cpi-known)}}
-  function occ(r){const rows=sec(r,'Occupancy').tables[0].rows,g=l=>+rows.find(x=>x[0]===l)[2];return {th:g('Theoretical Occupancy'),ach:g('Achieved Occupancy')}}
-  let k=1;
-  function draw(){
-    const p=NCU.PAIRS[k],B=NCU.byStem(p.b),A=NCU.byStem(p.a),wb=warp(B),wa=warp(A),ob=occ(B),oa=occ(A);
-    const W=RD.width(el),L=W<500?52:70,R=12,mx=Math.max(wb.cpi,wa.cpi),X=v=>v/mx*(W-L-R),bh=30;let s='';
-    [[wb,'before',14],[wa,'after',14+bh+30]].forEach(([w,lab,y])=>{
-      s+=RD.t(L-6,y+19,lab,{a:'end',fs:11,w:600});let x=L;
-      const segs=w.parts.map(q=>({n:q.n,v:q.v,c:COL[q.n]||'var(--dim)'})).concat([{n:'other',v:w.other,c:'var(--dim)'}]);
-      segs.forEach(q=>{const ww=X(q.v);if(ww<0.3)return;s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+ww.toFixed(1)+'" height="'+bh+'" style="fill:'+q.c+';opacity:.88;stroke:var(--bg);stroke-width:.6"><title>'+RD.esc(q.n)+': '+f(q.v,2)+' cycles</title></rect>';
-        const lab2=q.n+' '+f(q.v,q.v>=10?0:1);if(ww>lab2.length*5.9+6)s+=RD.t(x+4,y+19,RD.esc(lab2),{fs:10.5,fill:q.c==='var(--dim)'?'var(--ink)':'var(--bg)'});x+=ww});
-      s+=RD.t(Math.min(W-R,x+4),y+bh+13,f(w.cpi,w.cpi>=100?0:1)+' cycles per issued instruction',{a:x+200>W-R?'end':'start',fs:10.5,fill:'var(--mute)'})});
-    el.innerHTML=RD.svg(W,14+2*bh+30+18,s,'warp cycles per issued instruction by stall reason, before and after');
-    const names=[...new Set(wb.parts.concat(wa.parts).map(q=>q.n))].filter(n=>COL[n]&&n!=='Selected');
-    leg.innerHTML=names.map(n=>'<span style="--sw:'+COL[n]+'">'+n+'</span>').join('')+'<span style="--sw:var(--mute)">Selected (issuing)</span><span style="--sw:var(--dim)">other reasons</span>';
-    cnt.innerHTML=RD.stat('Cycles per issued instruction',f(wb.cpi,1)+' &rarr; '+f(wa.cpi,1),'per warp')+RD.stat('Issued warp per scheduler',f(wb.ipc,2)+' &rarr; '+f(wa.ipc,2),'1.00 would issue every cycle')+
-      RD.stat('Achieved occupancy',f(ob.ach,1)+'% &rarr; '+f(oa.ach,1)+'%','theoretical '+f(ob.th,0)+'% and '+f(oa.th,0)+'%')+(t=>RD.stat('Top stall before',RD.esc(t.n),f(t.v,1)+' cycles'))(wb.parts.filter(q=>q.n!=='Selected').sort((a,b)=>b.v-a.v)[0]);
+  const f=MC.fmtN,$=id=>document.getElementById(id),NU=PCD.numerics;
+  const ids=['nl-fin','nl-fa','nl-acc','nl-S','nl-fout','nl-K'];
+  const sci=v=>v===0?'0':v<1e-3?v.toExponential(2):f(v*100,v*100>=10?1:3)+'%';
+  let tm=0;
+  function cfg(){return {fin:$('nl-fin').value,fa:$('nl-fa').value,acc:$('nl-acc').value,S:+$('nl-S').value,fout:$('nl-fout').value,K:1<<+$('nl-K').value}}
+  function run(){
+    const c=cfg();$('nl-Kv').textContent=f(c.K,0);$('nl-S').disabled=c.acc!=='split';
+    const T=c.K>=16384?32:64,r=FP.experiment(Object.assign({seed:11,trials:T},c));
+    $('nl-out').innerHTML=RD.stat('Median error',sci(r.median),'of the scale &radic;&Sigma;(a&middot;b)&sup2;')+RD.stat('90th percentile',sci(r.p90),T+' trials')+RD.stat('Worst',sci(r.max),'')+
+      RD.stat('assert_close defaults pass',r.pass+' of '+r.T,'rtol, atol for '+FP.F[c.fout].name)+RD.stat('One rounding of the output',sci(FP.eps(c.fout)/2),'eps/2 of '+FP.F[c.fout].name);
+    // chart: this configuration against float32 sequential and pairwise, K = 16 .. 16384
+    clearTimeout(tm);tm=setTimeout(()=>chart(c),30);
+    const ref=NU.accumulate.inputs.float16.find(x=>x.K===c.K);
+    $('nl-note').innerHTML=(c.fin==='fp16'&&c.fout==='fp32'&&ref&&((c.fa==='fp32'&&c.acc!=='split')||(c.fa!=='fp32'&&c.acc==='seq'))?'Cross-check: the NumPy run in <code>src/out/numerics.json</code> (256 trials, its own random numbers) gave a median of '+sci(ref[(c.fa==='fp32'?'fp32_':c.fa==='fp16'?'fp16_':'bf16_')+(c.acc==='pair'?'pairwise':'sequential')].median)+' for this setting; agreement is statistical, not bit for bit.':'');
   }
-  RD.seg(document.getElementById('rd-stall-seg'),v=>{k=+v;draw()});
-  RD.onRender(draw);RD.onResize(draw);draw();
+  function chart(c){
+    const el=$('nl-chart');if(!el.offsetParent)return;
+    const Ks=[16,64,256,1024,4096,16384];
+    const pts=o=>Ks.map(K=>({x:K,y:Math.max(1e-12,FP.experiment(Object.assign({seed:5,trials:K>=4096?24:48},o,{K})).median)}));
+    const base={fin:c.fin,fout:'fp32',S:c.S};
+    MC.line(el,[{name:'your setting',color:'var(--c2)',pts:pts(c)},{name:'float32 running sum',color:'var(--c1)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'seq'})),dash:'4 3'},{name:'float32 pairwise',color:'var(--c3)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'pair'})),dash:'4 3'}],
+      {logx:true,logy:true,xl:'reduction length K',yl:'median error / scale',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'error against K'});
+  }
+  ids.forEach(i=>$(i).addEventListener('input',run));
+  const det=$('rd-nl-det');let ran=false;det.addEventListener('toggle',()=>{if(det.open){run();ran=true}});
+  RD.onResize(()=>{if(det.open)chart(cfg())});
 })();
 </script>
 <script>/* 29_js_rd_num.js */
@@ -1702,37 +1734,6 @@ window.NCU=(function(){
   const mmr=NU.matmul_vs_ref.float16,acc65=NU.accumulate.inputs.float16.find(r=>r.K===65536);
   Object.assign(window.RDV=window.RDV||{},{mm_f4096:String(mmr.find(r=>r.K===4096).fail_default),mm_f16384:String(mmr.find(r=>r.K===16384).fail_default),
     mm_scale:f(mmr.find(r=>r.K===4096).max_err_over_scale*100,2),acc_bf:f(acc65.bf16_sequential.median*100,1),ulp:String(+ulp.toPrecision(2))});
-})();
-</script>
-<script>/* 29b_js_rd_lab.js */
-// ---- Reading section 5, closed workbench (was the Numerics lab tab): dot-product error against format, length and order (window.FP model) ----
-(function(){
-  const f=MC.fmtN,$=id=>document.getElementById(id),NU=PCD.numerics;
-  const ids=['nl-fin','nl-fa','nl-acc','nl-S','nl-fout','nl-K'];
-  const sci=v=>v===0?'0':v<1e-3?v.toExponential(2):f(v*100,v*100>=10?1:3)+'%';
-  let tm=0;
-  function cfg(){return {fin:$('nl-fin').value,fa:$('nl-fa').value,acc:$('nl-acc').value,S:+$('nl-S').value,fout:$('nl-fout').value,K:1<<+$('nl-K').value}}
-  function run(){
-    const c=cfg();$('nl-Kv').textContent=f(c.K,0);$('nl-S').disabled=c.acc!=='split';
-    const T=c.K>=16384?32:64,r=FP.experiment(Object.assign({seed:11,trials:T},c));
-    $('nl-out').innerHTML=RD.stat('Median error',sci(r.median),'of the scale &radic;&Sigma;(a&middot;b)&sup2;')+RD.stat('90th percentile',sci(r.p90),T+' trials')+RD.stat('Worst',sci(r.max),'')+
-      RD.stat('assert_close defaults pass',r.pass+' of '+r.T,'rtol, atol for '+FP.F[c.fout].name)+RD.stat('One rounding of the output',sci(FP.eps(c.fout)/2),'eps/2 of '+FP.F[c.fout].name);
-    // chart: this configuration against float32 sequential and pairwise, K = 16 .. 16384
-    clearTimeout(tm);tm=setTimeout(()=>chart(c),30);
-    const ref=NU.accumulate.inputs.float16.find(x=>x.K===c.K);
-    $('nl-note').innerHTML=(c.fin==='fp16'&&c.fout==='fp32'&&ref&&((c.fa==='fp32'&&c.acc!=='split')||(c.fa!=='fp32'&&c.acc==='seq'))?'Cross-check: the NumPy run in <code>src/out/numerics.json</code> (256 trials, its own random numbers) gave a median of '+sci(ref[(c.fa==='fp32'?'fp32_':c.fa==='fp16'?'fp16_':'bf16_')+(c.acc==='pair'?'pairwise':'sequential')].median)+' for this setting; agreement is statistical, not bit for bit.':'');
-  }
-  function chart(c){
-    const el=$('nl-chart');if(!el.offsetParent)return;
-    const Ks=[16,64,256,1024,4096,16384];
-    const pts=o=>Ks.map(K=>({x:K,y:Math.max(1e-12,FP.experiment(Object.assign({seed:5,trials:K>=4096?24:48},o,{K})).median)}));
-    const base={fin:c.fin,fout:'fp32',S:c.S};
-    MC.line(el,[{name:'your setting',color:'var(--c2)',pts:pts(c)},{name:'float32 running sum',color:'var(--c1)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'seq'})),dash:'4 3'},{name:'float32 pairwise',color:'var(--c3)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'pair'})),dash:'4 3'}],
-      {logx:true,logy:true,xl:'reduction length K',yl:'median error / scale',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'error against K'});
-  }
-  ids.forEach(i=>$(i).addEventListener('input',run));
-  const det=$('rd-nl-det');let ran=false;det.addEventListener('toggle',()=>{if(det.open){run();ran=true}});
-  RD.onResize(()=>{if(det.open)chart(cfg())});
 })();
 </script>
 <script>/* 30_js_rd_vals.js */
