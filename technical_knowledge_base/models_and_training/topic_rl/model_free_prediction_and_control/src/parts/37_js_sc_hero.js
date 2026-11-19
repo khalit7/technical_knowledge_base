@@ -18,7 +18,7 @@
   const epPts=(R,rev)=>{const pts=[];for(let j=0;j<3;j++){const [i0,t0]=path[j],[i1,t1]=path[j+1];for(let u=j?1:0;u<=16;u++)pts.push(R.arcPt([X(i0),.06,Z(t0)],[X(i1),.06,Z(t1)],.35,u/16))}return rev?pts.reverse():pts};
   const LX=[X(3)-2.1,X(3)-1.1,X(3)-.1],LL=X(3)+1.1;                                         // step 6: the three n-step returns and the lambda-return on the shelf
   // step 7 and 8 geometry: S and S′ side by side, the cliff in front, the three targets on a shelf behind S
-  const S=[-1.7,-.2],SP=[1.7,-.2],TZ=-2,TX=[-3.6,-1.95,-.3];
+  const S=[-1.7,-.2],SP=[1.7,-.2],TZ=-2.75,TX=[-3.6,-1.95,-.3];
   const ACT=[['right',-4,[.5,0],'left',8],['down',-100,[0,.5],'left',8],['up',-5,[0,-.5],'center',0],['left',-6,[-.5,0],'right',-8,14]];
   const chance=n=>n==='right'?1-.1+.1/4:.1/4;
   function draw(R,k,e){const P=R.P,wide=k===0||k===2||k===6,old=k<6?1:k===6?Math.max(0,1-2*e):0,neu=k<6?0:k===6?Math.max(0,2*e-1):1,ph=R.W<520;
@@ -63,7 +63,7 @@
     }
     if(neu>0){
       // one transition beside a cliff: S, then S′ whose four action values are drawn as cost bars (height grows with the square root of -Q)
-      const dim=k===7?.55:1,cl=k===7?0:neu;
+      const dim=k===7?.25:1,cl=k===7?0:neu;
       sq(S,.95,mix(P.paper,P.soft,.5),neu,R);sq(SP,.95,mix(P.paper,P.soft,.5),neu,R);sq([S[0],1.65],.95,mix(P.paper,P.bad,.35),neu*dim,R);sq([SP[0],1.65],.95,mix(P.paper,P.bad,.35),neu*dim,R);
       R.label([S[0],0,2.6],'cliff',{fs:12.5,b:1,c:P.bad,a:cl,dy:4});R.label([SP[0],0,2.6],'cliff',{fs:12.5,b:1,c:P.bad,a:cl,dy:4});
       R.label([S[0]+.95,0,S[1]+.95],'S',{fs:15,b:1,dx:-12,dy:-4,a:neu});R.label([SP[0]+.95,0,SP[1]+.95],'S′',{fs:15,b:1,dx:-12,dy:-4,a:neu});
@@ -71,7 +71,7 @@
       if(k===6){R.label(R.arcPt(a0,a1,1.1,.5),'right, R = −1',{fs:12.5,mono:true,dy:-12,a:neu,wide:1});R.flowArc(a0,a1,1.1,{c:P.acc,a:neu,n:6,speed:1.4})}
       ACT.forEach(([n,q,d,al,dx,dy])=>{const hl=k===6?n==='down':n==='down'||n==='right',col=n==='down'?P.bad:n==='right'?P.good:P.c1;
         R.box([SP[0]+d[0],0,SP[1]+d[1]],[.42,CQ(q),.42],{fill:mix(P.paper,col,.55),a:neu*(hl?1:.55)});
-        R.label([SP[0]+d[0],CQ(q),SP[1]+d[1]],n+' '+f2(q),{al,dx,dy:dy||(al==='center'?-12:-2),mono:true,fs:12,a:neu*(hl?1:.6),c:n==='down'?P.bad:P.ink,wide:n==='up'||n==='left'?1:0})});
+        R.label([SP[0]+d[0],CQ(q),SP[1]+d[1]],n+' '+f2(q),{al,dx,dy:dy||(al==='center'?-12:-2),mono:true,fs:12,a:neu*(hl?1:k===7?0:.6),c:n==='down'?P.bad:P.ink,wide:n==='up'||n==='left'?1:0})}); // step 8 names only the two values the targets use
       if(k===6)R.glow([SP[0],CQ(-100)+.1,SP[1]+.5],.55,{c:P.bad,a:neu});
       // step 8: the three targets for Q(S, right) on a shelf behind S; S′'s action values stream into each: SARSA from the action taken (down),
       // Expected SARSA from all four in proportion to their chance under epsilon-greedy, Q-learning from the best (right)
@@ -94,7 +94,7 @@
     {cam:[-.38,.72],bounds:[[X(2)-.7,0,ZS-.5],[X(5)+1.2,1.5,Z(2)+.9]]},                          // two steps: C to E and the shelf
     {cam:[-.25,.6],bounds:[[LX[0]-1.1,0,ZS-.6],[LL+1.5,2.4,ZS+1]]},                              // the lambda-return: the shelf up close
     {cam:[-.38,.78],bounds:[[-3.2,0,-2.4],[3.2,2.3,2.7]]},                                       // the cliff transition
-    {cam:[-.4,.9],bounds:[[-4.2,0,-2.5],[2.8,2.4,1.4]]}];                                       // the three targets and S′
+    {cam:[-.4,.9],bounds:[[-4.2,0,-3.2],[2.8,2.4,1.1]]}];                                       // the three targets and S′
   S3.stage({id:'stg-hero',list:'sx-hero',fig:'how far the target looks, which next action it trusts',cam:full.cam,bounds:full.bounds,aspect:.62,draw,dur:1300,hold:5200,view:k=>VIEW[k]});
   window.RD_TEST=Object.assign(window.RD_TEST||{},{hero:{LR,TT}});
 })();

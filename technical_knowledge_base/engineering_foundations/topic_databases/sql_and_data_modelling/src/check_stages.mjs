@@ -9,7 +9,7 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (SQL and data modelling: adapted from Query planning and performance; six stages and two 2D animations; the scenes' numbers are checked against the page's data and the step lists)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-join', 'stg-grp', 'stg-win', 'stg-norm', 'stg-ec'];
+const STAGES = ['stg-hero', 'stg-join', 'stg-grp', 'stg-win'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [['rd-rec-card', 'rd-rec-ctl', { walk: 'sx-rec' }, null, null], ['rd-q-card', 'rd-q-ctl', { long: 'sx-q-long', timeout: 'sx-q-timeout', quick: 'sx-q-quick' }, 'rd-q-mode', 'm']];
 const MODES = {};

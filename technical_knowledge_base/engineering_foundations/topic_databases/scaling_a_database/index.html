@@ -101,6 +101,14 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #ovBars .track{height:12px}
 #pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+/* eased steps (2026-11-19, the template's rule): RD.anim adds rd-fwd to the card on a forward step; marks with class rd-new ease in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style><style id="kb-look">
 /* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
 :root{--bg:#f4f5f7;--card:#fff;--soft:#f0f2f5;--line:#e1e4e9;--ink:#1d2733;--mute:#5f6b7a;--acc:#2a62a8;--acc2:#dde8f6;
@@ -412,7 +420,10 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <div class="deepnote"><b>Pro habit:</b> OpenAI ran ChatGPT on "a single primary Azure PostgreSQL flexible server instance" with "nearly 50 read replicas", at load that "has grown by more than 10x" in a year, by staying on these rungs plus read replicas, rate limiting, and moving only new or write-heavy, shardable workloads to other systems (section 13). The lesson is not "never shard"; it is "do not shard what the cheap rungs can still carry".</div>
 </section>
 
-<div class="s3sp"><div class="s3R"><div id="stg-ryw"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-ryw-card"><h4 class="vt">Fig. 2 · read-your-writes, three routes</h4>
+<div class="rd-svg" id="rd-ryw"></div>
+<div class="an-ctl" id="rd-ryw-ctl"></div>
+</div></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Read replicas in practice</h2>
 <p>The queries are fixed, the box is big, but reads (opening chats, listing chats, search) are 90% of the traffic and still growing. Reads do not change data, so any exact copy of the database could answer them.</p>
@@ -1531,59 +1542,64 @@ window.SC={"part":{"dash|messages":{"ms":372.56,"plan":0.33,"pages":192372,"rels
     view:k=>k===0?{cam:[.3,.45],bounds:[[-2.4,0,-1.3],[2.4,1.3,2.8]]}:full});
 })();
 </script>
-<script>/* 42_js_sc_ryw.js */
-// ---- Scene, Fig. 2 (section 3): read-your-writes under three routes (renderer v2; log positions illustrative) ----
-// The user's app, a router, a primary and one replica; each server carries its write-ahead log as a row of records on its roof
-// (0/3000010 to 0/3000080). The user's write is record 0/3000060 (purple). The replica replays the primary's log a little behind (gold stream).
+<script>/* 42_js_ryw.js */
+// ---- Fig. 2 (section 3): read-your-writes under three routes, flat (2026-11-19: was a 3D stage of four boxes; the parties and the messages between them
+// read the same flat). The user's app, a router, a primary above one replica; each server's write-ahead log is a row of records (0/3000010 to 0/3000080,
+// log positions illustrative). The user's write is record 0/3000060 (purple); the replica replays the primary's log a little behind (gold). ----
 (function(){
-  if(!document.getElementById('stg-ryw'))return;const {at,lerp,mix,cl}=S3;
-  let mode='naive';
-  const APP=[-3.5,0,.05],RT=[-1.35,0,.05],PR=[1.9,0,-1.15],RE=[1.9,0,1.25],SS=[2.3,.62,1.05],NL=8,UW=5; // UW: the user's write, record 6
-  const slot=(c,i)=>[c[0]-SS[0]/2+.2+i*((SS[0]-.4)/(NL-1)),SS[1]+.02,c[2]];
-  function log(R,c,n,a,hl,lab,lc){const P=R.P;for(let i=0;i<NL;i++){const p=slot(c,i),on=i<n,f=Math.min(1,Math.max(0,n-i));
-      if(on)R.box(p,[.22,.2*f+.01,.5],{fill:i===UW&&hl?P.c4:mix(P.paper,P.c5,.55),a,shadow:false,lw:.6});
-      else R.quad([[p[0]-.11,p[1]+.005,p[2]-.25],[p[0]+.11,p[1]+.005,p[2]-.25],[p[0]+.11,p[1]+.005,p[2]+.25],[p[0]-.11,p[1]+.005,p[2]+.25]],{a:a*.6,dash:[3,3],ec:P.line,ea:.9})}
-    R.label([c[0]+SS[0]/2,SS[1]+.1,c[2]],lab,{al:'left',dx:10,mono:true,fs:12,c:lc||P.mute,a,wide:1})}
-  function box(R,c,s,fill,name,a,hot,hc){R.box(c,s,{fill,a});if(hot>0)R.glow([c[0],s[1]*.6,c[2]+s[2]/2],1.1,{c:hc||R.P.acc,a:hot*.45});R.label([c[0]-s[0]/2,s[1]*.5,c[2]],name,{al:'right',dx:-10,fs:12.5,b:1})}
-  function draw(R,k,e){const P=R.P;R.grid(-4.6,4.4,-2.4,2.6,.5);
-    const lsnCatch=mode==='lsn'&&k>=3,pn=k===0?5+e:lsnCatch?(k===3?6+2*e:8):6,rn=lsnCatch?(k===3?2+6*Math.min(1,e*1.6):8):2;
-    // the four parties
-    R.box(APP,[1.3,.3,.65],{fill:mix(P.paper,P.ink,.06)});R.label([APP[0],.32,APP[2]],'user + app',{fs:12.5,b:1,dy:-12});
-    const rtHot=k===2&&mode==='lsn'?e:0;R.box(RT,[1.1,.28,.55],{fill:mix(P.paper,P.ink,.06)});R.label([RT[0],.3,RT[2]],'router',{fs:12.5,b:1,dy:-12});
-    if(rtHot>0)R.glow([RT[0],.35,RT[2]],.8,{c:P.c5,a:rtHot*.6});
-    const priHot=k===0?e:(mode==='sticky'&&(k===2||k===3))?1:(mode==='sticky'&&k===4)?e:0;
-    box(R,PR,SS,mix(P.paper,P.c1,.38),'primary',1,priHot,mode==='sticky'&&k===4?P.bad:P.acc);
-    const reHot=(mode!=='sticky'&&k===3)||(mode==='naive'&&k===4)?1:0;
-    box(R,RE,SS,mix(P.paper,P.c1,.2),'replica',1,reHot,mode==='naive'?P.bad:P.good);
-    log(R,PR,pn,1,true,'log at 0/30000'+(pn>7.5?'80':'60'),P.c4);
-    log(R,RE,rn,1,true,'replayed to 0/30000'+(rn>7.5?'80':'20'),rn>7.5?P.good:P.c5);
-    const p=(c,dx,dz)=>[c[0]+(dx||0),.3,c[2]+(dz||0)];
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-ryw-card');if(!card)return;
+  let mode='naive';const NL=8,UW=5,POS=i=>'0/30000'+String((i+1)*10).padStart(2,'0'); // the user's write is record 6, 0/3000060
+  function draw(k){const el=document.getElementById('rd-ryw'),W=RD.width(el),ph=W<520,fs=ph?11.5:12;let s='';
+    const lsnCatch=mode==='lsn'&&k>=3,pn=k===0?6:6,rn=lsnCatch?8:2;
+    // the four parties: app and router on the left, the primary above the replica on the right, each server with its log as a row of records
+    const ax=ph?30:52,rx=ph?104:170,aw=ph?56:92,rw2=ph?58:92,sx=ph?150:W*.44,sw=W-sx-4,top=6,py=top,sh=ph?70:76,ry=py+sh+(ph?58:66),my=(py+sh+ry)/2;
+    const box=(x,y,w,h,name,hot,hc)=>rect(x,y,w,h,{fill:hot?hc:'var(--soft)',fo:hot?.16:1,s:hot?hc:'var(--line)',sw:hot?2:1.2,r:8})+text(x+8,y+18,name,{fs:13,w:700});
+    s+=box(ax-aw/2,my-22,aw,44,ph?'app':'user + app',false)+box(rx-rw2/2,my-22,rw2,44,'router',k===2&&mode==='lsn','var(--c5)');
+    const priHot=k===0||(mode==='sticky'&&(k===2||k===3)),reHot=(mode!=='sticky'&&k===3)||(mode==='naive'&&k===4);
+    s+=box(sx,py,sw,sh,'primary',priHot,mode==='sticky'&&k===4?'var(--bad)':'var(--acc)');
+    s+=box(sx,ry,sw,sh,'replica',reHot,mode==='naive'?'var(--bad)':'var(--good)');
+    const cw=(sw-16)/NL;
+    function log(y,n,lab,lc){for(let i=0;i<NL;i++){const x=sx+8+i*cw;
+        if(i<n)s+=rect(x+1,y,cw-2,18,{fill:i===UW?'var(--c4)':'var(--c5)',fo:i===UW?.9:.45,r:2,cl:(k===0&&y===py+28&&i===UW)||(lsnCatch&&k===3&&y===ry+28&&i>=2)?'rd-new':''});
+        else s+=rect(x+1,y,cw-2,18,{fill:'none',s:'var(--line)',da:'3 3',r:2})}
+      s+=text(sx+8,y+36,lab,{fs:11.5,mono:1,c:lc,w:600})}
+    log(py+28,pn,'log at '+POS(pn-1),'var(--c4)');log(ry+28,rn,'replayed to '+POS(rn-1),rn>=NL?'var(--good)':'var(--c5)');
+    const A=(x1,y1,x2,y2,c,o)=>arrow(x1,y1,x2,y2,Object.assign({c,sw:2},o||{}));
     // 1. the write: app to router to primary
-    if(k===0){R.flow([p(APP,.6),p(RT,-.5)],{c:P.c4,a:e,r:.07,speed:1.2});R.flowArc(p(RT,.5),slot(PR,UW),.5,{c:P.c4,a:e,r:.07,speed:1.3})}
-    // 2. the log streams to the replica, behind: it keeps streaming from here on
-    if(k>=1){const a=k===1?e:.55;R.flowArc([PR[0]+SS[0]/2-.1,SS[1]*.6,PR[2]+.3],[RE[0]+SS[0]/2-.1,SS[1]*.6,RE[2]-.3],.55,{c:P.c5,a,r:.065,speed:.7,n:8});
-      if(k===1)R.label([PR[0]+SS[0]/2+.25,SS[1]+.35,(PR[2]+RE[2])/2],'log stream',{al:'left',dx:6,fs:12,c:P.c5,b:1,a:e,wide:1})}
+    if(k===0)s+=grp(A(ax+aw/2,my-6,rx-rw2/2,my-6,'var(--c4)')+A(rx+rw2/2,my-10,sx,py+sh/2,'var(--c4)')+text((rx+sx)/2-4,(my+py+sh/2)/2-10,'write',{fs,c:'var(--c4)',w:600}),{cl:'rd-new'});
+    // 2. the log streams to the replica, behind; it keeps streaming from here on
+    if(k>=1){const lx=sx+sw-(ph?24:40);s+=grp(A(lx,py+sh,lx,ry,'var(--c5)',{da:'5 3'})+text(lx-6,(py+sh+ry)/2+4,'log stream',{a:'end',fs,c:'var(--c5)',w:600}),{cl:k===1?'rd-new':'',op:k===1?1:.6})}
     // 3. the reload
-    if(k>=2){const a=k===2?e:.35;R.flow([p(APP,.6,-.15),p(RT,-.5,-.15)],{c:P.c6,a,r:.07,speed:1.2});
-      if(mode==='sticky')R.flowArc(p(RT,.5,-.1),[PR[0]-.6,SS[1],PR[2]+.3],.45,{c:P.c6,a,r:.07,speed:1.3});
-      else if(mode==='naive')R.flowArc(p(RT,.5,.1),[RE[0]-.6,SS[1],RE[2]-.3],.45,{c:P.c6,a,r:.07,speed:1.3});
-      else if(k===2){R.line([p(RT,.5,.1),R.arcPt(p(RT,.5,.1),[RE[0]-.6,SS[1],RE[2]-.3],.45,.4)],{c:P.c6,w:2.2,dash:[3,5],a:e});
-        R.label([RT[0],0,RT[2]+.3],'wait: 0/3000020 < 0/3000060',{dy:18,mono:true,fs:12,c:P.c5,b:1,a:e,wide:1})}
-      else R.flowArc(p(RT,.5,.1),[RE[0]-.6,SS[1],RE[2]-.3],.45,{c:P.c6,a:k===3?cl(e*1.6-.6,0,1):a,r:.07,speed:1.3})}
+    if(k>=2){const op=k===2?1:.5,cl=k===2?'rd-new':'';s+=grp(A(ax+aw/2,my+4,rx-rw2/2,my+4,'var(--c6)'),{op,cl});
+      if(mode==='sticky')s+=grp(A(rx+rw2/2,my-2,sx,py+sh-14,'var(--c6)'),{op,cl});
+      else if(mode==='naive')s+=grp(A(rx+rw2/2,my+6,sx,ry+14,'var(--c6)'),{op,cl});
+      else if(k===2)s+=grp(line(rx+rw2/2,my+6,(rx+rw2/2+sx)/2,(my+6+ry+14)/2,{c:'var(--c6)',sw:2,da:'3 5'}),{cl});
+      else s+=grp(A(rx+rw2/2,my+6,sx,ry+14,'var(--c6)'),{op,cl})}
     // 4. the answer comes back: without the message (naive) or with it
-    if(k>=3){const ok=mode!=='naive',src=mode==='sticky'?PR:RE,a=k===3?(mode==='lsn'?cl(e*2-1,0,1):e):.45,c=ok?P.good:P.bad;
-      R.flowArc([src[0]-.9,SS[1]*.5,src[2]+(src===PR?.4:-.4)],p(RT,.3,src===PR?-.2:.2),.4,{c,a,r:.065,speed:1.3,n:7});R.flow([p(RT,-.5,.15),p(APP,.6,.15)],{c,a,r:.065,speed:1.2,n:6});
-      R.label([APP[0],.3,APP[2]+.35],ok?'message shown':'message missing',{dy:22,fs:12.5,b:1,c,a})}
+    if(k>=3){const ok=mode!=='naive',c=ok?'var(--good)':'var(--bad)',fromP=mode==='sticky',op=k===3?1:.6,cl=k===3?'rd-new':'';
+      s+=grp(A(sx,fromP?py+sh-4:ry+28,rx+rw2/2,my+16,c)+A(rx-rw2/2,my+16,ax+aw/2,my+16,c),{op,cl});
+      s+=grp(text(ax-aw/2,my+44,ok?'message shown':'message missing',{fs:12.5,w:700,c}),{cl})}
     // 5. the cost of each route
-    if(k===4){const t=mode==='naive'?'1,993 of 2,000 reads missed it':mode==='sticky'?'recent writers read here':'median wait 0.105 ms';
-      const at_=mode==='sticky'?PR:mode==='naive'?RE:RT;R.label([at_[0],at_===RT?.3:SS[1]+.2,at_[2]],t,{dy:at_===RT?24:-30,fs:12.5,b:1,c:mode==='sticky'?P.bad:mode==='naive'?P.bad:P.good,a:e})}
-  }
-  const st=S3.stage({id:'stg-ryw',list:'sx-ryw-naive',fig:'Fig. 2 · read-your-writes, three routes',cam:[.22,.74],bounds:[[-4.2,0,-1.8],[3.1,.9,1.9]],aspect:.52,dur:1300,hold:5000,draw,
-    margin:w=>w<520?[16,8,14,8]:[16,175,14,24]});
+    let yb=ry+sh+20;
+    if(k===2&&mode==='lsn')s+=text(W/2,yb,'wait: replica at 0/3000020 < the write\'s 0/3000060',{a:'middle',fs:12.5,mono:!ph,w:700,c:'var(--c5)',cl:'rd-new'});
+    if(k===4){const t=mode==='naive'?'1,993 of 2,000 immediate reads missed it':mode==='sticky'?'recent writers read the primary':'median wait 0.105 ms';
+      s+=text(W/2,yb,t,{a:'middle',fs:13,w:700,c:mode==='lsn'?'var(--good)':'var(--bad)',cl:'rd-new'})}
+    el.innerHTML=RD.svg(W,yb+10,s,'Read-your-writes under the '+mode+' route')}
+  const an=RD.anim({card:'rd-ryw-card',ctl:'rd-ryw-ctl',n:5,ms:5000,draw,label:'Read-your-writes step',list:'sx-ryw-naive'});
+  RD.onResize(()=>an.redraw());
   const M=document.getElementById('rwM');
-  if(M&&st)M.addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;
+  if(M)M.addEventListener('click',ev=>{const b=ev.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;
     M.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
-    ['naive','sticky','lsn'].forEach(m=>{const l=document.getElementById('sx-ryw-'+m);if(l)l.hidden=m!==mode});st.list('sx-ryw-'+mode)});
+    ['naive','sticky','lsn'].forEach(m=>{const l=document.getElementById('sx-ryw-'+m);if(l)l.hidden=m!==mode});an.reset(5,'sx-ryw-'+mode)});
 })();
 </script>
 <script>/* 43_js_sc_fan.js */

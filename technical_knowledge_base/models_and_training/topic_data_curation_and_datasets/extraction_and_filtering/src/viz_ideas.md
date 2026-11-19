@@ -40,3 +40,6 @@ labeller, seed and Wilson intervals everywhere labels are used.
 | EF23 | Fig. 3: rule gates per family with a pile per rule and the labelled wrong-drop share | Reading s7 | built (3D) | EF.wb.reasons, EF.pipe.run0, EF.labels.summary |
 | R5 | 3D hero funnel | none | rejected: counts per stage on one axis read best flat, and Fig. 3 already carries the gates in 3D |
 | R6 | Cost-ordered pipeline in 3D | none | rejected: rough timings on a shared machine, four orders of magnitude; a bar chart says it |
+
+## 2026-11-19 3D step polish
+- 2026-11-19, Fig. 3 (stg-gate, `29_js_sc_gate.js`): the close-ups (steps 2 to 5) showed earlier gates as faded ghosts cut at the left edge, and the pile names sat on the bars and plates. Now each close-up shows only its gate and its two columns (the previous gate fades out during the move, later gates and their empty slots are hidden), centred on the gate with a slightly higher camera; the pile names sit on the floor in front of the piles with a leader to each pile (hidden on phones, where the step list names them); the "dropped" count moved above the gate name. Step 6's labelled shares use the same floor labels, so none overlap the bars. Every number stays.

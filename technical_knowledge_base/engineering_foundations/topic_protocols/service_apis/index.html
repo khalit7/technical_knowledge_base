@@ -391,7 +391,7 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <nav class="nav" id="rd-nav">
 <a href="#rd-top">The idea</a><a href="#rd-s1">1 Styles</a><a href="#rd-s2">2 REST</a><a href="#rd-s3">3 Schema first</a><a href="#rd-s4">4 Idempotency</a><a href="#rd-s5">5 Rate limits</a><a href="#rd-s6">6 Webhooks</a><a href="#rd-s7">7 LLM APIs</a><a href="#rd-s8">8 Protobuf</a><a href="#rd-s9">9 gRPC wire</a><a href="#rd-s10">10 Deadlines</a><a href="#rd-s11">11 Status, retries</a><a href="#rd-s12">12 Connections</a><a href="#rd-s13">13 Load balancing</a><a href="#rd-s14">14 Browsers</a><a href="#rd-s15">15 GraphQL</a><a href="#rd-s16">16 JSON-RPC</a><a href="#rd-s17">17 Choosing</a>
 </nav>
-<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div id="sq-hero"></div></div></div><div class="s3L">
 <section id="rd-top">
 <h2>The idea in one screen</h2>
 <p class="core">A service API is a contract for a call that can fail halfway. REST, gRPC and GraphQL write that contract down and put it on the wire differently, but every good API answers the same questions: <span class="em">what may be sent, how long the caller waits, what each failure means, whether a retry is safe, and which copy of the service answers</span>.</p>
@@ -472,36 +472,11 @@ content-type: application/json
 <div class="small" id="rd-anatall"><b>The seven parts:</b> 1. a plural noun with a major version in the path; 2. a dated version in a header, pinned per request; 3. a client-chosen key that makes this POST safe to retry (section 4); 4. the status says whose fault and whether to retry; 5. how long to wait (section 5); 6. a request id to quote to support and to search your logs for; 7. a stable, documented error type that code can switch on.</div>
 </div>
 </div></div></div>
-<div class="s3sp"><div class="s3R"><div class="s3side"><div class="fig" id="rd-pg">
-<div class="ft">One new row makes offset repeat an item; the cursor carries on</div>
-<div class="seg" id="rd-pgseg"><button data-m="0" class="on">Before: offset</button><button data-m="1">After: cursor</button></div>
-<div id="rd-pgsvg"></div>
-<div class="an-ctl" id="rd-pgctl"></div>
-<p class="cap">Illustrative data: eight chats, newest first, pages of three. Measured cost of one 20-row page at depth 500,000 in a million-row Postgres 16.2 table: offset 98.1 ms, cursor 0.032 ms (median of 7 runs, 4 October 2026, on an Apple M1 Pro; recorded by the Building a backend API page's script, copied here as <code>src/inputs/pagination_pg.json</code>); the plans behind the two numbers are on <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, section 8.</p>
-</div>
-</div></div><div class="s3L">
 <h3>Pagination: offset shifts under writes, a cursor does not</h3>
-<p>A list endpoint returns a page and a way to ask for the next. <b>Offset</b> (<code>?limit=20&amp;offset=40</code>) is easy and lets a UI jump to page 7, but the database still reads every skipped row, and rows added while the user pages shift everything. A <b>cursor</b> encodes the sort key of the last row seen, <code>WHERE (created_at, id) &gt; (:t, :id)</code>, so an index seeks straight to it. Predict what the user sees on page 2 when one chat is created between the two requests, then step:</p>
-<p class="sxh">Fig. 2 · One new row makes offset repeat an item; the cursor carries on</p>
-<ol class="sx" id="sx-pg-0">
-<li><b>Page 1.</b> The user gets c8, c7, c6, the three newest chats. Offset remembers "skip 3".</li>
-<li><b>A write between requests.</b> Someone creates c9 at the top of the list. The user does not know.</li>
-<li><b>Page 2.</b> Offset skips 3 rows of the new list: c9, c8, c7. The user gets c6 again, then c5 and c4.</li>
-<li><b>Another write.</b> c5 is deleted.</li>
-<li><b>Page 3.</b> Offset skips 6 rows: the list shrank, so the page starts at c2. c3 is never shown.</li>
-<li><b>What the user saw.</b> Offset showed one chat twice and never showed another, without any error. Both writes were ordinary.</li>
-</ol>
-<ol class="sx" id="sx-pg-1" hidden>
-<li><b>Page 1.</b> The user gets c8, c7, c6, the three newest chats. The cursor remembers "after c6".</li>
-<li><b>A write between requests.</b> Someone creates c9 at the top of the list. The user does not know.</li>
-<li><b>Page 2.</b> The cursor asks for rows after c6: c5, c4, c3. The new row c9 does not disturb it.</li>
-<li><b>Another write.</b> c5 is deleted.</li>
-<li><b>Page 3.</b> The cursor asks for rows after c3: c2, c1. The deleted c5 simply is not there.</li>
-<li><b>What the user saw.</b> Every chat that existed was shown exactly once, whatever was written in between.</li>
-</ol>
+<p>A list endpoint returns a page and a way to ask for the next. <b>Offset</b> (<code>?limit=20&amp;offset=40</code>) is easy and lets a UI jump to page 7, but the database still reads every skipped row, and rows added while the user pages shift everything. A <b>cursor</b> encodes the sort key of the last row seen, <code>WHERE (created_at, id) &gt; (:t, :id)</code>, so an index seeks straight to it.</p>
+<p>What the user sees when rows change between requests (illustrative: eight chats c1 to c8, newest first, pages of three): page 1 is c8, c7, c6. If c9 is created before page 2, offset skips 3 rows of the new list (c9, c8, c7) and the user gets c6 again, then c5 and c4; if c5 is then deleted, page 3 skips 6 rows of the shorter list, starts at c2, and c3 is never shown. One chat shown twice and another never, without any error, from two ordinary writes. A cursor asks for the rows after the last one seen: after c6 it gets c5, c4, c3 (the new c9 does not disturb it), after c3 it gets c2, c1 (the deleted c5 simply is not there), so every chat that existed is shown exactly once. The cost differs as much: one 20-row page at depth 500,000 in a million-row Postgres 16.2 table took 98.1 ms with offset and 0.032 ms with a cursor (median of 7 runs, 4 October 2026, on an Apple M1 Pro; recorded by the Building a backend API page's script, copied here as <code>src/inputs/pagination_pg.json</code>). Why, with the plans behind the two numbers and the cost at every depth, is <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>'s, section 8.</p>
 <p>The rules from the big style guides: cursors are opaque ("must be opaque (but URL-safe) strings, and must not be user-parseable", <a href="https://google.aip.dev/158" target="_blank" rel="noopener noreferrer">AIP-158</a>), because anything clients can decode they will depend on; an empty next token is the only end signal (AIP-158: "If the end of the collection has been reached, the <code>next_page_token</code> field must be empty"), so clients never guess from a short page; cap <code>limit</code>; sort by a unique key (add the id as a tie-breaker, or equal timestamps skip or repeat across a page boundary); skip <code>total_count</code> unless needed, since counting a filtered set is itself a scan. Offset keeps a place in small admin tables.</p>
 <p>Filters and sorts meet the cursor in two more rules. <b>Allow-list filter fields and sort keys</b> to those you have indexes for: a generic "filter on any column" becomes a full table scan the first time someone filters on an unindexed one, and a way to probe fields you never meant to expose. <b>Bind the filters into the cursor</b>: a cursor made under <code>model=large</code> means nothing under <code>model=small</code>, so store a hash of the filters inside it and reject a mismatch. Sorting descending needs the keyset comparison reversed (<code>&lt;</code> instead of <code>&gt;</code>) and an index in that order, or one Postgres can scan backwards; Markus Winand's <a href="https://use-the-index-luke.com/no-offset" target="_blank" rel="noopener noreferrer">"We need tool support for keyset pagination"</a> makes the case for keysets with Postgres and MySQL plans.</p>
-</div></div>
 <h3>Versioning: never break a client you cannot see</h3>
 <p>A breaking change is any change after which a correct existing client stops working or starts doing something different: removing or renaming a field, changing its type, making an optional field required, changing a default ("Changing the default value is considered breaking", <a href="https://google.aip.dev/180" target="_blank" rel="noopener noreferrer">AIP-180</a>), or changing behaviour under the same shape. In practice the contract is wider than the documentation: Hyrum's law, "With a sufficient number of users of an API, it does not matter what you promise in the contract: all observable behaviors of your system will be depended on by somebody" (<a href="https://www.hyrumslaw.com/" target="_blank" rel="noopener noreferrer">Hyrum Wright, hyrumslaw.com</a>); a phone app version can stay installed for years, so everything observable is contract. Adding endpoints, optional fields, response fields and enum values is safe only if clients are <b>tolerant readers</b> that ignore what they do not know; Anthropic's contract reserves the right, within a version, to "add new variants to enum-like output values (for example, streaming event types)" (<a href="https://platform.claude.com/docs/en/api/versioning" target="_blank" rel="noopener noreferrer">Claude API versioning</a>).</p>
 <div class="tw"><table>
@@ -537,7 +512,7 @@ content-type: application/json
 <h2>4. Idempotency keys and retries across services</h2>
 <p>The user presses Send; after 30 seconds nothing has come back. Either the request never arrived, or it arrived, the model answered, the credits were charged and the reply was lost. The client sees the same timeout in both cases: retrying risks paying twice, not retrying risks losing the message. GET, PUT and DELETE may be retried because they are idempotent; generation is a POST. An <dfn id="g-ikey2">idempotency key</dfn> makes one POST idempotent: the client generates a unique value per logical action, sends it on every retry of that action, and the server answers repeats from what it stored the first time. The page's toy front door ran the same lost reply four ways; pick one:</p>
 <div class="s3chips" id="idem-mode"><button data-m="nokey" class="on">No key</button><button data-m="key">With a key</button><button data-m="early">Retry too early</button><button data-m="mismatch">Key reused</button></div>
-<p class="sxh">Fig. 3 · The retry is harmless only when the server remembers the key</p>
+<p class="sxh">Fig. 2 · The retry is harmless only when the server remembers the key</p>
 <ol class="sx" id="sx-idem-nokey">
 <li><b>The request leaves without a key.</b> The toy client sends the message at 0.000 s with a 0.2 s read timeout; the toy server's "model" takes 0.3 s.</li>
 <li><b>The work commits.</b> At 0.301 s the server saves msg_1 and charges 10 credits in one transaction.</li>
@@ -783,14 +758,14 @@ content-type: application/json
 <p><b>Four call shapes, one stream each</b>: unary (most calls), server streaming (the token stream above), client streaming (audio chunks in, one transcript out) and bidirectional (realtime voice, Triton's sequence models, Envoy talking to an external processor). The shape only changes how many prefixed messages each side sends before closing its half; HTTP/1.1 cannot carry both bodies at once or trailers every client honours, hence HTTP/2.</p>
 <p><b>Channels.</b> Client code makes a <dfn id="g-channel2">channel</dfn> to a target and a stub on it; the channel resolves the name, opens one connection per backend address (a <dfn id="g-subchannel">subchannel</dfn>), keeps them alive, reconnects with backoff, and multiplexes every call as a new stream. A channel is expensive (TCP, maybe TLS, SETTINGS) and a call cheap: one channel per target, shared, never one per call (<a href="https://grpc.io/docs/guides/performance/" target="_blank" rel="noopener noreferrer">performance guide</a>); its hours-long connection is what confuses load balancers (section 13). Credentials, logging and tracing go in <b>interceptors</b>, gRPC's middleware.</p>
 </section>
-<div class="s3sp"><div class="s3R"><div id="stg-dl"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div id="sq-dl"></div></div></div><div class="s3L">
 <section id="rd-s10">
 <h2>10. Deadlines and cancellation: giving up together</h2>
 <p>The user closes the tab after the ninth token. The front door notices; behind it, the router and the inference server do not, and the GPU keeps decoding an answer nobody will read, while abandoned work queues ahead of live work. Every hop needs two facts: <i>how long the caller will wait</i>, and <i>whether it is still there</i>. In gRPC the caller sets a <b>deadline</b>; it travels as a relative timeout in <code>grpc-timeout</code> (at most 8 digits plus a unit, <code>H M S m u n</code>), and each hop subtracts the time already spent before passing it on, so no clocks need to agree (<a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener noreferrer">deadlines guide</a>). When it passes, both ends end the call with <code>DEADLINE_EXCEEDED</code> and the client sends <code>RST_STREAM</code> with code CANCEL (8); cancellation for any other reason uses the same frame.</p>
 <div class="co warn"><div class="t">The default is "wait forever"</div><p>"By default, gRPC does not set a deadline which means it is possible for a client to end up waiting for a response effectively forever." Propagation "is supported by some gRPC implementations": on by default in Java and Go when you pass the incoming context on, opt-in in C++, and in Python you do it yourself (<code>timeout=ctx.time_remaining()</code>). Stopping the work is the server's job: "The server application is responsible for stopping any activity it has spawned to service the RPC."</p></div>
 <p>The lab chained client, gateway and inference service (three processes, real gRPC, a frame log on the second hop). The inference service emits up to 40 tokens, the first after 0.12 s then one every 0.05 s, so a full answer takes about 2.1 s; in every run the client stops after 0.6 s. Predict which runs keep the GPU busy, then pick a run:</p>
 <div class="s3chips" id="dl-mode"><button data-m="0" class="on">A. Deadline propagated</button><button data-m="3">D. Not propagated (worker thread)</button><button data-m="1">B. Not propagated (plain loop)</button><button data-m="2">C. User cancels, no deadline</button></div>
-<p class="sxh">Fig. 4 · One abandoned request, four endings</p>
+<p class="sxh">Fig. 3 · One abandoned request, four endings</p>
 <ol class="sx" id="sx-dl-0">
 <li><b>The call and its deadline.</b> The client sets a 0.6 s deadline. The gateway sees 0.598 s left and passes on what remains: <code>grpc-timeout: 595m</code> on the second hop, so the inference service starts with 0.594 s.</li>
 <li><b>Tokens stream back.</b> After 0.12 s of prefill the first token, then one every 0.05 s, each going inference to gateway to client as one length-prefixed message.</li>
@@ -819,7 +794,7 @@ content-type: application/json
 <li><b>The cancel hook fires.</b> The gateway's callback cancels the downstream call (RST_STREAM CANCEL at 614.4 ms): cancellation alone stopped the work after 9 tokens.</li>
 <li><b>The bill.</b> 9 generated, 9 delivered. A deadline is still needed for a client that is alive but stuck.</li>
 </ol>
-<p class="small mute">Counts, end times, headers and RST_STREAM frames are <span class="meas">measured</span> (grpcio <span data-sa="meta.grpcio"></span>, 5 October 2026); the tokens' positions along the hops follow the configured schedule, not individual timings.</p>
+<p class="small mute">Counts, end times, headers and RST_STREAM frames are <span class="meas">measured</span> (grpcio <span data-sa="meta.grpcio"></span>, 5 October 2026); the tokens' positions on the time axis follow the configured schedule, not individual timings.</p>
 <details class="xc"><summary>Depth: why run B was rescued by accident</summary><div><p>No <code>grpc-timeout</code> reached the inference service in run B, yet it stopped early: when the client left, gRPC Python closed the gateway's generator, CPython freed the abandoned downstream call object at once, and freeing it cancelled the stream (the frame log shows the gateway's RST_STREAM CANCEL). Change the code shape, as run D does with a worker thread, and the rescue disappears.</p></div></details>
 <p><b>Choosing the number.</b> Start from what the caller will tolerate (a chat UI with a 60-second spinner sets about 60 s at the front door) and let each hop inherit what is left; gRPC suggests an educated guess "validated by some load testing". A deadline covers queueing as well as work (the root's Failure lab case "Max concurrent streams: calls queue on the connection" shows calls failing at 2.5 s that the server never saw fail); retries share it (section 11); and a streamed generation needs a deadline sized for the whole stream, or an idle timer instead (HTTP's section 9 plays that out for HTTP hops). <b>With HTTP</b> there is no deadline header: each hop sets its own timeout, cancellation is the connection closing, and the server must notice (details below).</p>
 <details class="xc"><summary>Depth: noticing a disconnected HTTP client in Python</summary><div><p>vLLM's OpenAI-compatible server races the handler against the ASGI <code>http.disconnect</code> message in its <code>with_cancellation</code> decorator, noting that the simpler <code>request.is_disconnected</code> "does not work with middleware" (<a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/serve/utils/api_utils.py" target="_blank" rel="noopener noreferrer">vLLM v0.31.0, api_utils.py</a>). The equivalent discipline to gRPC deadlines: a timeout on every outgoing call and a server that stops work when its incoming request is gone. Timeouts per hop for HTTP (connect, read, idle, total) are <a href="https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889" target="_blank" rel="noopener noreferrer">HTTP</a>'s.</p></div></details>
@@ -897,7 +872,7 @@ content-type: application/json
 <h2>13. Load balancing gRPC: L4, L7 and the client</h2>
 <p>Three replicas should take a third of the calls each. <i>Where</i> and <i>how often</i> a replica is chosen decides whether they do, or one is hot and two idle; with gRPC's long-lived multiplexed connections this is the number-one production surprise. Predict where backend-3's calls come from in each setup before steps 5 to 8.</p>
 <p><b>L4</b> (AWS NLB, Linux IPVS, kube-proxy, nginx <code>stream</code>) sees TCP and copies bytes without reading them. <b>L7</b> (Envoy, nginx <code>grpc_pass</code>, a mesh sidecar, AWS ALB, which has supported gRPC since 29 October 2020, <a href="https://aws.amazon.com/about-aws/whats-new/2020/10/application-load-balancers-enable-grpc-workloads-end-to-end-http-2-support/" target="_blank" rel="noopener noreferrer">AWS</a>) terminates HTTP/2, reads each call's HEADERS and can route on <code>:path</code>, retry and count calls in flight. <b>Client-side</b>: the channel learns every address (DNS or a control plane) and picks per call with a policy: <code>pick_first</code> (the default), <code>round_robin</code>, or xDS policies (<a href="https://github.com/grpc/grpc/blob/master/doc/load-balancing.md" target="_blank" rel="noopener noreferrer">gRPC load balancing</a>).</p>
-<p class="sxh">Fig. 5 · An L4 balancer chooses once per connection; an L7 balancer or the client chooses once per call</p>
+<p class="sxh">Fig. 4 · An L4 balancer chooses once per connection; an L7 balancer or the client chooses once per call</p>
 <ol class="sx" id="sx-lb">
 <li><b>Behind an L4 balancer, one choice.</b> One client channel opens one TCP connection; the L4 balancer (nginx <code>stream</code>) picks a replica once, for that connection. It balanced <i>connections</i>, and there was one, so all 30 calls went to backend-1: 30 / 0 / 0.</li>
 <li><b>Behind an L7 balancer, a choice per call.</b> The client still opens one connection, to the proxy (nginx <code>grpc_pass</code>), which reads each call's HEADERS and keeps its own connection to every replica: 10 / 10 / 10.</li>
@@ -1283,7 +1258,7 @@ window.SA={"meta":{"grpcio":"1.84.0","protobuf":"7.36.2","graphql_core":"3.3.0",
 // ---- Reading, part B: failures, retries, pings, balancing tables, GraphQL, drills ----
 (function(){
   const S=window.SA,esc=RD.esc,set=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h};
-  // (the deadline lanes became the 3D stage stg-dl on 2026-11-07: 43_js_sc_dl.js)
+  // (the deadline lanes became the 3D stage stg-dl on 2026-11-07 and the 2D time-axis figure sq-dl on 2026-11-19: 43_js_sc_dl.js)
   // ---- failures as the client sees them ----
   const ft=document.getElementById('rd-fails');
   if(ft)ft.innerHTML=S.status.cases.filter(c=>c.id!=='too_many_pings').map(c=>'<div class="fc"><div class="h"><span>'+esc(c.what)+'</span><span><b>'+c.code+'</b> &middot; '+c.ms+' ms</span></div><div class="small mute"><code>'+esc(c.call)+'</code></div>'+(c.details?'<div><code>'+esc(c.details)+'</code></div>':'')+'</div>').join('');
@@ -1323,8 +1298,9 @@ window.SA={"meta":{"grpcio":"1.84.0","protobuf":"7.36.2","graphql_core":"3.3.0",
 })();
 </script>
 <script>/* 25_js_figs.js */
-// ---- Reading figures added on 2026-10-24: annotated call, pagination, schema fan-out, webhook, LLM formats, status-code decisions
-// (the hero, idempotency and balancer figures became 3D stages on 2026-11-07). Every SVG is drawn at the measured width and redrawn on resize.
+// ---- Reading figures added on 2026-10-24: annotated call, schema fan-out, webhook, LLM formats, status-code decisions
+// (the hero, idempotency and balancer figures became 3D stages on 2026-11-07; the pagination stepper was removed on 2026-11-19, its
+// behaviour now told in prose and its cost owned by Query planning and performance). Every SVG is drawn at the measured width and redrawn on resize.
 (function(){
   const S=window.SA,esc=RD.esc,$=id=>document.getElementById(id);
   const CW=fs=>fs*0.56;                                  // approximate glyph width of the UI font
@@ -1337,7 +1313,7 @@ window.SA={"meta":{"grpcio":"1.84.0","protobuf":"7.36.2","graphql_core":"3.3.0",
   const draws=[];const reg=f=>{draws.push(f);f()};
   RD.onRender(()=>draws.forEach(f=>f()));RD.onResize(()=>draws.forEach(f=>f()));
 
-  // (the 2D hero became the 3D stage stg-hero on 2026-11-07: 41_js_sc_hero.js)
+  // (the 2D hero became the 3D stage stg-hero on 2026-11-07, then the 2D sequence sq-hero on 2026-11-19: 41_js_sc_hero.js)
 
   // ---- annotated call ----
   const AN=['Path: a plural noun for the resource collection, with the major version first. A v2 is a second API to run, so everything between majors must be additive.',
@@ -1350,40 +1326,6 @@ window.SA={"meta":{"grpcio":"1.84.0","protobuf":"7.36.2","graphql_core":"3.3.0",
   const ann=$('rd-anat');
   if(ann)ann.addEventListener('click',e=>{const s=e.target.closest('span[data-p]');if(!s)return;
     ann.querySelectorAll('span[data-p]').forEach(x=>x.classList.toggle('on',x===s));$('rd-anatinfo').innerHTML='<b>'+(+s.dataset.p+1)+'.</b> '+AN[+s.dataset.p]});
-
-  // ---- pagination: offset against cursor while rows change ----
-  (function(){const el=$('rd-pgsvg');if(!el)return;let mode=0;
-    const states=[['c8','c7','c6','c5','c4','c3','c2','c1'],['c9','c8','c7','c6','c5','c4','c3','c2','c1'],['c9','c8','c7','c6','c4','c3','c2','c1']];
-    // step: [db state index, page fetched (0 none) , event text]
-    const ST=[[0,1],[1,0,'c9 is created'],[1,2],[2,0,'c5 is deleted'],[2,3],[2,9]];
-    function pages(m){const res=[];let off=0,after=null;
-      const fetch=(si)=>{const L=states[si];let rows;
-        if(m===0){rows=L.slice(off,off+3);off+=3}else{const i=after?L.indexOf(after)+1:0;rows=L.slice(i,i+3);if(rows.length)after=rows[rows.length-1]}return rows};
-      res[1]=fetch(0);res[2]=fetch(1);res[3]=fetch(2);return res}
-    function draw(i){const W=RD.width(el),fs=W<480?11:12,res=pages(mode),st=ST[i],L=states[st[0]];
-      const upTo=i>=4?3:i>=2?2:1,seenRows=[];for(let p=1;p<=upTo;p++)res[p].forEach(r=>seenRows.push([r,p]));
-      const cur=st[1]>0&&st[1]<9?st[1]:0,curRows=cur?res[cur]:[];
-      const colW=Math.min(200,(W-30)/2),rh=24,x0=6,x1=x0+colW+24;let body='';
-      body+=RD.t(x0,14,(W<560?'Database, newest first':'The list in the database, newest first'),{fs:fs,w:600})+RD.t(x1,14,(W<560?'Shown to the user':'What the user has been shown'),{fs:fs,w:600});
-      L.forEach((r,k)=>{const y=24+k*rh,on=curRows.includes(r),isNew=(st[0]>=1&&r==='c9');
-        const skipped=cur&&mode===0&&k<(cur-1)*3;
-        body+=box(x0,y,colW,rh-4,{r:4,fill:on?'var(--acc2)':skipped?'var(--soft)':'var(--bg)',stroke:on?'var(--acc)':isNew?'var(--c5)':'var(--line)',dash:skipped?'3 2':null});
-        body+=RD.t(x0+8,y+14,r+(isNew?'  (new)':''),{fs:fs});
-        if(skipped)body+=RD.t(x0+colW-8,y+14,'skipped by offset',{fs:fs-1,a:'end',fill:'var(--mute)'});
-        if(on)body+=RD.t(x0+colW-8,y+14,'page '+cur,{fs:fs-1,a:'end',fill:'var(--acc)',w:600})});
-      if(i===3)body+=RD.t(x0+8,24+L.length*rh+12,'c5 deleted',{fs:fs-1,fill:'var(--bad)'});
-      if(mode===1&&cur>1){const prev=res[cur-1][res[cur-1].length-1],k=L.indexOf(prev);if(k>=0){const y=24+k*rh+rh-2;body+=line(x0-4,y,x0+colW+4,y,{col:'var(--good)',sw:2});body+=RD.t(x0+colW-6,y-1,'cursor',{fs:fs-1.5,a:'end',fill:'var(--good)',w:600})}}
-      const counts={};seenRows.forEach(([r])=>counts[r]=(counts[r]||0)+1);
-      seenRows.forEach(([r,p],k)=>{const y=24+k*rh,dup=counts[r]>1;body+=box(x1,y,colW,rh-4,{r:4,fill:dup?'var(--hl)':'var(--bg)',stroke:dup?'var(--bad)':'var(--line)'});
-        body+=RD.t(x1+8,y+14,'p'+p+'  '+r,{fs:fs})+(dup?RD.t(x1+colW-8,y+14,'shown twice',{fs:fs-1,a:'end',fill:'var(--bad)',w:600}):'')});
-      const missing=i>=4?['c8','c7','c6','c4','c3','c2','c1'].filter(r=>!counts[r]):[];
-      if(missing.length){const y=24+seenRows.length*rh+12;body+=RD.t(x1+4,y,'never shown: '+missing.join(', '),{fs:fs,fill:'var(--bad)',w:600})}
-      const H=24+Math.max(L.length,seenRows.length+1)*rh+24;
-      el.innerHTML=RD.svg(W,H,body,'Pagination: the list in the database beside what the user has been shown');
-}
-    // the steps are explained by the step lists on the left (sx-pg-0 offset, sx-pg-1 cursor), swapped with the mode
-    const A=RD.anim({card:'rd-pg',ctl:'rd-pgctl',n:ST.length,draw,label:'Step',list:'sx-pg-0'});
-    RD.seg($('rd-pgseg'),m=>{mode=+m;[0,1].forEach(j=>$('sx-pg-'+j).hidden=j!==mode);A.reset(ST.length,'sx-pg-'+m)});reg(()=>A.redraw())})();
 
   // ---- schema fan-out ----
   function schema(){const el=$('rd-schemasvg');if(!el)return;const W=RD.width(el),fs=W<480?11.5:12.5;
@@ -1644,6 +1586,139 @@ window.SA={"meta":{"grpcio":"1.84.0","protobuf":"7.36.2","graphql_core":"3.3.0",
     off:(k,e,s)=>k>s?0:k===s?1-e:1};
 })(window);
 </script>
+<script>/* 28_js_seq.js */
+// ---- 2D sequence figures (2026-11-19): parties as columns, time down the card, one band of messages per step, driven by RD.anim with the
+// step list on the left (list:'sx-...'). Used where a 3D stage's depth carried nothing (parties, hops, a request's path). In the split
+// (1100 px and wider) the whole ladder is drawn: earlier steps in full, the current one highlighted, later ones faint, so the layout is visible
+// from the first step. Narrower, the card shows the lanes and the current step only, at a fixed height, and stays under the section nav.
+// SQ({id, list, fig, lanes:[{n, s (short name under 520 px), c (colour), k (first step it takes part in)}], steps:[[row, ...], ...], ms})
+// A row is an arrow {f, t, l (label above), c, d (dashed), x (refused at the target), sub (a muted line under the arrow)}
+// or a note {at: lane or [first, last] lanes, l, c}. o.onStep(i), if given, runs after each draw (for example to fill a block on the left).
+// SQ.card(id, fig) builds the same card for a bespoke 2D figure and returns {host, box, stl, ctl}; SQ.wrap(text, maxW, fs, bold) and SQ.tw measure text. ----
+window.SQ = (function () {
+  const css = '.sq{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin:6px 0 16px}' +
+    '.sq-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 2px;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}' +
+    '.sq-top span:first-child{min-width:0}.sq-top span:last-child{white-space:nowrap}' +
+    '.sq-svg{padding:2px 8px 4px}.sq-svg svg{display:block;width:100%;height:auto;overflow:visible}' +
+    '.sq .an-ctl{display:flex;align-items:center;gap:6px;flex-wrap:nowrap!important;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}' +
+    '.sq .an-ctl label{white-space:nowrap;font-size:13px}.sq .an-ctl button{padding:4px 11px;font-size:13px;white-space:nowrap}.sq .an-ctl input[type=range]{flex:1 1 40px;min-width:30px}.sq .an-ctl select{font-size:12.5px;padding:3px 6px}' +
+    '.sq .sq-band{cursor:pointer}' +
+    '@keyframes sqIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
+    '.sq.rd-fwd .rd-new{animation:sqIn .55s cubic-bezier(.2,.7,.2,1) both}' +
+    '@media (prefers-reduced-motion:reduce){.sq.rd-fwd .rd-new{animation:none}}' +
+    '@media (max-width:1099px){.sq-wrap{position:sticky;top:50px;z-index:3}}' +
+    '@media (min-width:1100px){.sq{margin-top:20px}}' +
+    '@media (max-width:520px){.sq{border-radius:12px}.sq .an-ctl{gap:4px;padding:5px 6px 6px}.sq .an-ctl button{padding:4px 9px}.sq .an-ctl select{padding:3px 4px}}';
+  let ctx = null;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function tw(t, fs, b) {
+    if (!ctx) ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = (b ? '600 ' : '') + fs + 'px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif');
+    return ctx.measureText(t).width;
+  }
+  function wrap(t, maxW, fs, b) {
+    const out = []; let cur = '';
+    String(t).split(' ').forEach(w => { const n = cur ? cur + ' ' + w : w; if (tw(n, fs, b) > maxW && cur) { out.push(cur); cur = w; } else cur = n; });
+    if (cur) out.push(cur); return out;
+  }
+  // the card: title bar (figure name, step k of n), the drawing, the controls; also used by bespoke 2D figures (SQ.card)
+  function card(id, fig) {
+    const host = document.getElementById(id); if (!host || !window.RD) return null;
+    if (!document.getElementById('sq-css')) { const s = document.createElement('style'); s.id = 'sq-css'; s.textContent = css; document.head.appendChild(s); }
+    host.classList.add('sq');
+    host.innerHTML = '<div class="sq-top"><span>' + esc(fig) + '</span><span id="' + id + '-st"></span></div><div class="sq-svg" id="' + id + '-svg"></div><div class="an-ctl" id="' + id + '-ctl"></div>';
+    // under 1100 px the card stays under the section nav while its list is read, but only while it takes at most half the window
+    const fit = () => { if (host.parentElement) host.parentElement.classList.toggle('sq-wrap', host.offsetHeight <= innerHeight * .5); };
+    if ('ResizeObserver' in window) new ResizeObserver(fit).observe(host); addEventListener('resize', fit);
+    return { host, box: document.getElementById(id + '-svg'), stl: document.getElementById(id + '-st'), ctl: id + '-ctl' };
+  }
+  function make(o) {
+    const cd = card(o.id, o.fig); if (!cd) return null;
+    const { host, box, stl } = cd;
+    let A = null;
+    function layout(W, compact) {
+      const fs = compact ? 12 : 12.5, lh = Math.round(fs * 1.32), G = compact ? 0 : 30, nl = o.lanes.length, lw = (W - G) / nl;
+      const xs = o.lanes.map((_, k) => G + (k + .5) * lw);
+      const names = o.lanes.map(l => wrap(compact && l.s ? l.s : l.n, lw - 10, fs, 1));
+      const hh = Math.max(...names.map(a => a.length)) * lh + 12, top = hh + 14;
+      const bands = o.steps.map(rows => {
+        const R = rows.map(r => {
+          if (r.at != null) {
+            const a = Array.isArray(r.at) ? r.at : [r.at, r.at], x0 = xs[a[0]] - lw / 2 + 4, x1 = xs[a[1]] + lw / 2 - 4;
+            const mw = Math.max(x1 - x0, Math.min(W - G - 8, 200)), lines = wrap(r.l, mw - 14, fs);
+            const w = Math.min(mw, Math.max(...lines.map(t => tw(t, fs))) + 16), cx = Math.max(G + w / 2 + 2, Math.min(W - w / 2 - 2, (x0 + x1) / 2));
+            return { r, note: 1, lines, w, cx, h: lines.length * lh + 10 };
+          }
+          const x1 = xs[r.f], x2 = xs[r.t], span = Math.abs(x2 - x1), mw = compact ? W - 8 : Math.max(span - 10, Math.min(W - G - 8, 220));
+          const lines = wrap(r.l, mw, fs), sub = r.sub ? wrap(r.sub, mw, fs) : [];
+          const w = Math.max(...lines.concat(sub).map(t => tw(t, fs))), cx = Math.max(G + w / 2 + 3, Math.min(W - w / 2 - 3, (x1 + x2) / 2));
+          return { r, lines, sub, cx, h: lines.length * lh + 8 + sub.length * lh + (sub.length ? 2 : 0) };
+        });
+        return { R, h: R.reduce((s, q) => s + q.h + 8, 0) + 10 };
+      });
+      return { fs, lh, G, xs, lw, names, hh, top, bands };
+    }
+    function rowSvg(L, q, y, cls) {
+      const P = L, r = q.r, c = r.c || 'var(--ink)', fs = P.fs, lh = P.lh, halo = ' paint-order="stroke" stroke="var(--card)" stroke-width="3.5" stroke-linejoin="round"';
+      let s = '<g' + (cls ? ' class="' + cls + '"' : '') + '>';
+      if (q.note) {
+        s += '<rect x="' + (q.cx - q.w / 2) + '" y="' + y + '" width="' + q.w + '" height="' + q.h + '" rx="7" style="fill:color-mix(in srgb,' + c + ' 12%,var(--card));stroke:' + c + '" stroke-width="1.2"/>';
+        q.lines.forEach((t, j) => { s += '<text x="' + q.cx + '" y="' + (y + 5 + (j + 1) * lh - 3) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--ink)">' + esc(t) + '</text>'; });
+        return s + '</g>';
+      }
+      const x1 = P.xs[r.f], x2 = P.xs[r.t], dir = x2 > x1 ? 1 : -1, ya = y + q.lines.length * lh + 4;
+      q.lines.forEach((t, j) => { s += '<text x="' + q.cx + '" y="' + (y + (j + 1) * lh - 3) + '" text-anchor="middle" font-size="' + fs + '"' + halo + ' style="fill:' + (r.x ? 'var(--bad)' : 'var(--ink)') + '">' + esc(t) + '</text>'; });
+      const xe = r.x ? x2 - dir * 9 : x2 - dir * 2;
+      s += '<line x1="' + (x1 + dir * 2) + '" y1="' + ya + '" x2="' + xe + '" y2="' + ya + '" style="stroke:' + c + '" stroke-width="2.2"' + (r.d ? ' stroke-dasharray="6 4"' : '') + ' marker-end="url(#' + o.id + '-ar)"/>';
+      if (r.x) { const d = 6, cx = x2; s += '<circle cx="' + cx + '" cy="' + ya + '" r="9" style="fill:var(--card);stroke:var(--bad)" stroke-width="1.6"/><path d="M' + (cx - d / 1.6) + ' ' + (ya - d / 1.6) + 'L' + (cx + d / 1.6) + ' ' + (ya + d / 1.6) + 'M' + (cx - d / 1.6) + ' ' + (ya + d / 1.6) + 'L' + (cx + d / 1.6) + ' ' + (ya - d / 1.6) + '" style="stroke:var(--bad)" stroke-width="2"/>'; }
+      else s += '<circle cx="' + x1 + '" cy="' + ya + '" r="3" style="fill:' + c + '"/>';
+      q.sub.forEach((t, j) => { s += '<text x="' + q.cx + '" y="' + (ya + 4 + (j + 1) * lh - 2) + '" text-anchor="middle" font-size="' + fs + '"' + halo + ' style="fill:var(--mute)">' + esc(t) + '</text>'; });
+      return s + '</g>';
+    }
+    function draw(i) {
+      const n = o.steps.length; if (stl) stl.textContent = 'step ' + (i + 1) + ' of ' + n;
+      const compact = innerWidth < 1100, W = Math.max(280, Math.round((box.clientWidth || RD.width(host)) - 16)), L = layout(W, compact);
+      const fwd = host.classList.contains('rd-fwd');
+      let s = '<defs><marker id="' + o.id + '-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.6" markerHeight="4.6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>';
+      const shown = compact ? [i] : o.steps.map((_, k) => k);
+      const H = compact ? L.top + Math.max(...L.bands.map(b => b.h)) + 4 : L.top + L.bands.reduce((a, b) => a + b.h, 0) + 6;
+      // bands first (under the lifelines), then lanes, then rows
+      let y = L.top, ys = [];
+      shown.forEach(k => { ys[k] = y; y += L.bands[k].h; });
+      shown.forEach(k => {
+        const on = k === i, b = L.bands[k];
+        s += '<g class="sq-band" data-k="' + k + '"><rect x="' + (compact ? 0 : 2) + '" y="' + (ys[k] + 1) + '" width="' + (W - (compact ? 0 : 2)) + '" height="' + (b.h - 2) + '" rx="8" style="fill:' + (on ? 'var(--soft)' : 'transparent') + '"/>';
+        if (!compact) s += '<circle cx="13" cy="' + (ys[k] + 15) + '" r="10" style="fill:' + (on ? 'var(--acc)' : 'var(--card)') + ';stroke:' + (on ? 'var(--acc)' : 'var(--line)') + '"/><text x="13" y="' + (ys[k] + 19.5) + '" text-anchor="middle" font-size="12" font-weight="600" style="fill:' + (on ? 'var(--bg)' : 'var(--mute)') + '">' + (k + 1) + '</text>';
+        s += '</g>';
+      });
+      o.lanes.forEach((l, k) => {
+        const x = L.xs[k], a = (l.k || 0) > i ? .3 : 1, c = l.c || 'var(--mute)', w = L.lw - 8;
+        s += '<g opacity="' + a + '"><line x1="' + x + '" y1="' + (L.hh + 6) + '" x2="' + x + '" y2="' + (H - 2) + '" style="stroke:' + c + '" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="3 4"/>';
+        s += '<rect x="' + (x - w / 2) + '" y="4" width="' + w + '" height="' + L.hh + '" rx="8" style="fill:color-mix(in srgb,' + c + ' 18%,var(--card));stroke:' + c + '" stroke-width="1.3"/>';
+        const n0 = L.names[k], y0 = 4 + (L.hh - n0.length * L.lh) / 2;
+        n0.forEach((t, j) => { s += '<text x="' + x + '" y="' + (y0 + (j + 1) * L.lh - 3) + '" text-anchor="middle" font-size="' + L.fs + '" font-weight="600" style="fill:var(--ink)">' + esc(t) + '</text>'; });
+        s += '</g>';
+      });
+      shown.forEach(k => {
+        const op = k === i ? 1 : k < i ? .6 : .14; let yy = ys[k] + 9;
+        s += '<g opacity="' + op + '">';
+        L.bands[k].R.forEach(q => { s += rowSvg(L, q, yy, k === i && fwd ? 'rd-new' : ''); yy += q.h + 8; });
+        s += '</g>';
+      });
+      box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="' + esc(o.fig + ', step ' + (i + 1) + ' of ' + n) + '">' + s + '</svg>';
+      box.querySelectorAll('.sq-band').forEach(g => g.addEventListener('click', () => A && A.go(+g.dataset.k)));
+      if (o.onStep) o.onStep(i);
+    }
+    A = RD.anim({ card: o.id, ctl: o.id + '-ctl', n: o.steps.length, draw, ms: o.ms || 4800, label: 'Step', list: o.list });
+    let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (host.offsetParent !== null) A.redraw(); }, 60); });
+    // a mode toggle: new steps and a new step list, replayed from step 1
+    A.mode = (steps, list) => { o.steps = steps; A.reset(steps.length, list); };
+    return A;
+  }
+  make.card = card; make.esc = esc; make.wrap = wrap; make.tw = tw;
+  return make;
+})();
+</script>
 <script>/* 31_js_call.js */
 // ---- Reading section 9, "One gRPC call" (moved from its own tab on 2026-10-24): step through every recorded HTTP/2 frame, decode gRPC messages ----
 (function(){
@@ -1776,75 +1851,33 @@ window.SAK = (function () {
 })();
 </script>
 <script>/* 41_js_sc_hero.js */
-// ---- Scene: Fig. 1, the hero (stg-hero): the running request through three API styles. Parties: your app, the front door, an L7 router and
-// three inference replicas; later a webhook back and the other faces (browsers, agents). Data from window.SA: the request's JSON and protobuf
-// sizes (pb.json), the gRPC frame (49 + 5 bytes), the L7 balancer's 30-call counts (lb.json). The rest is the structure the sections teach. ----
+// ---- Fig. 1, the hero (sq-hero): the running request through three API styles, as a 2D sequence (28_js_seq.js). A 3D stage until 2026-11-19,
+// redrawn flat because its depth carried nothing: parties and hops read faster as columns with time running down. Parties: your app, the front
+// door, an L7 router and the three inference replicas (one column; the 10 / 10 / 10 split by replica is a note), and in the last step the other
+// callers (browsers, agents). Data from window.SA: the request's JSON and protobuf sizes (pb.json), the gRPC frame (49 + 5 bytes), the L7
+// balancer's 30-call counts (lb.json). The rest is the structure the sections teach. ----
 (function () {
-  if (!document.getElementById('stg-hero') || !window.S3 || !window.SAK || !window.SA) return;
-  const { mix } = S3, { up, party, plate, msg, bar, path, win, arcPts, seg } = SAK;
-  const RQ = SA.pb.request, jsonB = RQ.json_bytes, frameB = RQ.grpc_frame_bytes;
+  if (!document.getElementById('sq-hero') || !window.SQ || !window.SA) return;
+  const RQ = SA.pb.request, jsonB = RQ.json_bytes, frameB = RQ.grpc_frame_bytes, pbB = RQ.pb_bytes;
   const l7 = SA.lb.counts.find(c => /^L7/.test(c.setup)).answers, L7C = ['backend-1', 'backend-2', 'backend-3'].map(b => l7[b] || 0);
-  window.SA_HERO = { jsonB, pbB: RQ.pb_bytes, frameB, L7C };   // read by src/check_stages.mjs
-  const APP = [-4.5, 0, .2], DOOR = [-1.5, 0, .2], RT = [1.4, 0, .2], REP = [[4.4, 0, -1.4], [4.4, 0, .2], [4.4, 0, 1.8]],
-    WEB = [-4.5, 0, -2.2], AGT = [-4.5, 0, 2.5];
-  function draw(R, k, e) {
-    const P = R.P, on = (...ks) => ks.indexOf(k) >= 0 ? 1 : .22;
-    R.grid(-5.8, 5.6, -3.2, 3.4, .5);
-    party(R, APP, [1.6, .75, 1.1], P.c1, 'your app', { a: on(0, 1, 4, 5), sub: k === 0 ? 'curl, an SDK, a browser' : null });
-    party(R, DOOR, [1.8, .95, 1.3], P.c2, 'front door', { a: on(0, 1, 2, 4, 5), sub: k === 0 ? 'auth, limits, keys, translation' : null });
-    party(R, RT, [1.3, .75, 1.1], P.c5, 'router (L7)', { a: on(0, 2, 3) });
-    REP.forEach((p, i) => party(R, p, [1.2, .6, 1.0], P.c3, i === 0 ? 'inference replicas' : null, { a: on(0, 2, 3), sub: i === 0 && k === 0 ? 'three copies of the model server' : null, wide: 1 }));
-    const a1 = [APP[0] + .8, .4, APP[2]], d0 = [DOOR[0] - .9, .4, DOOR[2]], d1 = [DOOR[0] + .9, .45, DOOR[2]], r0 = [RT[0] - .65, .4, RT[2]], r1 = [RT[0] + .65, .4, RT[2]];
-    // the links, always drawn faintly
-    R.line([a1, d0], { c: P.c1, w: 1.3, a: .3, dash: [4, 4] }); R.line([d1, r0], { c: P.c2, w: 1.3, a: .3, dash: [4, 4] });
-    REP.forEach(p => R.line([r1, [p[0] - .6, .3, p[2]]], { c: P.c5, w: 1.1, a: .25, dash: [4, 4] }));
-    if (k === 0) {
-      R.label([(a1[0] + d0[0]) / 2, .3, APP[2]], 'REST + SSE', { fs: 12, b: 1, c: P.c1, dy: -10 });
-      R.label([(d1[0] + r0[0]) / 2, .3, DOOR[2]], 'gRPC', { fs: 12, b: 1, c: P.c2, dy: -10 });
-    }
-    if (k === 1) {   // REST: the JSON body goes in, the SSE events come back
-      const pts = seg(a1, d0); R.flow(pts, { c: P.c1, r: .07, n: 7, speed: 1.3 });
-      msg(R, path(pts, Math.min(1, e * 1.3)), jsonB, P.c1, 1, { lab: 'POST /v1/messages · ' + jsonB + ' B of JSON', mono: true, dy: -14 });
-      R.flow(seg([d0[0], .12, d0[2] + .3], [a1[0], .12, a1[2] + .3]), { c: P.c4, r: .055, n: 6, speed: 1.1, a: win(e, .5, .7) });
-      R.label([(a1[0] + d0[0]) / 2, .1, APP[2] + .35], 'SSE events stream back', { fs: 12, c: P.c4, b: 1, dy: 18, a: win(e, .6, .8) });
-    }
-    if (k === 2) {   // gRPC: the same request as protobuf behind a 5-byte prefix, one HTTP/2 stream, a deadline that shrinks
-      const pts = seg(d1, r0);
-      R.flow(seg(d1, r0), { c: P.c2, r: .07, n: 6, speed: 1.3 });
-      msg(R, path(pts, Math.min(1, e * 1.2)), frameB, P.c2, 1, { lab: frameB + ' B: protobuf + 5-byte prefix', mono: true, dy: 22 });
-      plate(R, [(d1[0] + r0[0]) / 2, 0, DOOR[2] - 1.2], P.c6, win(e, .3, .6), 'grpc-timeout: what is left', { w: .5, h: .45, wide: 1 });
-      R.flow(seg([r0[0], .14, r0[2] + .35], [d1[0], .14, d1[2] + .35]), { c: P.c4, r: .05, n: 7, speed: 1.1, a: win(e, .6, .8) });
-      R.label([(d1[0] + r0[0]) / 2, 0, DOOR[2] + .9], 'tokens back · the status last, in trailers', { fs: 12, b: 1, c: P.c4, dy: 16, a: win(e, .7, .9), wide: 1 });
-    }
-    if (k === 3) {   // the router picks a replica per call: the measured 30 calls through the L7 balancer
-      REP.forEach((p, i) => { const pp = seg(r1, [p[0] - .6, .3, p[2]]); R.flow(pp, { c: P.c5, r: .065, n: 6, speed: 1.4 });
-        bar(R, [p[0] + 1.05, 0, p[2]], L7C[i], .05 * win(e, .2, .9), P.c5, 1, { w: .34, d: .34, lab: String(L7C[i]) }); });
-      R.label([RT[0], .55, RT[2]], 'a choice per call', { fs: 12.5, b: 1, c: P.c5, dy: -26 });
-    }
-    if (k === 4) {   // webhook: the front door calls the app's URL later
-      const pts = arcPts(R, [DOOR[0] - .3, .7, DOOR[2] + .1], [APP[0] + .2, .5, APP[2] + .1], .9);
-      R.flow(pts, { c: P.c5, r: .07, n: 9, speed: 1.2 });
-      plate(R, (q => [q[0], Math.max(0, q[1] - .3), q[2]])(path(pts, e * .85)), P.c5, 1, 'signed event · webhook-id', { w: .42, h: .4, wide: 1 });
-      R.label([APP[0], 0, APP[2] + .5], 'a URL your app registered', { fs: 12, b: 1, c: P.c1, dy: 16 });
-    }
-    if (k === 5) {   // other faces of the same services
-      party(R, WEB, [1.5, .55, .9], P.c6, 'browsers, front ends', { sub: 'gRPC-Web, Connect, GraphQL', a: win(e, 0, .35) });
-      party(R, AGT, [1.5, .55, .9], P.c4, 'an agent', { sub: 'JSON-RPC: MCP, A2A', a: win(e, .2, .55) });
-      R.flow(seg([WEB[0] + .8, .3, WEB[2]], [DOOR[0] - .9, .4, DOOR[2] - .35]), { c: P.c6, r: .06, n: 6, speed: 1.2, a: win(e, .2, .5) });
-      R.flow(seg([AGT[0] + .8, .3, AGT[2]], [DOOR[0] - .9, .4, DOOR[2] + .45]), { c: P.c4, r: .06, n: 6, speed: 1.2, a: win(e, .4, .7) });
-    }
-  }
-  const full = { cam: [.1, .6], bounds: [[-5.4, 0, -2.0], [5.2, 1.1, 2.4]] };
-  S3.stage({ id: 'stg-hero', list: 'sx-hero', fig: 'Fig. 1 · one request, three API styles', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4800, draw,
-    margin: w => w < 520 ? [22, 8, 18, 8] : [28, 16, 22, 16],
-    view: k => k === 1 ? { cam: [.08, .6], bounds: [[-5.4, 0, -1.2], [-.4, 1.1, 1.6]] }
-      : k === 2 ? { cam: [.1, .6], bounds: [[-2.6, 0, -1.4], [2.4, 1.1, 1.6]] }
-      : k === 3 ? { cam: [.14, .6], bounds: [[.6, 0, -2.0], [5.8, 1.6, 2.4]] }
-      : k === 4 ? { cam: [.08, .6], bounds: [[-5.4, 0, -1.0], [-.4, 1.5, 1.6]] } : k === 5 ? { cam: [.1, .6], bounds: [[-5.6, 0, -2.8], [0, 1.1, 3.1]] } : null });
+  window.SA_HERO = { jsonB, pbB, frameB, L7C };   // read by src/check_stages.mjs
+  const OT = 0, AP = 1, FD = 2, RT = 3, RP = 4, C1 = 'var(--c1)', C2 = 'var(--c2)', C4 = 'var(--c4)', C5 = 'var(--c5)', C6 = 'var(--c6)';
+  SQ({ id: 'sq-hero', list: 'sx-hero', fig: 'Fig. 1 · one request, three API styles', ms: 4800,
+    lanes: [{ n: 'browsers, agents', s: 'others', c: C6, k: 5 }, { n: 'your app', s: 'app', c: C1 }, { n: 'front door', s: 'front door', c: C2 },
+      { n: 'router (L7)', s: 'router', c: C5 }, { n: 'inference replicas (3)', s: 'replicas', c: 'var(--c3)' }],
+    steps: [
+      [{ f: AP, t: FD, l: 'REST + SSE', c: C1, d: 1 }, { f: FD, t: RT, l: 'gRPC', c: C2, d: 1 }, { f: RT, t: RP, l: 'one replica', c: C5, d: 1 }],
+      [{ f: AP, t: FD, l: 'POST /v1/messages · ' + jsonB + ' B of JSON', c: C1 }, { f: FD, t: AP, l: 'SSE events stream back', c: C4 }],
+      [{ f: FD, t: RT, l: frameB + ' B: protobuf (' + pbB + ') + 5-byte prefix', sub: 'grpc-timeout: what is left', c: C2 },
+        { f: RT, t: FD, l: 'tokens back · the status last, in trailers', c: C4 }],
+      [{ f: RT, t: RP, l: 'a choice per call', c: C5 }, { at: RP, l: '30 calls, by replica: ' + L7C.join(' / '), c: C5 }],
+      [{ f: FD, t: AP, l: 'signed event · webhook-id', sub: 'to a URL your app registered', c: C5 }],
+      [{ f: OT, t: FD, l: 'browsers: gRPC-Web, Connect, GraphQL', c: C6 }, { f: OT, t: FD, l: 'an agent: JSON-RPC (MCP, A2A)', c: C4 }]
+    ] });
 })();
 </script>
 <script>/* 42_js_sc_idem.js */
-// ---- Scene: Fig. 3, idempotency keys (stg-idem): the page's toy front door (src/lab/idem_run.py, recorded 2026-11-07) answering one lost reply
+// ---- Scene: Fig. 2, idempotency keys (stg-idem): the page's toy front door (src/lab/idem_run.py, recorded 2026-11-07) answering one lost reply
 // four ways. Parties: the client, the front door, and its store: a glass plate of idempotency keys and a plate of messages and charges.
 // Every time, status, message id and total is window.SA.idem; the work time, the client's timeout and the price are the toy's settings. ----
 (function () {
@@ -1933,7 +1966,7 @@ window.SAK = (function () {
     }
   }
   const full = { cam: [.12, .5], bounds: [[-4.8, 0, -2.0], [5.0, 1.1, 2.3]] };
-  const st = S3.stage({ id: 'stg-idem', list: 'sx-idem-nokey', fig: 'Fig. 3 · one lost reply, recorded', cam: full.cam, bounds: full.bounds, aspect: .48, dur: 1500, hold: 4800, draw,
+  const st = S3.stage({ id: 'stg-idem', list: 'sx-idem-nokey', fig: 'Fig. 2 · one lost reply, recorded', cam: full.cam, bounds: full.bounds, aspect: .48, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [22, 8, 20, 8] : [28, 16, 26, 16],
     view: k => { const store = mode === 'nokey' ? [1] : mode === 'key' ? [1] : mode === 'early' ? [] : [];
       return store.indexOf(k) >= 0 ? { cam: [.14, .5], bounds: [[-1.2, 0, -2.0], [5.2, 1.1, 2.3]] } : null; } });
@@ -1941,83 +1974,101 @@ window.SAK = (function () {
 })();
 </script>
 <script>/* 43_js_sc_dl.js */
-// ---- Scene: Fig. 4, deadlines and cancellation (stg-dl): the recorded chain client -> gateway -> inference service (raw/deadline.json, 5 October 2026),
-// four runs. Each party has 40 token slots (the full answer); slots fill as tokens are generated, forwarded and received. Counts, end times,
-// headers and RST_STREAM times are window.SA.deadline; where a token sits along a hop follows the configured schedule (0.12 s, then 0.05 s). ----
+// ---- Fig. 3, deadlines and cancellation (sq-dl): the recorded chain client -> gateway -> inference service (raw/deadline.json, 5 October 2026),
+// four runs, drawn on a time axis (0 to 2.5 s): one row per party, a tick per token generated, forwarded or received, the deadline, the moment
+// the client gives up, the RST_STREAM on each hop and when the inference service stopped. A 3D stage until 2026-11-19, redrawn flat because
+// its depth carried nothing and a time axis shows what the 3D slots could not: when the deadline expires against when the work stops.
+// Counts, end times, headers and RST_STREAM times are window.SA.deadline; where a token sits on the axis follows the configured schedule
+// (first after 0.12 s, then every 0.05 s), not individual timings. Uses the card style of 28_js_seq.js (its CSS is injected by the hero,
+// 41_js_sc_hero.js, which runs first). ----
 (function () {
-  if (!document.getElementById('stg-dl') || !window.S3 || !window.SAK || !window.SA) return;
-  const { mix } = S3, { up, party, plate, bar, cross, path, win, seg, chips } = SAK;
-  const DL = SA.deadline, FIRST = .12, GAP = .05, tt = i => FIRST + GAP * i, made = t => t < FIRST ? 0 : Math.min(40, Math.floor((t - FIRST) / GAP + 1e-9) + 1);
+  const host = document.getElementById('sq-dl');
+  if (!host || !window.RD || !window.SA) return;
+  const DL = SA.deadline, FIRST = .12, GAP = .05, T = 2.5, tt = i => FIRST + GAP * i,
+    made = t => t < FIRST ? 0 : Math.min(40, Math.floor((t - FIRST) / GAP + 1e-9) + 1);
   window.SA_DL = { DL };   // read by src/check_stages.mjs
-  let m = 0;
-  const C = [-4.2, 0, -.4], G = [0, 0, -.4], I = [4.2, 0, -.4];
-  // 40 slots in front of a party: filled ones in its colour, the ones generated for nobody in red, the rest empty outlines
-  function slots(R, p, n, col, red, a) { const P = R.P;
-    for (let i = 0; i < 40; i++) { const x = p[0] - 1.17 + (i % 10) * .26, z = p[2] + 1.05 + Math.floor(i / 10) * .26, f = i < n;
-      R.box([x, 0, z], [.2, f ? .12 : .02, .2], { fill: f ? mix(P.paper, red != null && i >= red ? P.bad : col, .75) : P.paper, a: f ? a : a * .35, fa: f ? 1 : .3, shadow: false, lw: .6 }); } }
-  function draw(R, k, e) {
-    const P = R.P, r = DL[m], gone = r.client.gave_up_s, inf = r.inference, gw = r.gateway, rec = r.client.tokens_received;
-    R.grid(-5.6, 5.8, -2.0, 2.6, .5);
-    party(R, C, [1.5, .7, 1.0], P.c1, 'client', { a: k === 3 ? .35 : 1 });
-    party(R, G, [1.5, .7, 1.0], P.c5, 'gateway', { a: 1 });
-    party(R, I, [1.5, .8, 1.0], P.c3, 'inference', { a: 1, sub: k === 0 ? 'first token 0.12 s, then every 0.05 s' : null });
-    const cg = [[C[0] + .75, .45, C[2]], [G[0] - .75, .45, G[2]]], gi = [[G[0] + .75, .45, G[2]], [I[0] - .75, .45, I[2]]];
-    R.line(cg, { c: P.mute, w: 1, a: .3, dash: [4, 4] }); R.line(gi, { c: P.mute, w: 1, a: .3, dash: [4, 4] });
-    // time on this step's clock
-    const t = k === 0 ? 0 : k === 1 ? gone * e : k === 2 ? gone : k === 3 ? gone + (inf.dur_s - gone) * e : inf.dur_s;
-    const nI = Math.min(inf.tokens_made, made(t)), nC = Math.min(rec, made(Math.min(t, gone))), nG = Math.min(gw.tokens_forwarded, k >= 3 ? Math.max(nC, Math.min(gw.tokens_forwarded, made(t))) : nC);
-    slots(R, I, nI, P.c3, k >= 2 ? rec : null, 1); slots(R, G, nG, P.c5, null, k === 4 ? .5 : 1); slots(R, C, nC, P.c1, null, k === 4 ? .5 : 1);
-    R.label([I[0], 0, I[2] + 2.1], nI + ' made', { fs: 12.5, b: 1, mono: 1, c: P.c3, dy: 16 });
-    R.label([G[0], 0, G[2] + 2.1], nG + ' forwarded', { fs: 12.5, b: 1, mono: 1, c: P.c5, dy: 16 });
-    R.label([C[0], 0, C[2] + 2.1], nC + ' received', { fs: 12.5, b: 1, mono: 1, c: P.c1, dy: 16 });
-    if (k === 0) {   // the deadline (or, in run C, none) travels with the call
-      const pts = seg(cg[0], cg[1]).concat(seg(gi[0], gi[1]).slice(1)), q = path(pts, e);
-      R.flow(seg(cg[0], cg[1]), { c: P.c6, r: .065, n: 6, speed: 1.3 });
-      if (r.deadline) plate(R, [C[0], .7, C[2]], P.c6, 1, 'deadline ' + r.deadline + ' s', { w: .5, h: .4, mono: 1 });
-      else R.label([C[0], .7, C[2]], 'no deadline · cancels at ' + r.cancel_at + ' s', { fs: 12, b: 1, c: P.c6, dy: -30, wide: 1 });
-      if (gw.time_remaining_s != null) R.label([G[0], .7, G[2]], gw.time_remaining_s + ' s left', { fs: 12.5, b: 1, mono: 1, c: P.c6, dy: -30, a: win(e, .3, .5) });
-      R.flow(seg(gi[0], gi[1]), { c: P.c6, r: .065, n: 6, speed: 1.3, a: win(e, .4, .6) });
-      const h2 = r.hop2_timeout ? 'grpc-timeout: ' + r.hop2_timeout : r.mode === 'propagate' ? 'cancel hook: ctx.add_callback' : 'no grpc-timeout';
-      R.label([(G[0] + I[0]) / 2, .45, G[2]], h2, { fs: 12.5, b: 1, mono: 1, c: r.hop2_timeout || r.mode === 'propagate' ? P.c6 : P.bad, dy: -14, a: win(e, .5, .7) });
-      if (inf.time_remaining_s != null) R.label([I[0], .8, I[2]], inf.time_remaining_s + ' s left', { fs: 12.5, b: 1, mono: 1, c: P.c6, dy: -44, a: win(e, .7, .9) });
-      void q;
-    }
-    if (k === 1) {   // tokens stream back, one length-prefixed message each
-      R.flow(seg(gi[1], gi[0]), { c: P.c3, r: .06, n: 6, speed: 1.4 }); R.flow(seg(cg[1], cg[0]), { c: P.c5, r: .06, n: 6, speed: 1.4 });
-      R.label([G[0], .7, G[2]], 't = ' + t.toFixed(2) + ' s', { fs: 12.5, b: 1, mono: 1, c: P.ink, dy: -30 });
-    }
-    if (k === 2) {   // the client gives up: DEADLINE_EXCEEDED or CANCELLED, and an RST_STREAM to the gateway
-      cross(R, [(cg[0][0] + cg[1][0]) / 2, .45, C[2]], win(e, 0, .3));
-      R.label([C[0], .7, C[2]], r.client.code + ' at ' + gone + ' s', { fs: 12.5, b: 1, mono: 1, c: P.bad, dy: -30, a: win(e, .1, .4), wide: 1 });
-      R.flow(seg(cg[0], cg[1]), { c: P.bad, r: .06, n: 4, speed: 1.6, a: win(e, .3, .6) });
-      R.label([(C[0] + G[0]) / 2, .45, C[2]], 'RST_STREAM (CANCEL)', { fs: 12, b: 1, mono: 1, c: P.bad, dy: -14, a: win(e, .4, .7), wide: 1 });
-    }
-    if (k === 3) {   // what happens below the gateway
-      const end = r.hop2_end[0];
-      if (end.type === 'RSTSTREAM') { R.flow(seg(gi[0], gi[1]), { c: P.bad, r: .06, n: 4, speed: 1.6, a: win(e, 0, .3) });
-        R.label([(G[0] + I[0]) / 2, .45, G[2]], 'RST_STREAM (CANCEL) at ' + end.ms.toFixed(1) + ' ms', { fs: 12, b: 1, mono: 1, c: P.bad, dy: -14, a: win(e, .1, .4), wide: 1 });
-        cross(R, [(gi[0][0] + gi[1][0]) / 2, .45, G[2]], win(e, .3, .5)); }
-      else { R.flow(seg(gi[1], gi[0]), { c: P.c3, r: .06, n: 7, speed: 1.4 });
-        R.label([(G[0] + I[0]) / 2, .45, G[2]], 'the worker thread keeps reading', { fs: 12, b: 1, c: P.bad, dy: -14, wide: 1 }); }
-      R.label([I[0], .8, I[2]], 'stopped after ' + inf.tokens_made + ' tokens, ' + inf.dur_s + ' s', { fs: 12.5, b: 1, c: inf.tokens_made > rec ? P.bad : P.good, dy: -30, a: win(e, .7, 1), wide: 1 });
-    }
-    if (k === 4) {   // the bill
-      const waste = inf.tokens_made - rec;
-      bar(R, [I[0] - .45, 0, I[2] - 1.15], inf.tokens_made, .03, P.c3, 1, { w: .45, d: .4, lab: inf.tokens_made + ' generated' });
-      bar(R, [I[0] + .45, 0, I[2] - 1.15], rec, .03, P.c1, 1, { w: .45, d: .4, lab: rec + ' delivered' });
-      R.label([I[0], .8, I[2]], waste ? waste + ' for nobody' : 'nothing for nobody', { fs: 14, b: 1, c: waste ? P.bad : P.good, dy: -30 });
-    }
+  let m = 0, ctx = null;
+  const esc = RD.esc, FIG = 'Fig. 3 · one abandoned request, on a clock';
+  host.classList.add('sq'); if (host.parentElement) host.parentElement.classList.add('sq-wrap');
+  host.innerHTML = '<div class="sq-top"><span>' + esc(FIG) + '</span><span id="sq-dl-st"></span></div><div class="sq-svg" id="sq-dl-svg"></div><div class="an-ctl" id="sq-dl-ctl"></div>';
+  const box = document.getElementById('sq-dl-svg'), stl = document.getElementById('sq-dl-st');
+  function tw(t, fs) { if (!ctx) ctx = document.createElement('canvas').getContext('2d'); ctx.font = fs + 'px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return ctx.measureText(t).width; }
+  function wrap(t, w, fs) { const out = []; let cur = ''; t.split(' ').forEach(x => { const n = cur ? cur + ' ' + x : x; if (tw(n, fs) > w && cur) { out.push(cur); cur = x; } else cur = n; }); if (cur) out.push(cur); return out; }
+  const txt = (x, y, s, o) => { o = o || {}; return '<text x="' + x + '" y="' + y + '" font-size="' + (o.fs || 12) + '"' + (o.a ? ' text-anchor="' + o.a + '"' : '') + (o.b ? ' font-weight="600"' : '') +
+    (o.cls ? ' class="' + o.cls + '"' : '') + ' paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round" style="fill:' + (o.c || 'var(--ink)') + '">' + esc(s) + '</text>'; };
+  function draw(k) {
+    const r = DL[m], gone = r.client.gave_up_s, inf = r.inference, gw = r.gateway, rec = r.client.tokens_received;
+    stl.textContent = 'step ' + (k + 1) + ' of 5';
+    const W = Math.max(280, Math.round((box.clientWidth || RD.width(host)) - 16)), narrow = W < 480, fs = 12, G = narrow ? 86 : 100, x0 = G, x1 = W - 12;
+    const X = t => x0 + (x1 - x0) * Math.min(t, T) / T, fwd = host.classList.contains('rd-fwd'), nu = () => fwd ? ' class="rd-new"' : '';
+    const t = k === 0 ? 0 : k < 3 ? gone : inf.dur_s;
+    const nI = Math.min(inf.tokens_made, made(t)), nC = Math.min(rec, made(Math.min(t, gone))), nG = k >= 3 ? gw.tokens_forwarded : nC;
+    const RB = 33, HG = 31, yC = 26, yG = yC + RB + HG, yI = yG + RB + HG, yA = yI + RB + 4;
+    let s = '';
+    // the time axis
+    s += '<line x1="' + x0 + '" y1="' + yA + '" x2="' + x1 + '" y2="' + yA + '" style="stroke:var(--mute)" stroke-width="1"/>';
+    [0, .5, 1, 1.5, 2, 2.5].forEach(v => { const x = X(v); s += '<line x1="' + x + '" y1="' + yA + '" x2="' + x + '" y2="' + (yA + 4) + '" style="stroke:var(--mute)"/>' +
+      txt(x, yA + 17, v === 2.5 ? '2.5 s' : String(v), { fs: 11.5, a: v === 2.5 ? 'end' : 'middle', c: 'var(--mute)' }); });
+    // the deadline (or the planned cancel) and, from step 3, the moment the client gave up
+    const dl = r.deadline != null ? r.deadline : r.cancel_at;
+    s += '<line x1="' + X(dl) + '" y1="14" x2="' + X(dl) + '" y2="' + yA + '" style="stroke:var(--c6)" stroke-width="1.6" stroke-dasharray="5 4"/>';
+    if (k < 2) s += txt(X(dl) + 5, 14, r.deadline != null ? 'deadline ' + r.deadline + ' s' : 'no deadline · cancels at ' + r.cancel_at + ' s', { b: 1, c: 'var(--c6)' });
+    else s += '<g' + (k === 2 ? nu() : '') + '><line x1="' + X(gone) + '" y1="14" x2="' + X(gone) + '" y2="' + (yC + RB + HG - 4) + '" style="stroke:var(--bad)" stroke-width="2.2"/>' +
+      txt(X(gone) + 5, 14, r.client.code + ' at ' + gone + ' s', { b: 1, c: 'var(--bad)' }) + '</g>';
+    // one row per party: 40 faint slots (the full answer on the schedule), a tick per token, the count under it
+    const rows = [[yC, 'client', 'var(--c1)', nC, nC + ' received', null],
+      [yG, 'gateway', 'var(--c5)', nG, nG + ' forwarded', gw.time_remaining_s != null ? gw.time_remaining_s + ' s left' : 'no deadline'],
+      [yI, 'inference', 'var(--c3)', nI, nI + ' made' + (k >= 3 ? (inf.end === 'ok' ? ' · ended at ' : ' · stopped at ') + inf.dur_s + ' s' : ''), inf.time_remaining_s != null ? inf.time_remaining_s + ' s left' : 'no deadline']];
+    const tkw = Math.max(2, Math.min(7, (X(GAP) - X(0)) * .62));
+    rows.forEach(([y, name, c, n, cnt, left], j) => {
+      s += txt(4, y + 12, name, { b: 1, fs: 12.5 });
+      if (left) s += txt(4, y + 28, left, { c: 'var(--c6)' });
+      else if (j === 0) s += txt(4, y + 28, r.deadline != null ? r.deadline + ' s set' : 'no deadline', { c: 'var(--c6)' });
+      for (let i = 0; i < 40; i++) s += '<rect x="' + (X(tt(i)) - tkw / 2) + '" y="' + y + '" width="' + tkw + '" height="14" rx="1.5" style="fill:none;stroke:var(--line)" stroke-width=".8"/>';
+      let g = '';
+      for (let i = 0; i < n; i++) { const red = j === 2 && k >= 3 && i >= rec; g += '<rect x="' + (X(tt(i)) - tkw / 2) + '" y="' + y + '" width="' + tkw + '" height="14" rx="1.5" style="fill:' + (red ? 'var(--bad)' : c) + '"/>'; }
+      s += '<g' + (k === 1 || (k === 3 && j > 0) ? nu() : '') + '>' + g + '</g>';
+      if (j === 2 && k >= 3) s += '<line x1="' + X(inf.dur_s) + '" y1="' + (y - 4) + '" x2="' + X(inf.dur_s) + '" y2="' + (y + 18) + '" style="stroke:' + (inf.tokens_made > rec ? 'var(--bad)' : 'var(--good)') + '" stroke-width="2.4"/>';
+      if (k >= 1) s += txt(x0, y + 28, cnt, { b: 1, c: j === 2 && k >= 3 ? (inf.tokens_made > rec ? 'var(--bad)' : 'var(--good)') : c });
+    });
+    // the two hops: what travels with the call (line 1), what ends the stream (line 2)
+    const h1 = yC + RB, h2 = yG + RB;
+    if (k === 1) s += txt(x0, h1 + 13, 'each token: one length-prefixed message', { c: 'var(--mute)', cls: fwd ? 'rd-new' : '' });
+    const hop2 = r.hop2_timeout ? 'grpc-timeout: ' + r.hop2_timeout : r.mode === 'propagate' ? 'cancel hook: ctx.add_callback' : 'no grpc-timeout';
+    s += txt(x0, h2 + 13, hop2, { b: 1, c: r.hop2_timeout || r.mode === 'propagate' ? 'var(--c6)' : 'var(--bad)' });
+    const xmark = (x, y) => '<path d="M' + (x - 4) + ' ' + (y - 4) + 'L' + (x + 4) + ' ' + (y + 4) + 'M' + (x - 4) + ' ' + (y + 4) + 'L' + (x + 4) + ' ' + (y - 4) + '" style="stroke:var(--bad)" stroke-width="2"/>';
+    if (k >= 2) s += '<g' + (k === 2 ? nu() : '') + '>' + xmark(X(gone), h1 + 23) + txt(X(gone) + 9, h1 + 27, 'RST_STREAM (CANCEL)', { b: 1, c: 'var(--bad)' }) + '</g>';
+    if (k >= 3) { const e = r.hop2_end[0];
+      s += '<g' + (k === 3 ? nu() : '') + '>' + (e.type === 'RSTSTREAM'
+        ? xmark(X(e.ms / 1000), h2 + 23) + txt(X(e.ms / 1000) + 9, h2 + 27, (narrow ? 'RST_STREAM at ' : 'RST_STREAM (CANCEL) at ') + e.ms.toFixed(1) + ' ms', { b: 1, c: 'var(--bad)' })
+        : txt(x0, h2 + 27, 'the worker thread keeps reading', { b: 1, c: 'var(--bad)' })) + '</g>'; }
+    // the step's one-line summary, under the axis
+    const waste = inf.tokens_made - rec;
+    const note = [FIRST + ' s to the first token, then one every ' + GAP + ' s: a full answer is 40 tokens, about 2.1 s',
+      'tokens stream back: ' + nI + ' made, ' + nG + ' forwarded, ' + nC + ' received by ' + gone + ' s',
+      r.client.code + ' at ' + gone + ' s, after ' + rec + ' tokens',
+      inf.end === 'ok' ? 'the inference service generated all ' + inf.tokens_made + ' tokens and ended at ' + inf.dur_s + ' s' : 'the inference service stopped after ' + inf.tokens_made + ' tokens, ' + inf.dur_s + ' s',
+      inf.tokens_made + ' generated · ' + rec + ' delivered · ' + (waste ? waste + ' for nobody' : 'nothing for nobody')][k];
+    const nc = k === 4 ? (waste ? 'var(--bad)' : 'var(--good)') : k === 3 && inf.tokens_made > rec ? 'var(--bad)' : 'var(--ink)';
+    // on a phone the step list under the card says the same, so the card stays short enough to stay under the nav
+    const lines = narrow ? [] : wrap(note, W - 24, 12.5), yN = yA + 28, hN = narrow ? -6 : lines.length * 17 + 10;
+    if (!narrow) s += '<g' + nu() + '><rect x="2" y="' + yN + '" width="' + (W - 4) + '" height="' + hN + '" rx="8" style="fill:var(--soft)"/>' +
+      lines.map((l, j) => txt(W / 2, yN + 5 + (j + 1) * 17 - 4, l, { fs: 12.5, a: 'middle', b: k === 4 ? 1 : 0, c: nc })).join('') + '</g>';
+    const H = yN + hN + 4;
+    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="' + esc(FIG + ', run ' + r.label + ', step ' + (k + 1) + ' of 5') + '">' + s + '</svg>';
   }
-  const full = { cam: [.1, .58], bounds: [[-5.4, 0, -1.4], [5.6, 1.1, 2.6]] };
-  const st = S3.stage({ id: 'stg-dl', list: 'sx-dl-0', fig: 'Fig. 4 · one abandoned request', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4800, draw,
-    margin: w => w < 520 ? [22, 8, 18, 8] : [30, 16, 22, 16],
-    view: k => { const ph = innerWidth < 520;   // phone: turned and steeper, so the row runs into depth and the parts are larger
-      return k === 3 || k === 4 ? { cam: ph ? [.4, .85] : [.14, .56], bounds: [[-1.4, 0, -1.8], [5.8, 1.2, 2.6]] } : ph ? { cam: [.45, .85] } : null; } });
-  chips(document.getElementById('dl-mode'), 'sx-dl-', st, v => { m = +v; });
+  const A = RD.anim({ card: 'sq-dl', ctl: 'sq-dl-ctl', n: 5, draw, ms: 4800, label: 'Step', list: 'sx-dl-0' });
+  let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (host.offsetParent !== null) A.redraw(); }, 60); });
+  // the run chips: swap the step list and replay from step 1
+  const chips = document.getElementById('dl-mode');
+  if (chips) chips.addEventListener('click', ev => { const b = ev.target.closest('button[data-m]'); if (!b) return;
+    chips.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    chips.parentNode.querySelectorAll('ol.sx[id^="sx-dl-"]').forEach(o => o.hidden = o.id !== 'sx-dl-' + b.dataset.m);
+    m = +b.dataset.m; A.reset(5, 'sx-dl-' + b.dataset.m); });
 })();
 </script>
 <script>/* 44_js_sc_lb.js */
-// ---- Scene: Fig. 5, load balancing gRPC (stg-lb): where the replica is chosen, and how often. One client channel, a balancer when there is one,
+// ---- Scene: Fig. 4, load balancing gRPC (stg-lb): where the replica is chosen, and how often. One client channel, a balancer when there is one,
 // three replicas; thick lines are TCP connections, dots are calls, bars are the calls each replica answered. Counts from window.SA.lb (lb.json,
 // recorded 5 October 2026): the 30-call runs (steps 1 to 4) and the calls after backend-3 joined at 1.5 s (steps 5 to 8). ----
 (function () {
@@ -2065,7 +2116,7 @@ window.SAK = (function () {
     if (joined) R.label([RP[2][0], 0, RP[2][2] + .55], 'joined at ' + s.join.backend3_joined_s.toFixed(1) + ' s', { fs: 12, b: 1, c: P.c3, dy: 16, a: win(e, .2, .5) });
   }
   const full = { cam: [.12, .56], bounds: [[-5.2, 0, -2.4], [4.7, 1.3, 2.6]] };
-  S3.stage({ id: 'stg-lb', list: 'sx-lb', fig: 'Fig. 5 · who chooses the replica, and how often', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1400, hold: 4600, draw,
+  S3.stage({ id: 'stg-lb', list: 'sx-lb', fig: 'Fig. 4 · who chooses the replica, and how often', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1400, hold: 4600, draw,
     margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16],
     view: () => innerWidth < 520 ? { cam: [.45, .85] } : null });   // phone: turned and steeper, so the parts are larger
 })();

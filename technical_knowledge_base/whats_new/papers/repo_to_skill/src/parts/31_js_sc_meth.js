@@ -30,7 +30,7 @@
     if(k===0)R.label([-.2,.6,-3.35],'huggingface_hub 1.29.0 · one commit',{fs:13,b:1,dy:-8});
     if(k===1)R.label([1.6,.5,-3.3],'left out',{fs:12.5,b:1,c:P.mute,dy:-6,a:e});
     // 3. grounding: DisCo reads the evidence; live checks in a private environment
-    const pa=k<2?0:k===2?e:k===3?1:.3;
+    const pa=k<2?0:k===2?e:k===3?1-.65*e:.3;   // recedes while the skill it builds (step 4) is drawn in front of it
     if(pa>0)plate(R,pa);
     if(k===2){KIND.filter(x=>x[4]).forEach((x,i)=>R.flowArc(top(KIND.indexOf(x)),[-1.6+i*.45,.6,ZP-.05],.35,{c:P.c2,r:.06,n:6,a:.9}));
       ['imports','versions','signatures','CLI'].forEach((n,i)=>{const x=-1.8+i*1.2;R.box([x,0,.25],[.28,.24,.28],{fill:mix(P.paper,P.good,.5),a:e});
@@ -41,7 +41,7 @@
     if(ga>0){card(R,[XE,0,ZG],.8,1.15,P.c1,ga,true);R.label([XE,1.15,ZG],'SKILL.md (entry)',{mono:true,fs:12.5,b:1,c:P.c1,dy:-10,a:ga});
       SUB.forEach((n,i)=>{const ai=k===3?Math.min(1,Math.max(0,e*5-i)):ga;
         R.arc([XE+.3,1.05,ZG],[XS(i),.8,ZG],.3,{c:P.c1,w:1.6,a:ai*.8,t:k===3?Math.min(1,e*1.5):1});
-        card(R,[XS(i),0,ZG],.72,.8,P.c1,ai,true);if(k===3)R.label([XS(i),0,ZG],n,{fs:12,c:P.c1,dy:i%2?32:14,a:ai,wide:1})});
+        card(R,[XS(i),0,ZG],.72,.8,P.c1,ai,true);if(k===3)R.label([XS(i),0,ZG],n,{fs:12,c:P.c1,dy:i%2?36:14,a:ai,wide:1})});
       [0,1].forEach(j=>R.box([XE,0,ZG+.75+j*.0],[.8,.06+.04*j,.45],{fill:mix(P.paper,P.c2,.5),a:ga,lw:.7}));
       for(let i=0;i<4;i++)R.box([XE-.75,0,ZG-.45+i*.3],[.2,.2,.2],{fill:mix(P.paper,P.c3,.6),a:ga});
       if(k===3){R.label([XE,.1,ZG+.75],'references',{fs:12,c:P.c2,dy:14,wide:1});R.label([XE-.75,.2,ZG-.45],'4 scripts',{fs:12,c:P.c3,dy:-10,wide:1});
@@ -53,7 +53,7 @@
       SEL.forEach(([n,s,c],i)=>{const pass=s==='PASS',hh=pass&&c?Math.max(.05,c/MX*.95*(k===4?e:1)):.08;
         R.box([XT(i),.05,ZT],[.24,hh,.24],{fill:pass?P.good:s==='NATIVE_FAIL'?P.bad:mix(P.paper,P.mute,.5),a:va,shadow:false,lw:.6})});
       if(k===4){R.label([XC(0)-.3,.12,ZC],'12 checks',{al:'right',dx:-8,fs:12.5,b:1,c:P.good,grp:'ver'});R.label([XT(0)-.3,.1,ZT],'package tests',{al:'right',dx:-8,fs:12.5,b:1,c:P.good,grp:'ver'});
-        R.label([XC(CHK.indexOf('WARN')),.3,ZC],'warning',{fs:12,c:P.c5,dy:-10,wide:1});R.label([XT(0),.05+.95,ZT],'268 tests',{mono:true,fs:12,dy:-10,c:P.good,e:1});
+        R.label([XC(CHK.indexOf('WARN')),0,ZC+.25],'warning',{fs:12,c:P.c5,dy:14,wide:1});R.label([XT(0),.05+.95,ZT],'268 tests',{mono:true,fs:12,dy:-10,c:P.good,e:1});
         R.label([XT(12),.1,ZT],'2 fail · 3 unsafe',{fs:12,c:P.bad,dy:-14,wide:1});
         SUB.forEach((n,i)=>R.flow([[XS(i),.3,ZG+.05],[XS(i),.3,ZT-.2]],{c:P.good,r:.055,n:3,a:.75}))}}
     // 6. accepted into the library: the graph joins its area, the router is rebuilt

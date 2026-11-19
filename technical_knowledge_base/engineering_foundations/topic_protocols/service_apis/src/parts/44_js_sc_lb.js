@@ -1,4 +1,4 @@
-// ---- Scene: Fig. 5, load balancing gRPC (stg-lb): where the replica is chosen, and how often. One client channel, a balancer when there is one,
+// ---- Scene: Fig. 4, load balancing gRPC (stg-lb): where the replica is chosen, and how often. One client channel, a balancer when there is one,
 // three replicas; thick lines are TCP connections, dots are calls, bars are the calls each replica answered. Counts from window.SA.lb (lb.json,
 // recorded 5 October 2026): the 30-call runs (steps 1 to 4) and the calls after backend-3 joined at 1.5 s (steps 5 to 8). ----
 (function () {
@@ -46,7 +46,7 @@
     if (joined) R.label([RP[2][0], 0, RP[2][2] + .55], 'joined at ' + s.join.backend3_joined_s.toFixed(1) + ' s', { fs: 12, b: 1, c: P.c3, dy: 16, a: win(e, .2, .5) });
   }
   const full = { cam: [.12, .56], bounds: [[-5.2, 0, -2.4], [4.7, 1.3, 2.6]] };
-  S3.stage({ id: 'stg-lb', list: 'sx-lb', fig: 'Fig. 5 · who chooses the replica, and how often', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1400, hold: 4600, draw,
+  S3.stage({ id: 'stg-lb', list: 'sx-lb', fig: 'Fig. 4 · who chooses the replica, and how often', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1400, hold: 4600, draw,
     margin: w => w < 520 ? [20, 8, 18, 8] : [26, 16, 22, 16],
     view: () => innerWidth < 520 ? { cam: [.45, .85] } : null });   // phone: turned and steeper, so the parts are larger
 })();

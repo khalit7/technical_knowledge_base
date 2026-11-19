@@ -32,36 +32,11 @@ content-type: application/json
 <div class="small" id="rd-anatall"><b>The seven parts:</b> 1. a plural noun with a major version in the path; 2. a dated version in a header, pinned per request; 3. a client-chosen key that makes this POST safe to retry (section 4); 4. the status says whose fault and whether to retry; 5. how long to wait (section 5); 6. a request id to quote to support and to search your logs for; 7. a stable, documented error type that code can switch on.</div>
 </div>
 </div></div></div>
-<div class="s3sp"><div class="s3R"><div class="s3side"><div class="fig" id="rd-pg">
-<div class="ft">One new row makes offset repeat an item; the cursor carries on</div>
-<div class="seg" id="rd-pgseg"><button data-m="0" class="on">Before: offset</button><button data-m="1">After: cursor</button></div>
-<div id="rd-pgsvg"></div>
-<div class="an-ctl" id="rd-pgctl"></div>
-<p class="cap">Illustrative data: eight chats, newest first, pages of three. Measured cost of one 20-row page at depth 500,000 in a million-row Postgres 16.2 table: offset 98.1 ms, cursor 0.032 ms (median of 7 runs, 4 October 2026, on an Apple M1 Pro; recorded by the Building a backend API page's script, copied here as <code>src/inputs/pagination_pg.json</code>); the plans behind the two numbers are on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}, section 8.</p>
-</div>
-</div></div><div class="s3L">
 <h3>Pagination: offset shifts under writes, a cursor does not</h3>
-<p>A list endpoint returns a page and a way to ask for the next. <b>Offset</b> (<code>?limit=20&amp;offset=40</code>) is easy and lets a UI jump to page 7, but the database still reads every skipped row, and rows added while the user pages shift everything. A <b>cursor</b> encodes the sort key of the last row seen, <code>WHERE (created_at, id) &gt; (:t, :id)</code>, so an index seeks straight to it. Predict what the user sees on page 2 when one chat is created between the two requests, then step:</p>
-<p class="sxh">Fig. 2 · One new row makes offset repeat an item; the cursor carries on</p>
-<ol class="sx" id="sx-pg-0">
-<li><b>Page 1.</b> The user gets c8, c7, c6, the three newest chats. Offset remembers "skip 3".</li>
-<li><b>A write between requests.</b> Someone creates c9 at the top of the list. The user does not know.</li>
-<li><b>Page 2.</b> Offset skips 3 rows of the new list: c9, c8, c7. The user gets c6 again, then c5 and c4.</li>
-<li><b>Another write.</b> c5 is deleted.</li>
-<li><b>Page 3.</b> Offset skips 6 rows: the list shrank, so the page starts at c2. c3 is never shown.</li>
-<li><b>What the user saw.</b> Offset showed one chat twice and never showed another, without any error. Both writes were ordinary.</li>
-</ol>
-<ol class="sx" id="sx-pg-1" hidden>
-<li><b>Page 1.</b> The user gets c8, c7, c6, the three newest chats. The cursor remembers "after c6".</li>
-<li><b>A write between requests.</b> Someone creates c9 at the top of the list. The user does not know.</li>
-<li><b>Page 2.</b> The cursor asks for rows after c6: c5, c4, c3. The new row c9 does not disturb it.</li>
-<li><b>Another write.</b> c5 is deleted.</li>
-<li><b>Page 3.</b> The cursor asks for rows after c3: c2, c1. The deleted c5 simply is not there.</li>
-<li><b>What the user saw.</b> Every chat that existed was shown exactly once, whatever was written in between.</li>
-</ol>
+<p>A list endpoint returns a page and a way to ask for the next. <b>Offset</b> (<code>?limit=20&amp;offset=40</code>) is easy and lets a UI jump to page 7, but the database still reads every skipped row, and rows added while the user pages shift everything. A <b>cursor</b> encodes the sort key of the last row seen, <code>WHERE (created_at, id) &gt; (:t, :id)</code>, so an index seeks straight to it.</p>
+<p>What the user sees when rows change between requests (illustrative: eight chats c1 to c8, newest first, pages of three): page 1 is c8, c7, c6. If c9 is created before page 2, offset skips 3 rows of the new list (c9, c8, c7) and the user gets c6 again, then c5 and c4; if c5 is then deleted, page 3 skips 6 rows of the shorter list, starts at c2, and c3 is never shown. One chat shown twice and another never, without any error, from two ordinary writes. A cursor asks for the rows after the last one seen: after c6 it gets c5, c4, c3 (the new c9 does not disturb it), after c3 it gets c2, c1 (the deleted c5 simply is not there), so every chat that existed is shown exactly once. The cost differs as much: one 20-row page at depth 500,000 in a million-row Postgres 16.2 table took 98.1 ms with offset and 0.032 ms with a cursor (median of 7 runs, 4 October 2026, on an Apple M1 Pro; recorded by the Building a backend API page's script, copied here as <code>src/inputs/pagination_pg.json</code>). Why, with the plans behind the two numbers and the cost at every depth, is {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}'s, section 8.</p>
 <p>The rules from the big style guides: cursors are opaque ("must be opaque (but URL-safe) strings, and must not be user-parseable", {{AIP-158|https://google.aip.dev/158}}), because anything clients can decode they will depend on; an empty next token is the only end signal (AIP-158: "If the end of the collection has been reached, the <code>next_page_token</code> field must be empty"), so clients never guess from a short page; cap <code>limit</code>; sort by a unique key (add the id as a tie-breaker, or equal timestamps skip or repeat across a page boundary); skip <code>total_count</code> unless needed, since counting a filtered set is itself a scan. Offset keeps a place in small admin tables.</p>
 <p>Filters and sorts meet the cursor in two more rules. <b>Allow-list filter fields and sort keys</b> to those you have indexes for: a generic "filter on any column" becomes a full table scan the first time someone filters on an unindexed one, and a way to probe fields you never meant to expose. <b>Bind the filters into the cursor</b>: a cursor made under <code>model=large</code> means nothing under <code>model=small</code>, so store a hash of the filters inside it and reject a mismatch. Sorting descending needs the keyset comparison reversed (<code>&lt;</code> instead of <code>&gt;</code>) and an index in that order, or one Postgres can scan backwards; Markus Winand's {{"We need tool support for keyset pagination"|https://use-the-index-luke.com/no-offset}} makes the case for keysets with Postgres and MySQL plans.</p>
-</div></div>
 <h3>Versioning: never break a client you cannot see</h3>
 <p>A breaking change is any change after which a correct existing client stops working or starts doing something different: removing or renaming a field, changing its type, making an optional field required, changing a default ("Changing the default value is considered breaking", {{AIP-180|https://google.aip.dev/180}}), or changing behaviour under the same shape. In practice the contract is wider than the documentation: Hyrum's law, "With a sufficient number of users of an API, it does not matter what you promise in the contract: all observable behaviors of your system will be depended on by somebody" ({{Hyrum Wright, hyrumslaw.com|https://www.hyrumslaw.com/}}); a phone app version can stay installed for years, so everything observable is contract. Adding endpoints, optional fields, response fields and enum values is safe only if clients are <b>tolerant readers</b> that ignore what they do not know; Anthropic's contract reserves the right, within a version, to "add new variants to enum-like output values (for example, streaming event types)" ({{Claude API versioning|https://platform.claude.com/docs/en/api/versioning}}).</p>
 <div class="tw"><table>

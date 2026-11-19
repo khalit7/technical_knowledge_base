@@ -52,3 +52,5 @@ Status as of 2026-10-24: the hero (`27_js_rd_hero.js`), read-your-writes (`29_js
 | Fig. 6, four ranges on three nodes through the kill sequence, Raft flows | 3D stage, 6 steps | section 11 | `SC.crdb` ranges, events, per-second counts | built (`46_js_sc_rg.js`), replaces the 2D toggle (`33_js_rd_ranges.js`) |
 | Kept 2D | | | | pool slider, partition boxes, retention tiles and planning bars, functional split toggle, shard-key lab, crossing-shards bars, id bits, resharding bars, the CockroachDB per-second strip, commit floor bars, multi-region toggle: numbers on an axis, flat maps or parameter widgets |
 | Multi-region as a 3D globe or three region plinths | 3D | section 12 | | rejected: three routes on a flat map read at a glance; depth would add nothing |
+
+2026-11-19: Fig. 2 (read-your-writes, three routes): 3D stage `stg-ryw` redrawn flat as `rd-ryw-card` (`42_js_ryw.js`, RD.anim, same 5 steps and three lists): app, router, primary above replica, each log a row of records (the user's write purple), arrows per step, the cost line at the end. Why: four parties and the messages between them; depth carried nothing.

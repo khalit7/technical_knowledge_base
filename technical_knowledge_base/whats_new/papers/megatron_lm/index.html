@@ -1307,13 +1307,16 @@ PRED_REVEAL['pr-scale']=()=>drawF5($('f5Svg'));
     const usedA=ST.slice(0,k+1).some(x=>(x.w||'').includes('A')),usedB=ST.slice(0,k+1).some(x=>(x.w||'').includes('B'));
     const focA=(S.w||'').includes('A')||(S.at==='y'&&!S.comm),focB=(S.w||'').includes('B');
     const comm=!!S.comm,cv=close(k);
+    // the lanes run only through the part of the block the step's view shows (a close-up never cuts them at the card edge); they glide with the camera
+    const ext=c=>c==='A'?[XX-.25,BX-.2]:c==='B'?[AX-.15,OX+U+.15]:[XX-.25,QX-.45],e0=ext(k?close(k-1):cv),e1=ext(cv),ee=S3.RM?1:e*e*(3-2*e),lx0=e0[0]+(e1[0]-e0[0])*ee,lx1=e0[1]+(e1[1]-e0[1])*ee;
+    const inV=x=>x>=lx0-.05&&x<=lx1+.05;
     for(let i=0;i<t;i++){const z=zl(i,t);
-      R.box([(XX-.25+QX-.45)/2,0,z],[QX-.45-XX+.25,.035,LD],{fill:P.paper,dz:50,shadow:false});
-      if(cv!=='B')R.label([XX-.3,.02,z],'GPU '+(i+1),{al:'right',dx:-6,fs:12,mono:true,c:P.mute,grp:'lane'});
+      R.box([(lx0+lx1)/2,0,z],[lx1-lx0,.035,LD],{fill:P.paper,dz:50,shadow:false});
+      R.label([lx0-.05,.02,z],'GPU '+(i+1),{al:'right',dx:-6,fs:12,mono:true,c:P.mute,grp:'lane'});
       // weight plates: each GPU's own slice; the whole matrix as an outline
-      if(usedA){const a=(k===ST.findIndex(x=>(x.w||'').includes('A'))?e:1)*(focA?1:comm?.25:.4),s=sliceA(m,i,t);
+      if(usedA&&inV(AX+4*U)){const a=(k===ST.findIndex(x=>(x.w||'').includes('A'))?e:1)*(focA?1:comm?.25:.4),s=sliceA(m,i,t);
         plate(R,s,z,P.c1,a,m==='meg'?Math.round(8/t):8,m==='meg'?3:1);ghost(R,AX,Y0,4*U,U,z,a*.45)}
-      if(usedB){const a=(k===ST.findIndex(x=>(x.w||'').includes('B'))?e:1)*(focB?1:comm?.25:.4),s=sliceB(m,i,t);
+      if(usedB&&inV(BX)){const a=(k===ST.findIndex(x=>(x.w||'').includes('B'))?e:1)*(focB?1:comm?.25:.4),s=sliceB(m,i,t);
         plate(R,s,z,P.c6||P.c4,a,2,m==='meg'?Math.round(8/t):Math.round(8/t));ghost(R,BX,Y0,U,4*U,z,a*.45)}
       // what this GPU holds for one token now (the previous step's slab fades out)
       if(pv&&e<1&&(pv.at!==S.at||pv.L[0]!==S.L[0]))slab(R,pv,i,t,z,1-e);
@@ -1325,21 +1328,23 @@ PRED_REVEAL['pr-scale']=()=>drawF5($('f5Svg'));
         R.flow(pts,{c:S.bwd?P.c5:P.c1,a:Math.min(1,e*1.5)*(i===0?1:.7),r:.055,speed:1.4,n:6})}}
     // the gates: f and g on every split, Option 1's extra synchronisation in front of the GeLU
     const gates=[['f',GF,'f'],['g',GG,'g']];if(m==='row')gates.push(['m',GM,'sync']);
-    gates.forEach(([g,x,nm])=>{const on=comm&&S.comm[2]===g;if(cv==='B'&&g==='f')return;
+    gates.forEach(([g,x,nm])=>{const on=comm&&S.comm[2]===g;if(!inV(x))return;
       R.line([[x,.05,zM-.15],[x,.05,-zM+.15]],{c:P.c2,w:on?3:1.6,dash:on?null:[5,4],a:on?1:.6});
-      R.label([x,.05,zM-.15],nm,{serif:true,b:1,fs:15,c:P.c2,dy:16,a:on?1:.75})});
+      R.label([x,.05,-zM+.15],nm,{serif:true,b:1,fs:15,c:P.c2,dy:-12,a:on?1:.75})});   // gate names at the back, clear of the size labels in front
     // the collective: a ring of dots between neighbouring lanes at its gate, denser for 4H than for H
     if(comm){const x=gateX(S.comm[2]),sz=S.comm[1],y=.55,ag=S.comm[0]==='ag',c=ag?P.c4:P.c2;
       for(let i=0;i<t-1;i++)R.flowArc([x,y,zl(i,t)],[x,y,zl(i+1,t)],.18,{c,a:e,r:.035+.012*sz,n:sz>1?6:2,speed:1.1});
       if(t>1)R.flowArc([x,y,zl(t-1,t)],[x,y,zl(0,t)],.75,{c,a:e*.8,r:.035+.012*sz,n:sz>1?12:5,speed:1.6});
-      R.label([x,.05,zM-.15],(ag?'all-gather of ':'all-reduce of ')+(sz===1?'H':sz+'H')+' per token',{fs:13,b:1,c,a:e,dy:36})}
-    if(S.bwd&&!comm&&k>0&&!ST[k-1].bwd)R.label([OX+U/2,.6,zl(0,t)],'gradient of Z',{fs:12.5,b:1,c:P.c5,a:e});
-    if(S.dup)R.label([OX+U/2,.6,zl(0,t)],'dropout, residual: on every GPU',{fs:12.5,c:P.ink,a:e});
-    if(S.gelu)R.label([AX+2*U,1.2,zl(0,t)],m==='meg'?'GeLU on '+fm(4*L.P().h/t)+' values per GPU':'GeLU on all '+fm(4*L.P().h)+', on every GPU',{fs:13,b:1,c:P.c1,a:e});
+      R.label([x,.05,-zM+.15],(ag?'all-gather of ':'all-reduce of ')+(sz===1?'H':sz+'H')+' per token',{fs:13,b:1,c,a:e,dy:-32,al:x===GF?'left':'center',dx:x===GF?-8:0})}
+    // step notes float above the back lane, in the empty space over the block, never on the plates or the sent column
+    const zb=zl(t-1,t);
+    if(S.bwd&&!comm&&k>0&&!ST[k-1].bwd)R.label([OX+U/2,.5,zb],'gradient of Z',{fs:12.5,b:1,c:P.c5,a:e,dy:-28});
+    if(S.dup)R.label([OX+U/2,.5,zb],'dropout, residual: on every GPU',{fs:12.5,c:P.ink,a:e,dy:-28});
+    if(S.gelu)R.label([AX+2*U,Y0+U+.45,zb],m==='meg'?'GeLU on '+fm(4*L.P().h/t)+' values per GPU':'GeLU on all '+fm(4*L.P().h)+', on every GPU',{fs:13,b:1,c:P.c1,a:e,dy:-10});
     // plate names (front lane) with the model's sizes
     const h=L.P().h,z0=zl(0,t),ph=R.W<520;
-    if(usedA&&cv!=='B'){const s=sliceA(m,0,t);R.label(ph?[s[0],s[2]+s[3],z0]:[s[0],0,z0+LD/2],'A'+sub[0]+': '+(m==='meg'?fm(h)+' × '+fm(4*h/t):fm(h/t)+' × '+fm(4*h)),{al:'left',fs:12.5,mono:true,b:1,c:P.c1,dx:ph?0:4,dy:ph?-10:14,a:focA?1:.6})}
-    if(usedB&&cv!=='A'){const s=sliceB(m,0,t);R.label(ph?[BX,s[2]+s[3]/2,z0]:[BX+U,0,z0+LD/2],'B'+sub[0]+': '+fm(4*h/t)+' × '+fm(h),{al:'right',fs:12.5,mono:true,b:1,c:P.c6||P.c4,dx:ph?-8:0,dy:ph?0:14,a:focB?1:.6})}
+    if(usedA&&cv!=='B'){const s=sliceA(m,0,t);R.label([s[0],0,z0+LD/2+.25],'A'+sub[0]+': '+(m==='meg'?fm(h)+' × '+fm(4*h/t):fm(h/t)+' × '+fm(4*h)),{al:'left',fs:12.5,mono:true,b:1,c:P.c1,dy:12,a:focA?1:.6})}
+    if(usedB&&cv!=='A'){R.label([cv==='B'?BX:BX+U,0,z0+LD/2+.25],'B'+sub[0]+': '+fm(4*h/t)+' × '+fm(h),{al:cv==='B'?'left':'right',fs:12.5,mono:true,b:1,c:P.c6||P.c4,dy:cv==='B'?12:30,a:focB?1:.6})}
     // sent so far per GPU (in H per token), against the other split's whole block; drawn in the whole-block view only
     if(close(k))return;
     const oth=m==='meg'?'row':'meg',mx=Math.max(L.tot('meg',t,99),L.tot('row',t,99)),sc=2.4/mx,
@@ -1351,12 +1356,12 @@ PRED_REVEAL['pr-scale']=()=>drawF5($('f5Svg'));
     R.label([QX+.2,.05+ot*sc,zc],(m==='meg'?'Option 1: ':'Megatron: ')+ot.toFixed(2)+'H',{fs:12,mono:true,c:P.mute,al:'left',dx:6,wide:1})
   }
   function close(k){const S=L.ST[L.mode][k];return (S.w||'')==='A'||(S.at==='y'&&!S.comm&&!S.bwd)?'A':(S.w||'')==='B'&&!S.bwd?'B':''}
-  const full=()=>{const z=zm(L.P().t);return {cam:[.16,.5],bounds:[[-6.5,0,-z],[3.3,2.9,z]]}};
+  const full=()=>{const z=zm(L.P().t);return {cam:[.16,.5],bounds:[[-6.5,0,-z],[3.3,2.9,z+.4]]}};
   const st=S3.stage({id:'stg-lay',list:'sx-lay-meg',fig:'Fig. 2 · one MLP block, t GPUs, forward and backward',cam:full().cam,bounds:()=>full().bounds,aspect:.5,dur:1400,hold:4800,draw,
     // steps about A or B move in close to that plate; collectives and the output show the whole block
-    view:k=>{const z=zm(L.P().t),c=close(k);if(c==='A')return {cam:[.28,.5],bounds:[[-6.3,0,-z],[-.9,1.3,z]]};
-      if(c==='B')return {cam:[.1,.42],bounds:[[-2.2,0,-z],[3.2,2.9,z]]};const v=full();return innerWidth<600?{cam:[.3,.6],bounds:[[-6.3,0,v.bounds[0][2]+.3],[3.1,2.9,v.bounds[1][2]-.3]]}:v},
-    margin:w=>w<520?[16,8,12,8]:[18,110,14,70],
+    view:k=>{const z=zm(L.P().t),c=close(k);if(c==='A')return {cam:[.28,.5],bounds:[[-6.4,0,-z-.3],[-.7,1.3,z+.5]]};
+      if(c==='B')return {cam:[.1,.42],bounds:[[-4.6,0,-z],[2.0,2.9,z+.5]]};const v=full();return innerWidth<600?{cam:[.3,.6],bounds:[[-6.3,0,v.bounds[0][2]+.3],[3.1,2.9,v.bounds[1][2]-.3]]}:v},
+    margin:w=>w<520?[16,8,12,8]:[18,140,14,70],
     onStep:k=>{L.k=k;L.counters()}});
   L.stage=st;
   const seg=document.getElementById('layM');

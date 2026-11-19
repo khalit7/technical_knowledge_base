@@ -14,7 +14,7 @@
     ['utils/','django/utils/','d',[.65,1.95,-2.25,-1.15],1],['encoding.py','django/utils/encoding.py','f',1.3,-1.7],
     ['tests/','tests/','d',[2.35,4.65,-1.05,.45],0],['model_fields/','tests/model_fields/','d',[2.45,4.55,-.95,.35],1],['models.py','tests/model_fields/models.py','f',2.95,-.3],['tests.py','tests/model_fields/tests.py','f',4.05,-.3]];
   const BS=[.88,.5,.62];
-  const DL={'django/':[-4.3,.45,'left',10],'tests/':[2.4,.45,'left',10],'models/':[.25,-2.25,'right',-9],'fields/':[-.9,-1.3,'right',10],'utils/':[.7,-1.15,'left',10],'model_fields/':[2.5,-.95,'left',-9]};
+  const DL={'django/':[-4.45,.3,'right',4],'tests/':[2.4,.45,'left',10],'models/':[.25,-2.25,'right',-9],'fields/':[-.9,-1.3,'right',10],'utils/':[.7,-1.15,'left',10],'model_fields/':[2.5,-.95,'left',-9]};
   const name=(i,m)=>{if(m==='orig')return T[i][0];const p=SR.apply(T[i][1],FM,true).replace(/\/$/,''),s=p.split('/').pop();return s+(T[i][1].endsWith('/')?'/':'')};
   // the lit entries per step (as in the old 2D animation) and the paper's totals
   const V={orig:[[],[0,1,2,3,7,8],[8],[3],[8]],map:[[],[0,1,2,7,11,13,14],[0,2,3,7,8,14,15,16],[8,3],[4,5,6,8,9,10,12,15,16],[8]]};
@@ -32,7 +32,7 @@
         // a directory is a floor patch drawn under everything, nested patches in order of depth
         R.quad([[b[0],y,b[2]],[b[1],y,b[2]],[b[1],y,b[3]],[b[0],y,b[3]]],{fill:on?mix(P.paper,P.c2,.12+.2*e):was?mix(P.paper,P.c2,.1):mix(P.paper,P.ink,.04+.025*t[4]),dz:60-t[4],lw:.8});
         const lab=name(i,M);
-        // where each directory's label sits: top level at its front-left corner, models/ at its back-right, the others at their front-left; db/ is named by models/
+        // where each directory's label sits: django/ just left of its front-left corner (off base.py's name), tests/ at its front-left corner, models/ at its back-right, the others at their front-left; db/ is named by models/
         const at=DL[t[0]];if(at&&(t[4]===0||on))R.label([at[0],y,at[1]],lab,{al:at[2],mono:true,fs:12,dy:at[3],c:on?P.c2:P.mute,b:on,a:on?Math.max(.4,e):.8,wide:t[4]>0?1:0})}
       else{const y=.01,f=on?mix(P.paper,P.c2,.25+.45*e):was?mix(P.paper,P.c2,.18):P.paper;
         R.box([t[3],y,t[4]],BS,{fill:f,lw:.8});

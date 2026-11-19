@@ -38,3 +38,7 @@ The two animations follow the DeepSeek MLA explainer pattern (same input, old wa
 - A rule for **security incidents**: report what happened, the timeline, the scale and the fix, and check them against the sources, but do not draw an escape or attack route step by step, even as an illustrative before/after; the text carries it.
 - A rule for **cost claims stated as orders of magnitude**: find which two figures the claim divides, and show the parts of a budget as parts (the $100 inside a $1,000 to $2,000 route).
 - When a vendor's evaluation partner publishes the comparison, label it "with" rather than "independent", even when the numbers check out.
+
+## 2026-11-19 (3D step fixes)
+
+- 2026-11-19, `stg-fusion` (one illustrative session, three ways): the row names had a 182 px margin but the longest ("Fusion: sidekick (cheaper)") still met the card's left edge in the close view, and a 150 px right margin kept for the last step's sums squeezed the rows into the middle of the card with empty space above. Now the left margin is 196 px, the right margin is gone (the last step's own view widens to the right for the sums), the bounds stop at the height the tallest columns actually reach on screen, the bottom keeps room for the turn numbers, and the two miss steps' close view (which cut the rows' right ends and the turn numbers) became a lower camera on all four rows whole, so the columns and the red re-reads stand taller. Card aspect .37 to .4.

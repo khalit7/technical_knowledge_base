@@ -2,13 +2,13 @@
 // Clicks every segmented button, steps every animation to its last frame, toggles every checkbox and details block,
 // at 390 px dark and 920 px light; fails on page errors, a visible #jsErr, sideways scroll or NaN/undefined/Infinity.
 // Motion (2026-11-06): the interrupt stepper plays by itself once in view (never under reduced motion); the crash replay is a widget that never plays by itself
-// and opens on its last event; the 3D stages are checked in check_stages.mjs. Screenshots the key cards into .shots/.
+// and opens on its last event; Figs. 1 and 2 (2D step animations since 2026-11-19) are checked in check_stages.mjs. Screenshots the key cards into .shots/.
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const file = path.resolve(process.argv[2]); const shots = path.join(path.dirname(file), '.shots'); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let bad = 0;
-const CARDS = ['stg-hero', 'flg-lc-pipe', 'stg-steps', 'flg-st-card', 'flg-c-card', 'flg-i-card', 'flg-ag-svg', 'flg-g-real'];
+const CARDS = ['flg-h-card', 'flg-lc-pipe', 'flg-s-fig', 'flg-st-card', 'flg-c-card', 'flg-i-card', 'flg-ag-svg', 'flg-g-real'];
 for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], ['light', 920, true]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));

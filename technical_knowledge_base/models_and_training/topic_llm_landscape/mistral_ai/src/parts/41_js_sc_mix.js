@@ -17,7 +17,7 @@
       R.box([x,y,0],[S,HA,S],{fill:mix(P.paper,P.c2,.85),a:o.a,shadow:i===0,lw:.5});
       if(!o.moe)R.box([x,y+HA,0],[S,HF,S],{fill:mix(P.paper,P.c1,o.lit?.75:.3),a:o.a,shadow:false,lw:.5});
       else{const p=pickL(i);for(let j=0;j<8;j++){const cx=x+S/2+.06+(j%4)*(S+.04)+S/2,cz=(j<4?-1:1)*(S/2+.02);
-        R.box([cx,y+HA,cz],[S,HF,S],{fill:p.includes(j)?mix(P.paper,P.c1,.9):P.paper,a:o.a*(p.includes(j)?1:.55),shadow:false,lw:.4})}}}}
+        const pk=p.includes(j);R.box([cx,y+HA,cz],[S,HF,S],{fill:pk?mix(P.paper,P.c1,.9):P.paper,a:o.a*(pk?1:.2),ea:pk?1:.35,shadow:false,lw:pk?.5:.3})}}}}
   function draw(R,k,e,st){const P=R.P;R.grid(-4,4.4,-2.4,2.4,.5);
     // the Mistral 7B tower stays on the left in every step; it recedes while the exploded block is the subject
     const ta=tw(st,e,s=>s===0||s===4?1:.22);tower(R,P,TX,{a:ta,lit:1});
@@ -54,7 +54,7 @@
         R.label([QX(0)-.1,.05,ZC],'cache: 32,768 positions',{al:'right',dx:-8,fs:12,c:P.mute,a:b1,grp:'L'});
         R.label([QX(7)+.08,.07,ZC-.17],'window: the last 4,096',{dy:-14,fs:12.5,b:1,c:P.c6,a:b1});
         R.label([EXX(3),YF+CB,0],'one feed-forward network, 176.2M',{dy:-14,fs:12.5,b:1,c:P.c1,a:b1})}
-      if(b2>.01){R.label([EXX(0)-.25,YF+CB/2,0],'8 copies, 176.2M each',{al:'right',dx:-8,fs:12.5,b:1,c:P.c1,a:b2,grp:'R'});
+      if(b2>.01){R.label([(EXX(3)+EXX(4))/2,YF+CB+.3,-CB/2],'8 copies, 176.2M each',{dy:-14,fs:12.5,b:1,c:P.c1,a:b2});
         R.label([QX(0)-.1,.05,ZC],'no window: all 32,768',{al:'right',dx:-8,fs:12.5,b:1,c:P.c6,a:b2,grp:'R'});
         R.label([QX(0)-.1,.2,ZK],'attention unchanged, 41.9M',{al:'right',dx:-8,fs:12,c:P.mute,a:b2,grp:'R'})}
       if(b3>.01){R.label([ax,YF+1,0],'2 of 8 read: 352.3M',{dy:-14,fs:12.5,b:1,c:P.c1,a:b3});

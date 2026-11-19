@@ -55,3 +55,4 @@ The scoring assumes published figures to reproduce; for metrics the "figure" is 
 - Moved: the Text lab's editor inline in section 7, its presets table and the bootstrap widget into closed blocks.
 - Removed: the Threshold lab's reliability panel (section 3's stepper draws reliability for all three models).
 - Rejected: a real-data nDCG example (RAG and retrieval evaluation already runs BEIR; linked instead); a photo or paper figure (no physical object; the reliability diagram and ROC are redrawn on real data).
+- 2026-11-19, Fig. 3: each row's "bits in all" label sits at that row's right end (it floated over the next row back); the three side columns of step 5 and 6 are spaced 1.35 apart (were .95) so the PPL and bits-per-byte labels no longer overlap. Upcoming rows stay faint from step 1 on purpose (fill the frame rule) (audit 2026-11-19 kind 5).

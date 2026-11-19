@@ -58,5 +58,5 @@
   const FV={cam:[0,.72],bounds:[[-5.2,0,-2.6],[3.6,1.4,2.9]]};
   S3.stage({id:'stg-boot',list:'sx-boot',fig:'Fig. 4 · 200 refits on resampled votes',cam:FV.cam,bounds:FV.bounds,aspect:.66,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,8,14,8]:[18,16,16,16],
-    view:k=>k===0?{cam:[0,.76],bounds:[[-5.2,0,-2.6],[3.6,.9,2.9]]}:k===1?{cam:[0,.66],bounds:[[-5.2,0,-2.6],[3.6,.9,4.0]]}:k===4?{cam:[0,.62],bounds:[[-5.0,0,-2.6],[2.6,1.8,2.9]]}:null});
+    view:k=>k===0?{cam:[0,.76],bounds:[[-5.2,0,-2.6],[3.6,.9,2.9]]}:k===1?{cam:[0,.66],bounds:[[-5.2,0,-2.6],[3.6,.9,4.0]]}:k===4?{cam:[0,.62],bounds:[[-5.0,0,-2.6],[2.6,1.8,2.9]]}:k===5?{cam:[0,1.12],bounds:FV.bounds}:null}); // the wide 1,000-vote piles read as spreads from above (2026-11-19)
 })();

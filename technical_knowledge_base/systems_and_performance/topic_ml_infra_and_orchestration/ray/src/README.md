@@ -97,3 +97,6 @@ Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `0
 **Length judgement.** Reading core 28.4 min before (6,535 words), 34.6 min after (7,954); closed details 8.8 and 8.9 min; Further reading 2.4 unchanged. The audit counts every mode's step list, including the four hidden until their mode is picked (about 1 min). The added words are the step lists that explain the four stages and three 2D animations, as the rollout requires; the hero caption, the cluster-map caption, the object and replay captions were folded into them. Nothing the ledger holds was cut.
 
 **Ledger**: 382 units (core 235, depth 115, fat 32); keys 76, 182, 185, 187, 318, 319, 323 updated to the reworded text; unit 322 (the colours of the removed 2D node-loss timeline) relabelled fat.
+
+## 2026-11-19: 3D stages judged against "When 3D earns its place"
+- Fig. 3 (one node lost, six fates): 3D stage `stg-loss` redrawn flat as `ry-loss-card` (`43_js_loss.js`, RD.anim, same 7 steps): head, w1 and w2 as boxes with the GCS, driver, D, A, B, C and the two actors; new under it, a timeline in seconds after the kill (0.42, the five health checks to 29.9, 31.4, 41.7). Why: which node holds what is the lesson; positions were schematic and depth carried nothing.

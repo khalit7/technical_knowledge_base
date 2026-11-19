@@ -13,10 +13,11 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
 // stage id, its mode chips (selector), modes, the step-list id for each mode
-const STAGES = [['stg-hero', null, [null], () => 'sx-hero'], ['stg-idem', '#idem-mode', ['nokey', 'key', 'early', 'mismatch'], m => 'sx-idem-' + m],
-  ['stg-dl', '#dl-mode', ['0', '3', '1', '2'], m => 'sx-dl-' + m], ['stg-lb', null, [null], () => 'sx-lb']];
+const STAGES = [['stg-idem', '#idem-mode', ['nokey', 'key', 'early', 'mismatch'], m => 'sx-idem-' + m],
+  ['stg-lb', null, [null], () => 'sx-lb']];
 // 2D animations (RD.anim): card, control prefix, mode buttons, modes, list for each mode
-const ANIMS = [['rd-pg', 'rd-pgctl', '#rd-pgseg', ['0', '1'], m => 'sx-pg-' + m], ['rd-hook', 'rd-hookctl', null, [null], () => 'sx-hook']];
+// (Fig. 1 and the deadline figure, now Fig. 3, became 2D on 2026-11-19: sq-hero and sq-dl; the pagination stepper rd-pg was removed)
+const ANIMS = [['sq-hero', 'sq-hero-ctl', null, [null], () => 'sx-hero'], ['sq-dl', 'sq-dl-ctl', '#dl-mode', ['0', '3', '1', '2'], m => 'sx-dl-' + m], ['rd-hook', 'rd-hookctl', null, [null], () => 'sx-hook']];
 const WIDGETS = [['rd-call', 'cl-ctl'], ['rd-lb', 'lb-ctl']];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });

@@ -36,15 +36,16 @@
     // 1. the online round: the starting policy grows world 1 row by row, every attempt a paid call
     if(k===0){const r=e*11;plate(R,XW[0],1,'world 1 · root in front');world(R,XW[0],hist[0],1,r);
       const row=Math.min(10,Math.floor(r));R.flowArc([AG[0]-.3,.55,AG[2]],[XW[0],.45,bz(row)],1.1,{c:P.c2,a:Math.min(1,e*3),r:.06,n:10,speed:1.6});
-      R.label([XW[0],1.45,0],Math.min(110,Math.round(e*110))+' calls paid · 10 × 11',{mono:true,fs:13,b:1,c:P.ink})}
+      const nw=R.W<520;R.label(nw?[XW[0],0,2.55]:[XW[0],1.45,0],Math.min(110,Math.round(e*110))+' calls paid · 10 × 11',{mono:true,fs:13,b:1,c:P.ink,dy:nw?32:0})} // phones: under the world, clear of the agent's label
     // 2. the history: three recorded worlds
     if(k===1){[0,1,2].forEach(i=>{const a=i===0?1:e;plate(R,XW[i],a,'world '+(i+1),{grp:'w'});world(R,XW[i],hist[i],a,11)});
       R.label([XW[1],2.5,-.5],'history ℋ: 3 recorded worlds, 330 attempts',{mono:true,fs:13,b:1,c:P.ink,a:e})}
     // 3 and 4. dreaming on world 1: the winner's replay reveals only what it asks for; the other worlds wait
-    if(k===2||k===3){[1,2].forEach(i=>{plate(R,XW[i],.12);world(R,XW[i],hist[i],.08,11)});plate(R,XW[0],1);
+    if(k===2||k===3){const wa=k===2?1-e:0;if(wa>.01)[1,2].forEach(i=>{plate(R,XW[i],.12*wa);world(R,XW[i],hist[i],.08*wa,11)});plate(R,XW[0],1); // the other worlds wait out of view (they had sat cropped at the card's edge)
       const kr=k===2?rnd(rep,e):rep.rounds.length-1,Rd=run(R,XW[0],hist[0],rep,kr,1,true);
-      const ga=k===2?Math.min(1,e*2):1;R.glass([PL[0]-1.1,.15,PL[2]],[2.2,0,0],[0,1.15,0],{c:P.c4,a:ga*(k===3?.45:1),nu:6,nv:4});
-      R.label([PL[0],1.3,PL[2]],'policy code π (a rewrite)',{mono:true,fs:12,dy:-10,c:P.c4,a:ga*(k===3?.5:1)});
+      const ga=k===2?Math.min(1,e*2):1;const pa=ga*(k===3?1-e:1); // at the ceiling step the policy plate leaves, so the gold plane and the two bests read alone
+      if(pa>.01){R.glass([PL[0]-1.1,.15,PL[2]],[2.2,0,0],[0,1.15,0],{c:P.c4,a:pa,nu:6,nv:4});
+      R.label([PL[0],1.3,PL[2]],'policy code π (a rewrite)',{mono:true,fs:12,dy:-10,c:P.c4,a:pa})}
       if(k===2){batchFlows(R,XW[0],rep,kr,[PL[0],.75,PL[2]+.05],P.c4,ga,.075,7);
         R.label([XW[0],1.6,.4],Rd.N+' of 110 cells read · 0 calls',{mono:true,fs:13,b:1,c:P.ink})}
       if(k===3){const [b0,j0]=bestCell,[b1,j1]=repCell,hb=hgt(hist[0].best);
@@ -54,22 +55,22 @@
         R.label([bx(XW[0],b0),hb,bz(j0)],'recorded best '+(hist[0].best*100).toFixed(1)+' · the ceiling',{mono:true,fs:12.5,b:1,dy:-16,c:P.c5,a:e,al:'right'});
         R.label([bx(XW[0],b1),hgt(rep.best),bz(j1)],'replay best '+(rep.best*100).toFixed(1)+' = '+Math.round(100*rep.best/hist[0].best)+'%',{mono:true,fs:12.5,b:1,dy:18,c:P.c1,a:e,al:'left'})}}
     // 5. selection: every version replayed on every world at five budget preferences; one signed bar of average score per version
-    if(k===4){[0,1,2].forEach(i=>{plate(R,XW[i],.35);world(R,XW[i],hist[i],.3,11)});
+    if(k===4){[0,1,2].forEach(i=>{plate(R,XW[i],.3);world(R,XW[i],hist[i],.17,11)});
       const vmax=Math.max(...VER.map(v=>Math.abs(v.V))),ZP=3.35;
       VER.forEach((v,i)=>{const x=-6.6+2.6*i,y=.32,h=Math.max(.02,Math.abs(v.V)/vmax*1.25*e),c=v.win?P.good:v.V<0?P.bad:mix(P.paper,P.c1,.55);
         R.box([x,y-.05,ZP],[1.1,.05,.5],{shadow:false});[-1,1].forEach(sx=>R.box([x+sx*.5,0,ZP],[.04,y-.05,.04],{}));
         R.box([x,v.V>=0?y:y-.05-h,ZP],[.5,h,.3],{fill:c,shadow:false});
         if(v.win)R.glow([x,y+h,ZP],.55,{c:P.good,a:e});
-        R.label([x,0,ZP+.3],v.n,{mono:true,fs:12,dy:14,c:v.win?P.good:P.mute,b:v.win});
+        R.label([x,0,ZP+.3],R.W<520?['fixed','a','b','c'][i]:v.n,{mono:true,fs:12,dy:14,c:v.win?P.good:P.mute,b:v.win});
         R.label([x,v.V>=0?y+h:y,ZP],(v.V<0?'−':'')+Math.abs(v.V).toFixed(3),{mono:true,fs:12.5,b:1,dy:-12-(i%2)*15,c:v.win?P.good:P.ink,a:Math.min(1,e*1.5)});
         [0,1,2].forEach(w=>R.flowArc([XW[w],.5,1.2],[x,y+.1,ZP],.6,{c:P.c4,a:.45*Math.min(1,e*2),r:.045,n:3,speed:1.2}))});
       R.label([-2.7,2.6,0],'V on the history (Eq. 1, v2): keep the best',{mono:true,fs:13,b:1,c:P.ink,a:e,wide:1})}
     // 6. redeploy: the winner runs the next online round on a new world; only what it asks for is generated and paid
-    if(k===5){[0,1,2].forEach(i=>{plate(R,XW[i],.3);world(R,XW[i],hist[i],.25,11)});plate(R,XW[3],1,'world 4 · new');
+    if(k===5){[0,1,2].forEach(i=>{plate(R,XW[i],.3);world(R,XW[i],hist[i],.17,11)});plate(R,XW[3],1,'world 4 · new');
       const kr=rnd(onl,e),Rd=run(R,XW[3],fresh,onl,kr,1,false);
       for(let b=0;b<10;b++)for(let j=0;j<11;j++)R.box([bx(XW[3],b),0,bz(j)],[.26,.006,.26],{fill:mix(P.paper,P.ink,.06),a:.6,shadow:false,ea:.15});
       batchFlows(R,XW[3],onl,kr,[AG[0]+.3,.55,AG[2]],P.c2,1);
-      R.label([XW[3],1.75,.4],Rd.N+' calls · '+Math.round(100*Rd.best/fresh.best)+'% of its best',{mono:true,fs:13,b:1,c:P.ink});
+      R.label([XW[3]+1.8,2.3,-1.2],Rd.N+' calls · '+Math.round(100*Rd.best/fresh.best)+'% of its best',{mono:true,fs:13,b:1,c:P.ink,al:'right'});
       R.label([XW[1],1.25,0],'history → 4 worlds, next round',{mono:true,fs:12,c:P.mute,a:e,wide:1})}
   }
   const full={cam:[.3,.62],bounds:[[-8.2,0,-4],[4.2,1.5,2.7]]};

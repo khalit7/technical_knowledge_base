@@ -16,7 +16,7 @@
 | `24_js_obs.js` | Before/after: observer view, TLS 1.2 against 1.3 |
 | `25_js_read_b.js` | 0-RTT table, ACME stepper, CAA/CT text, lifetime chart, mTLS sizes, rotation, PQ survey and speed bars, trust matrix |
 | `26_js_pqflight.js` | Server first flight against the initial window, four key types |
-| `27_js_figs.js` | Static figures (`window.TLF`): record to scale, key schedule, revocation paths, termination hops, TLS inspection (the hero, the full/resumed/0-RTT comparison and the chain became stages) |
+| `27_js_figs.js` | Static figures (`window.TLF`): key schedule (the record to scale was removed 2026-11-19), revocation paths, termination hops, TLS inspection (the hero, the full/resumed/0-RTT comparison and the chain became stages) |
 | `28_js_hs.js` | Handshake, decrypted stepper (was its own tab) |
 | `29_js_cert.js` | Certificate dissector (`window.CERTCHK`; was its own tab) |
 | `40_js_sc_kit.js` | Shared scene pieces `TSK` (adapted from the SSH page's kit, plus certificate plates and ticks) |
@@ -99,3 +99,6 @@ Part B fits. The "reproduces" check is decryption: the page's handshake numbers 
 - nginx 1.31.6 with OpenSSL 3.6.5 and shared stateless tickets accepted the same 0-RTT flight three times (two front ends); the RFC 8470 header plus a 425 from the backend stopped it.
 - 10 of 12 ML-relevant public endpoints negotiate X25519MLKEM768; Bedrock (us-east-1) and github.com answered X25519.
 - An ML-DSA-65 two-certificate server flight is 15,895 bytes, past TCP's 10-segment initial window; ML-DSA-44 (11,948) fits before CT timestamps.
+
+## 2026-11-19: the record-to-scale figure removed (drawn on two pages)
+- Section 1, Tool 1: the figure "The request grows by 17 bytes, and an observer still sees its size" (`#tl-aead`) duplicated Fig. 2 of the protocols root (`engineering_foundations/topic_protocols`, owner per OWNERS.md), which draws the same record (277 bytes of HTTP in a 299-byte record) inside every layer's wrapping. Replaced by a paragraph that keeps every number (277, 278 bytes of ciphertext, 1-byte content type, 16-byte tag, 294, 5-byte header, 299 on the wire, 17 bytes per token record) and links the root's Fig. 2. Tool 1 is full width now (no visual). Its code left `27_js_figs.js`; `check_ui.mjs` no longer looks for `tl-aead-card`. Ledger problems 0. Reading time about the same (a caption became a paragraph).

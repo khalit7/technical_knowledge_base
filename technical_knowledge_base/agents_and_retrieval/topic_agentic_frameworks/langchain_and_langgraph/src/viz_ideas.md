@@ -37,3 +37,12 @@ Nothing published to reproduce; the "defaults reproduce" rule became: the page's
 - Turned into a widget: the crash replay (14 and 17 events; opens on the end of the run).
 - Kept 2D: the drawn graphs of sections 2 and 9, the storage curve, the crash lanes (a timeline), the LCEL card, the checkpoint JSON and stream viewers.
 - Rejected: a 3D interrupt stage for section 6 (its point is which code line re-runs, which is text; Fig. 1 already shows the pause and resume through the checkpoint); a 3D storage chart (a curve on axes reads better flat); a near-camera view on Fig. 1's kill step (it cropped the checkpoint stack the step is about).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`41_js_sc_hero.js`): dense labels on the mid steps (every node name at once, overlapping). Steps 2 to 6 now name only the nodes the step is about (running, next, lost, start and end), as phones already did; steps 1 and 7 keep every name. At step 6 the propose_fix name moves under its node with its model-call time, clear of "human_review · interrupt()".
+- Fig. 2 (`42_js_sc_steps.js`): in the failed-update step (fan-out without a reducer) the state's version labels fade so the two clashing "findings" writes read. Both stages remain wide graphs of named nodes; they may be candidates for the 3D rule (kind 8), not changed here.
+
+## 2026-11-19 visual pass (3D rule)
+- Fig. 1 (`41_js_fig_hero.js`, was `41_js_sc_hero.js`): from a 3D stage to a 2D SVG step animation (RD.anim, same seven steps and step list, same run A numbers). Why: a wide graph of named nodes whose depth carried nothing (the state columns and checkpoint slabs are counts, the parallel diagnoses are a row), so a flat figure teaches it as fast and without the overlapping labels. The graph runs top to bottom inside a process band (tinted per process, red when killed, dashed when it exits at the interrupt), purple rings mark the nodes calling Claude Haiku 4.5 with the call status in the model box, state rows fill with blocks, and the checkpoint stack, pending write and interrupt chips sit beside it.
+- Fig. 2 (`42_js_fig_steps.js`, was `42_js_sc_steps.js`): from a 3D stage to a 2D SVG step animation (same seven graphs, generated step lists, picker and closed tables). Why: the same, a graph of named boxes with counts (versions, checkpoints) that read as flat bars. Plan, execute and update play inside each step with phase pills; pending writes land as chips in a tray, the state channels are bars as long as their version with the new value under them, checkpoints stack below.
+

@@ -46,3 +46,6 @@ reproduction target (the counts must match the labelled data, checked by `script
 | dg23 | Removal cost as nested volumes cut from one document | section 6 | rejected: the message is four numbers on a log axis; the 2D bars stay |
 | dg24 | Documents removed against benchmark score change | section 6 | rejected: the page has no score data; score effects are Topic: benchmarks' |
 | dg8 | Provenance chain | section 9 | kept 2D, step list `sx-pv`, only the current step expanded so the card stays in view |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 2 (`27_js_sc_fld.js`): earlier rules' columns were faint unlabelled ghosts (alpha .16) beside the current rule; they are now muted references (alpha .26) with their totals in grey (hidden under 520 px), so "far fewer flags" in steps 3 and 4 reads against 713 and 159 on the figure. Step count and list text unchanged.

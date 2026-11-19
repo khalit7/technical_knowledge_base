@@ -42,3 +42,5 @@ What the methodology lacked: guidance for protocol pages, where the measurable o
 | M24 | Token passthrough in 3D | none | rejected: Auth's Fig. 5 owns the 3D passthrough and exchange; this page keeps its flat before/after and links Auth |
 | M25 | Trust map in 3D | none | rejected: five positions with numbered controls read best flat; the threat list stays a table (brief) |
 | M26 | Envelope, version table, compatibility matrix in 3D | none | rejected: bytes as text and tables read best flat (brief) |
+
+2026-11-19: Fig. 1, the hero, from a 3D stage (`stg-hero`) to a 2D sequence (`sq-hero`, `28_js_seq.js`): seven parties as columns (model API, host, client 1, client 2, local server, ckpt-tools, authorization server), time down the card, the same six steps. Its depth carried nothing (parties and one tool call, three-d.md "When 3D earns its place"). Every label kept (the 1,818-byte tools/list answer from the recording); step 1's "at the back" dropped from the list since there is no back now.

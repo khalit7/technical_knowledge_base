@@ -24,7 +24,7 @@
     const fa=k<4?1:k===4?cl(1-e*2,0,1):0;
     if(fa>0){R.grid(-5.6,5.6,-2.8,3,.5);
       LAY.forEach(l=>{const grow=l===0?(k===0?e:1):(k===0?0:k===1?cl(e*3-(l-1),0,1):1);if(grow<=0)return;
-        const rowA=(k===3||k===4)&&l!==FOCUS?.2:1;
+        const rowA=(k===3||k===4)&&l!==FOCUS?(k===3&&l<FOCUS?.07:.18):1; // at step 4 the rows in front of layer 2 almost vanish so they do not cover it
         for(let i=0;i<N;i++){const h=w1(l,i)*HB*grow,ca=k===2&&!HL.has(i)?.22:rowA;
           R.box([x(i),0,ZL[l]],[.36,Math.max(.01,h),.5],{fill:E[e1(l,i)],a:ca*fa,shadow:false,lw:.7})}
         R.label([x(0)-(k===3?.6:.3),.15,ZL[l]],'layer '+l,{al:'right',dx:-6,mono:true,fs:12,c:l===FOCUS&&k>=3?P.ink:P.mute,a:Math.max(k===3?.7:.35,rowA*grow)*fa,grp:'row'})});
@@ -65,6 +65,6 @@
   const st=S3.stage({id:'stg-route',list:'sx-route',fig:'Routing · a toy on held-out code, then Table 5',cam:full.cam,bounds:full.bounds,aspect:.55,dur:1500,hold:5200,draw,
     margin:w=>w<520?[14,10,14,10]:[16,14,14,90],
     // step 1 frames layer 0 alone, step 4 moves in close on layer 2; steps 5 and 6 frame the two tables
-    view:k=>k===0?{cam:[-.12,.55],bounds:[[-5.4,0,1.6],[5.4,1.1,2.9]]}:k===3?{cam:[-.08,.38],bounds:[[-5.4,0,-1.3],[5.4,1.5,-.1]]}:k===4?{cam:[-.25,.6],bounds:[[-4.6,0,-2.6],[4.9,2,3]]}:k===5?{cam:[-.25,.6],bounds:[[-4.8,0,-2.1],[5.1,1.2,2.6]]}:full});
+    view:k=>k===0?{cam:[-.12,.55],bounds:[[-5.4,0,1.6],[5.4,1.1,2.9]]}:k===3?{cam:[-.08,.55],bounds:[[-5.4,0,-1.3],[5.4,1.5,-.1]]}:k===4?{cam:[-.25,.6],bounds:[[-4.6,0,-2.6],[4.9,2,3]]}:k===5?{cam:[-.25,.6],bounds:[[-4.8,0,-2.1],[5.1,1.2,2.6]]}:full});
   window.__routeScene={pairs:pairs(FOCUS).length,n:N,tokens:[...Array(N)].map((_,i)=>SM.t[A+i]),e1,w1,stage:st};
 })();

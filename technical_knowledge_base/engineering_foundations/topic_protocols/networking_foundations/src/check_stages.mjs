@@ -15,9 +15,10 @@ const file = 'file://' + path.resolve(here, '../index.html'), shots = process.ar
 fs.mkdirSync(shots, { recursive: true });
 // [stage id, [mode button selector or null, list id]...]
 const STAGES = [['stg-hero', [[null, 'sx-hero']]], ['stg-life', [[null, 'sx-life']]], ['stg-loss', [['#loss-mode [data-m=rto]', 'sx-loss-rto'], ['#loss-mode [data-m=fast]', 'sx-loss-fast']]],
-  ['stg-pipe', [[null, 'sx-pipe']]], ['stg-queue', [[null, 'sx-queue']]]];
+  ['stg-pipe', [[null, 'sx-pipe']]]];
 // [card, controller prefix, [mode selector or null, list id]...]
-const ANIMS = [['rd-tr-card', 'rd-tr-ctl', [[null, 'sx-tr']]], ['rd-cc-card', 'rd-cc-ctl', [['#rd-cc-seg [data-m=reno]', 'sx-cc-reno'], ['#rd-cc-seg [data-m=cubic]', 'sx-cc-cubic'], ['#rd-cc-seg [data-m=both]', 'sx-cc-both']]],
+// Fig. 5 (sq-queue) is a 2D figure on RD.anim since 2026-11-19 (it was the stage stg-queue).
+const ANIMS = [['sq-queue', 'sq-queue-ctl', [[null, 'sx-queue']]], ['rd-tr-card', 'rd-tr-ctl', [[null, 'sx-tr']]], ['rd-cc-card', 'rd-cc-ctl', [['#rd-cc-seg [data-m=reno]', 'sx-cc-reno'], ['#rd-cc-seg [data-m=cubic]', 'sx-cc-cubic'], ['#rd-cc-seg [data-m=both]', 'sx-cc-both']]],
   ['rd-nat-card', 'rd-nat-ctl', [['#rd-nat-seg [data-m=off]', 'sx-nat-off'], ['#rd-nat-seg [data-m=on]', 'sx-nat-on']]], ['rd-mig-card', 'rd-mig-ctl', [['#rd-mig-seg [data-m=quic]', 'sx-mig-quic'], ['#rd-mig-seg [data-m=tcp]', 'sx-mig-tcp']]]];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });

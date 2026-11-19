@@ -1,5 +1,6 @@
-// ---- Reading figures added on 2026-10-24: annotated call, pagination, schema fan-out, webhook, LLM formats, status-code decisions
-// (the hero, idempotency and balancer figures became 3D stages on 2026-11-07). Every SVG is drawn at the measured width and redrawn on resize.
+// ---- Reading figures added on 2026-10-24: annotated call, schema fan-out, webhook, LLM formats, status-code decisions
+// (the hero, idempotency and balancer figures became 3D stages on 2026-11-07; the pagination stepper was removed on 2026-11-19, its
+// behaviour now told in prose and its cost owned by Query planning and performance). Every SVG is drawn at the measured width and redrawn on resize.
 (function(){
   const S=window.SA,esc=RD.esc,$=id=>document.getElementById(id);
   const CW=fs=>fs*0.56;                                  // approximate glyph width of the UI font
@@ -12,7 +13,7 @@
   const draws=[];const reg=f=>{draws.push(f);f()};
   RD.onRender(()=>draws.forEach(f=>f()));RD.onResize(()=>draws.forEach(f=>f()));
 
-  // (the 2D hero became the 3D stage stg-hero on 2026-11-07: 41_js_sc_hero.js)
+  // (the 2D hero became the 3D stage stg-hero on 2026-11-07, then the 2D sequence sq-hero on 2026-11-19: 41_js_sc_hero.js)
 
   // ---- annotated call ----
   const AN=['Path: a plural noun for the resource collection, with the major version first. A v2 is a second API to run, so everything between majors must be additive.',
@@ -25,40 +26,6 @@
   const ann=$('rd-anat');
   if(ann)ann.addEventListener('click',e=>{const s=e.target.closest('span[data-p]');if(!s)return;
     ann.querySelectorAll('span[data-p]').forEach(x=>x.classList.toggle('on',x===s));$('rd-anatinfo').innerHTML='<b>'+(+s.dataset.p+1)+'.</b> '+AN[+s.dataset.p]});
-
-  // ---- pagination: offset against cursor while rows change ----
-  (function(){const el=$('rd-pgsvg');if(!el)return;let mode=0;
-    const states=[['c8','c7','c6','c5','c4','c3','c2','c1'],['c9','c8','c7','c6','c5','c4','c3','c2','c1'],['c9','c8','c7','c6','c4','c3','c2','c1']];
-    // step: [db state index, page fetched (0 none) , event text]
-    const ST=[[0,1],[1,0,'c9 is created'],[1,2],[2,0,'c5 is deleted'],[2,3],[2,9]];
-    function pages(m){const res=[];let off=0,after=null;
-      const fetch=(si)=>{const L=states[si];let rows;
-        if(m===0){rows=L.slice(off,off+3);off+=3}else{const i=after?L.indexOf(after)+1:0;rows=L.slice(i,i+3);if(rows.length)after=rows[rows.length-1]}return rows};
-      res[1]=fetch(0);res[2]=fetch(1);res[3]=fetch(2);return res}
-    function draw(i){const W=RD.width(el),fs=W<480?11:12,res=pages(mode),st=ST[i],L=states[st[0]];
-      const upTo=i>=4?3:i>=2?2:1,seenRows=[];for(let p=1;p<=upTo;p++)res[p].forEach(r=>seenRows.push([r,p]));
-      const cur=st[1]>0&&st[1]<9?st[1]:0,curRows=cur?res[cur]:[];
-      const colW=Math.min(200,(W-30)/2),rh=24,x0=6,x1=x0+colW+24;let body='';
-      body+=RD.t(x0,14,(W<560?'Database, newest first':'The list in the database, newest first'),{fs:fs,w:600})+RD.t(x1,14,(W<560?'Shown to the user':'What the user has been shown'),{fs:fs,w:600});
-      L.forEach((r,k)=>{const y=24+k*rh,on=curRows.includes(r),isNew=(st[0]>=1&&r==='c9');
-        const skipped=cur&&mode===0&&k<(cur-1)*3;
-        body+=box(x0,y,colW,rh-4,{r:4,fill:on?'var(--acc2)':skipped?'var(--soft)':'var(--bg)',stroke:on?'var(--acc)':isNew?'var(--c5)':'var(--line)',dash:skipped?'3 2':null});
-        body+=RD.t(x0+8,y+14,r+(isNew?'  (new)':''),{fs:fs});
-        if(skipped)body+=RD.t(x0+colW-8,y+14,'skipped by offset',{fs:fs-1,a:'end',fill:'var(--mute)'});
-        if(on)body+=RD.t(x0+colW-8,y+14,'page '+cur,{fs:fs-1,a:'end',fill:'var(--acc)',w:600})});
-      if(i===3)body+=RD.t(x0+8,24+L.length*rh+12,'c5 deleted',{fs:fs-1,fill:'var(--bad)'});
-      if(mode===1&&cur>1){const prev=res[cur-1][res[cur-1].length-1],k=L.indexOf(prev);if(k>=0){const y=24+k*rh+rh-2;body+=line(x0-4,y,x0+colW+4,y,{col:'var(--good)',sw:2});body+=RD.t(x0+colW-6,y-1,'cursor',{fs:fs-1.5,a:'end',fill:'var(--good)',w:600})}}
-      const counts={};seenRows.forEach(([r])=>counts[r]=(counts[r]||0)+1);
-      seenRows.forEach(([r,p],k)=>{const y=24+k*rh,dup=counts[r]>1;body+=box(x1,y,colW,rh-4,{r:4,fill:dup?'var(--hl)':'var(--bg)',stroke:dup?'var(--bad)':'var(--line)'});
-        body+=RD.t(x1+8,y+14,'p'+p+'  '+r,{fs:fs})+(dup?RD.t(x1+colW-8,y+14,'shown twice',{fs:fs-1,a:'end',fill:'var(--bad)',w:600}):'')});
-      const missing=i>=4?['c8','c7','c6','c4','c3','c2','c1'].filter(r=>!counts[r]):[];
-      if(missing.length){const y=24+seenRows.length*rh+12;body+=RD.t(x1+4,y,'never shown: '+missing.join(', '),{fs:fs,fill:'var(--bad)',w:600})}
-      const H=24+Math.max(L.length,seenRows.length+1)*rh+24;
-      el.innerHTML=RD.svg(W,H,body,'Pagination: the list in the database beside what the user has been shown');
-}
-    // the steps are explained by the step lists on the left (sx-pg-0 offset, sx-pg-1 cursor), swapped with the mode
-    const A=RD.anim({card:'rd-pg',ctl:'rd-pgctl',n:ST.length,draw,label:'Step',list:'sx-pg-0'});
-    RD.seg($('rd-pgseg'),m=>{mode=+m;[0,1].forEach(j=>$('sx-pg-'+j).hidden=j!==mode);A.reset(ST.length,'sx-pg-'+m)});reg(()=>A.redraw())})();
 
   // ---- schema fan-out ----
   function schema(){const el=$('rd-schemasvg');if(!el)return;const W=RD.width(el),fs=W<480?11.5:12.5;

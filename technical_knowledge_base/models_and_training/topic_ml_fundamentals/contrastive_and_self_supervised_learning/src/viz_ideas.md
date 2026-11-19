@@ -37,3 +37,7 @@ What the methodology lacked here: guidance for pooling conventions that share a 
 - Built: Fig. 4, digits on a real sphere (new `sphere3` toy run, about a minute on CPU). Replaces the 2D circle animation.
 - Kept 2D: triplet lab, InfoNCE lab, collapse lab (widgets), masking animation (the real photograph is the content), tables.
 - Rejected: a CLIP sphere of image and text embeddings (no real CLIP embeddings on the page; would need a new model run, and CLIP as an encoder is owned elsewhere); a 3D collapse bar field (the per-dimension std bars and the curve read best flat, and Fig. 4 already shows a collapse on the sphere).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 3 (`34_js_sc_arch.js`): dense at 390 px (part names, "same weights", "other views = negatives" and "queue of past keys" on top of each other and of the loss name). Under 520 px those labels now hide and the step list names the parts; the loss, the branch names, x and EMA stay. Wide screens unchanged.
+- Fig. 4 (`35_js_sc_sphere.js`): checked; the sphere outlines read at 1400 and 390 px after the cosmetic pass. No change.

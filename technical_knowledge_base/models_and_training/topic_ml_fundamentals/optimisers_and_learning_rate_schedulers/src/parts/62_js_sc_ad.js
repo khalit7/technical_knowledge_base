@@ -28,7 +28,7 @@
     R.label([XC,0,.9],lab,{mono:true,fs:12,c:P.mute,dy:14,a,wide:1})}
   function draw(R,k,e){const P=R.P,rot=k>=3;R.grid(-5,4,-3.4,3.4,.5);
     const aA=k<=2?(k===0?Math.min(1,e*1.5):1):k===3?1-e:0,aB=k===3?e:k>3?1:0;
-    if(aA>.01){A.mesh(R,aA*.85);A.marks(R,aA)}if(aB>.01){B.mesh(R,aB*.85);B.marks(R,aB)}
+    if(aA>.01){A.mesh(R,aA*.85);A.marks(R,aA)}if(aB>.01){B.mesh(R,aB);B.marks(R,aB)}
     cols(R,k,e,1);
     // 1-2. the first step at the start: SGD's direction (the raw gradient) against Adam's (one rate per coordinate)
     if(k<=1){const S=A,p=S.pt(...S.sf.start,.04),gl=Math.hypot(...g0),sg=[S.sf.start[0]-.9*g0[0]/gl,S.sf.start[1]-.9*g0[1]/gl];
@@ -46,7 +46,7 @@
       const c0=[1,.6],L=2.2;[[u1,m1],[u2,m2]].forEach(([u,m],i)=>{const l=L*Math.max(.18,m/m1);R.line([B.pt(c0[0]-l*u[0],c0[1]-l*u[1],.05),B.pt(c0[0]+l*u[0],c0[1]+l*u[1],.05)],{c:C.shampoo,w:3,a:e,top:1})});
       R.label(B.pt(c0[0]+L*u1[0],c0[1]+L*u1[1],.05),'H^(−1/2): long along the floor',{fs:12,b:1,c:C.shampoo,dy:-12,a:e,wide:1})}
   }
-  const vA={cam:[-.75,.88],bounds:[[-4.8,0,-2.25],[3.7,1.8,2.25]]},vB={cam:[-.72,.68],bounds:[[-4.8,0,-2.9],[2.9,1.8,2.9]]};
+  const vA={cam:[-.75,.88],bounds:[[-4.8,0,-2.25],[3.7,1.8,2.25]]},vB={cam:[-.72,1.0],bounds:[[-4.8,0,-2.9],[2.9,1.8,2.9]]}; // looking further down on the turned valley: its walls and the trails along its floor read (at .68 they ran away from the eye)
   S3.stage({id:'stg-ad',list:'sx-ad',fig:'Fig. 2 · per-coordinate steps, and a valley they cannot see',cam:vA.cam,bounds:vA.bounds,aspect:.58,dur:2400,hold:4800,draw,
     margin:w=>w<520?[16,10,16,10]:[24,20,22,20],view:k=>k>=3?vB:vA});
   writeList();

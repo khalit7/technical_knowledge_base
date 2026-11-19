@@ -41,3 +41,4 @@ What the methodology lacked for this page: a rule for live leaderboards that cha
 | CM24 | Kernel lift of circles into x1² + x2² so a plane separates them | rejected for now: Fig. 3's score surface already shows a kernel bending the boundary, with the page's real fits; a second SVM stage would repeat the section |
 | CM25 | Search surface (C, gamma) as a 3D height field | rejected: a heatmap reads better flat, and the figure is a widget the reader drives |
 | CM26 | Clustering, isolation forest and distance concentration in 3D | rejected: flat point sets and a curve on a log axis; kept 2D, with step lists for the two animations |
+- 2026-11-19, Fig. 2 (forest mode): the trees a step adds are drawn at full strength and the ones already shown recede (curve alpha .16, plate .06), with flows only from the newest trees, so the blue average reads in front instead of a pile of overlapping orange curves (audit 2026-11-19 kind 5, "forest plates busy").

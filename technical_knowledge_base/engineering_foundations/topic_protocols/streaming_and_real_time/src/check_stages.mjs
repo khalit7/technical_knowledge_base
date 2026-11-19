@@ -1,4 +1,4 @@
-// The 2026-11-06 rollout checks for the Streaming and real-time page: every 3D stage plays by itself once scrolled into view, steps to
+// The 2026-11-06 rollout checks for the Streaming and real-time page (Fig. 1 and Fig. 9 are 2D animations since 2026-11-19): every 3D stage plays by itself once scrolled into view, steps to
 // its last step in every mode with one step-list item per step, stops redrawing off screen and never moves under reduced motion; the two
 // 2D widgets (the four-ways timeline and the unmasking stepper) never move by themselves; no errors, NaN, undefined or sideways scroll;
 // the splits are two columns at 1400 px and one below 1100 px. The recorded values written into the step lists are checked against the
@@ -14,10 +14,10 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
 // stage id, its mode chips (selector), modes, the step-list id for each mode
-const STAGES = [['stg-hero', null, [null], () => 'sx-hero'], ['stg-tok', null, [null], () => 'sx-tok'],
-  ['stg-rc', '#rc-mode', ['no_ids', 'ids', 'ids_retry_204'], m => 'sx-rc-' + m], ['stg-ws', null, [null], () => 'sx-ws'], ['stg-wh', null, [null], () => 'sx-wh']];
-// 2D animations (RD.anim) that autoplay: none on this page
-const ANIMS = [];
+const STAGES = [['stg-tok', null, [null], () => 'sx-tok'],
+  ['stg-rc', '#rc-mode', ['no_ids', 'ids', 'ids_retry_204'], m => 'sx-rc-' + m], ['stg-ws', null, [null], () => 'sx-ws']];
+// 2D animations (RD.anim) that autoplay: Fig. 1 and Fig. 9, 3D stages until 2026-11-19 (card, control prefix, mode chips, modes, step-list id)
+const ANIMS = [['sq-hero', 'sq-hero-ctl', null, [null], () => 'sx-hero'], ['sq-wh', 'sq-wh-ctl', null, [null], () => 'sx-wh']];
 // widgets the reader drives (never autoplay): card, control prefix
 const WIDGETS = [['fw-card', 'fw-ctl']];
 const wait = ms => new Promise(r => setTimeout(r, ms));

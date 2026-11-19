@@ -14,7 +14,7 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 const puppeteer = require('puppeteer');
 const html = path.resolve(here, '../index.html'), file = 'file://' + html, shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
-const STAGES = [['stg-dk', 'sx-dk'], ['stg-kl', 'sx-kl'], ['stg-fl', 'sx-fl'], ['stg-pr', 'sx-pr']];
+const STAGES = [['stg-dk', 'sx-dk'], ['stg-fl', 'sx-fl'], ['stg-pr', 'sx-pr']];
 const WIDGETS = [['t-toy', 'tw', 'twC'], ['t-small', 'sm', 'smA']];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const problems = [];
@@ -91,7 +91,7 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   await p.evaluate(() => document.querySelectorAll('#dkP button')[0].click());
   // Fig. 2: the sliders rerun both fits and replay
   for (const [id, v] of [['klW', .3], ['klS', 8], ['klS', 30], ['klW', .6], ['klS', 22]]) { await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await wait(120);
-    const st = await p.$eval('#stg-kl .stg-st', e => e.textContent); if (!/^step 1 of 5/.test(st)) problems.push(`${tag}: ${id}=${v} did not restart Fig. 2 (${st})`) }
+    const st = await p.$eval('#sx-kl', e => [...e.children].findIndex(li => li.classList.contains('on'))); if (st !== 0) problems.push(`${tag}: ${id}=${v} did not restart Fig. 2 (step ${st + 1})`) }   // Fig. 2 is a 2D animation since 2026-11-19
   await audit('Fig. 2 sliders');
   await audit('end');
   // the tab widgets never play by themselves

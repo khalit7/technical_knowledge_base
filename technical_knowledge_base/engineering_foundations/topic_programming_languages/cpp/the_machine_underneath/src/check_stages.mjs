@@ -11,7 +11,7 @@ const require = createRequire(path.resolve(here, '../../../../../../html_utils/p
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 (await import('node:fs')).mkdirSync(shots, { recursive: true });
-const STAGES = ['stg-mem', 'stg-aos', 'stg-simd', 'stg-mo', 'stg-fs'];
+const STAGES = ['stg-mem', 'stg-aos', 'stg-mo', 'stg-fs'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [['cb-ld-card', 'cb-ld-ctl', { ladder: 'sx-ld' }, null, null], ['cb-cm-card', 'cb-cm-ctl', { rc: 'sx-rc' }, null, null]];
 const MODES = {};

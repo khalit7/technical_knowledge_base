@@ -1,7 +1,7 @@
 // ---- Reading, part B: failures, retries, pings, balancing tables, GraphQL, drills ----
 (function(){
   const S=window.SA,esc=RD.esc,set=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h};
-  // (the deadline lanes became the 3D stage stg-dl on 2026-11-07: 43_js_sc_dl.js)
+  // (the deadline lanes became the 3D stage stg-dl on 2026-11-07 and the 2D time-axis figure sq-dl on 2026-11-19: 43_js_sc_dl.js)
   // ---- failures as the client sees them ----
   const ft=document.getElementById('rd-fails');
   if(ft)ft.innerHTML=S.status.cases.filter(c=>c.id!=='too_many_pings').map(c=>'<div class="fc"><div class="h"><span>'+esc(c.what)+'</span><span><b>'+c.code+'</b> &middot; '+c.ms+' ms</span></div><div class="small mute"><code>'+esc(c.call)+'</code></div>'+(c.details?'<div><code>'+esc(c.details)+'</code></div>':'')+'</div>').join('');

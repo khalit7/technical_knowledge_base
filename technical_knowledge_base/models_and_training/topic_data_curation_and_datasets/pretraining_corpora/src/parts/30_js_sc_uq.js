@@ -18,7 +18,7 @@
       if(hu>.005)R.box([x,0,0],[W*.82,hu,W*.82],{fill:mix(P.paper,P.c1,.75),a,shadow:false});
       // labels: the total on top, the name and the unique share under the column's front edge; a receded column keeps only its name
       if(foc)R.label([x,ht,0],T(tot)+(k>=1?' total':''),{mono:true,fs:12.5,b:k===0,dy:-12,c:P.ink});
-      if(foc||k!==2)R.label([x,0,W/2+.1],nm,{fs:12.5,b:foc,dy:16,c:foc?P.ink:P.mute,a:Math.max(.55,a)});
+      if(foc||k<2)R.label([x,0,W/2+.1],nm,{fs:12.5,b:foc,dy:16,c:foc?P.ink:P.mute,a:Math.max(.55,a)});
       if(k>=1&&foc){if(nw)R.label([x,hu,W*.41],T(uq),{mono:true,fs:12,b:1,dy:-10,c:P.c1,a:at(k,e,1)}); // a phone: the core's size on the core
         else R.label([x,0,W/2+.1],T(uq)+' unique · '+Math.round(100*uq/tot)+'%',{mono:true,fs:12.5,b:1,dy:33,c:P.c1,a:at(k,e,1)})}
       // step 2: the near-copies leave the shell for a heap behind its own column

@@ -44,7 +44,7 @@
         if(go>0&&go<1)R.flow(pts.slice(0,3).concat(drop?[pts[3]]:pts.slice(3)),{c:drop?BAD:C,a:.35,r:.04,n:10,speed:1.4});
         if(go>=1&&!drop)word(R,[XV,0,ZV(kept(i))],WORDS[i].toLowerCase(),C,1,{b:1});
         if(drop&&go>.3)R.label([XF,YW,0],'"'+WORDS[i]+'" dropped: map never sees it',{fs:12.5,b:1,dy:46,c:BAD,a:cl(go*2-.6,0,1)})});
-      if(k===4&&e>.92)R.label([XV,0,ZV(6)],'next() → None · 6 words',{fs:12.5,b:1,dy:24,c:C,a:(e-.92)/.08})}
+      if(k===4&&e>.92)R.label(R.W<520?[XV,0,ZV(0)+.4]:[XV,0,ZV(6)],'next() → None · 6 words',{fs:12.5,b:1,dy:R.W<520?18:24,c:C,a:(e-.92)/.08})   /* on a phone under the stack, clear of the words */}
     // eager: filter all 7 into a first Vec, then map all 6 into a second
     if(eager){const ea=k===5?e:1,nf=runs.eager.filter(x=>x.f==='filter').length,nm=runs.eager.filter(x=>x.f==='map').length;
       const kept1=runs.eager.filter(x=>x.f==='filter'&&x.keep).map(x=>x.w);
@@ -52,17 +52,17 @@
       const fdone=k===5?Math.floor(e*nf+.0001):nf;
       WORDS.forEach((w,i)=>{if(i>=fdone)word(R,[XS,0,ZW(i)],w,C,1,{src:1})});
       R.glass([XE-.5,.02,-2.3],[1.0,0,0],[0,0,4.4],{c:F,a:.5*ea,nu:1,nv:6,th:.01});R.label([XE,0,-2.3],'first Vec · '+kept1.length,{fs:12.5,b:1,dy:-14,c:F,a:ea});
-      kept1.forEach((w,j)=>{if(k===5&&kept(WORDS.indexOf(w))>=0&&j>=Math.round(e*kept1.length))return;word(R,[XE,0,ZV(j)],w,F,k===6?.6:1)});
+      kept1.forEach((w,j)=>{if(k===5&&kept(WORDS.indexOf(w))>=0&&j>=Math.round(e*kept1.length))return;word(R,[XE,0,ZV(j)],w,F,k===6?.6:1,{src:1})});   // on a phone the two Vecs' word names hide (they piled onto the stage names); the step text lists them
       if(k===5)R.flow([[XS+.6,YW,0],[XF,YW,0],[XE,YW,0]],{c:F,a:.8,r:.06,n:9});
       if(k===6){const mdone=Math.round(e*nm);R.glass([XV-.5,.02,-2.3],[1.0,0,0],[0,0,4.4],{c:M,a:.5,nu:1,nv:6,th:.01});R.label([XV,0,-2.3],'second Vec · '+nm,{fs:12.5,b:1,dy:-14,c:M});
-        kept1.forEach((w,j)=>{if(j<mdone)word(R,[XV,0,ZV(j)],w.toLowerCase(),M,1)});R.flow([[XE,YW,0],[XM,YW,0],[XV,YW,0]],{c:M,a:.8,r:.06,n:9})}
+        kept1.forEach((w,j)=>{if(j<mdone)word(R,[XV,0,ZV(j)],w.toLowerCase(),M,1,{src:1})});R.flow([[XE,YW,0],[XM,YW,0],[XV,YW,0]],{c:M,a:.8,r:.06,n:9})}
       R.label([XM,YW,0],k===5?'filter × '+nf:'map × '+nm,{fs:13,b:1,dy:44,c:k===5?F:M,a:ea})}
     // take(2): pulled until two words are out, the rest never read
     if(take){const sel=WORDS.slice(0,NT),kt=sel.filter((_,i)=>KEEP[i]),u=e;
       WORDS.forEach((w,i)=>{if(i>=NT)word(R,[XS,0,ZW(i)],w,P.mute,.9,{la:1,src:1});else if(u<(i+1)/NT)word(R,[XS,0,ZW(i)],w,C,1-cl((u*NT-i)*2,0,1),{src:1})});
       kt.forEach((w,j)=>{if(u>=(j+1)/kt.length*.95)word(R,[XV,0,ZV(j)],w.toLowerCase(),C,1,{b:1})});
       if(u<.9)R.flow([[XS+.6,YW,0],[XF,YW,0],[XM,YW,0],[XV-.6,YW,0]],{c:C,a:.6,r:.05,n:10});
-      R.label([XS,0,ZW(0)],(WORDS.length-NT)+' words never read',{fs:12.5,b:1,dy:30,c:P.mute,a:cl(u*2-1,0,1)});
+      R.label([XS,0,ZW(0)],(WORDS.length-NT)+' words never read',{fs:12.5,b:1,dy:R.W<520?44:30,c:P.mute,a:cl(u*2-1,0,1)});
       R.label([XM,YW,0],'filter × '+NT+' · map × '+NTM,{fs:13,b:1,dy:44,c:C,a:cl(u*2-1,0,1)})}
   }
   const full={cam:[.62,.58],bounds:[[-5.6,0,-2.4],[4.8,1.2,2.4]]};

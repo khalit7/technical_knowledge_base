@@ -51,3 +51,5 @@ No published figure to reproduce. The reproductions are internal: the hand-compu
 - Moved inline: State inspector (now section 1), Optimiser lab stage stepper (section 4), Resume lab (section 5), Data lab (section 6); each explains one mechanism, so it belongs beside the claim.
 - Moved into closed blocks: Muon spectrum, four-optimiser curves, float16 loss-gap chart (measured depth, not needed on first read).
 - Removed: the complete-script validation chart (A, B, C points coincide; the table says bit-identical) and the second copy of the mesh-restore table.
+
+2026-11-19: Fig. 1 (hero) step 6: the grain station's window and worker labels hide (only the batch label stays), the save timing moves under the checkpoint stack (it lay across the flows into it) and, on a phone, the four item names (model/, opt/, data/, meta/) hide, as the step text names them; the rollout had flagged the step as busy at full view.

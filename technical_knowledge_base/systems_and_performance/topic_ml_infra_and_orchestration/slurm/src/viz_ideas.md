@@ -46,3 +46,6 @@ Rejected for 3D: preemption (this page's own runs have no preemption; the root's
 
 ## What the methodology lacked
 Nothing structural. Useful additions: record the controller log at debug level with the Backfill flag for exactly the window of a run (line count before, tail after); and recompute in the program's own arithmetic order when a value is truncated.
+
+## 2026-11-19 visual pass (3D step fixes)
+- Hero (`41_js_sc_hero.js`), step 5 (the steps 79.batch and 79.0): the close view on c1 and c2 also showed c3 cropped at the right edge, a faded slurmctld behind and the queue cropped at the bottom. At that step c3, the queue and the daemons now leave, so only the two nodes, the two step plates and the four ranks remain. Step count and list text unchanged.

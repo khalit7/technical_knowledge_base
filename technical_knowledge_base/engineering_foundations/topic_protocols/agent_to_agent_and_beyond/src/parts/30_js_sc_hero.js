@@ -7,7 +7,7 @@
   function draw(R,k,e){const P=R.P,G=P.c2,PH6=k===6&&R.W<520;R.grid(-5.4,5.4,-3.4,3.6,.5);   // PH6: the last step on a phone keeps only Team A's name; the step text names the rest
     const show=s=>k===6||s.indexOf(k)>=0?1:.22; // which steps a part belongs to
     // Team A's agent, always central
-    R.box(at3('A',0),[1.5,.95,1.3],{fill:mix(P.paper,P.acc,.25)});R.label(at3('A',.95),"Team A's agent",{b:1,fs:13,dy:-10});
+    R.box(at3('A',0),[1.5,.95,1.3],{fill:mix(P.paper,P.acc,.25)});R.label(at3('A',.95),"Team A's agent",{b:1,fs:13,dy:-10,wide:k===1||k===3});   // on a phone the link's own label takes its place in steps 2 and 4 (they overlapped)
     // 1. its own tools over MCP
     let a=show([0]);[-.45,0,.45].forEach((dz,i)=>R.box([N.tools[0]+(i-1)*.15,0,N.tools[1]+dz],[.5,.35+.1*i,.35],{fill:mix(P.paper,P.c6,.4),a}));
     R.label(at3('tools',.55),'its own tools',{fs:12.5,b:a>.5,c:a>.5?P.ink:P.mute,dy:-8,a:Math.max(.45,a),wide:a<.5||PH6});
@@ -26,7 +26,7 @@
     a=show([3]);R.box(at3('shop',0),[1.3,.8,1.0],{fill:mix(P.paper,P.c5,.3),a});R.label(at3('shop',.8),'merchant (UCP business)',{fs:12.5,b:1,dy:-8,a:Math.max(.45,a),wide:a<.5||PH6});
     R.glass([N.shop[0]-.85,.02,N.shop[1]-.55],[0,0,1.1],[0,.9,0],{c:G,nu:2,nv:3,a:Math.max(.25,a)});
     if(k===3||k===6){R.flowArc([N.A[0]+.75,.5,N.A[1]+.2],[N.shop[0]-.9,.5,N.shop[1]],.45,{c:P.c5,r:.075,n:9,speed:1.5});
-      if(k===3){R.flowArc([N.person[0]+.3,.5,N.person[1]+.1],[N.shop[0]-.9,.6,N.shop[1]+.3],.9,{c:G,r:.07,n:10,speed:1.2});R.label([N.shop[0],0,N.shop[1]+.6],'requires_escalation: the buyer finishes on continue_url',{fs:12.5,b:1,c:G,dy:18,al:'right',dx:50})}}
+      if(k===3){R.flowArc([N.person[0]+.3,.5,N.person[1]+.1],[N.shop[0]-.9,.6,N.shop[1]+.3],.9,{c:G,r:.07,n:10,speed:1.2});R.label([N.shop[0],0,N.shop[1]+.6],'requires_escalation: the buyer finishes on continue_url',{fs:12.5,b:1,c:G,dy:18,al:'right',dx:50,wide:1})   /* on a phone it ran across the merchant; the step text says it */}}
     if(k===3)R.label([(N.A[0]+N.shop[0])/2,.95,(N.A[1]+N.shop[1])/2],'UCP · a checkout session',{mono:true,fs:12.5,b:1,c:P.c5});
     // 5. paying: AP2 mandates or an x402 signed payment
     a=show([4]);R.box(at3('pay',0),[1.2,.6,.9],{fill:mix(P.paper,P.c3,.3),a});R.label(at3('pay',.6),'payment',{fs:12.5,b:1,dy:-8,a:Math.max(.45,a),wide:a<.5||PH6});

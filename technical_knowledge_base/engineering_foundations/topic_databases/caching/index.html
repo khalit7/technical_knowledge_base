@@ -101,6 +101,14 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #ovBars .track{height:12px}
 #pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+/* eased steps (2026-11-19, the template's rule): RD.anim adds rd-fwd to the card on a forward step; marks with class rd-new ease in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style><style id="kb-look">
 /* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
 :root{--bg:#f4f5f7;--card:#fff;--soft:#f0f2f5;--line:#e1e4e9;--ink:#1d2733;--mute:#5f6b7a;--acc:#2a62a8;--acc2:#dde8f6;
@@ -445,7 +453,12 @@ def rename_chat(chat_id, title):
 <p>Whatever the method, keep a TTL underneath: it is the only mechanism that also repairs the bugs of the others. Facebook runs the event-driven kind at the largest scale on record: daemons called mcsqueal read the committed SQL on every database, extract the cache deletes embedded in it and broadcast them to every cache cluster in the region; "only 4% of all deletes issued result in the actual invalidation of cached data" (<a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener noreferrer">Nishtala et al., Scaling Memcache at Facebook, NSDI 2013</a>). The outbox and change data capture are taught on <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>.</p>
 <p><b>Delete, do not update.</b> Putting the new value into the cache on a write works with one writer and breaks with two: they can commit in one order and reach the cache in the other, leaving the older value cached until the TTL. Two real writers renaming the same chat, each setting the cache after its commit with a small random delay, left the cache disagreeing with Postgres in <span class="nv" data-n="race.strategies.set_on_write.stale_share" data-f="pct">36%</span> of <span class="nv" data-n="race.trials" data-f="int">400</span> trials <span class="meas">measured</span>. A delete is idempotent and order-free, which is why Facebook's write path deletes ("We choose to delete cached data instead of updating it because deletes are idempotent", same paper).</p>
 </section>
-<div class="s3sp"><div class="s3R"><div id="stg-race"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-race-card">
+<div class="small mute" style="margin-bottom:4px">Fig. 2 · a measured race, step by step <span class="meas">measured</span></div>
+<div id="rd-race-svg"></div>
+<div class="an-ctl" id="rd-race-ctl"></div>
+<p class="small mute" style="margin:6px 0 0">One row per recorded event, in order (rows evenly spaced; the times on the left are as recorded). Orange is the old title, green the new; the gold bar is the reader's pause.</p>
+</div></div></div><div class="s3L">
 <section id="rd-race">
 <h3 id="rd-race-h">The race that delete alone does not close</h3>
 <p>The window: a slow reader fills a value it read <b>before</b> the writer's commit, <b>after</b> the writer's delete, and the old title stays cached for the whole TTL: a <dfn id="g-staleset">stale set</dfn>, in Facebook's words. Predict before it plays: which of the four strategies can still lose? Fig. 2 replays real trials (two Python clients, the local Postgres 16.2 and Redis 8.8, timestamps as recorded); the same trial number has the same delays under every strategy.</p>
@@ -1843,68 +1856,101 @@ window.CAEV=(function(){
     view:k=>k<=3?web:full});
 })();
 </script>
-<script>/* 36_js_sc_race.js */
-// ---- Scene, Fig. 2 (section 3): the stale-set race replayed from real measured trials (CA.race: two Python clients, Postgres 16.2, Redis 8.8; renderer v2) ----
-// Four parties: the reader and the writer (left), Redis and Postgres (right). One step per recorded event of the trial; flows carry each request or value
-// along the path it took, coloured by what moves (the old title orange, the new one green). The same trial (same delays) under delete on write, a lease
-// and versioned keys; delayed double delete uses the first trial it lost. A toggle swaps the step list (S3.stage(...).list).
+<script>/* 36_js_race.js */
+// ---- Fig. 2 (section 3): the stale-set race replayed from real measured trials (CA.race: two Python clients, Postgres 16.2, Redis 8.8), flat (2026-11-19).
+// Was a 3D stage of four boxes; a sequence diagram reads the same parties and messages faster: Reader, Redis, Postgres and Writer as columns,
+// one row per recorded event (its timestamp on the left), the message as an arrow coloured by what moves (the old title orange, the new one green),
+// the reader's pause as a bar on its lifeline, what each store holds under its name. The same trial under delete on write, a lease and versioned keys;
+// delayed double delete uses the first trial it lost. A toggle swaps the step list (RD.anim reset). ----
 (function(){
-  if(!document.getElementById('stg-race')||!window.CA)return;const {at,off,lerp,mix}=S3;
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-race-card');if(!card||!window.CA)return;
   const RC=CA.race,E=RC.examples,iDel=E.delete.findIndex(x=>x.stale),iDbl=E.double_delete.findIndex(x=>x.stale);
   const pick={delete:iDel,lease:iDel,version:iDel,double_delete:iDbl>=0?iDbl:iDel};
-  let mode='delete';const T=()=>E[mode][pick[mode]];
-  const POS={reader:[-2.5,0,1.15],writer:[-2.5,0,-1.15],redis:[2.3,0,1.15],pg:[2.3,0,-1.15]},BS=[1.5,.75,1.05],TOP=p=>[p[0],BS[1],p[2]];
-  // replay the log up to event k (as the old 2D timeline did)
-  function stateAt(t,k){let db='Trip plan',cache={},ver=0,lease=null,paused=false,rej=false;
+  let mode='delete';const T=()=>E[mode][pick[mode]],esc=RD.esc;
+  // replay the log up to event k: what Postgres and Redis hold, the lease, whether the reader is paused
+  function stateAt(t,k){let db='Trip plan',cache={},ver=0,lease=null,rej=false;
     for(let j=0;j<=k&&j<t.log.length;j++){const ev=t.log[j][2];let m;
       if((m=ev.match(/^committed "(.*)"$/)))db=m[1];
       else if(ev==='deleted key'||ev.indexOf('deleted key again')===0)delete cache.k;
       else if(ev==='deleted key and lease'){delete cache.k;lease=null}
       else if((m=ev.match(/^got lease (\d+)/)))lease=m[1];
-      else if((m=ev.match(/^filled version (\d+) with "(.*)"$/))){cache['v'+m[1]]=m[2];paused=false}
-      else if((m=ev.match(/^filled "(.*)"$/))){cache.k=m[1];paused=false}
-      else if(/rejected/.test(ev)){rej=true;paused=false}
-      else if(ev==='bumped version')ver++;
-      if(/^read "/.test(ev))paused=true}
+      else if((m=ev.match(/^filled version (\d+) with "(.*)"$/)))cache['v'+m[1]]=m[2];
+      else if((m=ev.match(/^filled "(.*)"$/)))cache.k=m[1];
+      else if(/rejected/.test(ev))rej=true;
+      else if(ev==='bumped version')ver++}
     const seen=mode==='version'?cache['v'+ver]:cache.k;
-    return {db,seen,ver,lease,paused,rej,cache,stale:seen!==undefined&&seen!==db}}
-  const valC=(P,v)=>v==='Trip plan'?P.c2:P.good;
-  function draw(R,k,e){const P=R.P,t=T(),n=t.log.length;k=Math.min(k,n-1);R.grid(-4.4,4.4,-2.6,2.6,.5);
-    const ev=t.log[k],who=ev[1],txt=ev[2],s=stateAt(t,k),s0=k>0?stateAt(t,k-1):stateAt(t,-1),done=e>.55;const S=done?s:s0;
-    // the four parties: the one acting at this step is at full strength, the others recede a little
-    const act={reader:who==='reader',writer:who==='writer'};
-    let to=null,from=null,c=P.acc;
-    if(/^miss/.test(txt)){from='reader';to='redis'}
-    else if(/^got lease/.test(txt)){from='redis';to='reader';c=P.c5}
-    else if(/^read "/.test(txt)){from='pg';to='reader';c=valC(P,txt.match(/"(.*)"/)[1])}
-    else if(/^committed/.test(txt)){from='writer';to='pg';c=P.good}
-    else if(/^deleted|^bumped/.test(txt)){from='writer';to='redis';c=P.acc}
-    else if(/fill/.test(txt)){from='reader';to='redis';c=valC(P,(txt.match(/"(.*)"/)||[])[1])}
-    act.redis=to==='redis'||from==='redis';act.pg=to==='pg'||from==='pg';
-    const fillOf=key=>key==='redis'?(S.stale?mix(P.paper,P.bad,.55):S.seen!==undefined?mix(P.paper,P.good,.3):mix(P.paper,P.c1,.15)):
-      key==='pg'?mix(P.paper,P.c6,.22):key==='reader'&&S.paused?mix(P.paper,P.c5,.4):P.paper;
-    [['reader','Reader'],['writer','Writer'],['redis','Redis'],['pg','Postgres']].forEach(([key,nm])=>{const a=act[key]?1:.55;
-      R.box(POS[key],BS,{fill:fillOf(key),a});R.label(TOP(POS[key]),nm,{b:1,fs:13.5,dy:-12,a:Math.max(.6,a)})});
-    // what each store holds now
-    R.label(POS.pg,'"'+S.db+'"',{mono:true,fs:12.5,dy:14,c:valC(P,S.db),b:1});
-    const rv=mode==='version'?'v'+S.ver+': '+(S.seen===undefined?'(empty)':'"'+S.seen+'"'):S.seen===undefined?'(empty)':'"'+S.seen+'"';
-    R.label(POS.redis,rv,{mono:true,fs:12.5,dy:14,c:S.stale?P.bad:S.seen!==undefined?P.good:P.mute,b:1});
-    if(mode==='version'&&S.cache.v0!==undefined&&S.ver>0)R.label(POS.redis,'v0: "'+S.cache.v0+'" (nobody asks)',{mono:true,fs:12,dy:32,c:P.mute});
-    if(S.lease){R.ball([POS.redis[0]+.55,BS[1]+.15,POS.redis[2]],.11,{c:P.c5});R.ball([POS.reader[0]+.55,BS[1]+.15,POS.reader[2]],.11,{c:P.c5});
-      R.label([POS.reader[0]+.55,BS[1]+.15,POS.reader[2]],'lease #'+S.lease,{mono:true,fs:12,dx:14,al:'left',c:P.c5})}
-    if(S.paused)R.label(POS.reader,'paused '+t.pause_ms.toFixed(2)+' ms',{mono:true,fs:12,dy:14,c:P.c5,b:1});
-    // this step's message, flowing along its path
-    if(from&&to){const a0=TOP(POS[from]),b0=TOP(POS[to]);a0[1]-=.1;b0[1]-=.1;R.flowArc(a0,b0,.9,{c,a:Math.min(1,e*2),r:.08,n:9,speed:1.6});
-      R.arc(a0,b0,.9,{c,w:1.4,a:.35,t:Math.min(1,e*1.4)})}
-    if(/rejected/.test(txt)&&done){R.glow([POS.redis[0],BS[1]+.3,POS.redis[2]],.6,{c:P.bad,a:.7});R.label(POS.redis,'fill refused',{fs:12.5,b:1,dy:34,c:P.bad})}
-    if(S.stale&&done)R.label(POS.redis,'stale for the 300 s TTL',{fs:12.5,b:1,dy:34,c:P.bad});
-    // the clock: the recorded time of this event
-    R.label([POS.pg[0],BS[1]+1.1,POS.pg[2]],'t = '+ev[0].toFixed(2)+' ms',{mono:true,fs:13.5,b:1,c:P.ink});
-  }
-  const st=S3.stage({id:'stg-race',list:'sx-race-delete',fig:'Fig. 2 · a measured race, step by step',cam:[.25,.62],bounds:[[-3.4,0,-2.5],[3.2,1.6,1.8]],aspect:.62,dur:1300,hold:4400,draw,
-    onStep:()=>{const t=T(),el=document.getElementById('rd-race-trial');if(el)el.textContent='Trial '+(t.trial+1)+' of '+RC.trials+': reader pause '+t.pause_ms.toFixed(2)+' ms, writer start '+t.wait_ms.toFixed(2)+' ms, timestamps as recorded by the two clients.'}});
+    return {db,seen,ver,lease,rej,cache,stale:seen!==undefined&&seen!==db}}
+  const valC=v=>v==='Trip plan'?'var(--c2)':'var(--good)';
+  // each recorded event as one message between two parties: [from, to, label, colour]
+  function msg(txt){let m;
+    if(/^miss on version (\d+)/.test(txt))return ['reader','redis','GET v'+txt.match(/(\d+)/)[1]+': miss','var(--mute)'];
+    if(/^miss/.test(txt))return ['reader','redis','GET: miss','var(--mute)'];
+    if((m=txt.match(/^got lease (\d+)/)))return ['redis','reader','lease #'+m[1],'var(--c5)'];
+    if((m=txt.match(/^read "(.*)"/)))return ['pg','reader','"'+m[1]+'"',valC(m[1])];
+    if((m=txt.match(/^committed "(.*)"/)))return ['writer','pg','COMMIT "'+m[1]+'"','var(--good)'];
+    if(txt==='deleted key and lease')return ['writer','redis','DEL key + lease','var(--acc)'];
+    if(/^deleted key again/.test(txt))return ['writer','redis','DEL again, +50 ms','var(--acc)'];
+    if(/^deleted key/.test(txt))return ['writer','redis','DEL key','var(--acc)'];
+    if(txt==='bumped version')return ['writer','redis','INCR version','var(--acc)'];
+    if((m=txt.match(/^filled version (\d+) with "(.*)"/)))return ['reader','redis','SET v'+m[1]+' "'+m[2]+'"',valC(m[2])];
+    if((m=txt.match(/^filled "(.*)"/)))return ['reader','redis','SET "'+m[1]+'"',valC(m[1])];
+    if(/rejected/.test(txt))return ['reader','redis','SET refused','var(--bad)'];
+    return ['reader','reader',txt,'var(--ink)']}
+  function draw(k){const el=document.getElementById('rd-race-svg'),W=RD.width(el),ph=W<520,t=T(),n=t.log.length;k=Math.min(k,n-1);
+    const fs=ph?11.5:12,TX=ph?46:58,cw=(W-TX)/4,COL={reader:TX+cw*.5,redis:TX+cw*1.5,pg:TX+cw*2.5,writer:TX+cw*3.5};
+    const S=stateAt(t,k),HB=40,top=4,y0=top+HB+(ph?50:36)+(mode==='version'?14:0),RH=ph?40:44;let s='';
+    // the four parties, and what each store holds now
+    const NM={reader:'Reader',redis:'Redis',pg:'Postgres',writer:'Writer'};
+    const ev=t.log[k],act=msg(ev[2]);
+    Object.keys(COL).forEach(p=>{const on=act[0]===p||act[1]===p,x=COL[p],bw=Math.min(cw-8,ph?82:120);
+      let fill='var(--soft)',stroke='var(--line)';
+      if(p==='redis'){if(S.stale){fill='var(--bad)';stroke='var(--bad)'}else if(S.seen!==undefined){fill='var(--good)';stroke='var(--good)'}}
+      s+=rect(x-bw/2,top,bw,HB,{fill,fo:fill==='var(--soft)'?1:.18,s:on?'var(--ink)':stroke,sw:on?1.8:1.2,r:8});
+      s+=text(x,top+HB/2+5,NM[p],{a:'middle',fs:ph?12:13,w:600});
+      s+=line(x,top+HB,x,y0+n*RH-RH/2+8,{c:'var(--line)',sw:1.4,da:'4 4'})});
+    const rv=mode==='version'?'v'+S.ver+': '+(S.seen===undefined?'empty':'"'+S.seen+'"'):S.seen===undefined?'empty':'"'+S.seen+'"';
+    s+=text(COL.redis,top+HB+15,esc(rv),{a:'middle',fs,mono:1,w:600,c:S.stale?'var(--bad)':S.seen!==undefined?'var(--good)':'var(--mute)'});
+    s+=text(COL.pg,top+HB+15,esc('"'+S.db+'"'),{a:'middle',fs,mono:1,w:600,c:valC(S.db)});
+    if(S.lease)s+=text(COL.reader,top+HB+15,'lease #'+S.lease,{a:'middle',fs,mono:1,w:600,c:'var(--c5)'});
+    if(mode==='version'&&S.cache.v0!==undefined&&S.ver>0)s+=text(COL.redis,top+HB+30,'v0: "'+esc(S.cache.v0)+'", unread',{a:'middle',fs:11,mono:1,c:'var(--mute)'});
+    // the reader's pause: from its read of the old title to its fill
+    const iR=t.log.findIndex(x=>/^read "/.test(x[2])),iF=t.log.findIndex(x=>/fill/.test(x[2]));
+    if(iR>=0&&iF>iR&&k>iR){const ya=y0+iR*RH+6,yb=y0+Math.min(k,iF)*RH-(k>=iF?6:-10);
+      s+=rect(COL.reader-5,ya,10,Math.max(4,yb-ya),{fill:'var(--c5)',fo:.35,s:'var(--c5)',sw:1,r:3});
+      const lb='paused '+t.pause_ms.toFixed(2)+' ms';
+      // on a phone the left margin is too narrow: the pause is named under the reader instead
+      if(ph){if(k<iF)s+=text(COL.reader,top+HB+(S.lease?30:15),lb,{a:'middle',fs:11,mono:1,c:'var(--c5)',w:600})}
+      else s+=text(COL.reader-10,(ya+yb)/2+4,lb,{a:'end',fs:11,mono:1,c:'var(--c5)',w:600})}
+    // one row per recorded event, drawn up to this step; the rest wait as faint slots
+    t.log.forEach((e,i)=>{const y=y0+i*RH,[a,b,lab,c]=msg(e[2]),x1=COL[a],x2=COL[b],cur=i===k,dir=x2>x1?1:-1;
+      const tm=e[0].toFixed(2)+(ph?'':' ms');
+      if(i>k){s+=text(4,y+4,tm,{fs:11,mono:1,c:'var(--mute)',op:.35});s+=line(Math.min(x1,x2)+6,y,Math.max(x1,x2)-6,y,{c:'var(--line)',da:'2 4'});return}
+      const op=cur?1:.55,cl=cur?'rd-new':'';
+      s+=text(4,y+4,tm,{fs:11.5,mono:1,w:cur?700:400,c:cur?'var(--ink)':'var(--mute)'});
+      s+=arrow(x1+dir*6,y,x2-dir*6,y,{c,sw:cur?2:1.4,op,cl});
+      const lx=(x1+x2)/2,lw=lab.length*fs*.6,lxx=Math.max(TX+lw/2,Math.min(W-lw/2-2,lx));
+      s+=grp(text(lxx,y-6,esc(lab),{a:'middle',fs,mono:1,w:cur?700:400,c}),{op,cl});
+      if(/refused/.test(lab))s+=grp(line(x2-7,y-6,x2+5,y+6,{c:'var(--bad)',sw:2.2})+line(x2-7,y+6,x2+5,y-6,{c:'var(--bad)',sw:2.2}),{cl})});
+    let yE=y0+n*RH-RH/2+16;
+    // the outcome, once the last event has happened
+    if(k===n-1){const tx=S.stale?'Stale set: Redis says "'+S.seen+'", Postgres "'+S.db+'", for the 300 s TTL':S.rej?'Fill refused: the key stays empty; the next reader gets "'+S.db+'"':mode==='version'?'Old version filled; readers ask for v'+S.ver+' and get "'+S.db+'"':'';
+      if(tx){const mx=Math.floor(W/7.4),lines=[];tx.split(' ').forEach(w=>{const L=lines.length-1;if(L>=0&&(lines[L]+' '+w).length<=mx)lines[L]+=' '+w;else lines.push(w)});
+        lines.forEach((l,j)=>{s+=text(W/2,yE+14+j*16,esc(l),{a:'middle',fs:12.5,w:700,c:S.stale?'var(--bad)':'var(--good)',cl:'rd-new'})});yE+=lines.length*16+4}}
+    el.innerHTML=RD.svg(W,yE+10,s,'The stale-set race, one recorded trial, '+mode);
+    const tr=document.getElementById('rd-race-trial');if(tr)tr.textContent='Trial '+(t.trial+1)+' of '+RC.trials+': reader pause '+t.pause_ms.toFixed(2)+' ms, writer start '+t.wait_ms.toFixed(2)+' ms, timestamps as recorded by the two clients.'}
+  const an=RD.anim({card:'rd-race-card',ctl:'rd-race-ctl',n:T().log.length,ms:4400,draw,label:'Race event',list:'sx-race-delete'});
+  RD.onResize(()=>an.redraw());
   const seg=document.getElementById('rd-race-mode');
-  RD.seg(seg,m=>{mode=m;document.querySelectorAll('#rd-race ol.sx').forEach(l=>l.hidden=l.id!=='sx-race-'+m);st.list('sx-race-'+m)});
+  RD.seg(seg,m=>{mode=m;document.querySelectorAll('#rd-race ol.sx').forEach(l=>l.hidden=l.id!=='sx-race-'+m);an.reset(T().log.length,'sx-race-'+m)});
   window.CHK=window.CHK||{};CHK.race={pick,logs:Object.fromEntries(Object.keys(pick).map(m=>[m,E[m][pick[m]].log.map(x=>x[0])]))};
 })();
 </script>

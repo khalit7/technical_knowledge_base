@@ -325,17 +325,10 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <h2>1. The four building blocks</h2>
 <p>Three attackers sit on the path. A <i>passive</i> one records everything (a coffee-shop Wi-Fi, a tap at an internet exchange, or someone storing traffic to decrypt in ten years). An <i>active</i> one also changes bytes in flight. An <i>impostor</i> answers in the server's place (a poisoned DNS answer or a hostile proxy). TLS defeats all three with four tools. You never implement them, but every TLS error message is about one of them.</p>
 
-<div class="s3sp"><div class="s3L">
 <h3>Tool 1: symmetric authenticated encryption (AEAD)</h3>
-<p>One secret key, shared by both ends, encrypts and decrypts. TLS uses an <b>AEAD</b> cipher, AES-GCM or ChaCha20-Poly1305: each encrypted record carries a 16-byte <b>tag</b> that only a holder of the key can compute, so changing one bit makes decryption fail. Confidentiality and integrity together. The running request, as it left this machine:</p>
-
+<p>One secret key, shared by both ends, encrypts and decrypts. TLS uses an <b>AEAD</b> cipher, AES-GCM or ChaCha20-Poly1305: each encrypted record carries a 16-byte <b>tag</b> that only a holder of the key can compute, so changing one bit makes decryption fail. Confidentiality and integrity together.</p>
+<p><b>The request grows by 17 bytes, and an observer still sees its size.</b> Checked on the recording: the running request, as it left this machine, was 277 bytes of HTTP and became one encrypted record of 294 bytes: 277 + 1 byte of hidden content type + 16 bytes of tag = 294 (278 bytes of ciphertext, then the tag), behind a 5-byte header in clear: 299 bytes on the wire (<a href="https://www.rfc-editor.org/rfc/rfc9846#section-5.2" target="_blank" rel="noopener noreferrer">RFC 9846 section 5.2</a>). Each streamed token record grows the same 17 bytes. The record drawn to scale inside every other layer's wrapping is Fig. 2 of <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>, which owns that picture.</p>
 <p>It is fast: AES-128-GCM ran at <span id="sp-aes"></span> on one core of this laptop, ChaCha20-Poly1305 at <span id="sp-cha"></span> (OpenSSL 3.6 <code>speed</code>, 16 KB blocks), so encrypting a token stream costs nothing you will notice. ChaCha20 exists for CPUs without AES instructions (older phones); servers with AES hardware prefer AES-GCM.</p>
-</div>
-<div class="s3R"><div class="s3side"><figure class="tl-fig" id="tl-aead-card">
-<figcaption class="tl-ft">The request grows by 17 bytes, and an observer still sees its size</figcaption>
-<div id="tl-aead" class="tl-svg"></div>
-<p class="small">Checked on the recording: 277 bytes of HTTP became one encrypted record of 294 bytes: 277 + 1 byte of hidden content type + 16 bytes of tag = 294 (<a href="https://www.rfc-editor.org/rfc/rfc9846#section-5.2" target="_blank" rel="noopener noreferrer">RFC 9846 section 5.2</a>), behind a 5-byte header in clear. Each streamed token record grows the same 17 bytes.</p>
-</figure></div></div></div>
 <div class="s3sp"><div class="s3L">
 <h3>Tool 2: key exchange (two strangers agree on that key in public)</h3>
 <p>The shared key cannot be sent, since the passive attacker would read it. <b>Diffie-Hellman</b> (DH) solves this: each side keeps a random private number and sends a public value derived from it; each combines its own private number with the other's public value, and both arrive at the same secret, while someone who saw both public values cannot compute it. Predict first: if you change only the server's private number, does the client's computed secret change? Then move it:</p>
@@ -1431,27 +1424,6 @@ window.TLF=(function(){
 
 (function(){
   const F=TLF,D=window.D,fmt=n=>Number(n).toLocaleString('en-US');
-
-  // ---- one record to scale ----
-  F.fig('tl-aead','The 277-byte request inside a 299-byte TLS record: 5-byte header, 278 bytes of ciphertext, 16-byte tag',W=>{
-    const m=2,tot=299,px=(W-2*m)/tot;let s='';
-    const y1=18,h=26;
-    s+=F.text(m,12,'plaintext: the HTTP request, 277 bytes',{fs:11,fill:'var(--mute)'});
-    s+=F.rect(m+5*px,y1,277*px,h,{fill:'var(--hl)',stroke:'var(--c5)',rx:3})+F.text(m+(5+277/2)*px,y1+17,'POST /v1/messages ...',{a:'middle',fs:11});
-    const y2=y1+h+30;
-    s+='<path d="M'+(m+5*px)+' '+(y1+h)+' L'+(m+5*px)+' '+y2+' M'+(m+282*px)+' '+(y1+h)+' L'+(m+283*px)+' '+y2+'" stroke="var(--mute)" stroke-dasharray="3 3" fill="none"/>';
-    s+=F.text(m+12*px,y1+h+19,'AEAD encrypt',{fs:11,fill:'var(--acc)',w:600});
-    s+=F.rect(m,y2,5*px,h,{fill:'var(--hl)',stroke:'var(--c5)',rx:2})+F.rect(m+5*px,y2,277*px,h,{fill:'var(--acc2)',stroke:'var(--acc)',rx:2})+
-       F.rect(m+282*px,y2,1*px+1,h,{fill:'var(--c6)',stroke:'var(--c6)',rx:0})+F.rect(m+283*px,y2,16*px,h,{fill:'var(--acc)',stroke:'var(--acc)',rx:2});
-    s+=F.text(m+(5+277/2)*px,y2+17,'ciphertext',{a:'middle',fs:11});
-    const y3=y2+h;
-    // leaders and labels
-    s+='<path d="M'+(m+2.5*px)+' '+y3+' V'+(y3+14)+'" stroke="var(--mute)"/>'+F.text(m,y3+26,'header 5 B, in clear',{fs:11,fill:'var(--mute)'});
-    s+='<path d="M'+(m+291*px)+' '+y3+' V'+(y3+14)+'" stroke="var(--mute)"/>'+F.text(W-m,y3+26,'+16 B tag',{a:'end',fs:11,fill:'var(--mute)'});
-    s+='<path d="M'+(m+282.5*px)+' '+y2+' V'+(y2-10)+'" stroke="var(--mute)" fill="none"/>'+F.text(m+282.5*px-4,y2-4,'+1 B hidden content type',{a:'end',fs:11,fill:'var(--mute)'});
-    s+=F.text(m,y3+42,'record on the wire: 5 + 294 = 299 bytes, drawn to scale',{fs:11,fill:'var(--mute)'});
-    return [s,y3+44];
-  });
 
   // ---- key schedule, simplified ----
   F.fig('tl-ks','Key derivation: the shared secret, an optional PSK and the transcript hash go into HKDF, which yields every key',W=>{

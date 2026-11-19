@@ -43,7 +43,8 @@
   const f1=v=>v.toFixed(1)+'%';
   function draw(R,k,e){const P=R.P,C=cols(P),DD=data();R.grid(-7.4,7.4,-4,4,.5);
     SYS.forEach((s,i)=>{const d=DD[i],cx=cxOf(i),cz=czOf(i),foc=k===i+1,seen=k>i+1||k===5;
-      const a=k===0?1:foc||k===5?1:.3,show=foc?e:seen?1:0;
+      const a=k===0?1:foc||k===5?1:.05, // close views: the other floors (cut by the card's edge) all but vanish (was .3, 2026-11-19)
+        show=foc?e:seen?1:0;
       floor(R,i,d,a,show,P,C);
       // names only where they help: every floor in the overview and the bill, the one in focus in a close view
       if(k===0||k===5||foc)R.label([cx-XW/2,0,cz-DEP/2-.08],s.n,{fs:13.5,b:1,al:'left',dy:-8,c:foc?P.acc:P.ink});
@@ -57,7 +58,7 @@
       if(k===5){const v=TB.fig13.ShareGPT[s.n],h=v/30.42*1.9*e,bx=cx+XW/2+.5,bz=cz;
         R.box([bx,0,bz],[.7,.05,.5],{a:1,shadow:true});R.box([bx,.05,bz],[.42,Math.max(.01,h),.3],{fill:s.k==='vllm'?P.acc:mix(P.paper,P.c2,.55),shadow:false});
         R.label([bx,.05+h,bz],v.toFixed(2),{mono:true,fs:13,b:1,dy:-10,c:s.k==='vllm'?P.acc:P.ink,a:e})}});
-    if(k===5)R.label([0,1.9,-3.9],'requests per batch, Figure 13a',{mono:true,fs:12,c:P.mute,a:e});
+    if(k===5)R.label([0,1.9,-3.9],'requests per batch, Figure 13a',{mono:true,fs:12,c:P.mute,a:e,wide:1}); // phones: it sat on the Orca (Max) label; the step list says it
     if(k===0){R.label([cxOf(2)-XW/2,0,czOf(2)+DEP/2],'15,728 slots · 12 GB · a row is 2,048 slots',{mono:true,fs:12,al:'left',dy:16,c:P.mute,a:e})}}
   const full={cam:[.18,.92],bounds:[[-7.2,0,-3.9],[7.4,1.2,3.6]]};
   const close=i=>({cam:[.22,.78],bounds:[[cxOf(i)-XW/2-.2,0,czOf(i)-DEP/2-.7],[cxOf(i)+XW/2+.3,1.3,czOf(i)+DEP/2+.5]]});

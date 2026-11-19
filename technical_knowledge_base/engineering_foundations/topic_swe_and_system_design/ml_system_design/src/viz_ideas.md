@@ -47,3 +47,6 @@ The page now owns ML system design as a discipline (framing, the data loop and s
 | Fig. 4, one request through gateway, cache, router, models, fallback and usage log, with the lab's budget as bars (`37_js_sc_llm.js`) | 3D stage, 5 steps, from `MSD_GW` presets and the LiteLLM recording | s7 | built; replaces the 2D model-layer boxes |
 | Metric ladder, LLM ladder, gaps staircase, latency slider, feedback stepper, prefix-cache bars | 2D | s1, s6, s3, s4, s5, s6 | kept: each reads best flat (labelled boxes, one axis, one slider) |
 | Offline-against-online drift chart | 2D | s5 | still rejected: no sourced data |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`34_js_sc_hero.js`): checked at 390 px; the text-heavy lanes were already trimmed by the cosmetic pass. Only change: at step 5 (the close view on the model) both lanes recede to .12 (was .3 and .22), so the cropped lane objects at the card's edges stop competing with the model's layers.

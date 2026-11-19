@@ -413,7 +413,10 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 </tbody></table></div>
 <details class="dp"><summary>Real run: last night's dump and a base backup of the same database <span class="mute">(measured output)</span></summary><div class="b"><div class="tr" data-run="pitr" data-steps="dump,basebackup,verify" data-title="pg_dump, pg_basebackup and pg_verifybackup"></div></div></details>
 </section>
-<div class="s3sp"><div class="s3R"><div id="stg-pitr"></div></div><div class="s3L"><section id="rd-s2p">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-pitr-card"><h4 class="vt">Fig. 2 · the same DELETE, recovered two ways</h4>
+<div class="rd-svg" id="rd-pitr"></div>
+<div class="an-ctl" id="rd-pitr-ctl"></div>
+</div></div></div><div class="s3L"><section id="rd-s2p">
 <h3>Point-in-time recovery: the most important picture on this page</h3>
 <p>Because the WAL records every change, a base backup plus every WAL segment written since lets Postgres rebuild the database at any moment you choose. You switch it on with three settings: <code>wal_level = replica</code> (the default), <code>archive_mode = on</code>, and an <code>archive_command</code> that copies each finished 16 MB segment somewhere safe and returns success only once the file is stored (<a href="https://www.postgresql.org/docs/18/runtime-config-wal.html" target="_blank" rel="noopener noreferrer">WAL settings</a>). To recover, restore the base backup, tell Postgres where the archive is (<code>restore_command</code>) and when to stop (<code>recovery_target_time</code>), and start it. Below, a nightly backup at midnight, a normal day of messages, and at 14:03 a cleanup that lost its <code>WHERE</code> clause, recovered both ways. Predict how many of the day's messages each method keeps, then watch both (the toggle swaps the method).</p>
 <div class="seg" id="rd-pitr-mode"><button data-m="dump" class="on">Restore last night's dump</button><button data-m="pitr">Point-in-time recovery to 14:02:59</button></div>
@@ -1555,76 +1558,68 @@ window.TR=(function(){
     view:k=>k===0?{cam:[.3,.6],bounds:[[-4.8,0,-2],[-1.2,1.0,2]]}:k===1?{cam:[.24,.6],bounds:[[-2.5,0,-2.1],[1.9,1.5,2.1]]}:k===3?{cam:[.2,.65],bounds:[[-1.1,0,-2.3],[2.8,1,-.1]]}:full});
 })();
 </script>
-<script>/* 29b_js_sc_pitr.js */
-// ---- Scene, Fig. 2 (section 2): a nightly dump against a base backup plus archived WAL, on the same bad DELETE (renderer v2) ----
-// Data: window.RPG.pitr, the real run: rows before the DELETE, rows each recovery got back, the recovery times, and the archived WAL segments
-// recovery replayed (parsed from its log: ...14 to ...22), stopping before the DELETE's commit (transaction 738). Clock times are illustrative.
+<script>/* 29b_js_pitr.js */
+// ---- Fig. 2 (section 2): a nightly dump against a base backup plus archived WAL, on the same bad DELETE, flat (2026-11-19: was a 3D stage; a timeline
+// and two row counts read the same flat, without the faded steps). Data: window.RPG.pitr, the real run: rows before the DELETE, rows each recovery got back,
+// the recovery times, and the archived WAL segments recovery replayed (parsed from its log: ...14 to ...22), stopping before the DELETE's commit (transaction 738).
+// Clock times are illustrative. Today's 12,000 rows (1.2%) are drawn wider than their share, and labelled so. ----
 (function(){
-  if(!document.getElementById('stg-pitr')||!window.RPG)return;const {at,off,lerp,mix}=S3;
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-pitr-card');if(!card||!window.RPG)return;
   const D=RPG.pitr||{},ST=D.steps||{},base=D.count_dump||1e6,good=D.before_delete||1012000,today=good-base,fmt=n=>Math.round(n).toLocaleString('en-US');
   const log=(ST.restore_pitr&&ST.restore_pitr.log)||[],segs=log.map(l=>(l.match(/restored log file "([0-9A-F]{24})"/)||[])[1]).filter(Boolean).map(f=>f.slice(-2));
   const stopTx=((log.find(l=>/recovery stopping/.test(l))||'').match(/transaction (\d+)/)||[])[1]||'738';
   const tDump=(ST.restore_dump&&ST.restore_dump.secs)||0,tPitr=(ST.restore_pitr&&ST.restore_pitr.secs)||0;
   let mode='dump';
-  const X=h=>-5+8.6*h/15,ZT=1.75,ZS=.35,SW=8.6*13.6/15/Math.max(1,segs.length); // timeline in front, segments behind it
-  const XS=i=>X(.4)+SW*(i+.5),XP=4.5,ZP=-1.45,ZR=1.15,HB=1.5,HT=.42; // servers on the right: production at the back, recovered in front
   // per step: clock (hours), production rows, archived fraction
   const SP=[{h:0,prod:base,arc:0},{h:9,prod:base+today/3,arc:.35},{h:14.05,prod:good,arc:1},{h:14.05,prod:0,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1},{h:14.3,prod:2,arc:1}];
-  // a messages table as a column: the midnight rows, then today's rows as a cap drawn taller than their 1.2% (labelled)
-  function column(R,x,z,rows,a,tint,ghost,sh){sh=sh||.25;const P=R.P,b=Math.min(1,rows/base),t=Math.max(0,Math.min(1,(rows-base)/today));
-    R.box([x,0,z],[1.05,HB,1.05],{a:ghost?.12:a*sh,fill:P.paper,fa:.25,shadow:false,lw:.6});
-    if(b>.002)R.box([x,0,z],[1.01,HB*b,1.01],{fill:mix(P.paper,tint,.35),a});
-    if(t>.01)R.box([x,HB,z],[1.01,HT*t,1.01],{fill:mix(P.paper,P.acc,.6),a,shadow:false});
-    R.box([x,HB,z],[1.05,HT,1.05],{a:ghost?.12:a*sh,fill:P.paper,fa:.15,shadow:false,lw:.6,ec:P.mute})}
-  function draw(R,k,e){const P=R.P,pitr=mode==='pitr',s0=SP[k],s1=SP[Math.max(0,k-1)];R.grid(-5.6,5.4,-2.4,2.4,.5);
-    // the clock along the front
-    R.line([[X(0),0,ZT],[X(15),0,ZT]],{c:P.mute,w:1.5});
-    [0,3,6,9,12,15].forEach(h=>{R.line([[X(h),0,ZT-.08],[X(h),0,ZT+.08]],{c:P.mute,w:1.2});R.label([X(h),0,ZT+.1],String(h).padStart(2,'0')+':00',{mono:true,fs:12,c:P.mute,dy:12,grp:'clock'})});
-    const hh=lerp(s1.h,s0.h,k===0?1:e);R.ball([X(hh),.06,ZT],.1,{c:P.acc});
-    // the copy taken at midnight
-    const ca=k===0?Math.min(1,e*1.6):k===5?1:.45;
-    R.box([X(0),0,ZS],[.62,pitr?.62:.42,.7],{fill:mix(P.paper,P.c3,.45),a:ca});
-    R.label([X(0),pitr?.62:.42,ZS],pitr?'base backup · 258 MB':'dump file · 33.9 MB',{fs:12.5,b:1,c:mix(P.ink,P.c3,.5),dy:-10,a:Math.max(.5,ca)});
-    // the WAL archive: lit as segments are archived; the last one holds the DELETE's commit
-    const arcF=lerp(s1.arc,s0.arc,k===0?1:e),nS=segs.length;
-    segs.forEach((g,i)=>{const lit=pitr&&(i+.5)/nS<=arcF,last=i===nS-1,red=pitr&&last&&k>=3;
-      let fill=lit?mix(P.paper,P.c5,.55):P.paper,a=pitr?(lit?1:.18):.1;
-      if(red)fill=mix(P.paper,P.bad,.6);
-      if(k===6&&pitr){const u=e*nS;a=1;if(i<u-.5)fill=mix(P.paper,P.c5,.2)}
-      if(k===7&&pitr&&!last)fill=mix(P.paper,P.c5,.2);
-      R.box([XS(i),0,ZS],[SW*.84,.2,.7],{fill,a,shadow:false,lw:.6})});
-    if(pitr){R.label([XS(0),0,ZS+.35],'…'+segs[0],{mono:true,fs:12,c:P.mute,dy:10,a:k>=1?1:.5});R.label([XS(nS-1),0,ZS+.35],'…'+segs[nS-1],{mono:true,fs:12,c:k>=3?P.bad:P.mute,dy:10,a:k>=2?1:.5});
-      R.label([(XS(0)+XS(nS-1))/2,.2,ZS-.35],'archived WAL · 16 MB segments',{fs:12,c:mix(P.ink,P.c5,.5),dy:-6,a:k===1||k===2||k===6?1:.0})}
-    else R.label([(XS(0)+XS(nS-1))/2,.1,ZS],'no WAL kept: only the midnight file',{fs:12,c:P.mute,a:k>=1&&k<=2||k===6?1:0});
-    if(k===1&&pitr)R.flowArc([XP-.45,.6,ZP],[XS(Math.floor(arcF*nS*.9)),.25,ZS],.5,{c:P.c5,a:e,r:.06,speed:1.3});
-    // production server
-    const prodRows=k===3?lerp(good,0,e):s0.prod;
-    column(R,XP,ZP,k<=2?lerp(s1.prod,s0.prod,k===0?1:e):prodRows,k>=5?.35:1,P.c1,false,k===4?.7:.25); // step 5: the emptied table's outline at full strength
-    R.label([XP,HB+HT,ZP],'production · '+fmt(prodRows)+' rows',{fs:12.5,b:1,dy:-10,a:k>=5?.5:1});
-    if(k===1||k===2)R.flow([[XP-1.6,.9,ZP],[XP-.5,.9,ZP]],{c:P.acc,a:e,r:.06,speed:1.2,n:4});
-    if(k===3){R.glow([XS(nS-1),.25,ZS],.7,{c:P.bad,a:e*.8});R.label([X(14.05),.2,ZS-.4],'DELETE 14:03 · tx '+stopTx,{fs:12.5,b:1,c:P.bad,dy:-10,a:e});
-      R.flowArc([XP-.45,.5,ZP],[XS(nS-1),.25,ZS],.4,{c:P.bad,a:e,r:.06,speed:1.4})}
-    if(k===4)R.label([XP+.55,.1,ZP],'2 new messages',{al:'left',dx:8,fs:12,c:P.mute,a:e});
-    // the recovered server
-    const ra=at(k,e,5);
-    let rec=k<5?0:k===5?lerp(0,base,e):pitr?(k===6?lerp(base,good,e):good):base;
-    if(ra>0){column(R,XP,ZR,rec,ra,P.c3,false);
-      R.label([XP,HB+HT,ZR],'recovered · '+fmt(rec)+' rows',{fs:12.5,b:1,dy:-10,a:ra,c:mix(P.ink,P.c3,.5)})}
-    if(k===5)R.flowArc([X(0)+.3,.5,ZS],[XP-.45,.6,ZR],.9,{c:P.c3,a:e,r:.07,speed:1.6});
-    if(k===6&&pitr){const u=Math.min(nS-1,Math.floor(e*nS));for(let i=0;i<nS-1;i++)if(Math.abs(i-u)<=2)R.flowArc([XS(i),.25,ZS],[XP-.45,.9,ZR],.6,{c:P.c5,a:1-Math.abs(i-u)/3,r:.055,speed:1.6,n:6});
-      R.label([XS(nS-1),.2,ZS+.35],'stops before commit of '+stopTx,{fs:12,b:1,c:P.bad,dy:16,a:e})}
-    if(k===6&&!pitr)R.label([XP-.55,HB*.5,ZR],'nothing to replay',{al:'right',dx:-10,fs:12.5,c:P.mute,a:e});
-    if(k===7){const lost=pitr?0:today;R.label([XP-.55,HB*.55,ZR],pitr?'lost 0 · recovery '+tPitr+' s':'lost '+fmt(lost)+' · restore '+tDump+' s',{al:'right',dx:-10,fs:14,b:1,c:pitr?P.good:P.bad,a:e});
-      if(!pitr)R.box([XP,HB,ZR],[1.05,HT,1.05],{fill:mix(P.paper,P.bad,.35),a:e*.6,shadow:false,fa:.5,ec:P.bad})}
-    if(k>=5)R.label([XP+.55,HB+HT*.5,ZP],'today, drawn taller',{al:'left',dx:6,fs:12,c:P.mute,wide:1,a:.8});
-  }
-  const full={cam:[.14,.56],bounds:[[-5.4,0,-2.1],[5.4,2.0,2.1]]};
-  const st=S3.stage({id:'stg-pitr',list:'sx-pitr-dump',fig:'Fig. 2 · the same DELETE, recovered two ways',cam:full.cam,bounds:full.bounds,aspect:.44,dur:1500,hold:4600,draw,
-    margin:w=>w<520?[14,8,26,8]:[18,16,30,16],
-    // step 1 moves in close on the midnight copy, step 4 on the DELETE; the rest show the whole day
-    view:k=>k===0?{cam:[.25,.62],bounds:[[-5.6,0,-1.2],[-1.6,1.0,2.1]]}:k===3?{cam:[.1,.56],bounds:[[.6,0,-2.1],[5.4,2.0,2.1]]}:full});
+  function draw(k){const el=document.getElementById('rd-pitr'),W=RD.width(el),ph=W<520,pitr=mode==='pitr',fs=ph?11.5:12,s0=SP[k];let s='';
+    const L=ph?6:96,R=W-(ph?8:14),X=h=>L+(R-L)*h/15,lab=(y,t,c)=>ph?'':text(L-8,y,t,{a:'end',fs:12,c:c||'var(--mute)'});
+    // 1. the clock along the top
+    let y=ph?22:16;s+=line(X(0),y,X(15),y,{c:'var(--mute)'});
+    [0,3,6,9,12,15].forEach(h=>{s+=line(X(h),y-3,X(h),y+3,{c:'var(--mute)'})+text(X(h),y-7,String(h).padStart(2,'0')+':00',{a:h===0?'start':h===15?'end':'middle',fs:11,mono:1,c:'var(--mute)'})});
+    s+='<circle cx="'+fx(X(s0.h))+'" cy="'+y+'" r="5" fill="var(--acc)"/>';
+    // 2. the copy taken at midnight, and the WAL archive behind it (lit as segments are archived; the last holds the DELETE's commit)
+    y+=18;const ca=k===0||k===5?1:.55,cw=ph?44:58;
+    s+=lab(y+16,pitr?'backup':'dump');
+    s+=grp(rect(X(0),y,cw,24,{fill:'var(--c3)',fo:.35,s:'var(--c3)',r:4})+text(X(0)+4,y+40,pitr?'base backup · 258 MB':'dump file · 33.9 MB',{fs,w:700,c:'var(--c3)'}),{op:ca,cl:k===0?'rd-new':''});
+    const ax0=X(0)+cw+4,ax1=X(14.05),nS=segs.length,sw=(ax1-ax0)/Math.max(1,nS);
+    if(pitr){segs.forEach((g,i)=>{const lit=(i+.5)/nS<=s0.arc,last=i===nS-1,red=last&&k>=3,used=(k===6&&!last)||(k===7&&!last);
+        s+=rect(ax0+i*sw+1,y,sw-2,24,lit?{fill:red?'var(--bad)':'var(--c5)',fo:used?.25:.6,s:red?'var(--bad)':'var(--c5)',sw:1,r:3,cl:k===1||k===2?'rd-new':''}:{fill:'none',s:'var(--line)',da:'3 3',r:3})});
+      s+=text(ax0+2,y-5,(ph?'WAL segments':'archived WAL, 16 MB segments')+' …'+segs[0]+' to …'+segs[nS-1],{fs:11,mono:1,c:'var(--c5)',op:k>=1?1:.5})}
+    else s+=text((ax0+ax1)/2,y+16,'no WAL kept: only the midnight file',{a:'middle',fs,c:'var(--mute)'});
+    if(k===3)s+=grp(line(X(14.05),y-14,X(14.05),y+30,{c:'var(--bad)',sw:2})+text(X(14.05)-4,y+40,'DELETE 14:03 · tx '+stopTx,{a:'end',fs,w:700,c:'var(--bad)'}),{cl:'rd-new'});
+    if(k===6&&pitr)s+=grp(text(X(14.05),y+40,'stops before commit of '+stopTx,{a:'end',fs,w:700,c:'var(--bad)'}),{cl:'rd-new'});
+    // 3. the two servers as rows of messages: the midnight rows, then today's drawn wider than their 1.2% (labelled)
+    const bx0=ph?6:L,bx1=R,todayW=(bx1-bx0)*.16,baseW=(bx1-bx0)-todayW,bar=(yy,rows,c,op,cl)=>{const b=Math.min(1,rows/base),t=Math.max(0,Math.min(1,(rows-base)/today));
+      return rect(bx0,yy,bx1-bx0,22,{fill:'none',s:'var(--line)',da:'3 3',r:4})+(b>.0005?rect(bx0,yy,baseW*b,22,{fill:c,fo:.35*op,s:c,sw:1,r:4,cl}):'')+(t>.005?rect(bx0+baseW,yy,todayW*t,22,{fill:'var(--acc)',fo:.55*op,s:'var(--acc)',sw:1,r:4,cl}):'')};
+    y+=ph?62:66;const prod=s0.prod,pop=k>=5?.5:1;
+    s+=lab(y+15,'production');s+=text(bx0,y-6,'production · '+fmt(prod)+' rows',{fs:12.5,w:700,op:pop});
+    s+=grp(bar(y,prod,'var(--c1)',1,k<=3?'rd-new':''),{op:pop});
+    if(k===4)s+=text(bx1,y-6,'2 new messages',{a:'end',fs,c:'var(--mute)',cl:'rd-new'});
+    if(!ph||k===1)s+=text(bx0+baseW+todayW,y+36,'today, drawn wider',{a:'end',fs:11,c:'var(--mute)'});
+    // 4. the recovered server
+    y+=ph?66:62;const rec=k<5?0:k===5?base:pitr?(k>=6?good:base):base;
+    s+=lab(y+15,'recovered');
+    if(k>=5){s+=text(bx0,y-6,'recovered · '+fmt(rec)+' rows',{fs:12.5,w:700,c:'var(--c3)'});s+=bar(y,rec,'var(--c3)',1,k===5||(k===6&&pitr)?'rd-new':'')}
+    else s+=rect(bx0,y,bx1-bx0,22,{fill:'none',s:'var(--line)',da:'3 3',r:4})+text(bx0+8,y+15,'a new server, restored at step 6',{fs:11.5,c:'var(--mute)'});
+    if(k===5)s+=text(bx1,y+36,pitr?'from the base backup: the state at 00:00':'pg_restore of the midnight file · '+tDump+' s',{a:'end',fs:12.5,c:'var(--c3)',w:700,cl:'rd-new'});
+    if(k===6&&!pitr)s+=text(bx1,y+36,'nothing to replay',{a:'end',fs:12.5,c:'var(--mute)',cl:'rd-new'});
+    if(k===6&&pitr)s+=text(bx1,y+36,'replayed …'+segs[0]+' to …'+segs[nS-1],{a:'end',fs:12.5,mono:1,c:'var(--c5)',w:700,cl:'rd-new'});
+    if(k===7){const ok=pitr,t=ok?'lost 0 · recovery '+tPitr+' s':'lost '+fmt(today)+' · restore '+tDump+' s';s+=text(bx1,y+38,t,{a:'end',fs:14,w:700,c:ok?'var(--good)':'var(--bad)',cl:'rd-new'})}
+    el.innerHTML=RD.svg(W,y+48,s,'The same DELETE, recovered two ways: '+mode)}
+  const an=RD.anim({card:'rd-pitr-card',ctl:'rd-pitr-ctl',n:8,ms:4800,draw,label:'Recovery step',list:'sx-pitr-dump'});
+  RD.onResize(()=>an.redraw());
   const sw=document.getElementById('rd-pitr-mode');
-  if(sw&&st)RD.seg(sw,m=>{mode=m;['dump','pitr'].forEach(x=>document.getElementById('sx-pitr-'+x).hidden=x!==m);st.list('sx-pitr-'+m)});
+  if(sw)RD.seg(sw,m=>{mode=m;['dump','pitr'].forEach(x=>document.getElementById('sx-pitr-'+x).hidden=x!==m);an.reset(8,'sx-pitr-'+m)});
 })();
 </script>
 <script>/* 29c_js_sc_rep.js */

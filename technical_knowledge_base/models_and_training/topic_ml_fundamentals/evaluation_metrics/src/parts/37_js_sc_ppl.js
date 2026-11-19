@@ -31,15 +31,15 @@
       // tokens stream from the text into the row while it is cut
       if(!ghost&&k===r+1&&e<1){const L2=L[Math.min(n-1,Math.floor(e*n))],xc=bx(L2.b0+L2.b/2);R.flow([[xc,.3,ZT],[xc,.3,z+.35]],{c:C[r],r:.07,n:4,speed:1.4})}
       const s=sum(m,tk);if(ghost){R.label([X0-.2,.15,z],narrow?SHORT[m]:NAMES[m],{al:'right',dx:-6,mono:true,fs:12.5,c:P.mute,a:.8,grp:'side'});return}R.label([X0-.2,.15,z],(narrow?SHORT[m]:NAMES[m])+' · '+s.n+' tokens',{al:'right',dx:-6,mono:true,fs:12.5,b:1,c:C[r],a:Math.max(.6,fadeRow),grp:'side'});
-      if(k===r+1)R.label([X0+XW/2,1.5,z],s.bits.toFixed(1)+' bits in all',{mono:true,fs:13,b:1,c:C[r],a:grow,dy:-8})});
+      if(k===r+1)R.label([X0+XW+.1,.15,z],s.bits.toFixed(1)+' bits in all',{mono:true,fs:13,b:1,c:C[r],a:grow,al:'left',dx:8})}); // at the row's right end, so it cannot sit on another row
     // perplexity per token, then bits per byte, as one side column per model
     if(k>=4){const ex=k===4?e:1,tw=k===5?e:0;MS.forEach((m,r)=>{const s=sum(m,tk),pt=Math.log2(s.ppl),h=lerp(pt,s.bpb,tw)*HB*ex;
-        const xs=XS+.95*r;R.box([xs,0,ZR[r]],[.75,Math.max(.012,h),.62],{fill:mix(P.paper,C[r],.8)});
+        const xs=XS+1.35*r;/* columns spaced so their value labels do not overlap */R.box([xs,0,ZR[r]],[.75,Math.max(.012,h),.62],{fill:mix(P.paper,C[r],.8)});
         R.flow([[X0+XW,.25,ZR[r]],[xs-.45,.25,ZR[r]]],{c:C[r],a:ex*.7,r:.05,n:5,speed:1.2});
         R.label(narrow?[X0+XW,1.0,ZR[r]]:[xs,h,ZR[r]],k===4?(narrow?SHORT[m]+' ':'')+'PPL '+s.ppl.toFixed(2):(narrow?SHORT[m]+' ':'')+s.bpb.toFixed(3),{mono:true,fs:12.5,b:1,c:C[r],dy:-11,a:ex,grp:narrow?null:'sc',al:narrow?'right':'center'})});
-      R.label([XS+.95,0,ZR[0]+.45],k===4?'bits per token (log₂ PPL)':'bits per byte',{mono:true,fs:12,c:P.mute,dy:12,a:ex})}
+      R.label([XS+1.35,0,ZR[0]+.45],k===4?'bits per token (log₂ PPL)':'bits per byte',{mono:true,fs:12,c:P.mute,dy:12,a:ex})}
   }
-  const full={cam:[.12,.7],bounds:[[-4.8,0,-1.9],[7.6,1.5,3.2]]};
+  const full={cam:[.12,.7],bounds:[[-4.8,0,-1.9],[8.6,1.5,3.2]]};
   const st=S3.stage({id:'stg-px',list:'sx-px',fig:'Fig. 3 · one text, three tokenizers (real log-probabilities)',cam:full.cam,bounds:full.bounds,aspect:.5,dur:2200,hold:4800,draw,
     margin:w=>w<520?[16,10,14,10]:[20,16,14,170],
     view:()=>(c=>c&&c.clientWidth<520)(document.querySelector('#stg-px canvas'))?{cam:[.7,.62]}:null,

@@ -15,7 +15,7 @@
   function draw(R, k, e, st) {
     const P = R.P; R.grid(-4.6, 4.8, -2.6, 2.8, .5);
     ROWS.forEach(r => {
-      const C = P[r.c], on = q => q >= r.from ? 1 : 0, foc = q => q === r.from || (q === 3 && r.id === 'pre') || q === 4 ? 1 : q === 3 ? .07 : .15;
+      const C = P[r.c], on = q => q >= r.from ? 1 : 0, foc = q => q === r.from || (q === 3 && r.id === 'pre') || q === 4 ? 1 : .07; // rows a step is not about recede far enough that the focus row and its labels read cleanly
       const a = tw(st, e, foc), shown = tw(st, e, on);
       // the row's floor strip and its empty slots, so the layout is there from the first step
       R.box([0, 0, r.z], [(N - 1) * DXp + .6, .02, .6], { fill: mix(P.paper, C, .12), a: .7, shadow: false });
@@ -28,7 +28,7 @@
       if (shown > .5 && a > .9) R.flow([[X(0), .05, r.z + .3], [X(N - 1), .05, r.z + .3]], { c: C, a: a * .8, r: .045, n: 10, speed: 1.2 });
       lab(R, [X(0) - .3, .05, r.z], r.name, { fs: 12.5, b: 1, c: C, al: 'right', dx: -6, a: Math.max(.4, a), grp: 'rows' });
       const end = val(r, k, N - 1), endA = la(st, e, q => (q >= r.from && foc(q) === 1) ? 1 : 0);
-      lab(R, [X(N - 1) + .2, H(end), r.z], fmt(end) + note(r, k), { fs: 12.5, b: 1, c: C, al: 'left', dx: 6, a: endA, grp: 'ends' });
+      lab(R, [X(N - 1) + .35, H(end), r.z], fmt(end) + note(r, k), { fs: 12.5, b: 1, c: C, al: 'left', dx: 6, a: endA, grp: 'ends' });
     });
     // norm 16 = RMS 1, where post-norm pins the stream; 16 sqrt(12) = 55.4, what 12 unit-RMS branches sum to
     const l16 = la(st, e, q => q === 0 ? 1 : 0), y16 = H(16);
@@ -40,7 +40,7 @@
     // flat init (step 2): outlines at the flat-init norms in the pre-norm row
     const fl = la(st, e, q => q === 1 ? 1 : 0);
     if (fl > .01) { const F = M.pre_flat.init.median_norm; for (let j = 1; j < N; j++) frame(R, [X(j), 0, ROWS[1].z], [BW + .06, H(F[j]), BW + .06], { c: P.c1, w: 1.1, a: fl * .9, dash: [3, 3] });
-      lab(R, [X(N - 1) + .2, H(F[N - 1]), ROWS[1].z], 'flat init ' + fmt(F[N - 1]), { fs: 12, c: P.c1, al: 'left', dx: 6, dy: -16, a: fl, wide: 1 }); }
+      lab(R, [X(N - 1) + .35, H(F[N - 1]), ROWS[1].z], 'flat init ' + fmt(F[N - 1]), { fs: 12, c: P.c1, al: 'left', dx: 6, dy: -16, a: fl, wide: 1 }); }
     // trained pre-norm (step 4): most of the growth is block 1's FFN
     const b1 = la(st, e, q => q === 3 ? 1 : 0);
     if (b1 > .01) lab(R, [X(2), H(M.pre.trained.median_norm[2]), ROWS[1].z], 'block 1 FFN: ' + fmt(M.pre.trained.median_norm[1]) + ' → ' + fmt(M.pre.trained.median_norm[2]), { fs: 12.5, b: 1, c: P.c1, al: 'left', dx: 10, dy: -14, a: b1 });

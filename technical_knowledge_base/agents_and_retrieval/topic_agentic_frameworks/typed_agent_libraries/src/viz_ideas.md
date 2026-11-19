@@ -40,3 +40,5 @@ Nine SVG figures added inline in Reading (`src/parts/24_js_rd_figs.js`, all draw
 | ADK state scopes and an event's state_delta | static annotated diagram | 6 | ADK state docs |
 | Choosing ladder | static decision diagram | 8 | the page's judgement plus the parent's measured outcomes |
 The route stepper (built 1) no longer starts playing on a route switch. Rejected: a real image (the page is about libraries, no physical object; a vendor trace-dashboard screenshot has no clear licence).
+
+2026-11-19: Fig. 3 (stg-loop) steps 2 to 5: in a lane close-up the lanes in front of it are now hidden (were drawn at .05, large and close to the camera, over the lane in focus) and the lanes behind fade to .09 (was .13).

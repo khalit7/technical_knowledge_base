@@ -51,9 +51,9 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await sleep(2500);
   const moved = await p.$$eval('#t-read .an-ctl:not(.stg-bar) input[type=range]', rs => rs.filter(r => r.id !== 'lb-ctl-s' && +r.value !== 0).map(r => r.id));
   if (moved.length) { bad++; console.log('AUTOPLAY', scheme, w, moved); }
-  // the 3D stages' mode chips (their steps are checked by check_stages.mjs)
+  // the mode chips (Fig. 2 a 3D stage, Fig. 3 a 2D figure; their steps are checked by check_stages.mjs)
   for (const sel of ['#idem-mode button', '#dl-mode button']) { await clickAll(sel); await check(sel); }
-  for (const [seg, ctl, card, modes] of [['#rd-pgseg', '#rd-pgctl', 'rd-pg', ['0', '1']], [null, '#rd-hookctl', 'rd-hook', [null]], ['#cl-seg', '#cl-ctl', 'rd-call', ['0', '1', '2']]]) {
+  for (const [seg, ctl, card, modes] of [['#dl-mode', '#sq-dl-ctl', 'sq-dl', ['0', '3', '1', '2']], [null, '#sq-hero-ctl', 'sq-hero', [null]], [null, '#rd-hookctl', 'rd-hook', [null]], ['#cl-seg', '#cl-ctl', 'rd-call', ['0', '1', '2']]]) {
     for (const m of modes) {
       if (seg) await p.evaluate((s, m) => document.querySelector(s + ' [data-m="' + m + '"]').click(), seg, m);
       await scrub(ctl); await check(card + ' ' + m);

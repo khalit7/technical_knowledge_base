@@ -606,7 +606,11 @@ ENGINE = MergeTree ORDER BY (chat_id, created_at)</pre>
 </section></div>
 <div class="s3R"><div class="s3side"><figure class="card"><img src="img/lakehouse_fig1.webp" alt="Three architecture diagrams side by side: (a) structured data goes through ETL into data warehouses that serve BI and reports; (b) all data lands in a data lake, ETL copies part of it into data warehouses for BI, while data science and machine learning read the lake directly; (c) a metadata, caching and indexing layer sits on the data lake and serves BI, reports, data science and machine learning from one copy" loading="lazy" width="1100" height="453">
 <figcaption>Notice what disappears from (b) to (c): the second copy in a warehouse and the ETL arrow feeding it. In (c) every consumer reads the lake through one metadata layer, which is what the table formats below are.<span class="cr">Figure 1 of Armbrust, Ghodsi, Xin and Zaharia, "Lakehouse", CIDR 2021, CC BY 3.0, <a href="https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf" target="_blank" rel="noopener noreferrer">cidrdb.org</a>.</span></figcaption></figure></div></div></div>
-<div class="s3sp"><div class="s3R"><div id="stg-ice"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="card" id="an-ice-card"><h4 class="vt">Fig. 4 · a real table, commit by commit</h4>
+<div class="rd-svg" id="an-ice"></div>
+<div class="an-ctl" id="an-ice-ctl"></div>
+<p class="small mute" style="margin:6px 0 0">Every box is a file the table really wrote, in the column of the commit that wrote it; orange, written by this step (its size under it); faded, no longer used by the current snapshot. Lines follow the tree a reader walks.</p>
+</div></div><div class="s3L">
 <section id="s-lake-ice">
 <h3>Apache Iceberg: a tree of metadata, built for real</h3>
 <p>The spec (<a href="https://iceberg.apache.org/spec/" target="_blank" rel="noopener noreferrer">iceberg.apache.org/spec</a>) tracks individual files, not directories, in four layers under a catalog. A real table was built on the local disk with pyiceberg 0.12.0 and a SQLite catalog, one day of chat messages at a time (<code>src/measure/iceberg_walk.py</code>, 2026-10-04): Fig. 4 steps through its commits.</p>
@@ -1522,70 +1526,88 @@ window.BARS=function(el,rows,opt){opt=opt||{};
     view:k=>k>=2?{cam:[.22,.5],bounds:[[-3.6,0,.7],[5,1.1,2.1]]}:full});
 })();
 </script>
-<script>/* 33_js_sc_ice.js */
-// ---- Scene, Fig. 4 (section 9): a real table format, commit by commit (D.ice: pyiceberg 0.12.0; D.delta: deltalake 1.6.6), renderer v2 ----
-// Files stand in lanes front to back (catalog, metadata.json, manifest lists, manifests, data files for Iceberg; the _delta_log and data files for Delta),
-// left to right in the order they were written. The catalog's pointer picks the current metadata; dots then follow the tree down to the files that are the table.
+<script>/* 33_js_ice.js */
+// ---- Fig. 4 (section 9): a real table format, commit by commit (D.ice: pyiceberg 0.12.0; D.delta: deltalake 1.6.6), flat (2026-11-19: was a 3D stage
+// with the file kinds as lanes in depth; rows on a page read the same tree without perspective). One row per kind of file (catalog, metadata.json,
+// manifest lists, manifests, data files for Iceberg; the _delta_log and data files for Delta), one column per commit in the order it was written.
+// The catalog's pointer picks the current metadata; lines then follow the tree down to the files that are the table; superseded files fade. ----
 (function(){
-  if(!document.getElementById('stg-ice'))return;const {at,off,lerp,mix}=S3;
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('an-ice-card');if(!card||!window.D||!D.ice)return;
   const I=D.ice,DL=D.delta,base=p=>p.split('/').pop();let mode='ice';
-  const XS=1.12,X0=-4.2,ZL={cat:-2.7,meta:-1.6,ml:-.55,man:.5,data:1.65},HT={cat:.5,meta:.32,ml:.36,man:.4,data:.75,commit:.32};
-  // every Iceberg file once, with the step that wrote it and a slot within its lane at that step
+  // every Iceberg file once, with the step that wrote it and a slot within its row at that step
   const IF=[];I.steps.forEach((s,k)=>{const n={};s.files.forEach(f=>{const ln=f.kind==='metadata.json'?'meta':f.kind==='manifest list'?'ml':f.kind==='manifest'?'man':'data';
-    const j=n[ln]=(n[ln]||0)+1;IF.push(Object.assign({k,ln,j:j-1},f))})});
-  const ix=f=>X0+f.k*XS+f.j*.42;
+    const j=n[ln]=(n[ln]||0)+1;IF.push(Object.assign({k,ln,j:j-1,nj:0},f))})});
+  IF.forEach(f=>f.nj=IF.filter(g=>g.k===f.k&&g.ln===f.ln).length);
   function iceLive(k){const fs=IF.filter(f=>f.k<=k),mjs=fs.filter(f=>f.ln==='meta'),cur=mjs[mjs.length-1],live=new Map();if(!cur)return {cur,live};
     live.set(cur.path,null);const sid=cur['current-snapshot-id'],snap=cur.snapshots.find(s=>(s['snapshot-id']||s.snapshot_id)===sid);
     if(snap){const ml=fs.find(f=>f.path===snap['manifest-list']);if(ml){live.set(ml.path,cur);ml.entries.forEach(e=>{const m=fs.find(f=>f.path===e.manifest_path);if(!m)return;live.set(m.path,ml);
       m.entries.forEach(x=>{if(x.status!=='DELETED'){const d=fs.find(f=>f.path===x.file_path||x.file_path.endsWith(base(f.path)));if(d)live.set(d.path,m)}})})}}
-    return {cur,live,fs}}
+    return {cur,live}}
   // the path a time-travel read takes: snapshot 1's manifest list, its manifest and the original data file
   const ttPath=['manifest list','manifest','data file (Parquet)'].map(kd=>IF.find(f=>f.k===1&&f.kind===kd));
   // Delta: the log's commits and the data files they add or remove
   const DF=[];DL.steps.forEach((s,k)=>s.new_files.forEach(f=>DF.push(Object.assign({k,ln:f.path.startsWith('_delta_log')?'log':'data'},f))));
   function delLive(k){const fs=DF.filter(f=>f.k<=k),rm=new Set();fs.filter(f=>f.ln==='log').forEach(f=>(f.actions||[]).forEach(a=>{if(a.remove)rm.add(a.remove.path)}));
     return {fs,live:new Set(fs.filter(f=>f.ln==='data'&&![...rm].some(r=>f.path.endsWith(r)||f.path.startsWith(r))).map(f=>f.path))}}
-  const DX=k=>-2.6+k*1.75,DZ={log:-.9,data:1.1};
-  const lane=(R,z,t,a)=>R.label([X0-1.5,.15,z],t,{al:'right',dx:-4,mono:true,fs:12,c:R.P.mute,a,grp:'lanes'});
-  function drawIce(R,k,e){const P=R.P,TT=k>=I.steps.length,kk=Math.min(k,I.steps.length-1),S=iceLive(kk);
-    [['meta','metadata.json'],['ml','manifest lists'],['man','manifests'],['data','data files (Parquet)']].forEach(([l,t])=>lane(R,ZL[l],t,1));
-    // the catalog: one pointer per table
-    const CX=X0-1.1;R.box([CX,0,ZL.cat],[.7,HT.cat,.6],{fill:mix(P.paper,P.c2,.25)});R.label([CX,HT.cat,ZL.cat],'catalog',{b:1,fs:12.5,dy:-11,c:P.c2});
-    IF.filter(f=>f.k<=kk).forEach(f=>{const isNew=f.k===kk&&!TT,isLive=S.live.has(f.path),tt=TT&&(ttPath.includes(f)||f===S.cur);
-      const a=isNew?e:TT?(tt?1:.22):isLive?1:.28,fill=isNew?mix(P.paper,P.c2,.45):f.ln==='data'?mix(P.paper,P.c1,.3):P.paper;
-      R.box([ix(f),0,ZL[f.ln]],[f.ln==='data'?.36:.32,HT[f.ln],f.ln==='data'?.62:.42],{fill,a,shadow:a>.5});
-      if(isNew)R.label([ix(f),HT[f.ln],ZL[f.ln]],(f.bytes/1000).toFixed(1)+' KB',{mono:true,fs:12,dy:-11-f.j*15,c:P.c2,a:e})});
-    // the pointer: catalog to the current metadata.json (it moves on every commit)
-    if(S.cur){const to=[ix(S.cur),HT.meta,ZL.meta],fr=[CX,HT.cat,ZL.cat];R.arc(fr,to,.5,{c:P.c2,w:2.2,head:7,top:1,a:1});
-      if(!TT)R.label(to,base(S.cur.path).slice(0,5)+' is current',{mono:true,fs:12,dy:-44,b:1,c:P.c2,wide:1})}
-    // a reader follows the tree down from the current metadata to the files that are the table (dots), or, in time travel, snapshot 1's branch
-    const fa=TT?e:k===0?0:.85;
-    if(!TT)S.live.forEach((par,path)=>{if(!par)return;const c=IF.find(f=>f.path===path);R.flowArc([ix(par),HT[par.ln],ZL[par.ln]],[ix(c),HT[c.ln],ZL[c.ln]],.25,{c:P.c1,a:fa*(c.k===kk?e:1),r:.05,n:4,speed:1})});
-    else{let pr=S.cur;ttPath.forEach(c=>{R.flowArc([ix(pr),HT[pr.ln],ZL[pr.ln]],[ix(c),HT[c.ln],ZL[c.ln]],.3,{c:P.c4,a:e,r:.06,n:5,speed:1});pr=c});
-      R.label([ix(ttPath[2]),HT.data,ZL.data],'snapshot 1: 28,800 rows',{mono:true,fs:12.5,b:1,dy:-12,c:P.c4,a:e})}
-  }
-  function drawDelta(R,k,e){const P=R.P,TT=k>=DL.steps.length,kk=Math.min(k,DL.steps.length-1),S=delLive(kk);
-    lane(R,DZ.log,'_delta_log commits',1);lane(R,DZ.data,'data files (Parquet)',1);
-    S.fs.forEach(f=>{const isNew=f.k===kk&&!TT,tt=TT&&f.k===0,a=isNew?e:TT?(tt?1:.22):f.ln==='log'||S.live.has(f.path)?1:.28;
-      const fill=isNew?mix(P.paper,P.c2,.45):f.ln==='data'?mix(P.paper,P.c1,.3):P.paper;
-      R.box([DX(f.k),0,DZ[f.ln]],f.ln==='data'?[.5,.75,.7]:[.6,.32,.5],{fill,a});
-      if(f.ln==='log')R.label([DX(f.k),.32,DZ.log],String(f.k).padStart(2,'0')+'.json',{mono:true,fs:12,dy:-11,c:isNew?P.c2:P.mute,a:Math.max(.4,a)});
-      if(isNew&&f.ln==='data')R.label([DX(f.k),.75,DZ.data],(f.bytes/1000).toFixed(0)+' KB',{mono:true,fs:12,dy:-11,c:P.c2,a:e})});
+  const SHORT=['create','append','append','add col','append','delete','evolve','append'];
+  function draw(k){const el=document.getElementById('an-ice'),W=RD.width(el),ph=W<520;
+    el.innerHTML=mode==='ice'?drawIce(k,W,ph):drawDelta(k,W,ph)}
+  function drawIce(k,W,ph){const TT=k>=I.steps.length,kk=Math.min(k,I.steps.length-1),S=iceLive(kk);let s='';
+    const LW=ph?0:128,NC=I.steps.length,cw=(W-LW-4)/NC,cx=c=>LW+cw*(c+.5);
+    const ROWS=[['cat','catalog',26],['meta','metadata.json',28],['ml','manifest lists',28],['man','manifests',28],['data','data files (Parquet)',40]];
+    const RG=ph?30:22;let y=ph?36:22;const RY={};
+    // commit headers
+    for(let c=0;c<NC;c++){const on=c===kk&&!TT;s+=text(cx(c),12,ph?String(c+1):(c+1)+' '+SHORT[c],{a:'middle',fs:ph?11.5:11,w:on?700:400,c:on?'var(--c2)':'var(--mute)'})}
+    ROWS.forEach(([id,nm,h])=>{RY[id]=[y,h];if(ph)s+=text(2,y-4,nm,{fs:11,c:'var(--mute)'});else s+=text(LW-8,y+h/2+4,nm,{a:'end',fs:11.5,mono:1,c:'var(--mute)'});y+=h+RG});
+    // the catalog: one pointer per table, to the current metadata.json (it moves on every commit)
+    const [cy,ch]=RY.cat,catW=ph?64:84;s+=rect(LW+2,cy,catW,ch,{fill:'var(--c2)',fo:.18,s:'var(--c2)',r:5})+text(LW+2+catW/2,cy+17,'catalog',{a:'middle',fs:12,w:700,c:'var(--c2)'});
+    const pos=f=>{const [ry,rh]=RY[f.ln],bw=Math.min(cw*.8/f.nj,f.ln==='data'?30:26),x=cx(f.k)-(f.nj*bw+(f.nj-1)*3)/2+f.j*(bw+3);return {x,y:ry,w:bw,h:rh}};
+    const ctr=(f,top)=>{const p=pos(f);return [p.x+p.w/2,top?p.y:p.y+p.h]};
+    // a reader follows the tree down from the current metadata to the files that are the table (lines), or, in time travel, snapshot 1's branch
+    if(!TT)S.live.forEach((par,path)=>{if(!par)return;const c=IF.find(f=>f.path===path),a=ctr(par,0),b=ctr(c,1);s+=line(a[0],a[1],b[0],b[1],{c:'var(--c1)',sw:1.3,op:.75,cl:c.k===kk?'rd-new':''})});
+    else{let pr=S.cur;ttPath.forEach(c=>{const a=ctr(pr,0),b=ctr(c,1);s+=line(a[0],a[1],b[0],b[1],{c:'var(--c4)',sw:2.2,cl:'rd-new'});pr=c})}
+    IF.filter(f=>f.k<=kk).forEach(f=>{const isNew=f.k===kk&&!TT,isLive=S.live.has(f.path),tt=TT&&(ttPath.includes(f)||f===S.cur),p=pos(f);
+      const op=TT?(tt?1:.25):isLive||isNew?1:.28,fill=isNew?'var(--c2)':f.ln==='data'?'var(--c1)':'var(--soft)';
+      s+=rect(p.x,p.y,p.w,p.h,{fill,fo:isNew?.45:f.ln==='data'?.3:1,s:isNew?'var(--c2)':tt?'var(--c4)':'var(--ink)',sw:isNew||tt?1.6:.8,r:3,op,cl:isNew?'rd-new':''});
+      if(isNew&&!ph&&f.j===0){const sib=IF.filter(g=>g.k===f.k&&g.ln===f.ln),q=pos(sib[sib.length-1]);
+        s+=text((p.x+q.x+q.w)/2,p.y+p.h+12,sib.map(g=>(g.bytes/1000).toFixed(1)).join(' + ')+' KB',{a:'middle',fs:11,mono:1,c:'var(--c2)',w:600,cl:'rd-new'})}});
+    if(S.cur){const p=pos(S.cur),tx=p.x+p.w/2,y0=cy+ch/2,x0=LW+2+catW;
+      const d=tx>x0+6?'M'+fx(x0)+','+fx(y0)+' H'+fx(tx)+' V'+fx(p.y-6):'M'+fx(tx)+','+fx(cy+ch)+' V'+fx(p.y-6);
+      s+='<path d="'+d+'" fill="none" stroke="var(--c2)" stroke-width="2"/>'+arrow(tx,p.y-12,tx,p.y-1,{c:'var(--c2)',sw:2});
+      if(!TT&&!ph)s+=text(tx+(tx>W-120?-6:6),y0-6,base(S.cur.path).slice(0,5)+' is current',{a:tx>W-120?'end':'start',fs:11.5,mono:1,w:700,c:'var(--c2)'})}
+    if(TT){const p=pos(ttPath[2]);s+=text(p.x,p.y+p.h+14,'snapshot 1: 28,800 rows',{fs:12.5,w:700,mono:1,c:'var(--c4)',cl:'rd-new'})}
+    return RD.svg(W,y+(TT?6:0),s,'Iceberg table, commit by commit')}
+  function drawDelta(k,W,ph){const TT=k>=DL.steps.length,kk=Math.min(k,DL.steps.length-1),S=delLive(kk);let s='';
+    const LW=ph?0:128,NC=DL.steps.length,cw=(W-LW-4)/NC,cx=c=>LW+cw*(c+.5),ly=ph?44:34,lh=30,dy=ly+lh+(ph?56:50),dh=44;
+    for(let c=0;c<NC;c++){const on=c===kk&&!TT;s+=text(cx(c),12,'commit '+c,{a:'middle',fs:11.5,w:on?700:400,c:on?'var(--c2)':'var(--mute)'})}
+    if(ph){s+=text(2,ly-6,'_delta_log commits',{fs:11,c:'var(--mute)'})+text(2,dy-6,'data files (Parquet)',{fs:11,c:'var(--mute)'})}
+    else s+=text(LW-8,ly+lh/2+4,'_delta_log commits',{a:'end',fs:11.5,mono:1,c:'var(--mute)'})+text(LW-8,dy+dh/2+4,'data files (Parquet)',{a:'end',fs:11.5,mono:1,c:'var(--mute)'});
+    const logs=S.fs.filter(f=>f.ln==='log'),upto=TT?1:logs.length,bw=Math.min(cw*.6,60);
     // a reader replays the log in order, then reads the data files still added and not removed
-    const logs=S.fs.filter(f=>f.ln==='log'),upto=TT?1:logs.length;
-    for(let i=1;i<upto;i++)R.flowArc([DX(i-1),.34,DZ.log],[DX(i),.34,DZ.log],.25,{c:P.c1,a:.8,r:.05,n:4,speed:1});
-    if(!TT)S.fs.filter(f=>f.ln==='data'&&S.live.has(f.path)).forEach(f=>R.flowArc([DX(logs.length-1),.34,DZ.log],[DX(f.k),.75,DZ.data],.35,{c:P.c1,a:.7*(f.k===kk?e:1),r:.05,n:4,speed:1}));
-    else{R.flowArc([DX(0),.34,DZ.log],[DX(0),.75,DZ.data],.35,{c:P.c4,a:e,r:.06,n:5,speed:1});R.label([DX(0),.75,DZ.data],'version 0: 28,800 rows',{mono:true,fs:12.5,b:1,dy:-12,c:P.c4,a:e})}
-  }
-  const fullI={cam:[.2,.72],bounds:[[X0-1.6,0,-3.1],[X0+7*XS+.7,1,2.1]]},fullD={cam:[.3,.7],bounds:[[-3.3,0,-1.4],[3.4,1,1.6]]};
-  const st=S3.stage({id:'stg-ice',list:'sx-ice',fig:'Fig. 4 · a real table, commit by commit',cam:fullI.cam,bounds:()=>mode==='ice'?fullI.bounds:fullD.bounds,aspect:.62,dur:1400,hold:5200,
-    draw:(R,k,e)=>{R.grid(-6,5,-3.4,2.6,.5);(mode==='ice'?drawIce:drawDelta)(R,k,e)},
-    margin:w=>w<520?[16,10,16,10]:[20,14,16,150],
-    // each Iceberg commit step moves in towards the files it wrote; the time-travel step shows the whole table
-    view:k=>{if(mode!=='ice')return {cam:fullD.cam,bounds:fullD.bounds};if(k>=I.steps.length)return fullI;const xc=X0+Math.max(k,1)*XS;return {cam:[.24,.66],bounds:[[Math.max(X0-1.6,xc-3.4),0,-3.1],[Math.min(X0+7*XS+.7,xc+1.3),1,2.1]]}}});
+    for(let i=1;i<upto;i++)s+=arrow(cx(i-1)+bw/2,ly+lh/2,cx(i)-bw/2,ly+lh/2,{c:'var(--c1)',sw:1.6});
+    if(!TT)S.fs.filter(f=>f.ln==='data'&&S.live.has(f.path)).forEach(f=>{s+=line(cx(logs.length-1),ly+lh,cx(f.k),dy,{c:'var(--c1)',sw:1.3,op:.75,cl:f.k===kk?'rd-new':''})});
+    else s+=line(cx(0),ly+lh,cx(0),dy,{c:'var(--c4)',sw:2.2,cl:'rd-new'});
+    S.fs.forEach(f=>{const isNew=f.k===kk&&!TT,tt=TT&&f.k===0,op=TT?(tt?1:.25):f.ln==='log'||S.live.has(f.path)?1:.28;
+      const fill=isNew?'var(--c2)':f.ln==='data'?'var(--c1)':'var(--soft)',y=f.ln==='log'?ly:dy,h=f.ln==='log'?lh:dh;
+      s+=rect(cx(f.k)-bw/2,y,bw,h,{fill,fo:isNew?.45:f.ln==='data'?.3:1,s:isNew?'var(--c2)':tt?'var(--c4)':'var(--ink)',sw:isNew||tt?1.6:.8,r:3,op,cl:isNew?'rd-new':''});
+      if(f.ln==='log')s+=text(cx(f.k),y+lh/2+4,String(f.k).padStart(2,'0')+'.json',{a:'middle',fs:11.5,mono:1,w:600,c:isNew?'var(--c2)':'var(--ink)',op:Math.max(.4,op)});
+      if(isNew)s+=text(cx(f.k),y+h+13,(f.bytes/1000).toFixed(f.ln==='data'?0:1)+' KB',{a:'middle',fs:11,mono:1,w:600,c:'var(--c2)',cl:'rd-new'})});
+    let yb=dy+dh+20;if(TT){s+=text(cx(0)-bw/2,yb+12,'version 0: 28,800 rows',{fs:12.5,w:700,mono:1,c:'var(--c4)',cl:'rd-new'});yb+=18}
+    return RD.svg(W,yb,s,'Delta table, commit by commit')}
+  const an=RD.anim({card:'an-ice-card',ctl:'an-ice-ctl',n:I.steps.length+1,ms:5200,draw,label:'Commit step',list:'sx-ice'});
+  RD.onResize(()=>an.redraw());
   const seg=document.getElementById('iceFmt3');
   if(seg)seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;seg.querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===b));
-    document.getElementById('sx-ice').hidden=mode!=='ice';document.getElementById('sx-delta').hidden=mode==='ice';st.list(mode==='ice'?'sx-ice':'sx-delta')});
+    document.getElementById('sx-ice').hidden=mode!=='ice';document.getElementById('sx-delta').hidden=mode==='ice';an.reset(mode==='ice'?I.steps.length+1:DL.steps.length+1,mode==='ice'?'sx-ice':'sx-delta')});
 })();
 </script>
 <script>/* 41_js_lab.js */

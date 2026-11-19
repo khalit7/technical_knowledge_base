@@ -48,3 +48,6 @@ Measured wall-clock numbers on a shared laptop vary run to run (bwd/fwd 1.44, 1.
 | 1 | The four memory schedules | widget, no autoplay | s9 | up to about 60 events, so a widget the reader drives (long-replay rule b); opens on the turn from forward to backward |
 
 Kept 2D, and why: the layouts figure (a small table read flat), jacfwd against jacrev and the FLOP and time bars (numbers on axes, a log axis), the memory timeline (a curve), the gradient-product slider and the finite-difference chart (log axes), attention's shapes (a flat to-scale comparison of block sizes), the workbench (tables of numbers) and the autograd graph explorer (a list). Considered and not built: a 3D stage for checkpointing (the schedule is a one-dimensional chain over time, which the 2D widget already shows with real values); an outer-product bar field for 6a on its own (the network stages already show two).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`31_js_sc_net.js`): objects small with faint, colliding labels (long chain, far camera). Step 2 (the backward start) now moves the camera in on the loss end and hides the labels outside that view; "softmax, −ln p_sat" sits below "z · 3" instead of on it; on phones the plate names and "ReLU" hide (they sat on the vector labels), which also applies to Fig. 5, which shares the scene code. Step count and list text unchanged.

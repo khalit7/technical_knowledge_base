@@ -51,3 +51,7 @@ Checking an implementation against a reference on a chaotic surface: a fixed tol
 | L2 in Adam against AdamW: shrink per step against gradient noise | static derived chart | built (`48_js_wd.js`); the animation is Regularisation's (section 3), linked |
 | Critical batch: steps against data, one slider | parameter slider, defaults on McCandlish et al.'s "twice" | built (`49_js_batch.js`) |
 | Real photo | | rejected: no physical object on a mechanism page |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 3 (`63_js_sc_pre.js`): the SOAP step drew each eigenbasis plate almost on top of its factor (R hidden under Q, the m and v labels over the L plates). Each Q now stands about one world unit behind R (or beside L), the Shampoo factors stay at .55 instead of .3, the L label moves past its Q, and m and v share one label at the left ("m, v in the rotated basis"). Same sizes, to scale.
+- Fig. 2 (`62_js_sc_ad.js`): the rotated ravine's walls were faint from the low camera (.68); its steps now look further down (phi 1.0) at full mesh opacity, so the V of the turned valley and the trails along its floor read. Step count and list text unchanged.

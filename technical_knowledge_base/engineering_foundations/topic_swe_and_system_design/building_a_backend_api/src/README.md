@@ -60,3 +60,7 @@ Why 27 minutes is right: the page now teaches nine service mechanisms (lifecycle
 - **The section 5 visuals are derived, not measured here**: they reuse Capacity planning's 1,157 requests a second and 1 ms per borrow, Query planning's 0.056 ms round trip and 1.42 against 0.22 ms, and the root's round-trip presets, so the numbers agree with those pages by construction.
 
 2026-10-26 (final follow-up sweep): the closed block "Contract details kept here until Service APIs and HTTP carry them" is gone: Service APIs (sections 2 to 4) and HTTP (section 2) now carry those units, and one sentence links them; the demo's hex-encoded cursor stays here, and "JSON has no date type" moved into this page's JSON rules block. Ledger units 46, 80, 136 to 138, 140, 141, 151, 157, 179, 189, 198, 201, 202, 206, 246 to 250, 386 and 511 relabelled `owned:`.
+
+## 2026-11-19: 3D stages judged against "When 3D earns its place"
+- Fig. 2 (one request, stage by stage): 3D stage `stg-life` redrawn flat as `rd-life-card` (`34_js_life.js`, RD.anim, same 7 steps, the artefact panel under it unchanged): the stages top to bottom, the request down the left, the response back up the right, the logged order as tags. Why: a pipeline reads the same flat (the onion of section 4 owns the nesting).
+- `src/check_stages.mjs` still names the removed stage ids; the converted figures are checked by `html_utils/checkpage.sh` and `verify_layout.mjs` until it is updated.

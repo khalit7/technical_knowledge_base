@@ -35,3 +35,7 @@ Rejected in the rebuild: a Chatbot Arena UI screenshot (the Chatbot Arena paper 
 | Fig. 4 bootstrap: 200 refits piled per model, interval plates, rank-share bar field, 1,000 votes | 3D stage, 6 steps | section 2 | recompute.py `stage.boot6`, `stage.boot1` (seed 12345, the lab's draws) |
 | Fig. 3 Elo against Bradley-Terry | 2D, regrouped from 13 frames into 6 explained stretches | section 1 | unchanged |
 Kept 2D: the gap slider, intervals and rank spreads chart, style-control reorder (Fig. 5), board explorer, best-of-N slider, length-control and null-model bars, preference-against-capability scatter, all tables: curves, intervals on an axis, rankings as lists and scatters read best flat. Rejected: a 3D judge-graded proxy pipeline (the section's point is a regression and a number on a scale; a pipeline of boxes would decorate); a 3D style-control stage (a reordered list is the message).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 2 (`32_js_sc_vote.js`), step 6: dense (every row's bars, the 50% plane and all ten pillars at strength around the one row the step is about). Other rows now recede to .12, the plane to .4 and the pillars to .3, so Claude 3 Haiku's row and its purple predicted shares read.
+- Fig. 4 (`33_js_sc_boot.js`), step 6: the ten wide 1,000-vote piles merged into one mass from the low camera; that step now looks down (phi 1.12) so each row's spread and its ± label read. Step counts and list text unchanged.

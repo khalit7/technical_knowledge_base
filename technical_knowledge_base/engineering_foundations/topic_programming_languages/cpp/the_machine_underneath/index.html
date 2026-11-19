@@ -480,10 +480,15 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <div class="tw"><table class="cb-t" id="cb-dottab"></table></div>
 <p>The plain loop at <code>-O2</code> is barely faster than scalar; with <code>-ffast-math</code> it matches hand-written intrinsics, about <span class="cb-num" data-cbratio="dot.v.l1_scalar.runs.0|dot.v.l1_neon.runs.0" data-d="0"></span>x faster than scalar in L1. From DRAM every fast version hits the same wall, about 56 GB/s for one core (section 9).</p>
 </section>
-<div class="s3sp"><div class="s3R"><div id="stg-simd"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="card" id="cb-simd-card">
+<h4 style="margin:0 0 4px;font-size:14.5px">16 products, three schedules: lanes across, cycles down</h4>
+<div id="cb-simd"></div>
+<div class="an-ctl" id="cb-simd-ctl"></div>
+<p class="small mute" style="margin:6px 0 0">Each box is one instruction, as wide as the lanes it works on and as tall as the cycles it takes, on one scale for all three; the dashed line is the dependency carried in <code>s0</code>.</p>
+</div></div><div class="s3L">
 <section id="cb-s6b">
 <h3>Why: dependency chains, not instruction counts</h3>
-<p>Same 16 products, same answer: one chain takes 64 cycles, four independent vector chains take 4 per block. In the figure each box is one instruction, as wide as the lanes it works on and as deep as the cycles it takes; depth is time.</p>
+<p>Same 16 products, same answer: one chain takes 64 cycles, four independent vector chains take 4 per block. In the figure each box is one instruction, as wide as the lanes it works on and as tall as the cycles it takes; time runs down.</p>
 <ol class="sx" id="sx-simd">
 <li><b>One block of 16 products.</b> One 16-element block of the benchmark's own inputs (<code>a[i] = (i % 17) / 4</code>, <code>b[i] = (i % 13) / 2</code>), each bar one product. The clock counts cycles on the critical path with published latencies (4 cycles for <code>fmadd</code>, <code>fmul</code> and <code>fmla</code>, 3 for <code>fadd</code> and <code>faddp</code>: <a href="https://dougallj.github.io/applecpu/firestorm-simd.html" target="_blank" rel="noopener noreferrer">Dougall Johnson's Firestorm tables</a>).</li>
 <li><b>Scalar: one chain of 16 <code>fmadd</code>.</b> Each one adds into <code>s0</code>, so it waits 4 cycles for the previous one: 64 cycles for the block, 4 per element.</li>
@@ -1247,54 +1252,58 @@ window.CBX=(function(){
     margin:w=>w<520?[14,10,22,10]:[16,14,24,190]});
 })();
 </script>
-<script>/* 47_js_sc_simd.js */
-// ---- Scene: one 16-element block of the dot product as instructions in lanes (x) against time in cycles (depth), three ways (section 6; renderer v2).
+<script>/* 47_js_simd.js */
+// ---- Fig. (section 6): one 16-element block of the dot product as instructions in lanes (across) against time in cycles (down), three ways, flat
+// (2026-11-19: was a 3D stage with cycles in depth; a flat Gantt chart reads lengths and the 64, 52 and 16 cycle totals on one scale, without perspective).
 // Inputs are dot.cpp's (a[i] = (i % 17) / 4, b[i] = (i % 13) / 2); latencies published (Dougall Johnson: fmadd, fmul, fmla 4 cycles; fadd, faddp 3);
-// the measured ns per element in L1 from window.CB.dot (run 1). The schedules are the model the page's table checks against the measurements.
+// the measured ns per element in L1 from window.CB.dot (run 1). The schedules are the model the page's table checks against the measurements. ----
 (function(){
-  if(!document.getElementById('stg-simd')||!window.CB||!CB.dot)return;const {at,off,cl,mix,lerp}=S3;
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('cb-simd-card');if(!card||!window.CB||!CB.dot)return;
   const N=16,a=[...Array(N)].map((_,i)=>(i%17)*.25),b=[...Array(N)].map((_,i)=>(i%13)*.5),p=a.map((x,i)=>x*b[i]),pm=Math.max(...p);
-  const LW=.21,SC=.068,BX=[-4.5,0,4.5],H=.16;          // lane width, depth per cycle, band centres, box height
-  const lx=(band,l)=>BX[band]+(l-7.5)*LW, zc=c=>-c*SC;
-  // instruction boxes: [band, first lane, last lane, start cycle, end cycle, colour key, step it belongs to]
-  const I=[];for(let k=0;k<N;k++)I.push([0,k,k,4*k,4*k+4,'c1',1]);
-  for(let r=0;r<4;r++)I.push([1,4*r,4*r+3,0,4,'c3',2]);for(let k=0;k<N;k++)I.push([1,k,k,4+3*k,7+3*k,'c2',2]);
-  for(let r=0;r<4;r++)I.push([2,4*r,4*r+3,0,4,'c4',3]);
-  I.push([2,0,7,4,7,'c5',4],[2,8,15,4,7,'c5',4],[2,0,15,7,10,'c5',4],[2,2,13,10,13,'c5',4],[2,5,10,13,16,'c5',4]);
-  const END=[64,52,16],D=CB.dot.v,ME=[D.l1_scalar.runs[0],D.l1_auto.runs[0],D.l1_neon.runs[0]],PR=[4/3.2,3/3.2,.25/3.2];
-  const NAME=['scalar · fmadd chain','-O2 · fmul.4s, then fadd chain','NEON · 4 x fmla.4s'];
-  function draw(R,k,e){const P=R.P;R.grid(-7,7,-5.2,1.6,.5);
-    // on a phone the camera frames one band, so the others (cut at the card's edge) fade almost out
-    const nar=R.W<520,foc=k<=1?0:k===2?1:2,bandOn=bd=>nar&&k<5?(bd===foc?1:.07):k===0||k===5?1:(k===1&&bd===0)||(k===2&&bd===1)||(k>=3&&bd===2)?1:.28;
-    // products at the front of each band, on a white plinth
-    [0,1,2].forEach(bd=>{const al=bandOn(bd);R.box([BX[bd],0,.55],[N*LW+.12,.04,.3],{a:al,shadow:false});
-      p.forEach((v,l)=>R.box([lx(bd,l),.04,.55],[LW*.7,Math.max(.01,v/pm*.75),.14],{fill:mix(P.paper,P.c2,.55),a:al,shadow:false,lw:.6}));
-      if(al>.5)R.label([BX[bd],0,.75],NAME[bd],{fs:12.5,b:1,dy:18})});
-    // the time axis on the left
-    [0,16,32,48,64].forEach(c=>{R.line([[BX[0]-N*LW/2-.15,0,zc(c)],[BX[0]-N*LW/2-.35,0,zc(c)]],{c:P.mute,w:1});
-      R.label([BX[0]-N*LW/2-.4,0,zc(c)],'cycle '+c,{al:'right',dx:-4,mono:true,fs:12,c:P.mute,wide:1})});
-    // instruction boxes; a step's boxes appear in their order during the step
-    const mine=I.filter(x=>x[6]===k);
-    I.forEach(x=>{const [bd,l0,l1,c0,c1,ck,s]=x;if(s>k)return;let al=s<k?(k===5||bd===2&&k===4?1:nar&&bd!==foc?.07:.32):1;
-      if(s===k){const j=mine.indexOf(x),t=cl(e*mine.length*1.05-j*(k===1||k===2?1:.6),0,1);if(t<=0)return;al*=t}
-      const w=(l1-l0+1)*LW-.04,cx=(lx(bd,l0)+lx(bd,l1))/2,z0=zc(c0),z1=zc(c1);
-      R.box([cx,0,(z0+z1)/2],[w,H,Math.abs(z1-z0)-.025],{fill:mix(P.paper,P[ck],.6),a:al,shadow:false,lw:.7})});
-    // the dependency: s0 carried from box to box (scalar and the -O2 add chain)
-    if(k===1||k===2){const bd=k===1?0:1,pts=[];for(let i=0;i<N;i++){const c=k===1?4*i+2:4+3*i+1.5;pts.push([lx(bd,i),H+.04,zc(c)])}
-      R.flow(pts.slice(0,Math.max(2,Math.ceil(N*e))),{c:k===1?P.c1:P.c2,r:.05,speed:1.4})}
-    if(k===3)for(let r=0;r<4;r++)R.flow([[lx(2,4*r+1.5),.85,.55],[lx(2,4*r+1.5),H+.05,zc(2)]],{c:P.c4,r:.05,n:5,speed:.9});
-    if(k===4)R.flow([[lx(2,3.5),H+.05,zc(5.5)],[lx(2,7.5),H+.05,zc(8.5)],[lx(2,7.5),H+.05,zc(11.5)],[lx(2,7.5),H+.05,zc(14.5)]],{c:P.c5,r:.05,speed:.8});
-    // totals at the end of each chain
-    [0,1,2].forEach(bd=>{const show=(k===5||(bd===0&&k>=1)||(bd===1&&k>=2)||(bd===2&&k>=4))&&(bandOn(bd)>.5||R.W>=520);if(!show)return;const a=(k===1&&bd===0)||(k===2&&bd===1)||(k===4&&bd===2)?cl(e*1.6-.6,0,1):1;
-      const t=END[bd]+' cycles'+(k===5?' · '+ME[bd].toFixed(3)+' ns':'');
-      R.label([BX[bd],H,zc(END[bd])],t,{mono:true,fs:12.5,b:1,dy:-12,a,c:bd===2?P.c4:bd===1?P.c2:P.c1})});
-    if(k===3)R.label([BX[2],H,zc(4)],'4 cycles · 0.25 per element',{mono:true,fs:12.5,b:1,dy:-12,c:P.c4,a:cl(e*1.6-.6,0,1)});
-  }
-  const full={cam:[.08,.95],bounds:[[-6.6,0,-4.7],[6.4,.9,1.1]]};
-  const band=bd=>({cam:[.1,.9],bounds:[[BX[bd]-2.9,0,bd===2?-1.6:-4.7],[BX[bd]+2.4,.9,1.1]]});
-  S3.stage({id:'stg-simd',list:'sx-simd',fig:'16 products, three schedules · depth is cycles',cam:full.cam,bounds:full.bounds,aspect:.6,dur:1600,hold:5000,draw,
-    view:k=>k<=1?band(0):k===2?band(1):k===3||k===4?band(2):full,
-    margin:w=>w<520?[14,10,26,10]:[18,16,30,70]});
+  // instruction boxes: [band, first lane, last lane, start cycle, end cycle, colour, step it belongs to, name]
+  const I=[];for(let k=0;k<N;k++)I.push([0,k,k,4*k,4*k+4,'var(--c1)',1,'fmadd']);
+  for(let r=0;r<4;r++)I.push([1,4*r,4*r+3,0,4,'var(--c3)',2,'fmul.4s']);for(let k=0;k<N;k++)I.push([1,k,k,4+3*k,7+3*k,'var(--c2)',2,'fadd']);
+  for(let r=0;r<4;r++)I.push([2,4*r,4*r+3,0,4,'var(--c4)',3,'fmla.4s']);
+  I.push([2,0,7,4,7,'var(--c5)',4,'fadd.4s'],[2,8,15,4,7,'var(--c5)',4,'fadd.4s'],[2,0,15,7,10,'var(--c5)',4,'fadd.4s'],[2,2,13,10,13,'var(--c5)',4,'faddp'],[2,5,10,13,16,'var(--c5)',4,'faddp']);
+  const END=[64,52,16],D=CB.dot.v,ME=[D.l1_scalar.runs[0],D.l1_auto.runs[0],D.l1_neon.runs[0]],PR=[4/3.2,3/3.2,.25/3.2],CPE=['4','3','0.25'];
+  const NAME=[['scalar','fmadd chain'],['-O2','fmul.4s, then fadd chain'],['NEON','4 x fmla.4s']],BC=['var(--c1)','var(--c2)','var(--c4)'];
+  function draw(k){const el=document.getElementById('cb-simd'),W=RD.width(el),ph=W<520;let s='';
+    const AX=ph?30:52,gap=ph?8:16,pw=(W-AX-2*gap)/3,lw=pw/N,top=ph?40:30,ph0=top+30,cyc=ph?3.2:4.2,yc=c=>ph0+c*cyc;
+    const on=bd=>k===0||k===5||(k===1&&bd===0)||(k===2&&bd===1)||(k>=3&&bd===2);
+    // the cycle axis on the left: time runs down the page
+    [0,16,32,48,64].forEach(c=>{s+=line(AX-4,yc(c),W,yc(c),{c:'var(--line)',da:'2 4'})+text(AX-7,yc(c)+4,String(c),{a:'end',fs:11,mono:1,c:'var(--mute)'})});
+    s+=text(2,yc(64)+18,'cycles',{fs:11,c:'var(--mute)'});
+    [0,1,2].forEach(bd=>{const x0=AX+bd*(pw+gap),op=on(bd)?1:.3;let g='';
+      g+=text(x0+pw/2,12,NAME[bd][0],{a:'middle',fs:12.5,w:700,c:BC[bd]})+text(x0+pw/2,26,ph&&bd===1?'fmul, fadd chain':NAME[bd][1],{a:'middle',fs:11,mono:1,c:'var(--mute)'});
+      // the 16 products of one block, as bars above the clock
+      p.forEach((v,l)=>{const h=Math.max(1,v/pm*22);g+=rect(x0+l*lw+.6,ph0-4-h,lw-1.2,h,{fill:'var(--c2)',fo:.55,r:1})});
+      // the instruction boxes: as wide as the lanes they work on, as tall as the cycles they take
+      I.forEach(x=>{const [b2,l0,l1,c0,c1,col,st,nm]=x;if(b2!==bd||st>k)return;const nw=st===k;
+        g+=rect(x0+l0*lw+.8,yc(c0)+.6,(l1-l0+1)*lw-1.6,(c1-c0)*cyc-1.2,{fill:col,fo:.7,s:col,sw:.6,r:2,cl:nw?'rd-new':''})});
+      // the dependency: s0 carried from box to box
+      if((k===1&&bd===0)||(k===2&&bd===1)){let d='';for(let i=0;i<N;i++){const c=bd===0?4*i+2:4+3*i+1.5;d+=(i?'L':'M')+fx(x0+(i+.5)*lw)+','+fx(yc(c))}
+        g+='<path class="rd-new" d="'+d+'" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="3 2" opacity=".7"/>'}
+      // the total at the end of each chain
+      const shown=k===5||(bd===0&&k>=1)||(bd===1&&k>=2)||(bd===2&&k>=4);
+      if(shown){g+=line(x0,yc(END[bd]),x0+pw,yc(END[bd]),{c:BC[bd],sw:2});
+        g+=text(x0+pw/2,yc(END[bd])+15,END[bd]+' cycles',{a:'middle',fs:12,mono:1,w:700,c:BC[bd],cl:(k===1&&bd===0)||(k===2&&bd===1)||(k===4&&bd===2)?'rd-new':''});
+        if(k===5){g+=text(x0+pw/2,yc(END[bd])+30,CPE[bd]+' per elem.',{a:'middle',fs:11.5,mono:1,c:'var(--ink)',cl:'rd-new'});
+          g+=text(x0+pw/2,yc(END[bd])+45,(ph?'':'pred. ')+PR[bd].toFixed(bd===2?3:2)+' ns',{a:'middle',fs:11.5,mono:1,c:'var(--mute)',cl:'rd-new'});
+          g+=text(x0+pw/2,yc(END[bd])+60,(ph?'':'meas. ')+ME[bd].toFixed(3)+' ns',{a:'middle',fs:11.5,mono:1,w:700,c:BC[bd],cl:'rd-new'})}}
+      if(k===3&&bd===2)g+=text(x0+pw/2,yc(4)+15,ph?'4 cycles':'4 cycles · 0.25 per element',{a:'middle',fs:12,mono:1,w:700,c:BC[2],cl:'rd-new'});
+      s+=grp(g,{op})});
+    el.innerHTML=RD.svg(W,yc(64)+(k===5?66:24),s,'16 products, three schedules: lanes across, cycles down')}
+  const an=RD.anim({card:'cb-simd-card',ctl:'cb-simd-ctl',n:6,ms:5000,draw,label:'Schedule step',list:'sx-simd'});
+  RD.onResize(()=>an.redraw());
 })();
 </script>
 <script>/* 48_js_sc_mo.js */

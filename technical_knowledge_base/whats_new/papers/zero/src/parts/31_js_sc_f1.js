@@ -16,11 +16,12 @@
   const C=P=>({p:P.c1,g:P.c2,o:P.c3});
   // heights of row r at step k, progress e: it appears at the previous stage's heights, then the slab it partitions shrinks
   function rowVals(r,k,e){const now=parts(STAGES[r]);if(r===0||k>r)return now;const was=parts(STAGES[r-1]),t=Math.max(0,Math.min(1,(e-.3)/.7));return now.map((v,i)=>lerp(was[i],v,t))}
-  function rowAlpha(r,k,e){if(k<r)return 0;if(k===4)return 1;if(r===k)return r===0?Math.max(.05,e):Math.min(1,e*3);return r===k-1?.2:.1}
+  function rowAlpha(r,k,e){if(k<r)return 0;if(k===4)return 1;if(r===k)return r===0?Math.max(.05,e):Math.min(1,e*3);return r===k-1?.1:.05} // earlier rows recede almost fully so the active row reads alone
   function draw(R,k,e){const P=R.P,col=C(P),U=u();R.grid(-3.8,3.6,-3.4,3.4,.5);
     // the V100's 32 GB: a glass plane over every row
     const yC=CAP*U;R.glass([-2.75,yC,-3.0],[4.0,0,0],[0,0,6.0],{c:P.c4,a:.2,nu:8,nv:8});
-    R.label([-2.75,yC,k===2||k===3?-3.0:3.0],'V100 · 32 GB',{mono:true,fs:12.5,b:1,c:P.c4,al:'right',dx:-6,grp:'slab'});
+    // on a row's step the label sits on the plane's left edge level with that row, in the column of slab names (it was at the plane's front corner, at the card's edge); at the summary, at the front corner
+    if(k<4)R.label([-2.75,yC,ZR[k]],'V100 · 32 GB',{mono:true,fs:12.5,b:1,c:P.c4,al:'right',dx:-6,grp:'slab'});else R.label([-2.75,yC,3.0],'V100 · 32 GB',{mono:true,fs:12.5,b:1,c:P.c4,al:'right',dx:-6,grp:'slab'});
     STAGES.forEach((st,r)=>{const a=rowAlpha(r,k,e);if(a<=.01)return;const z=ZR[r],v=rowVals(r,k,e),live=k===r&&k<4,n=nDrawn();
       // the towers: parameters at the bottom, then gradients, then optimiser states
       for(let i=0;i<n;i++){const x=XS[i];let y=0;
@@ -31,7 +32,7 @@
         if(live){const m=TW/2+.07;R.line([[x-m,yC,z-m],[x+m,yC,z-m],[x+m,yC,z+m],[x-m,yC,z+m],[x-m,yC,z-m]],{c:P.c4,w:1.6,dash:[5,3],top:true,a:e})}}
       if(nd>4)R.label([.15,.12,z],'…',{fs:15,b:1,c:P.mute,a:Math.max(.4,a)});
       // GPU names under the active row (the front row at the summary)
-      if(live||(k===4&&r===3))for(let i=0;i<n;i++)R.label([XS[i],0,z+TW/2+.05],'GPU '+slot(i),{mono:true,fs:12,c:P.mute,dy:12,wide:1});
+      if(live||(k===4&&r===3))for(let i=0;i<n;i++)R.label([XS[i],0,z+TW/2+.05],'GPU '+slot(i),{mono:true,fs:12,c:P.mute,dy:12,wide:1,grp:live&&i===0?'slab':undefined});
       // what one GPU sends per step, in Ψ: unit cubes on a white plinth at the end of the row
       R.box([XC,0,z],[CU+.22,.05,CU+.22],{a,shadow:a>.5});
       KIND[st].forEach((q,j)=>R.box([XC,.05+j*(CU+.03),z],[CU,CU,CU],{fill:mix(P.paper,col[q],.7),a:a*(live?Math.min(1,e*2+(j===0?.5:0)):1),shadow:false,lw:.8}));

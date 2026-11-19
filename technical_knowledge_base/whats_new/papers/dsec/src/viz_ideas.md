@@ -35,3 +35,5 @@ What the methodology lacked here: a rule for papers whose most original contribu
 | P-dsec.13 | Fig. 1 in 3D: one request through the components on a fleet of nodes with 3FS behind, flows for request, snapshot, image blocks and commands; FnCall mode | Reading, Architecture | built (replaces P-dsec.5's 2D animation) |
 | P-dsec.14 | Fig. 2 in 3D: the burst as a node-bar grid under a capacity plane, driven by placeSim, four policies, 8 stretches | Place a burst | built (replaces P-dsec.1's 2D bars) |
 | P-dsec.15 | Hero as a 3D fleet scene (burst, images, layers, memory, CPU, preemption) | | rejected: the hero is an argument map of measured against unmeasured; a fleet scene would foreground placement, which the paper does not measure |
+
+2026-11-19: Fig. 1 (the path of one request): 3D stage `stg-rq` redrawn flat as makeAnim card `rq` (`31_js_req.js`, same 8 and 4 steps, both modes, the counters): the control path (GPU server, IAM, placement engines and watcher, apiserver) beside 3FS and four CPU nodes with their edges and sandboxes; arrows per step. Why: a map of named boxes and arrows; depth carried nothing. `build.sh` lists the new file.

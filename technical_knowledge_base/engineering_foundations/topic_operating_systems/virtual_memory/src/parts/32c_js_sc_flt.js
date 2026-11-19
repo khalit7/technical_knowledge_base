@@ -39,29 +39,29 @@
     const f=s=>k===s?1:.35;
     // CPU and TLB
     R.box([XC,0,ZM],[.9,.6,.8],{fill:mix(P.paper,P.c1,.3),a:Math.max(.5,f(0))});R.label([XC,.6,ZM],'CPU: '+c.acc,{fs:12.5,b:1,dy:-10,a:1});
-    R.box([XT,0,ZM],[.75,.42,.65],{fill:mix(P.paper,P.c2,.3),a:k===0||k===last?1:.4});R.label([XT,.42,ZM],k===last&&!segv?'TLB: cached':'TLB: miss',{fs:12.5,b:1,dy:-10,c:k===0?P.bad:P.ink,a:k===0||k===last?1:.5});
+    R.box([XT,0,ZM],[.75,.42,.65],{fill:mix(P.paper,P.c2,.3),a:k===0||k===last?1:.4});R.label([XT,.42,ZM],k===last&&!segv?'TLB: cached':'TLB: miss',{fs:12.5,b:1,dy:-10,c:k===0?P.bad:P.ink,a:k===0||k===last?1:.5,wide:!(k===0||k===last)});   // wide: on a phone only the parts a step is about keep their names (the row's names overlapped)
     if(k===0)R.flow([[XC+.45,.35,ZM],[XT-.35,.3,ZM]],{c:P.c2,a:e,r:.07});
     // the page-table entry
     const pa=k===1||(k===last&&!segv)?1:.4,valid=k>=5&&!segv,ro=cur==='cow'&&k<5;
-    R.glass([XP-.7,.55,ZM-.55],[1.4,0,0],[0,0,1.1],{c:P.c5,nu:4,nv:4,a:pa});R.label([XP,.6,ZM-.55],'page-table entry',{fs:12.5,b:1,dy:-10,c:P.c5,a:Math.max(.5,pa)});
+    R.glass([XP-.7,.55,ZM-.55],[1.4,0,0],[0,0,1.1],{c:P.c5,nu:4,nv:4,a:pa});R.label([XP,.6,ZM-.55],'page-table entry',{fs:12.5,b:1,dy:-10,c:P.c5,a:Math.max(.5,pa),wide:pa<1});
     R.box([XP,.57,ZM],[.35,.08,.26],{fill:valid?P.c5:ro?mix(P.paper,P.c5,.4):P.paper,ec:valid?P.edge:P.bad,a:1,shadow:false});
-    R.label([XP,.57,ZM+.13],valid?'valid':ro?'read-only':'no entry',{fs:12,dy:14,c:valid?P.c5:P.bad,a:1});
+    R.label([XP,.57,ZM+.13],valid?'valid':ro?'read-only':'no entry',{fs:12,dy:14,c:valid?P.c5:P.bad,a:1,wide:!(k===1||k>=5)});
     if(k===1)R.flow([[XT+.35,.3,ZM],[XP,.6,ZM]],{c:P.c2,a:e,r:.07});
     // the kernel
     const ka=k>=2&&k<=5||(segv&&k===3)?1:.35;R.box([XK,0,ZM],[1.3,.65,1.0],{fill:segv&&k===3?mix(P.paper,P.bad,.35):mix(P.paper,P.c4,.25),a:Math.max(.45,ka)});
     const KL=['kernel','kernel','data abort','find the VMA','handle_mm_fault','handler','kernel'];
-    R.label([XK,.65,ZM],segv&&k===3?'SIGSEGV':KL[k],{fs:12.5,b:1,mono:k>=4,dy:-10,c:segv&&k===3?P.bad:P.ink,a:Math.max(.5,ka)});
+    R.label([XK,.65,ZM],segv&&k===3?'SIGSEGV':KL[k],{fs:12.5,b:1,mono:k>=4,dy:-10,c:segv&&k===3?P.bad:P.ink,a:Math.max(.5,ka),wide:ka<1});
     if(k===2)R.flowArc([XP,.6,ZM],[XK,.65,ZM],.5,{c:P.c4,a:e,r:.07});
     if(k===3)R.label([XK,0,ZM+.5],'VMA: '+c.vma,{fs:12,dy:14,c:segv?P.bad:P.c4,a:e});
     // physical memory: a few frames already in use, and the frame this fault ends on
     for(let i=0;i<4;i++)R.box([XM+i*.45,0,ZM],[.34,.34,.34],{fill:mix(P.paper,P.c3,.25),a:.5});
     R.label([XM+.7,0,ZM+.2],'physical memory',{fs:12,dy:16,c:P.mute,wide:1});
     // the sources behind
-    R.box(SRC.zero,[.4,.4,.4],{fill:P.paper,a:c.src==='zero'?1:.3});R.label([SRC.zero[0],.4,ZB],'zero page',{fs:12,dy:-10,a:c.src==='zero'?1:.45});
+    R.box(SRC.zero,[.4,.4,.4],{fill:P.paper,a:c.src==='zero'?1:.3});R.label([SRC.zero[0],.4,ZB],'zero page',{fs:12,dy:-10,a:c.src==='zero'?1:.45,wide:c.src!=='zero'});
     for(let i=0;i<3;i++)R.box([SRC.cache[0]+(i-1)*.36,0,ZB],[.3,.3,.3],{fill:mix(P.paper,P.c1,.5),a:c.src==='cache'||c.src==='disk'?1:.3});
-    R.label([SRC.cache[0],.3,ZB],'page cache',{fs:12,dy:-10,c:P.c1,a:c.src==='cache'||c.src==='disk'?1:.45});
+    R.label([SRC.cache[0],.3,ZB],'page cache',{fs:12,dy:-10,c:P.c1,a:c.src==='cache'||c.src==='disk'?1:.45,wide:!(c.src==='cache'||c.src==='disk')});
     R.box(SRC.disk,[1.0,.2,.7],{fill:mix(P.paper,P.mute,.3),a:c.src==='disk'?1:.3});R.label([SRC.disk[0],.2,ZB],'file on disk',{fs:12,dy:-10,a:c.src==='disk'?1:.45,wide:1});
-    R.box(SRC.swap,[1.0,.2,.7],{fill:mix(P.paper,P.c5,.35),a:c.src==='swap'?1:.3});R.label([SRC.swap[0],.2,ZB],'swap',{fs:12,dy:-10,a:c.src==='swap'?1:.45});
+    R.box(SRC.swap,[1.0,.2,.7],{fill:mix(P.paper,P.c5,.35),a:c.src==='swap'?1:.3});R.label([SRC.swap[0],.2,ZB],'swap',{fs:12,dy:-10,a:c.src==='swap'?1:.45,wide:c.src!=='swap'});
     // step 6: the handler fills the entry from the case's source
     const hx=XM+1.8,hp=[hx,0,ZM],ha=k===5?e:k>5?1:0;
     if(!segv&&ha>0){const P1=[XK+.6,.4,ZM],to=c.src==='zero'?[SRC.zero[0],.4,ZB]:c.src==='cache'||c.src==='disk'?[SRC.cache[0],.3,ZB]:hp;

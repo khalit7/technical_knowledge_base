@@ -36,3 +36,5 @@ What the methodology lacked: guidance for timings on a shared VM. Medians of sev
 | Eight connections through four designs in 3D (thread per connection, select / poll merged, epoll, io_uring rings straddling the plate), counters on the figure | s8, Fig. 5 | built (replaces the 2D animation; select and poll had identical frames, so one mode) |
 | Four lock designs on one timeline | s4 | kept 2D: a timeline reads best flat; now a widget that opens on the finished run (one frame per kernel event, more than 12 per design, too many for explained steps) |
 | Lock costs, GIL delay, readiness cost against N, free-threaded before/after, choosing tree, thread picture | s1, s3, s7, s8, s9 | kept 2D: bars, a log-log curve, a timeline, a tree and a structure diagram read best flat |
+
+2026-11-19: Fig. 4 (stg-dl) on a phone: MainThread's name goes under its box in steps 4 and 5, where above it it ran into the sleeping logger's name. Fig. 5 in epoll mode was checked at 390 and left as it is (every label reads; the counters, lists and ready sockets are apart).

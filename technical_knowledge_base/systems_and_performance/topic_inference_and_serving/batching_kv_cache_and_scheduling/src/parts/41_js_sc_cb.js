@@ -29,13 +29,14 @@
   const qz=(base,j)=>base-.25+j*.34;
   function queue(R,ids,base,a){const P=R.P;ids.forEach((i,j)=>R.box([x(0)-.75,0,qz(base,j)],[.4,.26,.26],{fill:mix(P.paper,rgb(TAB[i]),.7),a,lw:.6}))}
   function draw(R,k,e){const P=R.P;R.grid(-6,6,-3.6,4,.5);axis(R,1);
-    const sa=k===0?1:k<=3?1:.28,ca=k>=4?1:k===0?.5:.12;
-    lane(R,ZS,sa,'static');lane(R,ZC,Math.max(ca,.3),'continuous');
+    const sa=k===0?1:k<=3?1:k===4&&R.W<520?0:.28, // phones: the camera is close on the continuous lane at step 5, so the static one (cropped there) is left out until step 6
+      ca=k>=4?1:k===0?.5:.12;
+    if(sa>0)lane(R,ZS,sa,'static');lane(R,ZC,Math.max(ca,.3),'continuous');
     if(k===0){queue(R,[0,1,2,3,4,5,6,7],ZS,e);R.label([x(0)-.75,.26,qz(ZS,0)],'8 requests queued',{dy:-14,fs:12.5,b:1,a:e})}
     // static: batch 1, its idle seats, batch 2
     const sEnd=k===1?lerp(0,ST.reqs[1].last,e):k===2?ST.reqs[1].last:k>=3?(k===3?lerp(ST.reqs[1].last,ST.span,e):ST.span):0;
-    if(k>=1)bars(R,ST,ZS,sa,sEnd,k===2?e:k>=3?1:0,k<=3);
-    if(k>=3)endMark(R,ST,ZS,sa*(k===3?e:1),'all done '+f(ST.span,2)+' s');
+    if(k>=1&&sa>0)bars(R,ST,ZS,sa,sEnd,k===2?e:k>=3?1:0,k<=3);
+    if(k>=3&&sa>0)endMark(R,ST,ZS,sa*(k===3?e:1),'all done '+f(ST.span,2)+' s');
     if(k===2)R.label([(x(ST.reqs[2].last)+x(ST.reqs[1].last))/2,.2,zs(ZS,2)],'seat held, idle',{dy:-14,fs:12.5,b:1,c:P.bad,a:e});
     if(k===3)R.label([x(ST.reqs[4].start),.45,zs(ZS,0)],'batch 2 waits for batch 1',{al:'left',dy:-18,fs:12.5,b:1,a:e});
     // continuous: a seat is refilled at the next step after its request leaves

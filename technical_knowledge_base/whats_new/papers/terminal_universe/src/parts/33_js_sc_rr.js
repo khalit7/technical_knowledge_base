@@ -38,38 +38,46 @@
   function layout(){const R=S.R,s=R.snaps[R.snaps.length-1],seen=[];const push=p=>{if(seen.indexOf(p)<0&&!p.endsWith('.gitkeep'))seen.push(p)};
     s.e0.forEach(push);s.listed.forEach(push);s.fin.forEach(push);s.cr.forEach(push);s.held.forEach(push);S.paths=seen;S.agent=new Set(s.cr.concat(s.held).filter(p=>s.e0.indexOf(p)<0))}
   const N=()=>S.R.events.length,SP=()=>Math.min(.56,10/N()),TX=i=>(i-(N()-1)/2)*SP(),ZT=2.5,WX=-1.5,SZ=-.2,SW=5,SD=2.6,TRX=3.2;
-  function slab(i){return [WX-SW/2+.5+(i%6)*.8,.12,SZ-SD/2+.45+Math.floor(i/6)*.8]}
+  // slab slots: column-major from the left for the workspace's own files, from the right for the agent's (so under the last-version rule the agent's
+  // files stand together at the right end, named in a column just right of the slab, and the names above the other boxes stay few)
+  function slab(i){return [WX-SW/2+.5+Math.floor(i/2)*.8,.12,SZ-SD/2+.45+(i%2)*.8]}
+  function slabR(i){const r=i%2,c=5-Math.floor(i/2);return [WX-SW/2+.5+c*.8,.12,SZ-SD/2+.45+r*.8]}
   function tray(i){return [TRX+(i%2?.35:-.35),.08,SZ-.75+Math.floor(i/2)*.6]}
   function hgt(n){return .14+.11*Math.log2(1+(n||0))}
   function draw(R0,k,e){if(!S.R)return;const P=R0.P,R=S.R,m=S.mode,g=S.G[k],cnt=g.ev.length,ui=Math.min(cnt-1,Math.floor(e*cnt)),j=g.ev[ui],ev=R.events[j],s=R.snaps[j];
     R0.grid(-6.5,6.5,-3.4,3.6,.5);
     // the session's commands
     R0.box([0,0,ZT],[N()*SP()+.3,.06,.8],{dz:4});
-    R.events.forEach((x,i)=>{const done=i<=j,curr=i===j,col=KIND(P,x.kind);R0.box([TX(i),.06+(curr?.12:0),ZT],[SP()*.8,.12,.48],{fill:col,a:done?1:.22,shadow:false,lw:curr?1.6:.9})});
-    const maxc=R0.W<520?24:R0.W<900?40:58,cmd=ev.cmd.length>maxc?ev.cmd.slice(0,maxc-1)+'…':ev.cmd;
-    R0.label([TX(j),.3,ZT],'$ '+cmd,{mono:true,fs:12.5,b:1,dy:-14});
-    R0.label([0,0,ZT+.4],'the session · '+N()+' commands · now turn '+R.events[j].t,{mono:true,fs:12,c:P.mute,dy:16,wide:1});
+    R.events.forEach((x,i)=>{const done=i<=j,curr=i===j,col=KIND(P,x.kind);R0.box([TX(i),.06+(curr?.16:0),ZT],[SP()*.8,.12,.48],{fill:col,a:done?1:.22,shadow:false,lw:curr?1.8:.9})});
+    // the current command, written in front of the session (not over the tiles), with a short stalk down from its raised tile
+    const maxc=R0.W<520?30:R0.W<900?44:60,cmd=ev.cmd.length>maxc?ev.cmd.slice(0,maxc-1)+'…':ev.cmd;
+    R0.line([[TX(j),.06,ZT+.24],[TX(j),0,ZT+.72]],{c:P.ink,w:1,a:.5});
+    R0.label([0,0,ZT+.72],'$ '+cmd,{mono:true,fs:12.5,b:1,dy:12});
+    R0.label([0,0,ZT+.72],'the session · '+N()+' commands · now turn '+R.events[j].t,{mono:true,fs:12,c:P.mute,dy:31,wide:1});
     // the workspace and the tray
-    R0.box([WX,0,SZ],[SW,.12,SD],{dz:4});R0.label([WX-SW/2,.12,R0.W<520?SZ-SD/2:SZ+SD/2],m==='early'?'replayed workspace Ê₀':'workspace replayed to the last version',{al:'left',dx:2,dy:R0.W<520?-12:16,fs:12.5,b:1,grp:R0.W<520?undefined:'t'});
-    if(m==='early'){R0.box([TRX,0,SZ],[1.6,.08,2.3],{dz:2});R0.label([TRX,.1,SZ+1.15],'held back',{fs:12,c:P.c2,b:1,dy:16})}
+    R0.box([WX,0,SZ],[SW,.12,SD],{dz:4});R0.label([WX-SW/2,.12,R0.W<520?SZ-SD/2:SZ+SD/2],m==='early'?'replayed workspace Ê₀':'workspace replayed to the last version',{al:'left',dx:2,dy:R0.W<520?-12:14,fs:12.5,b:1});
+    if(m==='early'){R0.box([TRX,0,SZ],[1.6,.08,2.3],{dz:2});R0.label([TRX,.1,SZ+1.15],'held back',{fs:12,c:P.c2,b:1,dy:14})}
     const kn=new Set(s.listed),e0=new Set(s.e0),cr=new Set(s.cr),held=new Set(s.held),fin=new Set(s.fin);let ti=0,si=0;const pos={};
     S.paths.forEach(p=>{const ag=S.agent.has(p);let where=null,fill=null,h=.16,da=0;
       if(m==='early'){if(e0.has(p)){where='s';fill=s.e0n[p][1]?P.c3:P.c6;h=hgt(s.e0n[p][0])}else if(ag&&(cr.has(p)||held.has(p))){where='t';fill=P.c2;h=.32}else if(kn.has(p)&&!ag){where='s';fill=P.c5;da=1;h=.3}}
       else{if(fin.has(p)||cr.has(p)){where='s';fill=ag?P.c2:P.c3;h=.3}else if(kn.has(p)){where='s';fill=P.c5;da=1;h=.3}}
       // each path keeps its place on the slab (or tray) for the whole replay
-      const sp=ag&&m==='early'?tray(S.slots[p].t):slab(S.slots[p].s);pos[p]=sp;
+      const sp=ag?(m==='early'?tray(S.slots[p].t):slabR(S.slots[p].t)):slab(S.slots[p].s);pos[p]=sp;
       if(!where){R0.box(sp,[.5,.04,.5],{fill:P.line,a:.25,shadow:false});return}
       R0.box(sp,[.5,h,.5],{fill,fa:da?.12:1,a:1,shadow:false});
-      // names: on the slab above each box; on the tray in a column just left of it, so they do not cover the agent's files
-      if(p===ev.path||e0.has(p)||(where==='t'&&m==='early')||(m==='late'&&ag&&where))R0.label(where==='t'?[TRX-.85,h,sp[2]]:add(sp,[0,h,0]),short(p).split('/').pop(),{mono:true,fs:12,dy:where==='t'?0:-10,dx:where==='t'?-4:0,al:where==='t'?'right':'center',b:p===ev.path,grp:where==='t'?'t':'f',a:p===ev.path?1:.85})});
+      // names: the agent's files in a column just right of the tray (or, under the last-version rule, of the slab's right end), with leader lines,
+      // so they never cover a box or the slab; the workspace's own files above their boxes
+      const side=ag&&where;
+      if(p===ev.path||e0.has(p)||side)R0.label(side?[m==='early'?TRX+.8:WX+SW/2,h,sp[2]]:add(sp,[0,h,0]),short(p).split('/').pop(),{mono:true,fs:12,dy:side?0:-15,dx:side?8:0,al:side?'left':'center',b:p===ev.path,grp:side?'t':'f',a:p===ev.path?1:.85})});
     // what the current command does, as a flow from its tile
     const from=[TX(j),.3,ZT];
     if(ev.path&&pos[ev.path])R0.flowArc(from,add(pos[ev.path],[0,.35,0]),.8,{c:KIND(P,ev.kind),n:8});
     else if(ev.kind==='list'){s.listed.filter(p=>pos[p]&&!S.agent.has(p)).slice(0,6).forEach(p=>R0.flowArc(from,add(pos[p],[0,.35,0]),.7,{c:P.c5,a:.7,n:5,r:.05}))}
     else if(ev.kind==='run')R0.glow(from,.6,{c:P.mute,a:.6})}
-  const st=S3.stage({id:'stg-rr',list:'sx-rr',fig:'Fig. 1 · replay, one turn per step',cam:[.3,.68],bounds:()=>[[-5.3,0,-1.8],[4.4,1.1,3]],aspect:.62,dur:2600,hold:4600,draw});
+  const st=S3.stage({id:'stg-rr',list:'sx-rr',fig:'Fig. 1 · replay, one turn per step',cam:[.16,.7],bounds:()=>{const hw=(N()*SP()+.3)/2+.1;return [[Math.min(-4.6,-hw),0,-1.6],[Math.max(4.2,hw),1,3.2]]},aspect:.5,dur:2600,hold:4600,draw,
+    margin:w=>w<520?[14,8,40,8]:[34,190,48,14]});
   function rebuild(replay){const el=document.getElementById('sx-rr');el.innerHTML=listHTML(S.mode);st.list('sx-rr')}
-  function load(i){S.i=i;S.C=TRACES[i];S.R=RP.run(S.C);S.G=groups(S.R);layout();let a=0,b=0;S.slots={};S.paths.forEach(p=>{S.slots[p]=S.agent.has(p)?{t:b++,s:a++}:{s:a++}});
+  function load(i){S.i=i;S.C=TRACES[i];S.R=RP.run(S.C);S.G=groups(S.R);layout();let a=0,b=0;S.slots={};S.paths.forEach(p=>{S.slots[p]=S.agent.has(p)?{t:b++}:{s:a++}});
     const R=S.R;document.getElementById('rrSum').innerHTML=R.events.length+' commands in '+R.turns+' turns, '+S.G.length+' steps (turns without commands are skipped). Replay recovers '+R.e0_files+' pre-existing file'+(R.e0_files===1?'':'s')+' ('+R.e0_lines+' lines) and '+R.known_only.length+' more by name; '+(R.seed?'it passes':'it fails')+' the seed filter ('+R.end_files+' files, '+R.end_lines+' lines visible at the end; at least 5 and 100 needed).';
     rebuild()}
   const seg=document.getElementById('rrM');

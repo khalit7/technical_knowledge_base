@@ -48,3 +48,5 @@ Data and formulas:
 Inspiration: the DeepSeek MLA explainer (before/after on one input); the Constitutional AI paper page's refusal counter (a visible classifier over released answers).
 
 What the methodology lacked: a rule for showing model outputs to unsafe prompts. Applied here: show refusals, withhold any answer to an unsafe prompt that was not a full refusal, and say so.
+
+2026-11-19: Fig. 1 (stg-xs) step 4, the close-up on the worst family: the other rows fade to .06 (were .18), so their tall orange cubes no longer crowd the row in focus. Step 2's row labels and cubes were checked at 1400 and 390 and no longer overlap.

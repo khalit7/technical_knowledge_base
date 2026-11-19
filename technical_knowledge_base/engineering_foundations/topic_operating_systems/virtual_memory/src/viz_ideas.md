@@ -36,3 +36,5 @@ Status as of 2026-10-24: the hero, walk and copy-on-write steppers (`28_js_rd_he
 
 ## 2026-11-07 (renderer v2 rollout)
 Built: 3D stages for the hero, the walk, the fault path, mmap shared by two processes, copy-on-write, and 512 entries against one huge page. Kept 2D: bar charts with numbers on an axis, the cgroup replay (memory over time), the watermark and pinned-copy diagrams (flat). Considered and rejected: a 3D TLB-reach curve (a curve on a log axis reads best flat), a 3D shootdown across CPUs (only arm64 was measured, and the bars are flat).
+
+2026-11-19: Fig. 1 (hero) and Fig. 4 (stg-flt) on a phone: only the parts a step is about keep their names; the names of receding layers and parts (address-space regions, TLB, page tables, frames, files, swap; in Fig. 4 the TLB, entry, kernel and the sources not used) hide under 520 px, where they piled into each other. Desktop unchanged.

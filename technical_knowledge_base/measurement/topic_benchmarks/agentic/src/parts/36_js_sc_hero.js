@@ -21,7 +21,9 @@
       lab(R,[x,h*(o.grow==null?1:o.grow),0],(o.fmt||(v=>v.toFixed(2)))(v),{mono:true,fs:12,b:1,dy:-10,c:c||col,a});
       if(nm)lab(R,[x,0,o.d?o.d/2:.15],nm,{fs:12,dy:13,c:P.ink,a})})}
   function draw(R,k,e,st){const P=R.P;R.grid(-5,6,-2,2,.5);
-    const pk=st&&st.pk!=null?st.pk:k,V=n=>lerp(VIS[pk][n],VIS[k][n],e);
+    const pk=st&&st.pk!=null?st.pk:k;
+    // objects leaving fade out in the first third of the camera glide and objects arriving fade in over its last part, so nothing half-faded slides past the card's edge (2026-11-19)
+    const V=n=>{const f=VIS[pk][n],t=VIS[k][n];return t<f?lerp(f,t,win(e,0,.3)):lerp(f,t,win(e,.45,1))};
     // the task: a standing glass card
     const aT=V('t');R.glass([XT,.12,-.5],[0,0,1],[0,1.1,0],{c:P.c1,a:aT,nu:3,nv:4});lab(R,[XT,1.22,0],'task',{b:1,dy:-10,a:aT});
     lab(R,[XT,0,.5],'instruction · state · limits',{fs:12,dy:14,c:P.mute,a:aT,wide:1});

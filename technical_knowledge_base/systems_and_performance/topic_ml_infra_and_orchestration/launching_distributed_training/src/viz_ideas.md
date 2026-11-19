@@ -20,3 +20,5 @@ Scores 0 to 2 on: moves with a parameter, reproduces a source, computable from r
 | 13 | Real image (a photo) | none suitable | none | 0 | rejected: software start-up; real logs and stacks are the real objects here |
 | 9 | torchfrtrace walkthrough | stuck case dumps | Reading 8 (one block) | 5 | text only: the Distributed PyTorch page owns it |
 | 10 | Extrapolated rendezvous time at 1,000 nodes | none published that could be checked | none | 2 | rejected: invented numbers |
+
+2026-11-19: Fig. 1 (the page hero, stays the hero): 3D stage `stg-hero` redrawn flat as `ld-hero-card` (`40_js_hero.js`, RD.anim, same 6 steps and numbers): slurmctld, two nodes with their torchrun agents, the c10d store and four ranks, arrows per link, the gloo full mesh, the DDP broadcast; new under it, the six links on one measured time scale (submit to step 1, 7.5 s). Why: processes on nodes and messages between them; depth carried nothing (positions were schematic).

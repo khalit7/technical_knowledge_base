@@ -70,3 +70,6 @@ It has no rule for when a model card and a later technical report disagree with 
 | Attention Residuals as plates along depth | **Built** (`stg-ar`) | Sources across depth, block summaries and their weights are spatial; replaces the 2D source-weight widget |
 | Hero strips, timeline, ratio chart, cache curves, parameter bars, weight bytes, Quantile Balancing, delta-rule sandbox | **Kept 2D**, each in a split | Strips, a timeline, a ratio curve, log curves, stacked bars and widgets whose outcome the reader drives read best flat |
 | Max-logit curves from the K2 report (Fig. 2) | **Rejected** | No numeric data in `inputs/` and the figure's licence (CC BY-NC-ND 4.0) does not allow embedding; the stage's maxima are labelled illustrative |
+
+2026-11-19: QK-Clip stage (stg-qk) step 4: the close-up now shows h3 alone (the other heads and their plates hidden, not faded at .06, which read as a crop at the card edge), and on a phone the camera centres on h3 since the side labels hide there.
+2026-11-19: KDA stage (stg-kx) steps 2 to 5: the rows a step is not about fade to .1 (was .25), so the decayed, erased, written or read rows and the step's vector stand out from the 256-bar field; in step 5 the field's name moves behind the field so it no longer sits on the output o.

@@ -43,3 +43,5 @@ Rejected: a 3D stage for the LayerNorm against RMSNorm formulas (an equation, no
 (the arithmetic is one line, 0.02/sqrt(12)); 3D for the spike table or the production table (tables); 3D in the Stability explorer
 (a reader-driven grid of runs with four log charts; it stays a full-width tool); the stepper's per-token views (token "o", token 0,
 largest entry) as stage modes: five modes over a five-step story would bury it; the largest entries stay in section 7's table.
+
+2026-11-19: Fig. 3 (stg-rs): rows a step is not about now fade to .07 (was .15), so in steps 2 and 3 the tall faded post-norm row no longer sits over the pre-norm row and the end labels read on clean ground; the end labels sit a little further right of the last column. Fig. 5 (stg-ma): faded rows go to .05 to .1 (were .14 to .16), so in step 5 the sink row is no longer hidden behind the faded largest-entry row; in step 4 the 4,047 and final-norm labels moved off the bars. Fig. 1 (hero) and Fig. 4 were checked at 1400 and 390 and left as they are (the hero no longer reads sparse; Fig. 4 has no faded objects under its labels).

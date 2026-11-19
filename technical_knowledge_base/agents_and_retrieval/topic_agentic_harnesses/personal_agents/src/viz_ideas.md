@@ -24,3 +24,7 @@ Nothing for a page about a product category with no published benchmark; the "bu
 ## Rebuild of 2026-10-24
 Built: **hero** (static annotated diagram of the resident agent, drawn at measured width); **one page, two ways** (stepper over real headless-Chrome captures of a fake booking form: screenshot with click overlay against the accessibility tree; a cookie banner shifts the layout 49 px and the remembered point lands on the wrong slot); **long horizons** (one-slider derived curve P = p^n, illustrative, labelled). Moved inline: the Gate designer (section 6).
 Rejected: a computer-use benchmark chart (Agentic benchmarks owns OSWorld and draws it); a photo or vendor screenshot of a computer-use product (licence unclear, and the real capture of a page made for this page teaches the mechanism better); an animated injection example (Agent security owns it).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`40_js_sc_hero.js`): close-up steps left large faded blocks cropped at the card's edges. Parts a step is not about now recede to .18 (was .24) and parts outside the close view to .02 (was .07).
+- Fig. 7 (`43_js_sc_gate.js`): the same at steps 4 and 5 (the read column and the gate cut by the left edge). A column must sit fully inside the close view to stay as a faded reference, else it almost vanishes; the gate keeps its looser test so it stays at steps 2 and 3. The last step (all decisions) now uses the full view with every column at .85, a summary instead of a pale close-up. Step count and list text unchanged.

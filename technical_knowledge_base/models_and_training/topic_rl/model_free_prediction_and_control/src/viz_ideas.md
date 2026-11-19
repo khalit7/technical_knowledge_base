@@ -39,3 +39,6 @@ What the methodology lacked: guidance for a figure whose free parameter the book
 | MF-18 | On phones, stack the four grids in one column | section 4 | rejected: the stage is height-limited on a phone, so each grid came out smaller than in the 2 x 2 layout |
 | MF-19 | Baird's counterexample as a 3D star of seven states with growing value bars | section 7 | rejected: the message is growth on a log axis, which the 2D chart shows; the switches stay |
 | MF-20 | Cliff lab's 4 x 12 grid in 3D | section 4 | rejected: the four-learner stage already shows the cliff in 3D; the lab's job is the 500-episode learning curve |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Hero (`37_js_sc_hero.js`), step 8 (three targets for Q(S, right)): crowded at 1400 px (the target shelf sat against S, the Expected SARSA label on S's square, four S′ labels and the full cliff around the streams). The shelf moves further back (z -2.75) with the camera framing it, the cliff recedes to .25 and S′ names only the two values the targets use (down -100, right -4; up and left are named at step 7). Step count and list text unchanged.

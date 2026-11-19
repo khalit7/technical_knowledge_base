@@ -53,3 +53,6 @@ Moved: the pipeline schedule explorer (tab to section 8), the comm-hook lab (tab
 | Fig. 5: DCP save and two read-backs | 3D stage, 4 steps | section 9 | dcp_more.json (convert, reshard) |
 
 Replaced: the static hero, FSDP2, DTensor and DCP figures and the DDP 2D stepper. Rejected: a 3D pipeline (the schedule explorer is a timeline, flat reads best); a 3D TP/SP (the lanes of tiles already show the halves); a 2 x 2 x 2 cube for the composed run (the to-scale cut of one weight says more than the mesh shape, which the Mesh explorer lists).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 3 (`43_js_sc_fsdp.js`): checked at 1400 and 390 px; the title lines no longer sit over the rank stacks (fixed by the cosmetic pass). Only change: a 56 px left margin on wide screens so the row names (root unit, block 0 to 3) no longer touch rank 0's stack.

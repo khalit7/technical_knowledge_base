@@ -28,7 +28,7 @@
     for(let i=0;i<N;i++){const h=Math.max(.02,vis(k,e,st,s=>val(s,i)*SC(s))),x=X(i); // the drawn height eases directly, so a column never overshoots while the scale changes
       const isHot=k===5?true:k>=4?false:hot[i]||(k===1&&hot[i]);
       const fill=k===5&&!hot[i]?mix(P.paper,OK,.55):isHot&&k<4?mix(P.paper,HOT,.8):mix(P.paper,OK,.7);
-      const a=k===3?(i===2?1:.06):1;
+      const a=k===3?(i===2?1:0):1; // the close-up shows h3 alone: faded neighbours only read as a crop at the card edge
       R.box([x,0,0],[CW,h,CW],{fill,a});
       // the height it had before the clip, as a dashed ghost
       if(k>=4&&(hot[i]||k===5)){const h0=S[i]*sc,ga=vis(k,e,st,s=>s>=4?1:0);R.box([x,0,0],[CW+.04,h0,CW+.04],{fa:0,a:ga*.7,shadow:false,lw:.8})}
@@ -38,7 +38,7 @@
       if(nv>.01&&k!==1){const vv=val(k===st.pk||e>=1?k:(e<.5?st.pk:k),i);R.label([x,h,0],(Math.round(vv*10)/10).toString(),{mono:true,fs:12.5,dy:-12,b:hot[i]||k===5,c:P.ink,a:nv})}
       const gv=lab(k,e,st,s=>s===2?1:0);if(gv>.01&&hot[i])R.label([x,S[i]*sc,0],'γ '+g[i].toFixed(3),{mono:true,fs:12.5,dy:-12,b:1,c:mix(HOT,P.ink,.35),a:gv});
       // the head's own weights in front: content query and key (scaled by the square root of gamma), rotary query (by gamma)
-      const pa=vis(k,e,st,s=>s===0?.9:s===1?.25:s===3?(i===2?1:.05):s===2?(hot[i]?1:.3):.85);
+      const pa=vis(k,e,st,s=>s===0?.9:s===1?.25:s===3?(i===2?1:0):s===2?(hot[i]?1:.3):.85);
       const qf=vis(k,e,st,s=>fq(s,i)),rf=vis(k,e,st,s=>fr(s,i));
       [[-.25,P.q,qf],[0,P.k,qf],[.25,mix(P.q,P.paper,.35),rf]].forEach(([dx,c,f])=>R.glass([x+dx-.09,.04,ZP],[.18,0,0],[0,PH*f,0],{c,a:pa,nu:1,nv:3,th:.03}));
       // forward pass: query and key meet in the logit (step 1); the measured maximum goes back to the weights (step 3)
@@ -61,8 +61,9 @@
     const nl=lab(k,e,st,s=>s===5?1:0);
     if(nl>.01)R.label([X(N-1)+.4,TAU*sc*.5,0],'every head ×'+gAll.toFixed(3),{al:'left',dx:10,fs:12.5,b:1,c:P.ink,a:nl,grp:'R'});
   }
+  const narrow=()=>{const h=document.getElementById('stg-qk');return !!h&&h.clientWidth<520}; // on a phone the side labels hide, so the close-up centres on h3
   const full={cam:[.26,.44],bounds:[[-5.1,0,-.6],[5.1,2.35,2.2]]};
   S3.stage({id:'stg-qk',list:'sx-qk',fig:'QK-Clip · eight heads of one layer, illustrative maxima',cam:full.cam,bounds:full.bounds,aspect:.52,dur:1500,hold:5000,draw,
     margin:w=>w<520?[14,8,14,8]:[18,20,14,130],
-    view:k=>k===1?{cam:[.26,.38],bounds:[[-5.1,0,-.6],[5.1,3.1,2.2]]}:k===3?{cam:[.42,.4],bounds:[[X(2)-2.2,0,-.6],[X(2)+2.6,1.9,2.3]]}:full});
+    view:k=>k===1?{cam:[.26,.38],bounds:[[-5.1,0,-.6],[5.1,3.1,2.2]]}:k===3?(narrow()?{cam:[.42,.4],bounds:[[X(2)-1.3,0,-.6],[X(2)+1.3,1.9,2.3]]}:{cam:[.42,.4],bounds:[[X(2)-2.2,0,-.6],[X(2)+2.6,1.9,2.3]]}):full});
 })();

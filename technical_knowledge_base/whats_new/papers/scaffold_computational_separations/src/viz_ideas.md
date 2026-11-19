@@ -15,3 +15,5 @@
 | P-scaffold_computational_separations.11 | Train a tiny transformer student on BFS traces at two sizes | | rejected | would test learnability at toy scale, not the theorem (which is about representation), and the paper's own sweeps already show size closing the gap; hours of CPU for a result that could not be compared like for like |
 | P-scaffold_computational_separations.12 | Animated Branching tree filling call by call | | rejected | the tree structure is said completely by "1 + d + ... + d^L calls"; animation would be decoration |
 | P-scaffold_computational_separations.13 | Ablation figures 6 to 8 decoded | | rejected | line and scatter panels without printed values; the text's summary carries the claim and the page says so |
+
+2026-11-19: Fig. 1 (hero) step 6: the 3-layer ceiling over the 16-vertex graph is drawn lighter (glass at .18 of full, was .4), so its orange tint no longer covers the whole scene and the columns that pierce it read first.

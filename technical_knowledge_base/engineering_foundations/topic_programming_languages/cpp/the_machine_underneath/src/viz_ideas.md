@@ -37,3 +37,5 @@ Methodology notes: every number is measured on this machine (three runs, spread 
 | Hero (one operation's time, log scale) | kept 2D (bars on a log axis), moved into a split beside "You need" |
 | Branch predictor state machine (old idea 9) | still rejected: Apple's predictor is undocumented |
 | Roofline chart | still left to its owners (hardware root's Roofline lab, Performance math) |
+
+2026-11-19: Section 6 SIMD schedules: 3D stage `stg-simd` redrawn flat as `cb-simd-card` (`47_js_simd.js`, RD.anim, same 6 steps): three Gantt panels side by side, lanes across and cycles down on one scale (64, 52, 16 cycles), the dependency chain dashed, predicted and measured ns per element at the last step. Why: cycles in depth were foreshortened; a flat time axis reads the lengths directly. The paragraph above the list now says time runs down.

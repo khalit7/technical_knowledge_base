@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 { cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_split.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11a_js_data.js parts/11_js_read.js parts/13_js_ij.js parts/14_js_line.js parts/16_js_hero.js parts/25_js_s3.js parts/41_js_sc_cx.js parts/42_js_sc_g1.js parts/43_js_sc_hv.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11a_js_data.js parts/11_js_read.js parts/13_js_ij.js parts/14_js_line.js parts/16_js_hero.js parts/25_js_s3.js parts/41_js_sc_cx.js parts/42_js_sc_g1.js parts/43_js_hv.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 wg=>"https://en.wikipedia.org/wiki/Grok_(chatbot)",

@@ -24,26 +24,27 @@
   window.R2S_RT={groups:G.map(g=>({t:g.t,n:g.f.length,b:g.b,cum:g.cum})),lib:LIB.meta.library_bytes,graphs:{vllm:GR.vllm.total,sglang:GR.sglang.total},fam:REP.length,
     hours:LIB.session.seconds/3600,calls:LIB.session.tool_calls};
   function draw(R,k,e){const P=R.P;R.grid(-5.4,5,-3.3,2.8,.5);
-    const libA=k===0?.45:k<=2?1:k===6?.3:k===3?.3*(1-e):0;
+    const libA=k===0?.45:k<=2?.22:k===6?.3:k===3?.22*(1-e):0;   // steps 2 and 3 are about one tower: the other 19 recede
     // the library: 20 area towers, each a stack of its families
     AR.forEach((a,i)=>{let y=0;const on=i===IA&&k>=1&&k<=2;a.f.forEach(f=>{const h=f.m*HS,fam=on&&f.n==='Inference Serving';
         R.box([XA(i),y,ZL],[.36,Math.max(.006,h-.006),.36],{fill:fam&&k===2?P.c3:on?mix(P.paper,P.c3,.45):P.paper,a:on?1:libA,shadow:y===0,lw:.6});y+=h});
-      if(on&&k===1)R.label([XA(i)-.2,y,ZL],a.n,{al:'right',dx:-8,fs:12.5,b:1,c:P.c3,dy:-6})});
-    if(k===1){let y=0;AR[IA].f.forEach(f=>{R.label([XA(IA)+.2,y+f.m*HS/2,ZL],f.n+' ('+f.m+')',{al:'left',dx:10,fs:12,c:P.c3,grp:'fam'});y+=f.m*HS})}
+      if(on&&k===1)R.label([XA(i),y,ZL],a.n,{fs:12.5,b:1,c:P.c3,dy:-34})});
+    if(k===1){let y=0;AR[IA].f.forEach(f=>{R.label([XA(IA)+.2,y+f.m*HS/2,ZL],f.n+' ('+f.m+')',{al:'left',dx:26,fs:12,c:P.c3,grp:'fam'});y+=f.m*HS})}
     if(k===0)R.label([XA(10),1.6,ZL],'20 areas · 178 families',{fs:12.5,c:P.mute,wide:1});
     // the router card
-    const ra=k===0?1:.35;R.box([-4.2,0,2.0],[.7,.9,.07],{fill:mix(P.paper,P.c3,.25),a:ra});
+    // the router card: gone while the two graphs, drawn in front of it, are read (steps 4 to 7)
+    const ra=k===0?1:k<=2?.35:k===3?.35*(1-e):0;if(ra>0){R.box([-4.2,0,2.0],[.7,.9,.07],{fill:mix(P.paper,P.c3,.25),a:ra});
     for(let y=.2;y<.82;y+=.16)R.line([[-4.44,y,2.04],[-3.96,y,2.04]],{c:P.c3,w:1.3,a:ra*.8});
-    R.label([-4.2,.9,2.0],'router SKILL.md',{mono:true,fs:12.5,b:k===0,c:P.c3,dy:-10,a:k===0?1:.6});
+    R.label([-4.2,.9,2.0],'router SKILL.md',{mono:true,fs:12.5,b:k===0,c:P.c3,dy:-10,a:k===0?1:ra*1.6})}
     // step 3: the family page lists its 51 repositories; two are picked
-    if(k>=2&&k<=3){const fa=k===2?e:.18;REP.forEach((ri,j)=>{const n=LIB.repos[ri][0],pick=n==='vllm-project/vllm'||n==='sgl-project/sglang';
-        R.box([XF(j),0,ZF],[.075,pick?.32:.16,.22],{fill:pick?P.c1:mix(P.paper,P.c3,.25),a:pick?Math.max(fa,.8):fa,shadow:false,lw:.5});
+    if(k>=2&&k<=3){const fa=k===2?e:.18*(1-e);REP.forEach((ri,j)=>{const n=LIB.repos[ri][0],pick=n==='vllm-project/vllm'||n==='sgl-project/sglang';
+        R.box([XF(j),0,ZF],[.075,pick?.32:.16,.22],{fill:pick?P.c1:mix(P.paper,P.c3,.25),a:pick?(k===2?Math.max(fa,.8):.8*(1-e)):fa,shadow:false,lw:.5});
         if(pick&&k===2)R.label([XF(j),.32,ZF],n.split('/')[1],{fs:12.5,b:1,c:P.c1,dy:-10,a:e,grp:'pick'})});
       if(k===2)R.label([XF(0)-.1,.1,ZF],'Inference Serving · 51 repositories',{al:'right',dx:-8,fs:12.5,c:P.c3,a:e,wide:1})}
     // steps 4 to 7: the two graphs, every file to scale; a file lights when its step reads it
     if(k>=3){const ga=k===3?e:1;
       Object.entries(GR).forEach(([g,G_])=>{G_.T.forEach(t=>{const s=STEP[t.p],read=s!=null&&s<=k,now=s===k&&k<6,col=t.kind==='s'?P.c1:t.kind==='x'?P.c3:P.c2;
-          R.box([t.x,0,t.z],[Math.max(.012,t.w-.01),read?(now?.16+.08*e:.16):.05,.26],{fill:read?col:mix(P.paper,col,.25),a:ga*(read?1:k===6?.3:.55),shadow:false,lw:.5})});
+          R.box([t.x,0,t.z],[Math.max(.012,t.w-.01),read?(now?.16+.08*e:.16):.05,.26],{fill:read?col:mix(P.paper,col,.25),a:ga*(read?1:k===6?.25:.4),shadow:false,lw:.5})});
         R.label([G_.x0,.1,-.55],g==='vllm'?'vLLM graph · '+G_.total.toLocaleString('en-GB')+' bytes':'SGLang · '+G_.total.toLocaleString('en-GB'),{al:'left',dx:-4,dy:-24,fs:12.5,b:1,c:P.ink,a:ga})})}
     // flows: this step's reads stream into context
     const src=k===0?[[-4.2,.85,2.0]]:k===1?[[XA(IA),AR[IA].t*HS,ZL]]:k===2?[[XA(IA),.5,ZL]]:k>=3&&k<=5?Object.values(GR).flatMap(G_=>G_.T.filter(t=>STEP[t.p]===k).map(t=>[t.x,.2,t.z])):[];
@@ -55,7 +56,8 @@
     R.label([CX,0,CZ+.4],k===6?'5.0 h · 193 tool calls':'t = '+G[k].t+' s',{mono:true,fs:12.5,c:P.mute,dy:14});
     if(k===6)R.label([CX+.3,.05+cum*CH*.6,CZ],'0.028% of the library',{al:'left',dx:10,fs:12.5,c:P.mute})}
   const full={cam:[.25,.78],bounds:[[-5.2,0,-3],[4.6,1.6,2.6]]};
-  const V=[full,{cam:[.3,.62],bounds:[[-3.2,0,-3],[1.9,1.6,2.5]]},{cam:[.3,.62],bounds:[[-3.4,0,-3],[2,1.4,2.5]]},
+  // steps 2 and 3 hold the whole row of towers (a narrower view cut the tallest, at the left, and the last ones, at the right)
+  const V=[full,{cam:[.3,.62],bounds:[[-5,0,-3],[5,1.7,2.4]]},{cam:[.3,.62],bounds:[[-5,0,-3],[5,1.7,2.4]]},
     {cam:[.2,.62],bounds:[[-5,0,-1.6],[1.6,1.2,2.6]]},{cam:[.2,.62],bounds:[[-5,0,-1],[1.6,1.2,2.6]]},{cam:[.2,.62],bounds:[[-5,0,-1],[1.6,1.2,2.6]]},full];
   S3.stage({id:'stg-rt',list:'sx-rt',fig:'The released session · 16 library reads',cam:full.cam,bounds:full.bounds,aspect:.62,dur:1500,hold:5000,draw,view:k=>innerWidth<520?{cam:[V[k].cam[0],Math.min(1.2,V[k].cam[1]+.35)],bounds:V[k].bounds}:V[k],
     margin:w=>w<520?[16,10,14,10]:[18,14,14,30]});

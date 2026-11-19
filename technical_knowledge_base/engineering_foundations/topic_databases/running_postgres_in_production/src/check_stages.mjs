@@ -9,10 +9,10 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (Running Postgres in production; adapted from Analytics: columnar engines; no reader-driven replay widgets)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-pitr', 'stg-rep', 'stg-vac', 'stg-xid', 'stg-pool'];
+const STAGES = ['stg-hero', 'stg-rep', 'stg-vac', 'stg-xid', 'stg-pool'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [['rd-fo-card', 'rd-fo-ctl', { hand: 'sx-fo-hand', patroni: 'sx-fo-patroni' }, 'rd-fo-mode', 'm'], ['rd-leak-card', 'rd-leak-ctl', { one: 'sx-leak' }, null, null]];
-const MODES = { 'stg-pitr': ['rd-pitr-mode', 'm', ['dump', 'pitr']] };
+const MODES = { };
 const WIDGETS = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });

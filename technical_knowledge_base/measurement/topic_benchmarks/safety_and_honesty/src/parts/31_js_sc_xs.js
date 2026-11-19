@@ -30,7 +30,7 @@
     cells.forEach((c,ci)=>{const lit=c.side==='s'?(k>=2||(k===1)):(k>=3||k===2);
       let t=0;if(lit){const now=(c.side==='s'&&k===1)||(c.side==='u'&&k===2);t=now?cl((e-c.r/(c.side==='s'?250:200)*.8)/.2,0,1):1}
       const o=d.cell[ci],h=lerp(HI.none,HI[o],t),fill=mix(COL.none,COL[o],t);
-      let a=1;if(k===2&&c.side==='s')a=.35;else if(k===3&&!(c.fi===d.worst.f&&c.side===d.worst.side))a=.18;else if(k===0)a=.8;
+      let a=1;if(k===2&&c.side==='s')a=.35;else if(k===3&&!(c.fi===d.worst.f&&c.side===d.worst.side))a=.06;   // the close-up: other rows nearly vanish (at .18 their tall cubes crowded the row in focus)else if(k===0)a=.8;
       R.box([c.x,0,c.z],[CU,h,CU],{fill,a,shadow:false,lw:.5,ea:.4})});
     // row labels: the eight families (in the close-up of step 4 the highlighted row is named on the figure instead)
     if(k!==3)fams.forEach(f=>R.label([XS0-12.5*PT-.12,0,f.zc],f.n,{al:'right',dx:-10,fs:12,c:P.mute,grp:'rows'}));

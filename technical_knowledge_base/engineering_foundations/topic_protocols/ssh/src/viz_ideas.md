@@ -40,3 +40,5 @@ Protocol pages have no published figures to reproduce; the equivalent check is t
 | Accepted certificate beside the four refusals | toggle | s4 | added to the existing toggle |
 
 Rejected: a stepper for the login scenario (the packet stepper and round-trip ladder already show it; the `-vvv` table is closed reference); a Terrapin step-by-step (attack-route drawings are a rejected pattern; text only); a multiplexing scenario stepper (the to-scale bars carry the claim; logs closed).
+
+2026-11-19: Fig. 1 (hero) on a phone: only the layer in focus is named (faded and receding layers' names overlapped, e.g. user authentication over connection · channels), the TCP name shows only in steps 1 and 7, and the transport's name hides in steps 2 and 3 where the message labels need the room. Fig. 7 (mux) on a phone: the three channel names of step 3 hide (they overlapped; the step text names them) and the control-socket name hides in the exit step, where it sat under the exit label. At 1400 both stages were already clean (the exit step's faded slab names were dropped in the cosmetic pass).

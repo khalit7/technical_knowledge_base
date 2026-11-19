@@ -20,14 +20,14 @@
     party(R, BAS, [1.6, 2.5, 1.4], P.c2, 'bastion', { sub: k === 0 ? 'OpenSSH 10.5p1' : null, a: 1 });
     // the TCP connection: always there, the floor everything rides on
     R.box([0, YT - .1, 0], [X1 - X0, .1, D * .55], { fill: mix(P.paper, P.mute, .25), a: k === 0 ? 1 : .55, shadow: false });
-    R.label([1.2, YT, D * .28], 'TCP · port 22', { fs: 12, b: 1, c: P.mute, dy: 12, a: 1 });
+    R.label([1.2, YT, D * .28], 'TCP · port 22', { fs: 12, b: 1, c: P.mute, dy: 12, a: R.W < 520 && k > 0 && k < 6 ? 0 : 1 });   // on a phone the TCP name shows in step 1 and the jump step only, so it never sits under a layer name
     if (k === 0) { R.flow(route([[X0, YT + .02, -.2], [X1, YT + .02, -.2]]), { c: P.mute, r: .06, n: 9, speed: 1.2 });
       R.flow(route([[X1, YT + .02, .2], [X0, YT + .02, .2]]), { c: P.mute, r: .06, n: 9, speed: 1.2 });
       R.label([0, YT, D * .3], 'one connection: lose it and every channel goes with it', { fs: 12.5, b: 1, c: P.ink, dy: 26, wide: 1 }); }
     // the three SSH layers, drawn faintly before their step so the reader sees the whole stack from the start
     const aT = k < 1 ? .12 : k <= 3 ? 1 : k === 6 ? .3 : .55, aA = k < 4 ? .1 : k === 4 ? 1 : k === 6 ? .3 : .55, aC = k < 5 ? .1 : 1;
-    const tc = k >= 3 ? CT : mix(P.paper, PL, .7), ph = a => R.W < 520 && a <= .3;   // on a phone a faded layer keeps its slab but not its name (they would overlap)
-    slab(R, X0, X1, Y1, 0, D, tc, aT, { lab: ph(aT) ? null : k >= 3 ? 'transport · encrypted' : 'transport · in the clear', lc: k >= 3 ? CT : PL, at: [1.2, Y1, D / 2], al: 'center', dx: 0 });
+    const tc = k >= 3 ? CT : mix(P.paper, PL, .7), ph = a => R.W < 520 && a < 1;   // on a phone only the layer in focus is named (the names of faded or receding layers would overlap)
+    slab(R, X0, X1, Y1, 0, D, tc, aT, { lab: ph(aT) || (R.W < 520 && (k === 1 || k === 2)) ? null : k >= 3 ? 'transport · encrypted' : 'transport · in the clear', lc: k >= 3 ? CT : PL, at: [1.2, Y1, D / 2], al: 'center', dx: 0 });
     slab(R, X0, X1, Y2, 0, D, CA, aA, { lab: ph(aA) ? null : 'user authentication', at: [1.2, Y2, D / 2], al: 'center', dx: 0 });
     slab(R, X0, X1, Y3, 0, D, CC, aC, { lab: ph(aC) ? null : 'connection · channels', at: [1.2, Y3, D / 2], al: 'center', dx: 0 });
     if (k === 1) {   // banners and KEXINIT, readable by anyone on the path

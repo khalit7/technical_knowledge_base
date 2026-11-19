@@ -9,10 +9,10 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (Analytics: columnar engines, DuckDB and the lakehouse; adapted from RAG in production; no reader-driven replay widgets)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-vec', 'stg-ch', 'stg-ice'];
+const STAGES = ['stg-hero', 'stg-vec', 'stg-ch'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [['prCard', 'prCtl', { on: 'sx-pr-on', off: 'sx-pr-off' }, 'prMode', 'm'], ['occCard', 'occCtl', { one: 'sx-occ' }, null, null]];
-const MODES = { 'stg-ice': ['iceFmt3', 'm', ['ice', 'delta']] };
+const MODES = { };
 const WIDGETS = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });

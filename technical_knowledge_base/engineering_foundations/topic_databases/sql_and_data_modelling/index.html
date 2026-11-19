@@ -184,6 +184,14 @@ table.rt td.n{text-align:right}.nul{color:var(--mute);font-style:italic}.more{fo
 pre.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre}
 #rd-inj-card pre.code{white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:520px){.rq textarea{font-size:12px}}
+/* eased steps (2026-11-19, the template's rule): RD.anim adds rd-fwd to the card on a forward step; marks with class rd-new ease in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style><style id="kb-look">
 /* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
 :root{--bg:#f4f5f7;--card:#fff;--soft:#f0f2f5;--line:#e1e4e9;--ink:#1d2733;--mute:#5f6b7a;--acc:#2a62a8;--acc2:#dde8f6;
@@ -592,7 +600,11 @@ GROUP BY u.plan ORDER BY chats DESC;</pre>
 </section>
 
 <section id="rd-s9">
-<div class="s3sp"><div class="s3R"><div id="stg-norm"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-norm-card"><h4 class="vt">Fig. 5 · user 7, one wide table against three tables</h4>
+<div class="rd-svg" id="rd-norm"></div>
+<div class="an-ctl" id="rd-norm-ctl"></div>
+<p class="small mute" style="margin:6px 0 0">Real rows of the page's database: each thin slab is one message of user 7, grouped by chat (the number under each group is its message count); the coloured cap is her name stored on that row. The new name is illustrative.</p>
+</div></div></div><div class="s3L">
 <h2>9. Normalisation: one fact in one place</h2>
 <p>The tempting first design is one wide table: every message row also carries its chat's title and its user's name, email and plan, so any screen is one query with no joins. It works until a fact changes. Column B <b>depends on</b> column A (a <i>functional dependency</i>, A &rarr; B) if knowing A fixes B: <code>user_id &rarr; email</code>. A <b>candidate key</b> is a minimal set of columns that fixes all the others. Storing a dependent fact beside something other than its key causes <b>anomalies</b>: an <b>update anomaly</b> (one fact in many rows; miss one and there are two versions), an <b>insert anomaly</b> (a fact cannot be stored without an unrelated one: a user who has sent no message has no row) and a <b>delete anomaly</b> (removing one fact removes another: delete a user's last message and their email is gone). Predict how many rows a rename must write in each design before Fig. 5 plays it on the real messages of Ines Novak (user 7): <b>one rename, 59 rows to write in the wide table, 1 in the normalised schema</b>.</p>
 <ol class="sx" id="sx-norm">
@@ -717,7 +729,10 @@ GROUP BY u.plan ORDER BY chats DESC;</pre>
 </ol>
 </div></div>
 <p><b>Bound the wait, do not hope.</b> Set <code>lock_timeout</code> in every migration session (<code>SET lock_timeout = '500ms'</code>): the ALTER gives up instead of queueing indefinitely (<a href="https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-LOCK-TIMEOUT" target="_blank" rel="noopener noreferrer">documentation</a>) and the migration retries after a pause, so readers wait at most the timeout. Set <code>statement_timeout</code> on backfills, keep application transactions short, and set <code>idle_in_transaction_session_timeout</code> so a forgotten open transaction cannot hold locks forever. (Lock modes in general are <a href="https://app.notion.com/p/3ef5c17b0d0d8155aa64ddeb09da144e" target="_blank" rel="noopener noreferrer">Transactions and concurrency</a>.)</p>
-<div class="s3sp"><div class="s3R"><div id="stg-ec"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-ec-card"><h4 class="vt">Fig. 6 · chats.title becomes chats.name, the code running throughout</h4>
+<div class="rd-svg" id="rd-ec"></div>
+<div class="an-ctl" id="rd-ec-ctl"></div>
+</div></div></div><div class="s3L">
 <h3>Expand and contract: changes that never break running code</h3>
 <p>During a rolling deploy old and new versions run together, so every intermediate schema must work with both. <b>Expand and contract</b> (also called parallel change) splits a breaking change into backward-compatible steps, each deployed on its own. <code>RENAME COLUMN</code> itself is instant, but it breaks every running instance that still uses the old name; that, not the lock, is why a rename takes six steps:</p>
 <ol class="sx" id="sx-ec">
@@ -2398,97 +2413,130 @@ window.EXLAB=(function(){
     view:null});
 })();
 </script>
-<script>/* 61_js_sc_norm.js */
-// ---- Scene, Fig. 5 (section 9): one wide table against the normalised schema, on user 7's 59 real message rows (renderer v2) ----
-// Front: one slab per message row of user 7, grouped by chat (SM_DATA). In the wide table each row carries a cap: the user's name stored on it.
-// The rename (to the illustrative 'Ines Novak-Reyes') must touch every cap; a buggy path touches one chat's; normalising lifts the caps into one
-// users row, reached from every message through its chat. N, K and the buggy chat are exposed as RD_NORM for src/check_page.mjs and recompute.py.
+<script>/* 61_js_norm.js */
+// ---- Fig. 5 (section 9): one wide table against the normalised schema, on user 7's 59 real message rows (SM_DATA), flat (2026-11-19: was a 3D stage;
+// the slabs and caps read the same flat, and the count of rows a rename writes is the lesson). Top: one slab per message row of user 7, grouped by chat,
+// each with a cap, the user's name stored on it. The rename (to the illustrative 'Ines Novak-Reyes') must touch every cap; a buggy path touches one chat's.
+// Bottom: the normalised schema (users, chats, messages), faint until step 5. N, K and the buggy chat are exposed as RD_NORM for src/check_page.mjs and recompute.py. ----
 (function(){
-  if(!document.getElementById('stg-norm')||!window.SM_DATA)return;const {at,off,lerp,mix,cl}=S3;
-  const D=window.SM_DATA,UID=7,user=D.users.find(u=>u[0]===UID),OLD=user[2],NEW='Ines Novak-Reyes';
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-norm-card');if(!card||!window.SM_DATA)return;
+  const D=window.SM_DATA,UID=7,user=D.users.find(u=>u[0]===UID),OLD=user[2],NEW='Ines Novak-Reyes',esc=RD.esc;
   const per=D.chats.filter(c=>c[1]===UID).map(c=>c[0]).sort((a,b)=>a-b).map(c=>({c,n:D.msgs.filter(m=>m[1]===c).length})).filter(x=>x.n>0);
   const N=per.reduce((a,x)=>a+x.n,0),BUG=Math.min(...per.map(x=>x.c)),K=per.find(x=>x.c===BUG).n;
   const lonely=D.users.filter(u=>!D.chats.some(c=>c[1]===u[0])).map(u=>u[0]);
   window.RD_NORM={N,K,BUG};window.CHK=Object.assign(window.CHK||{},{norm:{N,K,BUG,chats:per.length,lonely:lonely.length}});
-  // layout: rows left to right in chat groups
-  const RW=.12,GAP=.32,total=N*RW+(per.length-1)*GAP;let cx=-total/2;
-  per.forEach(g=>{g.x0=cx;g.xc=cx+g.n*RW/2;cx+=g.n*RW+GAP});
-  const rows=[];per.forEach(g=>{for(let i=0;i<g.n;i++)rows.push({g,x:g.x0+(i+.5)*RW})});
-  const RH=.34,ZM=.9,ZC=-.7,ZU=-2.4,UX=-.6,UB=[1.5,.3,.6];
-  function draw(R,k,e){const P=R.P,old=P.c1,neu=P.c2;R.grid(-5.2,5.2,-3,1.8,.5);
-    const norm=k>=4,lift=k===4?e:k>4?1:0;
-    // the message rows (white slabs) and, in the wide table, the name cap on each
-    rows.forEach(r=>{const bug=r.g.c===BUG;R.box([r.x,0,ZM],[RW*.8,RH,.7],{fill:P.paper,shadow:false,lw:.4,a:norm?.85:1});
-      if(lift<1){const renamed=(k>=2&&bug),c=renamed?neu:old,cap=[lerp(r.x,UX,lift*lift),lerp(RH,1.0,lift),lerp(ZM,ZU,lift)];
-        R.box(cap,[RW*.8,.08,.7*(1-lift*.6)],{fill:k===1?mix(P.paper,old,.55):mix(P.paper,c,.75),shadow:false,lw:.4,a:1-lift*.9})}});
-    per.forEach(g=>R.label([g.xc,0,ZM+.35],(k>=2&&k<4&&g.c===BUG?'chat '+g.c+' · ':'')+g.n,{fs:12,mono:true,dy:14,c:k>=2&&k<4&&g.c===BUG?P.bad:P.mute,b:k>=2&&k<4&&g.c===BUG,wide:1}));
-    if(k===0)R.label([0,RH+.08,ZM],'chat_log · '+N+' rows of user '+UID+', each storing "'+OLD+'"',{fs:13,b:1,dy:-14,c:old});
-    // the rename, wide: a correct UPDATE must reach every row; the buggy path reaches one chat's rows
-    const UPD=[0,1.5,ZM-.2];
-    if(k===1||k===2){R.box([UPD[0],1.35,UPD[2]],[1.9,.22,.5],{fill:mix(P.paper,k===1?P.acc:P.bad,.25),shadow:false});
-      R.label([UPD[0]+.95,1.46,UPD[2]],k===1?'UPDATE every row of user 7':'UPDATE only chat '+BUG+"'s rows",{fs:12.5,b:1,mono:true,al:'left',dx:8,c:k===1?P.acc:P.bad});
-      per.forEach(g=>{if(k===2&&g.c!==BUG)return;R.flow([[UPD[0],1.35,UPD[2]],[g.xc,RH+.4,ZM],[g.xc,RH+.1,ZM]],{c:k===1?P.acc:neu,a:e,r:.05,n:Math.max(3,Math.round(g.n/1.5)),speed:1.4})});
-      R.label([total/2,RH,ZM],k===1?N+' rows to write':K+' rows written, '+(N-K)+' missed',{fs:13,b:1,al:'left',dx:10,c:k===1?P.acc:P.bad,a:e,wide:1})}
-    // two answers to one question
-    if(k===3){const g=per.find(x=>x.c===BUG),o=per[per.length-1];
-      R.label([g.xc,RH+.1,ZM],'"'+NEW+'" ('+K+')',{fs:13,b:1,c:neu,dy:-16,a:e});R.label([o.xc,RH+.1,ZM],'"'+OLD+'" ('+(N-K)+')',{fs:13,b:1,c:old,dy:-16,a:e});
-      R.quad([[total/2+.3,.01,ZM-.35],[total/2+1.1,.01,ZM-.35],[total/2+1.1,.01,ZM+.35],[total/2+.3,.01,ZM+.35]],{a:e,dash:[4,3],ec:P.bad});
-      R.label([total/2+.7,0,ZM],'no row for a user who never wrote',{fs:12,c:P.bad,dy:18,al:'right',a:e,wide:1})}
-    // normalised: one users row, one row per chat, and messages that reach the name through chat_id and user_id
-    if(norm){const a=k===4?cl(e*1.4-.3,0,1):1,renamed=k>=5,ux=k===6?lerp(UX,UX-2.2,e):k>6?UX-2.2:UX;
-      per.forEach(g=>{R.box([g.xc,0,ZC],[g.n*RW,.22,.45],{fill:mix(P.paper,P.c6,.25),a,lw:.6});R.label([g.xc,.22,ZC],'chat '+g.c,{fs:12,mono:true,dy:-9,a,wide:1});
-        R.flow([[g.xc,.2,ZM-.35],[g.xc,.2,ZC+.22]],{c:P.c6,a:a*.8,r:.04,n:3,speed:.9});
-        R.flowArc([g.xc,.22,ZC],[ux,UB[1],ZU],.5,{c:renamed?neu:P.c6,a:a*(renamed?1:.6),r:.045,n:5,speed:1.3})});
-      R.box([ux,0,ZU],UB,{fill:mix(P.paper,renamed?neu:old,renamed?.6*(k===5?e:1):.5),a,lw:.8});
-      R.label([ux,UB[1],ZU],'users · id 7 · '+(renamed&&(k>5||e>.5)?NEW:OLD),{fs:13,b:1,dy:-12,c:renamed?neu:old,a});
-      R.label([-total/2,0,ZC],'chats',{fs:12,al:'right',dx:-8,c:P.c6,a,wide:1});R.label([-total/2,0,ZM],'messages',{fs:12,al:'right',dx:-8,c:P.mute,a,wide:1});
-      if(k===5)R.label([ux+UB[0]/2,UB[1]/2,ZU],'1 row written',{fs:13,b:1,al:'left',dx:10,c:neu,a:e});
-      // a user exists without messages: the users who never opened a chat are rows of users like any other
-      if(k===6)lonely.forEach((id,i)=>{const p=[UX-1.4+(i+1)*1.15,0,ZU];R.box(p,[.8,.3,.6],{fill:mix(P.paper,P.good,.3),a:e});R.label([p[0],.3,ZU],'id '+id,{fs:12,mono:true,dy:-10,a:e,wide:1})});
-      if(k===6)R.label([UX-1.4+4.6,.3,ZU],lonely.length+' users with no chat, stored fine',{fs:12.5,b:1,c:P.good,dy:-32,a:e})}
-  }
-  S3.stage({id:'stg-norm',list:'sx-norm',fig:'Fig. 5 · user 7, one wide table against three tables',cam:[.2,.8],bounds:[[-5,0,-2.9],[5,1.2,1.4]],aspect:.55,dur:1500,hold:4800,draw,
-    margin:w=>w<520?[16,8,12,8]:[18,16,14,70],
-    view:k=>k===3?{cam:[.2,.8],bounds:[[-5,0,-2.9],[6,1.2,1.6]]}:null}); // step 4: room on the right for the empty 'no row' box and its label
+  // top panel: the wide table, one thin slab per message row of user 7, grouped by chat, each with a cap (her name stored on it)
+  // bottom panel: the normalised schema, users above chats above messages; it waits as faint outlines until step 5
+  function draw(k){const el=document.getElementById('rd-norm'),W=RD.width(el),ph=W<520,fs=ph?11.5:12;
+    const L=ph?4:70,R=W-(ph?4:10),SL=ph?34:56,G=ph?5:8,rw=(R-SL-L-(per.length-1)*G)/N;let x=L;per.forEach(g=>{g.x0=x;g.w=g.n*rw;x+=g.w+G});
+    const OLDC='var(--c1)',NEWC='var(--c2)',norm=k>=4;let s='',y=6;
+    // the wide table
+    const wa=norm?.28:1;let w='';
+    w+=text(L,y+12,'chat_log: '+N+' rows of user '+UID+', each storing "'+OLD+'"',{fs:12.5,w:700,c:OLDC});y+=22;
+    const capY=y,rowY=y+9,rowH=ph?44:54;
+    per.forEach(g=>{const bug=g.c===BUG,renamed=k>=2&&bug,hit=k===1||(k===2&&bug);
+      for(let i=0;i<g.n;i++){const xi=g.x0+i*rw;w+=rect(xi+.5,rowY,rw-1,rowH,{fill:'var(--card)',s:'var(--line)',sw:.8,r:1});
+        w+=rect(xi+.5,capY,rw-1,7,{fill:renamed?NEWC:OLDC,fo:hit?1:.75,s:hit?'var(--ink)':null,sw:.6,r:1,cl:hit&&k<=2?'rd-new':''})}
+      const lc=k>=2&&k<4&&bug?'var(--bad)':'var(--mute)';
+      w+=text(g.x0+g.w/2,rowY+rowH+14,(k>=2&&k<4&&bug&&!ph?'chat '+g.c+' · ':'')+g.n,{a:'middle',fs:11.5,mono:1,c:lc,w:k>=2&&k<4&&bug?700:400})});
+    if(!ph)w+=text(L-6,rowY+rowH/2+4,'messages',{a:'end',fs:11.5,c:'var(--mute)'})+text(L-6,capY+7,'name',{a:'end',fs:11.5,c:OLDC});
+    let ny=rowY+rowH+20;
+    if(k===1)w+=text(L,ny+12,'UPDATE every row of user 7: '+N+' rows to write',{fs:12.5,w:700,mono:1,c:'var(--acc)',cl:'rd-new'});
+    if(k===2)w+=text(L,ny+12,'UPDATE only chat '+BUG+"'s rows: "+K+' written, '+(N-K)+' missed',{fs:12.5,w:700,mono:1,c:'var(--bad)',cl:'rd-new'});
+    if(k===3){const t1='"'+NEW+'" ('+K+')',t2='"'+OLD+'" ('+(N-K)+')';
+      w+=text(L,ny+12,'two answers: ',{fs:12.5,w:700,c:'var(--bad)'})+text(L+(ph?86:92),ny+12,esc(t1),{fs:12.5,w:700,mono:1,c:NEWC,cl:'rd-new'});
+      w+=text(L+(ph?86:92),ny+28,esc(t2),{fs:12.5,w:700,mono:1,c:OLDC,cl:'rd-new'});
+      w+=rect(R-SL+6,capY,SL-6,rowH+9,{fill:'none',s:'var(--bad)',da:'4 3',cl:'rd-new'});
+      w+=text(R,ny+44,'no row for a user who never wrote',{a:'end',fs:12,c:'var(--bad)',cl:'rd-new'})}
+    s+=grp(w,{op:wa});y=ny+(k===3?52:22);
+    // the normalised schema
+    const na=norm?1:.16,renamed=k>=5;let n='',lz='';const y1=y+6;
+    n+=line(4,y1-6,W-4,y1-6,{c:'var(--line)',da:'4 4'});
+    n+=text(L,y1+12,norm?(ph?'normalised':'normalised: users, chats, messages'):'normalised (step 5)',{fs:12.5,w:700,c:norm?'var(--ink)':'var(--mute)'});
+    const uy=y1+24,uh=30,uw=ph?R-L:Math.min(230,R-L),ux=L;
+    n+=rect(ux,uy,uw,uh,{fill:renamed?NEWC:OLDC,fo:.2,s:renamed?NEWC:OLDC,sw:renamed?2:1.2,r:6,cl:k===5?'rd-new':''});
+    n+=text(ux+8,uy+19,'users · id 7 · '+esc(renamed?NEW:OLD),{fs:12,mono:1,w:700,c:renamed?NEWC:OLDC});
+    if(k===5)n+=text(ux+uw+8,uy+19,'1 row written',{fs:12.5,w:700,c:NEWC,cl:'rd-new'});
+    if(k===6){const bw=ph?34:44,gx=ph?ux:ux+uw+8,ly=ph?uy+uh+6:uy;let lx=gx;lonely.forEach(id=>{if(lx+bw>R)return;lz+=rect(lx,ly,bw-4,uh,{fill:'var(--card)',r:6})+rect(lx,ly,bw-4,uh,{fill:'var(--good)',fo:.18,s:'var(--good)',r:6,cl:'rd-new'})+text(lx+(bw-4)/2,ly+19,String(id),{a:'middle',fs:11.5,mono:1,cl:'rd-new'});lx+=bw});
+      n+=text(R,y1+12,lonely.length+' users with no chat, stored fine',{a:'end',fs:12.5,w:700,c:'var(--good)',cl:'rd-new'})}
+    if(!ph)n+=text(L-6,uy+19,'users',{a:'end',fs:11.5,c:'var(--mute)'});
+    const cy=uy+uh+22+(ph?36:0),ch=24;
+    per.forEach(g=>{n+=rect(g.x0,cy,g.w,ch,{fill:'var(--c6)',fo:.22,s:'var(--c6)',r:4});
+      if(g.w>(ph?20:34))n+=text(g.x0+g.w/2,cy+16,String(g.c),{a:'middle',fs:11.5,mono:1});
+      n+=line(g.x0+g.w/2,cy,ux+uw/2,uy+uh,{c:renamed?NEWC:'var(--c6)',sw:1,op:renamed?.8:.5})});
+    n+=lz;
+    if(!ph)n+=text(L-6,cy+16,'chats',{a:'end',fs:11.5,c:'var(--c6)'});
+    const my=cy+ch+10,mh=ph?20:24;
+    per.forEach(g=>{for(let i=0;i<g.n;i++)n+=rect(g.x0+i*rw+.5,my,rw-1,mh,{fill:'var(--card)',s:'var(--line)',sw:.8,r:1});
+      n+=line(g.x0+g.w/2,my,g.x0+g.w/2,cy+ch,{c:'var(--c6)',sw:1,op:.6})});
+    if(!ph)n+=text(L-6,my+mh/2+4,'messages',{a:'end',fs:11.5,c:'var(--mute)'});
+    n+=text(L,my+mh+15,'each message row stores chat_id; the name is one join away',{fs:11.5,c:'var(--mute)'});
+    s+=grp(n,{op:na});
+    el.innerHTML=RD.svg(W,my+mh+24,s,'User 7: one wide table against the normalised schema')}
+  const an=RD.anim({card:'rd-norm-card',ctl:'rd-norm-ctl',n:7,ms:4800,draw,label:'Normalisation step',list:'sx-norm'});
+  RD.onResize(()=>an.redraw());
 })();
 </script>
-<script>/* 62_js_sc_ec.js */
-// ---- Scene, Fig. 6 (section 11): expand and contract, renaming chats.title to chats.name while the application keeps running (renderer v2) ----
-// Schematic: the chats table as two columns of cells (eight rows drawn), the running versions of the application in front.
-// Writes stream from the code into a column (purple), reads from a column into the code (teal); the backfill copies title into name in batches.
+<script>/* 62_js_ec.js */
+// ---- Fig. 6 (section 11): expand and contract, renaming chats.title to chats.name while the application keeps running, flat (2026-11-19: was a 3D stage;
+// two columns and the code versions read the same flat). Schematic: the chats table as two columns of cells (eight rows drawn), the running versions
+// of the application above; writes are purple arrows from the code into a column, reads teal arrows out of a column; the backfill copies title into name in batches. ----
 (function(){
-  if(!document.getElementById('stg-ec'))return;const {at,off,lerp,mix,cl}=S3;
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-ec-card');if(!card)return;
   // per step: the versions running and what each does to [title, name]
   const F=[{run:[['v1',['read, write','']]]},{run:[['v1',['read, write','']]]},{run:[['v1',['read, write','']],['v2',['read, write','write']]]},
     {run:[['v2',['read, write','write']]]},{run:[['v2',['read, write','write']],['v3',['write','read, write']]]},
     {run:[['v3',['write','read, write']],['v4',['','read, write']]]},{run:[['v4',['','read, write']]]}];
   window.CHK=Object.assign(window.CHK||{},{ec:{steps:F.length}});
-  const NR=8,z=i=>-2.0+i*.36,XT=-.85,XN=.85,CW=1.4,ZCODE=1.75;
-  function draw(R,k,e){const P=R.P,W=P.c4,Rd=P.c6;R.grid(-4,4,-2.6,2.6,.5);
-    // the title column
-    const ta=k===5?.45:k===6?1-e:1;
-    for(let i=0;i<NR;i++)R.box([XT,0,z(i)],[CW,.14,.3],{fill:mix(P.paper,P.c1,.4),a:ta,shadow:i===0,lw:.5});
-    R.label([XT,.14,z(0)],k===6?'title · dropped':'title',{fs:13,b:1,mono:true,dy:-12,c:k===6?P.bad:P.c1,a:Math.max(.4,ta)});
-    // the name column: absent, then NULL, then new rows only, then backfilled in batches, then the only column
-    if(k===0)R.quad([[XN-CW/2,.01,z(0)-.15],[XN+CW/2,.01,z(0)-.15],[XN+CW/2,.01,z(NR-1)+.15],[XN-CW/2,.01,z(NR-1)+.15]],{dash:[4,4],ec:P.mute,a:.6});
-    else for(let i=0;i<NR;i++){const filled=k>=4||(k>=2&&i>=NR-2)||(k===3&&i<NR-2&&i<Math.floor(e*(NR-2)+.001)),fresh=k===1?e:1;
-      R.box([XN,0,z(i)],[CW,filled?.14:.05,.3],{fill:filled?mix(P.paper,P.c2,.45):P.paper,fa:filled?1:.5,a:fresh,shadow:i===0,lw:.5})}
-    R.label([XN,.14,z(0)],k===0?'name · not yet':k===1?'name · added, NULL':'name',{fs:13,b:1,mono:true,dy:-12,c:k===0?P.mute:P.c2,a:1});
-    if(k===2)R.label([XN+CW/2,.14,z(NR-1)],'new rows only',{fs:12,al:'left',dx:8,c:P.c2,wide:1});
-    // the backfill: batches of rows copied from title into name
-    if(k===3){const b=Math.min(NR-3,Math.floor(e*(NR-2)));R.flow([[XT+.3,.16,z(b)],[0,.4,z(b)],[XN-.3,.16,z(b)]],{c:P.c2,a:1,r:.06,n:6,speed:1.4});
-      R.label([0,.45,z(b)],'batch '+(b+1),{fs:12,mono:true,b:1,dy:-8,c:P.c2,wide:1})}
-    // the code: each running version reads (teal, out of a column) and writes (purple, into a column)
-    const run=F[k].run,xs=run.length===1?[0]:[-1.35,1.35];
-    run.forEach(([v,ops],j)=>{const nw=k>0&&!F[k-1].run.some(r=>r[0]===v),a=nw?e:1,cx=xs[j],c=[cx,0,ZCODE];
-      R.box(c,[1.5,.42,.6],{fill:mix(P.paper,v==='v1'?P.mute:P.c5,.25),a});R.label([cx,.42,ZCODE],v+' code',{fs:13,b:1,dy:-11,a});
-      [[XT,ops[0]],[XN,ops[1]]].forEach(([xc,op])=>{if(!op||(xc===XT&&k===6))return;
-        if(/write/.test(op))R.flowArc([cx-.2,.42,ZCODE-.3],[xc-.15,.16,z(NR-1)+.1],.55,{c:W,a:a*.9,r:.05,n:7,speed:1.3});
-        if(/read/.test(op))R.flowArc([xc+.15,.16,z(NR-1)+.1],[cx+.2,.42,ZCODE-.3],.75,{c:Rd,a:a*.9,r:.05,n:7,speed:1.3})})});
-    R.label([-2.9,.2,ZCODE],'reads',{fs:12,b:1,c:Rd,al:'right',dy:-8,wide:1});R.label([-2.9,.2,ZCODE],'writes',{fs:12,b:1,c:W,al:'right',dy:10,wide:1});
-  }
-  S3.stage({id:'stg-ec',list:'sx-ec',fig:'Fig. 6 · chats.title becomes chats.name, the code running throughout',cam:[.35,.7],bounds:[[-3.1,0,-2.2],[2.4,.6,2.1]],aspect:.55,dur:1500,hold:5000,draw,
-    margin:w=>w<520?[18,8,12,8]:[22,20,14,40]});
+  const NR=8,WR='var(--c4)',RD_='var(--c6)';
+  function draw(k){const el=document.getElementById('rd-ec'),W=RD.width(el),ph=W<520;let s='';
+    const cw=Math.min(ph?110:160,W*.3),XT=W*.5-cw/2-(ph?32:34),XN=W*.5+cw/2+(ph?32:34),top=6,bh=40,colTop=top+bh+70,rh=ph?20:22;
+    // the running versions of the application, each reading (teal, out of a column) and writing (purple, into a column)
+    const run=F[k].run,xs=run.length===1?[W/2]:[W*.27,W*.73],bw=ph?100:130;
+    run.forEach(([v,ops],j)=>{const nw=k>0&&!F[k-1].run.some(r=>r[0]===v),cx=xs[j],cl=nw?'rd-new':'';
+      s+=grp(rect(cx-bw/2,top,bw,bh,{fill:v==='v1'?'var(--mute)':'var(--c5)',fo:.2,s:v==='v1'?'var(--mute)':'var(--c5)',r:8})+text(cx,top+25,v+' code',{a:'middle',fs:13,w:700}),{cl});
+      [[XT,ops[0]],[XN,ops[1]]].forEach(([xc,op],ci)=>{if(!op)return;const off=(ci?1:-1)*(run.length===1?18:8)+(j?6:-6),sx=cx+off,ex=xc+(j?8:-8)+(run.length===1?0:0);
+        if(/write/.test(op))s+=arrow(sx-4,top+bh,ex-4,colTop-26,{c:WR,sw:1.8,cl});
+        if(/read/.test(op))s+=arrow(ex+4,colTop-26,sx+4,top+bh,{c:RD_,sw:1.8,cl})})});
+    // the chats table: two columns of eight rows drawn
+    const ta=k===5?.45:k===6?.25:1,tx=XT-cw/2,nx=XN-cw/2;
+    s+=text(XT,colTop-10,k===6?'title · dropped':'title',{a:'middle',fs:13,w:700,mono:1,c:k===6?'var(--bad)':'var(--c1)'});
+    s+=text(XN,colTop-10,k===0?'name · not yet':k===1?'name · added, NULL':'name',{a:'middle',fs:13,w:700,mono:1,c:k===0?'var(--mute)':'var(--c2)'});
+    for(let i=0;i<NR;i++){const y=colTop+i*rh;
+      s+=rect(tx,y,cw,rh-3,k===6?{fill:'none',s:'var(--bad)',da:'4 3',r:3,op:.6}:{fill:'var(--c1)',fo:.3,s:'var(--c1)',sw:.8,r:3,op:ta});
+      if(k===0)s+=rect(nx,y,cw,rh-3,{fill:'none',s:'var(--mute)',da:'4 3',r:3,op:.6});
+      else{const fresh=i>=NR-2,filled=k>=4||(k>=2&&fresh)||(k===3);
+        s+=rect(nx,y,cw,rh-3,filled?{fill:'var(--c2)',fo:.35,s:'var(--c2)',sw:.8,r:3,cl:(k===2&&fresh)||(k===3&&!fresh)?'rd-new':''}:{fill:'var(--card)',s:'var(--line)',r:3,cl:k===1?'rd-new':''});
+        if(!filled&&!ph)s+=text(nx+cw/2,y+rh/2+2,'NULL',{a:'middle',fs:11,mono:1,c:'var(--mute)'})}}
+    const yb=colTop+NR*rh;
+    if(k===2)s+=text(nx+cw+6,colTop+(NR-1)*rh,ph?'new':'new rows only',{fs:12,c:'var(--c2)',w:600,cl:'rd-new'});
+    // the backfill: old rows copied from title into name, a batch at a time
+    if(k===3)for(let b=0;b<3;b++){const y0=colTop+b*2*rh,y1=y0+2*rh-3;
+      s+=grp(arrow(tx+cw+2,y0+rh-2,nx-2,y0+rh-2,{c:'var(--c2)',sw:1.6})+text(W/2,y0+rh-6,'batch '+(b+1),{a:'middle',fs:11,mono:1,w:600,c:'var(--c2)'}),{cl:'rd-new'})}
+    s+=text(W/2,yb+16,'chats (8 rows drawn)',{a:'middle',fs:11.5,c:'var(--mute)'});
+    // legend
+    const ly=yb+34;s+=line(W/2-120,ly-4,W/2-100,ly-4,{c:WR,sw:2})+text(W/2-95,ly,'writes',{fs:12,c:WR,w:600})+line(W/2+10,ly-4,W/2+30,ly-4,{c:RD_,sw:2})+text(W/2+35,ly,'reads',{fs:12,c:RD_,w:600});
+    el.innerHTML=RD.svg(W,ly+10,s,'Expand and contract: chats.title becomes chats.name while the code keeps running')}
+  const an=RD.anim({card:'rd-ec-card',ctl:'rd-ec-ctl',n:F.length,ms:5000,draw,label:'Migration step',list:'sx-ec'});
+  RD.onResize(()=>an.redraw());
 })();
 </script>
 <script>/* 99_js_tabs.js */

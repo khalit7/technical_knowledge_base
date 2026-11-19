@@ -42,3 +42,5 @@ What the methodology lacked: a rule for a published aggregate that silently incl
 | PE23 | Fig. 4: who sees the challenger: requests as dots through a router to two plates, answers back only from the served arm | 3D stage, 5 steps | Reading 8 | built (replaces PE15) | KServe's 10% canary example; A/B half and half illustrative |
 | PE24 | Hero promotion path in 3D | | | rejected | the hero's content is text (cost, what each stage catches, who is exposed); Fig. 3 and Fig. 4 carry the pipeline in depth |
 | PE25 | Frontier, sampling slider, drift test, golden-set anatomy in 3D | | | rejected | log axes and labelled structure read best flat |
+
+2026-11-19: Fig. 2 (PE21) step 5, aggregate mode: the camera now moves in on the aggregate gate alone and draws its pillar, interval and fail line on a larger scale (1.5 against 0.45 for the slices), with the bar field faded further; before, the −0.03 pillar and its fail line were specks in a wide view over a busy field (polish note from the 2026-11-06 rollout).

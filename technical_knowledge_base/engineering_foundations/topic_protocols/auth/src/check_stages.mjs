@@ -13,10 +13,9 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
 // [stage, mode chips or null, {mode: step list}]
-const STAGES = [['stg-hero', null, { all: 'sx-hero' }],
-  ['stg-oauth', 'oa-mode', { implicit: 'sx-oa-implicit', nopkce: 'sx-oa-nopkce', pkce: 'sx-oa-pkce' }],
-  ['stg-jwt', null, { all: 'sx-jwt' }], ['stg-mtls', null, { all: 'sx-mtls' }],
-  ['stg-xchg', 'xc-mode', { strict: 'sx-xc-strict', naive: 'sx-xc-naive', xchg: 'sx-xc-xchg' }]];
+// Figs. 1, 2 and 5 (sq-hero, sq-oauth, sq-xchg) are 2D sequences since 2026-11-19 (28_js_seq.js, RD.anim): html_utils/verify_layout.mjs checks
+// their autoplay and list lengths; their step tables are still checked against the lists below.
+const STAGES = [['stg-jwt', null, { all: 'sx-jwt' }], ['stg-mtls', null, { all: 'sx-mtls' }]];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 const problems = [];

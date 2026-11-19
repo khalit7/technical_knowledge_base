@@ -14,14 +14,14 @@
   // per step: which link carries the traffic, its colour key, the comm / compute ratio, and the alphas of the network tiers
   const ST=[{kind:'I'},{kind:'tpn',c:'c3',r:R_.tpn,lab:'TP 8 inside the server'},{kind:'tpi',c:'bad',r:R_.tpi,lab:'TP 8 across the NIC'},
     {kind:'pp',c:'c5',r:R_.pp,lab:'pipeline, 16 stages'},{kind:'dp',c:'c2',r:R_.dp,lab:'data parallel'},{kind:'ep',c:'c4',r:R_.ep,lab:'expert parallel'}];
-  const TIER=[{nvl:1,rail:1,up:.25},{nvl:1,rail:.2,up:.05},{nvl:.25,rail:1,up:.05},{nvl:.25,rail:.8,up:.05},{nvl:.25,rail:1,up:.05},{nvl:.4,rail:.6,up:1}];
+  const TIER=[{nvl:1,rail:1,up:.25},{nvl:1,rail:.12,up:.03},{nvl:.15,rail:.7,up:.03},{nvl:.15,rail:.35,up:.03},{nvl:.15,rail:.6,up:.03},{nvl:.15,rail:.3,up:1}]; // each step lights only the tier its traffic uses, so the moving dots stand out (2026-11-19)
   const BX=9.1,HS=1.7; // the bars: x position, height of 100%
   function draw(R,k,e,st){const P=R.P,pk=st.pk==null?k:st.pk,a=n=>lerp(TIER[pk][n],TIER[k][n],e),lab=(p,t,o)=>R.label(p,t,Object.assign({mono:true,fs:12.5},o||{})),s=ST[k];
     R.grid(-7.5,10.5,-4,4,.5);
     [S0,S1].forEach(S=>{G.drawServer(R,S,{hbm:.1+.15*a('nvl'),nvs:.4+.6*a('nvl'),pci:.12+.18*a('nvl'),nic:.6,cpu:.12+.18*a('nvl')});G.links(R,S,BW,{nvl:a('nvl'),pcie:.2})});
     for(let r=0;r<8;r++){const L=G.leaf(r);R.box([L[0],L[1]-.15,0],[.9,.3,.6],{fill:mix(P.paper,P.c2,.45),a:.2+.8*a('rail'),shadow:false});
       [S0,S1].forEach(S=>G.pipe(R,G.top(S.nic(r)),[L[0],L[1]-.15,0],BW.nic,{c:P.c2,a:a('rail')*.8}))}
-    for(let q=0;q<4;q++){const Sp=G.spine(q);R.box([Sp[0],Sp[1]-.18,0],[1.5,.36,.75],{fill:mix(P.paper,P.bad,.55),a:.15+.85*a('up'),shadow:false});
+    for(let q=0;q<4;q++){const Sp=G.spine(q);R.box([Sp[0],Sp[1]-.18,0],[1.5,.36,.75],{fill:mix(P.paper,P.bad,.55),a:.08+.92*a('up'),shadow:false});
       for(let r=0;r<8;r++){const L=G.leaf(r);G.pipe(R,[L[0],L[1]+.15,0],[Sp[0],Sp[1]-.18,0],BW.spine,{c:P.bad,a:a('up')*.7})}}
     // traffic
     const z0=S0.nvs(0)[2],z1=S1.nvs(0)[2],via=(S,g,z)=>[[G.XG(g),.44,S.z0],[G.XG(g),.44,z]];

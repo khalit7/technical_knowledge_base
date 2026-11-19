@@ -19,7 +19,7 @@
   const ZA=3.0,ZV=1.5,ZT=.2,ZR=-1.5,XF=0,BH=.55,TH=2.3; // depth of the agent, the view, the translator, the real container; block and tower heights
   const XB=5.0,ZB=-1.5;                                      // the test bench, right of the container
   function draw(R,k,e){const P=R.P;R.grid(-5,6.5,-3,3.8,.5);
-    const others=k===4?Math.max(0,1-1.4*e):k===5?1-.5*e:1; // step 5 is about the field file alone: everything in front fades out
+    const others=k===4?Math.max(0,1-1.4*e):k===5?1-e:1; // steps 5 and 6 are about the files alone: everything in front fades out
     // the real container: a plinth and the four files; it recedes while the view is the subject
     const ra=k===0?1:k===1?1-.55*e:k===2||k===3?.5:k===4?.5+.5*e:.85;
     R.quad([[-3.6,.005,ZR-.75],[2.9,.005,ZR-.75],[2.9,.005,ZR+.75],[-3.6,.005,ZR+.75]],{fill:mix(P.paper,P.ink,.06),a:ra,dz:50});
@@ -27,8 +27,10 @@
     FILES.forEach((f,i)=>{const isF=f.x===XF;
       if(isF&&tw>.02)return;
       const lit=(k===2||k===3)&&isF,c=k===5&&isF?mix(P.paper,P.c5,.55*e):lit?mix(P.paper,P.c2,.35):P.paper;
-      R.box([f.x,.01,ZR],[1.0,BH,.7],{fill:c,a:ra,lw:.8});
-      R.label([f.x,.01+BH,ZR],f.real,{mono:true,fs:12,dy:i===3?-40:i%2?-27:-12,wide:isF?0:1,c:k>=1?P.mute:P.ink,a:k===4?0:Math.max(.55,ra),b:(k===0||k===5)&&isF})});
+      // steps 3 and 4 are about the field file's round trip, and step 5 is the close-up on it: the other files recede and lose their names
+      const fo=!isF&&(k===2||k===3||k===4);
+      R.box([f.x,.01,ZR],[1.0,BH,.7],{fill:c,a:fo?.25:ra,lw:.8});
+      R.label([f.x,.01+BH,ZR],f.real,{mono:true,fs:12,dy:i===3?-40:i%2?-27:-12,wide:isF?0:1,c:k>=1?P.mute:P.ink,a:k===4||fo?0:Math.max(.55,ra),b:(k===0||k===5)&&isF})});
     R.label([-3.75,.1,ZR],'real container',{al:'right',dx:-8,fs:12.5,b:1,c:P.ink,grp:'row',a:k===4?0:Math.max(.5,ra)});
     // step 5: the field file as its 35 top-level definitions, heights in lines, sliding from file order to the order seed 1 draws
     if(tw>.02){let y0=.01;const ys=[],yn=[];let acc=0;TR.lines.forEach((l,i)=>{ys[i]=acc;acc+=l});let acc2=0;ORD.forEach(u=>{yn[u]=acc2;acc2+=TR.lines[u]});
@@ -41,9 +43,9 @@
       R.box([XF,fy+r0*TR.lines[FI]*sc,ZR],[1.08,(r1-r0)*TR.lines[FI]*sc,.78],{fill:P.c2,a:la,lw:.8,shadow:false});
       R.label([XF+.6,fy+TR.lines[FI]*sc*.75,ZR],'Field · '+TR.lines[FI]+' lines',{al:'left',dx:8,fs:12.5,b:1,c:P.c1,a:tw,grp:'tw'});
       R.label([XF+.6,fy+(r0+r1)/2*TR.lines[FI]*sc,ZR],'Level 4 · the fix region, rewritten',{al:'left',dx:8,fs:12.5,c:P.c2,a:la,grp:'tw'});
-      R.label([XF-.6,y0+TH*.9*tw,ZR],'Level 3 · '+NT+' definitions, seed '+SEED,{al:'right',dx:-8,fs:12.5,b:1,c:P.c3,a:tw,grp:'tw2'});
-      R.label([XF-.6,y0+TH*.25*tw,ZR],MOVED+' of '+NT+' moved',{al:'right',dx:-8,fs:12.5,c:P.mute,a:tw*t,grp:'tw2'});
-      R.label([XF-.6,y0+TH*.1*tw,ZR],'no base below its subclass',{al:'right',dx:-8,fs:12,c:P.mute,a:tw*t,grp:'tw2'})}
+      R.label([XF-.9,y0+TH*.92*tw,ZR],'Level 3 · '+NT+' definitions, seed '+SEED,{al:'right',dx:-8,fs:12.5,b:1,c:P.c3,a:tw,grp:'tw2'});
+      R.label([XF-.9,y0+TH*.74*tw,ZR],MOVED+' of '+NT+' moved',{al:'right',dx:-8,fs:12.5,c:P.mute,a:tw*t,grp:'tw2'});
+      R.label([XF-.9,y0+TH*.64*tw,ZR],'no base below its subclass',{al:'right',dx:-8,fs:12,c:P.mute,a:tw*t,grp:'tw2'})}
     // the agent; at step 1 it reads the real names directly
     const aa=(k<=3?1:.3)*others;
     R.box([0,0,ZA],[1.1,.5,.6],{fill:mix(P.paper,P.c1,.3),a:aa});
@@ -55,8 +57,9 @@
     if(pa>0){R.glass([-3.7,.06,ZT],[6.6,0,0],[0,.8,0],{c:P.c4,a:pa,nu:12,nv:3});R.label([-3.75,.45,ZT],'translator',{al:'right',dx:-8,fs:12.5,b:1,c:P.c4,grp:'row',a:pa})}
     const va=(k===0?0:k===1?e:k<=3?1:.25)*others;
     if(va>0){FILES.forEach((f,i)=>{const isF=f.x===XF,lit=(k===2||k===3)&&isF;
-        R.box([f.x,.01,ZV],[.9,BH*.8,.5],{fill:lit?mix(P.paper,P.c6,.45):mix(P.paper,P.c6,.18),a:va,fa:.75,lw:.7,shadow:false});
-        R.label([f.x,i%2?.01:.01+BH*.8,ZV],f.view,{mono:true,fs:12,dy:i%2?14:-11,wide:isF?0:1,c:P.c6,a:va,b:isF})});
+        const vo=!isF&&(k===2||k===3);
+        R.box([f.x,.01,ZV],[.9,BH*.8,.5],{fill:lit?mix(P.paper,P.c6,.45):mix(P.paper,P.c6,.18),a:vo?va*.35:va,fa:.75,lw:.7,shadow:false});
+        R.label([f.x,i%2?.01:.01+BH*.8,ZV],f.view,{mono:true,fs:12,dy:i%2?14:-11,wide:isF?0:1,c:P.c6,a:vo?0:va,b:isF})});
       R.label([-3.75,.1,ZV],'view a seed draws',{al:'right',dx:-8,fs:12.5,b:1,c:P.c6,grp:'row',a:va});
       if(k===1)R.label([0,0,ZA],'"'+PROJ+'", entries, anchor, ledger: never seen in training',{fs:12,dy:16,c:P.mute,a:e,wide:1})}
     // step 3: a command written in the view's names is mapped back before it runs (orange); step 4: the output is renamed on its way out (teal)
@@ -73,13 +76,14 @@
       R.box([XB-.05,.06,ZB+.3],[.42,.42,.42],{fill:mix(P.paper,P.good,.2+.5*Math.min(1,Math.max(0,(e-.55)/.45))),a:ba});
       P2P.forEach((_,j)=>{const cx=XB+.5+(j%6)*.2,cz=ZB-.5+Math.floor(j/6)*.2;R.box([cx,.06,cz],[.14,.14,.14],{fill:mix(P.paper,P.good,.55),a:ba*Math.min(1,Math.max(0,e*3-j/15)),shadow:false,lw:.5})});
       R.flowArc([XF+.4,.65,ZR],[XB-.05,.5,ZB+.3],.7,{c:P.c5,r:.075,n:10,a:ba});
-      R.label([XF,1.8,ZR],'patch = ⊕ Diff(original, final), changed files',{mono:true,fs:12,c:P.c5,a:ba,wide:1});
+      R.label([XF+.6,2.5,ZR],'patch = ⊕ Diff(original, final), changed files',{mono:true,fs:12,c:P.c5,a:ba,wide:1});   // high enough to clear the file names
       R.label([XB-.05,0,ZB+.5],F2P.length+' Fail-to-Pass',{fs:12.5,b:1,c:P.good,dy:14,a:ba});
       R.label([XB+1.0,.2,ZB-.5],P2P.length+' Pass-to-Pass',{fs:12.5,b:1,c:P.good,dy:-16,a:ba})}
   }
-  const full={cam:[.22,.5],bounds:[[-3.8,0,-2.3],[6.0,1.3,3.35]]};
+  const full={cam:[.22,.5],bounds:[[-3.8,0,-2.3],[6.9,1.3,3.35]]};   // x to 6.9: the 30 Pass-to-Pass tests were cut at the right edge
   S3.stage({id:'stg-idea',list:'sx-idea',fig:'One task, a view drawn per run · Django case of Figure 4',cam:full.cam,bounds:full.bounds,aspect:.5,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[18,14,14,150],
-    // step 5 moves in close on the field file while it is reordered; the others show the whole pipeline
-    view:k=>k===4?{cam:[.42,.28],bounds:[[-1.5,0,ZR-.5],[1.9,TH+.15,ZR+.5]]}:k<4?{cam:full.cam,bounds:[[-3.8,0,-2.3],[3.7,1.3,3.35]]}:full});
+    // step 5 moves in close on the field file while it is reordered; step 6 on the real container and the test bench (the agent's side has faded);
+    // the others show the whole pipeline
+    view:k=>k===4?{cam:[.42,.28],bounds:[[-1.5,0,ZR-.5],[1.9,TH+.15,ZR+.5]]}:k<4?{cam:full.cam,bounds:[[-3.8,0,-2.3],[3.7,1.3,3.35]]}:{cam:[.22,.62],bounds:[[-3.8,0,-2.4],[6.9,2.5,.2]]}});
 })();

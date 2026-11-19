@@ -53,3 +53,6 @@ Rejected: redrawing the loss-mask widget (Alignment owns it); a log-axis bar cha
 | What a row becomes: plates, headers, 476 token cubes, the loss mask, the boundary | 3D stage, 5 steps | section 4 | the real row's structure and graded share; Alignment keeps the loss mechanics |
 | Binarization and length: four answers as columns, three rules' pairs, each rule's chosen-longer share | 3D stage, 5 steps | section 5 | replaces the 24-frame binarization stepper |
 Rejected: a 3D verifiable-reward stage (prompt, label and checker plates) because the extracted strings are what teaches and a canvas label cannot show them; a 3D quality-control field (no per-stage removal counts in the data); 3D for any bar chart.
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 2 (`27_js_sc_row.js`): checked at 1400 and 390 px; the close-up (step 5) no longer shows the far rows (fixed by the cosmetic pass). No change.

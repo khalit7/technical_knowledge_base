@@ -49,3 +49,5 @@ Rejected: redrawing Figures 6 and 7's FSDP2 curves (no printed values; reading c
 ## What the methodology lacked here
 
 A way to treat a paper whose end-to-end evidence sits mostly in a companion paper (MoP): the rule now used is to name the companion's own numbers beside this paper's and say which result belongs to which.
+
+2026-11-19: towers stage (stg-pk) step 2: the camera keeps the host platform in frame (it was cut at the card edge, its label under the drag hint), and the 'cut into strips' note joins the right-hand label group so it no longer sits on 'logits · 26 GB'. The step-4 left labels the rollout flagged no longer overlap the first tower (checked at 1400 and 390).

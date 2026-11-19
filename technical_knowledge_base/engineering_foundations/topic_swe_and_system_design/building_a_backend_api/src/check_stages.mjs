@@ -13,7 +13,7 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
 // stage id, its mode chips (selector), modes, the step-list id for each mode
-const STAGES = [['stg-hero', null, [null], () => 'sx-hero'], ['stg-life', null, [null], () => 'sx-life'], ['stg-pool', null, [null], () => 'sx-pool'],
+const STAGES = [['stg-hero', null, [null], () => 'sx-hero'], ['stg-pool', null, [null], () => 'sx-pool'],
   ['stg-conc', '#conc-mode', ['blocking', 'await', 'def', 'w4'], m => 'sx-conc-' + m], ['stg-shut', '#shut-mode', ['0', '1'], m => 'sx-shut-' + m]];
 // 2D animations (RD.anim): card, control prefix, list
 const ANIMS = [['rd-llm-card', 'rd-llm-ctl', 'sx-llm'], ['rd-sse-card', 'rd-sse-ctl', 'sx-sse']];

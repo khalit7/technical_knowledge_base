@@ -1,4 +1,4 @@
-// The 2026-11-06 rollout checks for the MCP page: every 3D stage plays by itself once scrolled into view, steps to its last step in every mode
+// The 2026-11-06 rollout checks for the MCP page (Fig. 1, the hero, a 2D sequence since 2026-11-19): every 3D stage and the hero play by itself once scrolled into view, steps to its last step in every mode
 // with one step-list item per step, stops redrawing off screen and never moves under reduced motion; no errors, NaN, undefined or sideways
 // scroll; the splits are two columns at 1400 px and one below 1100 px. The recorded values written into the step lists are checked against
 // the page's own data (window.MCPD and what the scenes derive from it: MCP_HERO, MCP_LIFE, MCP_TP, MCP_REP, MCP_AUTH).
@@ -13,7 +13,7 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
 // stage id, its mode buttons (selector prefix) and modes, the step-list id for each mode
-const STAGES = [['stg-hero', null, [null], () => 'sx-hero'], ['stg-life', '#life-mode', ['legacy', 'modern'], m => 'sx-life-' + m], ['stg-tp', null, [null], () => 'sx-tp'],
+const STAGES = [['stg-life', '#life-mode', ['legacy', 'modern'], m => 'sx-life-' + m], ['stg-tp', null, [null], () => 'sx-tp'],
   ['stg-rep', '#rep-mode', ['0', '1', '2', '3'], m => 'sx-rep-' + m], ['stg-auth', null, [null], () => 'sx-auth']];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -37,6 +37,15 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2400);
     if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${tag}: ${id} did not play when scrolled into view`);
   }
+  // the hero (sq-hero, RD.anim): plays on view, reaches its last step with the list marking it
+  await p.$eval('#sq-hero', e => e.scrollIntoView({ block: 'center' })); await wait(2000);
+  if (!/Pause/.test(await p.$eval('#sq-hero-ctl', e => e.textContent))) problems.push(`${tag}: sq-hero did not play when scrolled into view`);
+  { const n = await p.$eval('#sq-hero-ctl-s', s => +s.max + 1), lis = await p.$eval('#sx-hero', e => e.children.length);
+    if (n !== lis) problems.push(`${tag}: sq-hero has ${n} steps, list ${lis}`);
+    for (let k = 1; k < n; k++) { await p.click('#sq-hero-ctl-f'); await wait(30) }
+    const last = await p.$eval('#sx-hero', e => [...e.children].findIndex(li => li.classList.contains('on')));
+    if (last !== n - 1) problems.push(`${tag}: sq-hero list marks item ${last + 1}, not the last`);
+    await audit('sq-hero last step'); }
   // flows stop off screen: draws do not rise while every stage is out of view
   await p.evaluate(() => window.scrollTo(0, document.getElementById('rd-s9').getBoundingClientRect().top + scrollY)); await wait(800);
   const d0 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0)); await wait(1200);
@@ -91,6 +100,8 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file);
   for (const [id] of STAGES) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
     const r = await p.$eval('#' + id, e => [+e.dataset.frames || 0, e.querySelector('.stg-st').textContent]); if (r[0] > 0 || !/^step 1 of/.test(r[1])) problems.push(`reduced motion: ${id} moved by itself (${r})`) }
+  await p.$eval('#sq-hero', e => e.scrollIntoView({ block: 'center' })); await wait(2500);
+  if (await p.$eval('#sq-hero-ctl-s', s => +s.value) !== 0 || /Pause/.test(await p.$eval('#sq-hero-ctl', e => e.textContent))) problems.push('reduced motion: sq-hero moved by itself');
   const d0 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0)); await wait(1200); const d1 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0));
   if (d1.some((v, i) => v !== d0[i])) problems.push(`reduced motion: flows kept redrawing (${d0} -> ${d1})`);
   await p.close();

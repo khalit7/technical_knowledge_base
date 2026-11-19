@@ -9,7 +9,8 @@
   const YU=1.6,LM=[-1.9,YU,-.65],LK=[1.9,YU,-.65],TL=[-1.9,YU,.75],TS=[1.9,YU,.75],TM=[0,YU,1.25],QM=[-1.9,0,-.2],QK=[1.9,0,-.2];
   const SL=[QK[0],.1,QK[2]],SS=[QM[0],.1,QM[2]];
   function thr(R,p,name,c,a,sl,sub){const P=R.P;R.box(p,sl?[.95,.28,.5]:[.95,.5,.5],{fill:sl?mix(P.paper,c,.2):mix(P.paper,c,.5),a,dz:p[1]<.5?120:0,ec:sl?c:undefined});
-    R.label([p[0],p[1]+(sl?.28:.5),p[2]],name,{fs:12.5,b:1,dy:-10,a,c:sl?P.mute:P.ink});if(sub)R.label([p[0],p[1]+(sl?.28:.5),p[2]],sub,{fs:12,mono:true,b:1,dy:-27,a,c:P.bad,wide:1})}
+    const lo=name==='MainThread'&&R.W<520;   // on a phone MainThread's name goes under its box: above it, it ran into the sleeping logger's
+    R.label(lo?[p[0],p[1],p[2]+.25]:[p[0],p[1]+(sl?.28:.5),p[2]],name,{fs:12.5,b:1,dy:lo?14:-10,a,c:sl?P.mute:P.ink});if(sub)R.label([p[0],p[1]+(sl?.28:.5),p[2]],sub,{fs:12,mono:true,b:1,dy:-27,a,c:P.bad,wide:1})}
   function lock(R,p,name,holder,a){const P=R.P;R.box(p,[1.3,.36,.62],{fill:mix(P.paper,P.ink,.05),a});if(holder)R.box([p[0],p[1]+.36,p[2]],[1.3,.06,.62],{fill:holder,a,shadow:false});
     R.label([p[0],p[1]+.36,p[2]],name,{fs:12.5,b:1,mono:true,dy:-12,a})}
   function draw(R,k,e){const P=R.P,cL=P.c1,cS=P.c4;R.grid(-4,4,-2,2,.5);

@@ -44,3 +44,7 @@ The question the page keeps returning to: **for a given training run, which corp
 ## 2026-11-09 (layout rollout)
 - Built: Fig. 1, the lineage as plates on Common Crawl (cube volume = tokens); Fig. 2, total against unique tokens as nested blocks with two run budgets.
 - Considered and not built: section 4 as a 3D field of cubes (20,617 pages: binning would hide which page each corpus kept, and one box per page is too many to draw); the licence layers as stacked glass plates (each layer is a sentence of terms, which reads better as text cards); the hero in 3D (a comparison of shares, flat bars read better).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`30_js_sc_lin.js`): in the close views of steps 3 and 4 the faded lower plates ran off the card's bottom. Common Crawl now recedes to .1 (was .22) and generations two or more below the current one to .04 (was .08); the generation just below stays at .32 for comparison.
+- Fig. 2 (`30_js_sc_uq.js`): at step 4 the receded columns' names (FineWeb-Edu-2, FineWeb-Edu) collided with DCLM-Baseline's "1.0T unique · 26%"; from step 3 on, receded columns drop their names (they had been hidden at step 3 already). Step counts and list text unchanged.

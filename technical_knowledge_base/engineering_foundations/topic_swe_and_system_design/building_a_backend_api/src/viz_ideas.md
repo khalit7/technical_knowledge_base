@@ -38,3 +38,5 @@ HTTP anatomy (HTTP), offset against keyset bars and the drift animation (Service
 | 10 | The handler stepper and the stream replay keep their 2D cards; their captions became step lists (`sx-llm`, `sx-sse`) and the service figure in the handler card became a one-line stage label | 2D animations | 9, 10 |
 
 Kept 2D, and why: the onion (a nesting, flat by nature), the validation before/after (two JSON bodies), the hold and N+1 sliders (one number against one parameter), the settings ladder (an ordered list), the background-work timeline (three rows on one time axis), the four-style summary (four bars on one scale), every table and code block, and the closed exchanges explorer. No real image: nothing physical here that a photo would show better.
+
+2026-11-19: Fig. 2 (one request, stage by stage): 3D stage `stg-life` redrawn flat as `rd-life-card` (`34_js_life.js`, RD.anim, same 7 steps, the artefact panel under it unchanged): the stages top to bottom, the request down the left, the response back up the right, the logged order as tags. Why: a pipeline reads the same flat (the onion of section 4 owns the nesting).

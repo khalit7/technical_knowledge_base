@@ -9,10 +9,10 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (Caching: adapted from Analytics: columnar engines; three stages, no 2D animations; the race stage's lists are checked against the recorded trial times)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-race', 'stg-ev'];
+const STAGES = ['stg-hero', 'stg-ev'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [];
-const MODES = { 'stg-race': ['rd-race-mode', 'm', ['delete', 'lease', 'version', 'double_delete']] };
+const MODES = { };
 const WIDGETS = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });

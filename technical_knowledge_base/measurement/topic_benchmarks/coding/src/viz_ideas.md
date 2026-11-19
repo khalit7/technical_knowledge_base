@@ -34,3 +34,6 @@ Rejected: one model's SWE-bench readings across splits and harnesses (Claude Opu
 | Fig. 4 pass@k estimator's bias: 20 draws grouped into five stretches of four | 2D RD.anim with a step list | closed block, split | illustrative draw, exact binomial sums |
 
 Rejected: a 3D pass@k-from-n-samples stage (Agentic benchmarks Fig. 3 already draws the same estimator trial by trial on real runs; linked instead); 3D for the LiveCodeBench monthly chart, the pass@k curves, the probes, the Verified counts, the Pro splits, the SWE-rebench split, the Real-SWE grid and the SchrodingerRepo bars (curves, intervals, tables and counts read best flat); a contamination timeline in 3D (a timeline is flat).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 hero (`31_js_sc_hero.js`), step 6 (all four at once): the four small pairs stood over the task stack and the score. They now form a back row at 60% height, each behind the box its lever changes (split and transform behind the task, harness beside the cage, tests behind the tests), with "same model, 11.2 to 18.5 points" above the row. Steps 3 and 4 drop the receding harness's label, which sat cropped at the card's edge. Step count and list text unchanged.

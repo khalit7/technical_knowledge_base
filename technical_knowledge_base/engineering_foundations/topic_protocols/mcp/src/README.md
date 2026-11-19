@@ -9,7 +9,7 @@ Page prefix `rd` (Reading), storage key `mcp-tab`. Built 2026-10-05; rebuilt 202
 |---|---|
 | `01_head.html`, `10_header.html`, `05z_errbox.js.html` | Shell; the header carries "Reading: 38 min, plus 13 in closed details." Tabs: Reading, Further reading |
 | `02_split.html` | The split layout and stage styles (explainer-page template, unchanged); `build.sh` cats it after `01_head.html` |
-| `20_read.html` | Tab open, Reading CSS, nav, the idea in one screen: core sentence, Fig. 1 (hero stage) with its step list, you need, new terms, "Not here" line, closed one-screen table |
+| `20_read.html` | Tab open, Reading CSS, nav, the idea in one screen: core sentence, Fig. 1 (the hero, a 2D sequence) with its step list, you need, new terms, "Not here" line, closed one-screen table |
 | `20_read_a.html` to `20_read_j.html` | Sections 1 and 2 (roles; messages, Fig. 2 and the envelope figure), 3 (primitives, anatomy figure), 4 (transports, Fig. 3), 5 (stateless, Fig. 4), 6 (versions), 7 (authorization, Fig. 5; passthrough figure), 8 (security, trust map), 9 (build a server), 10 (build a host) |
 | `20_read_k.html`, `20_read_z.html` | Reference, all closed: debugging table, interview rehearsal, corrections to the old page |
 | `21_js_rd_common.js`, `99_js_tabs.js` | The explainer-page skill templates (storage key `mcp-tab`); `RD.anim` is unused since 2026-11-07, the helpers (`RD.t`, `RD.svg`, `RD.width`) draw the static figures |
@@ -18,7 +18,8 @@ Page prefix `rd` (Reading), storage key `mcp-tab`. Built 2026-10-05; rebuilt 202
 | `25_js_s3.js` | The 3D renderer v2 and `S3.stage` (template, unchanged) |
 | `26_js_rd_figs.js` | Static figures: envelope before/after, anatomy of a tool, token passthrough before/after, trust map |
 | `30_js_sc_kit.js` | This page's scene pieces (`window.MCK`): parties as blocks, documents and credentials as glass plates, JSON-RPC messages as envelopes whose length is their recorded size, the refusal cross |
-| `31_js_sc_hero.js` | Fig. 1 `stg-hero` (6 steps): roles and one tool call around the loop |
+| `28_js_seq.js` | The shared 2D sequence engine (`window.SQ`, 2026-11-19): parties as columns, time down the card, RD.anim with the step list |
+| `31_js_sc_hero.js` | Fig. 1 `sq-hero` (6 steps): roles and one tool call around the loop, a 2D sequence since 2026-11-19 |
 | `32_js_sc_life.js` | Fig. 2 `stg-life` (legacy 5, 2026-07-28 4 steps): one stdio conversation message by message, every envelope to scale |
 | `33_js_sc_tp.js` | Fig. 3 `stg-tp` (6 steps): stdio against Streamable HTTP, the event stream, hostile requests, warm medians |
 | `34_js_sc_rep.js` | Fig. 4 `stg-rep` (6, 8, 3, 4 steps): the two-replica recording, four setups; fills the closed bytes block per step |
@@ -39,6 +40,7 @@ Page prefix `rd` (Reading), storage key `mcp-tab`. Built 2026-10-05; rebuilt 202
 - **Templates** `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `mcp-tab`) copied; `#t-read .an-ctl` rules no longer reach the stage bars.
 - **Five stages**, each with an `ol.sx` step list on the left and no per-step caption under it:
   - Fig. 1 `stg-hero` (6 steps): model API, the host platform with its policy plate and one client per server, a local stdio server, ckpt-tools, the authorization server; tools/list, tool_use, policy then tools/call, the result as model input, where each server's credentials come from. Replaces the static 2D hero; section 1's four-item loop list became steps 2 to 5. Data: the tools/list answer size (1,818 bytes) from the stdio recording.
+  - 2026-11-19: Fig. 1 redrawn flat as `sq-hero` on `28_js_seq.js`: seven lanes (model API, host, client 1, client 2, local server, ckpt-tools, authorization server), same six steps and labels (1,818 bytes from the recording); the 3D depth carried nothing. `src/check_stages.mjs` checks it as an RD.anim figure.
   - Fig. 2 `stg-life` (modes legacy 5, 2026-07-28 4 steps, new): one stdio conversation; client and server are glass plates facing each other, each message crosses on its own row and stays (the transcript), envelope length to scale with its recorded bytes, the 183-byte `_meta` part tinted; the handshake's remembered state drawn on both sides. Data: `MCPD.tr` cold traces (byte counts added by `gen_data.py`). Section 2 had no visual of message kinds or the handshake before.
   - Fig. 3 `stg-tp` (6 steps): stdio's host, child process, stdin/stdout pipes and stderr tray; Streamable HTTP's client, header-reading gateway and `/mcp`; the progress event stream; three hostile requests refused; the warm medians as columns. Replaces the static transports figure. Data: `MCPD.tr`, `MCPD.prog`, `MCPD.wc`. The gateway is drawn to show what reads headers; none ran in the timings (said under the list).
   - Fig. 4 `stg-rep` (modes 6, 8, 3, 4 steps): replaces the 2D two-replica stepper (`27_js_rd_rep.js`, deleted); one recorded exchange per step, the session or sealing key beside each replica, the 20 runs as blocks on the last step; the recorded bytes moved into a closed block under the lists. The closed "four setups in words" block became the four step lists.

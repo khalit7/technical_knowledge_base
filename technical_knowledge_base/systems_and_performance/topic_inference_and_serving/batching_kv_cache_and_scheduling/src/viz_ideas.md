@@ -57,3 +57,8 @@ Built: five 3D stages driven by this page's simulator (`sched/gen_scenes.py`, `o
 Kept 2D (they read best flat): the selective-batching, paging and three-rule preemption steppers (now with step lists), PagedAttention Fig. 2 bars, trace waste bars, hit rate against cache size (log axis), reload-or-recompute bars, host-tier bars, measured tiers, the chunk budget scatter, the steady-traffic curves, the SJF curves, the coverage strip.
 Widgets (more than 12 frames, the reader drives them, no autoplay, open on their last frame): the 16-request eviction replay and the two-client run.
 Rejected: a 3D version of the three-rule preemption stepper (its 12 illustrative blocks read better flat beside the simulated Fig. 5); a 3D hit-rate surface (policy by size is a set of curves on a log axis).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 hero (`40_js_sc_hero.js`): on phones (canvas under 520 px) the labels of steps 1 to 4 piled up ("step t" over R8, eight labels in one band). Under 520 px they are now short ("64", "R7", "R8", "R9", "R7 · 1,000", "R8 · 7,128") and the budget label sits above the tray's right end; the step list names the parts in full. Desktop unchanged.
+- Fig. 4 (`43_js_sc_chunk.js`): on phones the three lanes' "12,000 left" labels stacked on each other; under 520 px only the lane in focus (else the front lane) carries it.
+- Fig. 2 (`41_js_sc_cb.js`): on phones step 5 moves the camera close on the continuous lane, which left the faded static lane cropped at the right edge; under 520 px the static lane is left out at that step and returns at step 6.

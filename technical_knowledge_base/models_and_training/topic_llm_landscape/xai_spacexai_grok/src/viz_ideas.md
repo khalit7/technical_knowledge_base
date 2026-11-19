@@ -70,3 +70,5 @@ Scoring: 0 to 2 per question (parameter the reader moves; reproduces a stated fi
 - Removed: the Price and position scatter (cross-provider comparison is owned by the landscape root's Capability vs price tab).
 - Rejected: a real photo of Colossus (no openly licensed photograph on Wikimedia Commons; the only file is an editorial cartoon); an RL-versus-pretraining compute bar (the "as much RL as pretraining" ratio is unconfirmed and xAI gives no absolute numbers).
 - Autoplay removed from the Heavy and injection animations.
+
+2026-11-19: Fig. 5 (Heavy): 3D stage `stg-hv` redrawn flat as `hvCard` (`43_js_hv.js`, RD.anim, same 5 steps): a Gantt chart, one row per agent and the leader, the same tokens as one chain below, time left to right (34 units, then 130 for 16 agents). Why: agents were lanes in depth and time ran along the floor; a flat Gantt chart reads both without perspective. `build.sh` lists the new file.

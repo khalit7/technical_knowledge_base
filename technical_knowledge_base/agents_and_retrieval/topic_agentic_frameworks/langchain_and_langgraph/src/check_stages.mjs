@@ -9,10 +9,12 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (this page, adapted from the Claude Agent SDK page's check_stages.mjs; section 5's crash replay is a widget and must NOT play by itself)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-steps'];
+const STAGES = []; // Figs. 1 and 2 were 3D stages until 2026-11-19; now 2D step animations, checked in ANIMS
 // [card, controls, {mode: step list}, mode buttons, data attribute]
-const ANIMS = [['flg-i-card', 'flg-i-ctl', { side_effect_before: 'sx-int-b', side_effect_after: 'sx-int-a' }, 'flg-i-mode', 'm']];
-const MODES = { 'stg-steps': ['flg-s-pick', 'm', ['linear', 'fan_reducer', 'fan_no_reducer', 'uneven_edges', 'uneven_join_all', 'loop', 'send']] };
+const ANIMS = [['flg-h-card', 'flg-h-ctl', { run_A: 'sx-hero' }, null, null],
+  ['flg-s-fig', 'flg-s-ctl', Object.fromEntries(['linear', 'fan_reducer', 'fan_no_reducer', 'uneven_edges', 'uneven_join_all', 'loop', 'send'].map(m => [m, 'sx-s-' + m])), 'flg-s-pick', 'm'],
+  ['flg-i-card', 'flg-i-ctl', { side_effect_before: 'sx-int-b', side_effect_after: 'sx-int-a' }, 'flg-i-mode', 'm']];
+const MODES = {};
 const WIDGETS = [['flg-c-card', 'flg-c-ctl']]; // reader-driven: no autoplay, no step list
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });
@@ -72,7 +74,7 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   }
   for (const [card, ctl, lists, seg, at] of ANIMS) {
     for (const [m, lid] of Object.entries(lists)) {
-      await p.$eval(`#${seg} button[data-${at}="${m}"]`, e => e.click()); await wait(100);
+      if (seg) await p.$eval(`#${seg} button[data-${at}="${m}"]`, e => e.click()); await wait(100);
       await p.$eval(`#${ctl}-b`, e => e.click());
       await p.evaluate(ctl => { const e = document.getElementById(ctl + '-s'); e.value = 0; e.dispatchEvent(new Event('input')) }, ctl);
       const n = await p.$eval(`#${ctl}-s`, e => +e.max + 1), lis = await p.$eval('#' + lid, e => e.hidden ? -1 : e.children.length);

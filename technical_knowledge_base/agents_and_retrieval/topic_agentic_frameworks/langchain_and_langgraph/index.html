@@ -224,6 +224,8 @@ code{overflow-wrap:anywhere}
 #t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
 .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
 @media (min-width:1100px){#t-read .s3R>.s3stick{position:sticky;top:58px;margin-top:20px}}
+@media (min-width:1100px){#t-read .s3R>.flg-fig{position:sticky;top:58px;margin-top:20px}}
+.flg-fig svg{display:block;max-width:100%;height:auto;overflow:visible}
 #flg-s-lists ol.sx code{font-size:12.5px}
 .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 .an-ctl select{padding:3px 6px}.an-play{min-width:6.4em}
@@ -259,13 +261,13 @@ tr.flg-chg td{background:var(--hl)}
 </style>
 <nav class="nav" id="rd-nav"><a href="#rs0">The idea</a><a href="#rs1">1. LangChain</a><a href="#rs2">2. A graph</a><a href="#rs3">3. Super-steps</a><a href="#rs4">4. Checkpointers</a><a href="#rs5">5. Crashes</a><a href="#rs6">6. Interrupts</a><a href="#rs7">7. Streaming</a><a href="#rs8">8. Subgraphs</a><a href="#rs9">9. create_agent</a><a href="#rs10">10. Store</a><a href="#rs11">11. Deployment</a><a href="#rs12">12. When to use it</a><a href="#rs13">Versions and depth</a></nav>
 
-<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="card flg-fig" id="flg-h-card"><p class="flg-vt">Fig. 1 · the running example, killed and resumed</p><div id="flg-h-svg"></div><div class="an-ctl" id="flg-h-ctl"></div></div></div><div class="s3L">
 <section id="rs0">
 <h2>The idea in one picture</h2>
 <p class="flg-core"><b>LangGraph runs your program as rounds of parallel steps over one shared state and saves a <span class="flg-ck">checkpoint</span> of that state at the barrier after every round; surviving a crash, waiting days for a person and rewinding are all that checkpoint. LangChain 1.x is the thin layer above: one interface for models, tools and retrievers, and a ready agent loop that compiles to a LangGraph graph.</b></p>
 <p class="small">LangChain's <code>create_agent</code> builds a <code>StateGraph</code>; <code>compile()</code> turns any graph into a Pregel runtime that loops <b>plan</b> (which nodes are triggered), <b>execute</b> (all of them in parallel, each against the state as of the step start) and <b>update</b> (merge their writes through the reducers). Each finished task's output is saved as a pending write, and each update saves a <span class="flg-ck">checkpoint</span> under the run's <code>thread_id</code>. Resume, whether after a SIGKILL or after a person answers an <code>interrupt()</code>, is just loading the last checkpoint and planning again. Fig. 1 is the page's running example, run for real with Claude Haiku 4.5 and killed halfway (section 5 has the timings and the run without checkpoints):</p>
 <ol class="sx" id="sx-hero">
-<li><b>One graph, one state, one checkpointer.</b> The graph of section 2 compiled with a <code>SqliteSaver</code>: the nodes on the floor, the shared state behind them, the database on the right. Process 1 calls <code>invoke({})</code> on a fresh thread; the input is saved as the first checkpoints.</li>
+<li><b>One graph, one state, one checkpointer.</b> The graph of section 2 compiled with a <code>SqliteSaver</code>: the nodes inside the process that runs them, the model, the shared state and the database beside them. Process 1 calls <code>invoke({})</code> on a fresh thread; the input is saved as the first checkpoints.</li>
 <li><b>Super-step 1: read_and_test.</b> One node runs and returns <code>core</code> and <code>test_output</code>; at the barrier the update is applied to the state and a checkpoint is written.</li>
 <li><b>Super-step 2: both diagnoses at once.</b> The two nodes run in parallel, each a model call. <code>diagnose_top_words</code> returns after 6.6 s and its output is saved at once as a pending write, before the step ends.</li>
 <li><b>SIGKILL at 6.6 s.</b> The driver kills the process while <code>diagnose_word_count</code>'s call is in flight. Memory is gone and that call returns nothing; the database still holds the checkpoints and the pending write.</li>
@@ -359,7 +361,7 @@ app.invoke({}, {"configurable": {"thread_id": "fix-1"}})</pre>
 </div><div class="s3R"><div class="s3side"><div class="card"><p class="flg-vt">The code on the left as LangGraph draws it: two edges out of read_and_test run both diagnoses in one super-step</p><div id="flg-g-real"></div>
 <p class="small">START is where the input enters; reaching END with nothing else scheduled ends the run. Dashed arrows (in later figures) are conditional edges.</p></div></div></div></div>
 
-<div class="s3sp"><div class="s3R"><div id="stg-steps"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="card flg-fig" id="flg-s-fig"><p class="flg-vt">Fig. 2 · super-steps of a recorded run</p><div id="flg-s-svg"></div><div class="an-ctl" id="flg-s-ctl"></div></div></div><div class="s3L">
 <section id="rs3">
 <h2>3. How a graph runs: super-steps</h2>
 <p>LangGraph's README says it "is inspired by Pregel and Apache Beam". Pregel is Google's system for computing over huge graphs (<a href="https://doi.org/10.1145/1807167.1807184" target="_blank" rel="noopener noreferrer">Malewicz et al., SIGMOD 2010</a>), in the <dfn>bulk synchronous parallel</dfn> style of Valiant (<a href="https://doi.org/10.1145/79173.79181" target="_blank" rel="noopener noreferrer">CACM 33(8), 1990</a>): work proceeds in rounds, everything in a round runs in parallel, and results are exchanged only at the barrier. LangGraph's round is the <dfn>super-step</dfn>, "a single tick of the graph where all nodes scheduled for that step execute (potentially in parallel)" (<a href="https://docs.langchain.com/oss/python/langgraph/checkpointers" target="_blank" rel="noopener noreferrer">docs</a>). Its three phases, as <code>pregel/_algo.py</code> implements them:</p>
@@ -373,7 +375,7 @@ app.invoke({}, {"configurable": {"thread_id": "fix-1"}})</pre>
 <div class="seg flg-seg" id="flg-s-pick"></div>
 <p class="small" id="flg-s-note"></p>
 <div id="flg-s-lists"></div>
-<p class="small mute">In Fig. 2 the graph's nodes stand on the floor (amber outline: triggered; amber fill: runs in this super-step; red: failed), each task's pending writes wait on the glass tray, the state's channels stand behind as columns whose height is the channel's version, and the saved checkpoints stack up on the right. Version numbers are the integer part of LangGraph's version strings (a counter plus a random suffix); only their order matters. Every frame is drawn from the checkpoints and task events of a real run on langgraph 1.2.14 with an <code>InMemorySaver</code> (<code>src/code/e1_supersteps.py</code>), not from a model of the algorithm <span class="meas">MEASURED</span>.</p>
+<p class="small mute">In Fig. 2 the graph runs top to bottom (amber outline: triggered; amber fill: runs in this super-step; red: failed) and the pills above it mark the phase; each task's pending writes wait in the tray, each state channel's bar is as long as its version (with the new value under the bars after an update), and the saved checkpoints stack up below. Version numbers are the integer part of LangGraph's version strings (a counter plus a random suffix); only their order matters. Every frame is drawn from the checkpoints and task events of a real run on langgraph 1.2.14 with an <code>InMemorySaver</code> (<code>src/code/e1_supersteps.py</code>), not from a model of the algorithm <span class="meas">MEASURED</span>.</p>
 <details class="qa" id="flg-s-card"><summary>Channels, versions and pending writes at this step</summary><div>
 <div class="out" id="flg-s-cnt" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,110px),1fr))"></div>
 <label class="small"><input type="checkbox" id="flg-s-hid"> show hidden trigger channels (<code>branch:to:</code>, <code>join:</code>, <code>__start__</code>)</label><div id="flg-s-tab"></div>
@@ -954,195 +956,6 @@ window.FLGC=(function(){
   const cli=$('flg-cli');if(cli)cli.textContent=D.e6.cli;
 })();
 </script>
-<script>/* 25_js_s3.js */
-// ---- S3 v2: a small 3D renderer on Canvas 2D, and the stage that steps a scene (explainer-page template, from the Attention Is All You Need trial, 2026-11-06;
-// v2 the same day: glass plates, flowing dots, a fading floor, contact shadows, softer shading, camera views per step) ----
-// Copy into src/parts/ unchanged. Usage and rules: .claude/skills/explainer-page/visuals/three-d.md
-// The look of the every-joule explainers (white blocks with ink edges, glows, arcs over a floor grid), drawn without WebGL
-// so the page stays self-contained and works wherever a canvas does. Labels are drawn upright in screen space, never in perspective.
-// A scene is draw(R,k,e,st): k the current step, e in [0,1] its eased progress. A stage plays itself once it scrolls into view (see auto()).
-(function(g){
-  const $=id=>document.getElementById(id);
-  const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
-  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-  const nrm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l]},lerp=(a,b,t)=>a+(b-a)*t,lerp3=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
-  const cl=(v,a,b)=>Math.max(a,Math.min(b,v)),ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
-  // colours: CSS variables resolved once per draw; shading needs RGB
-  const cv=document.createElement('canvas').getContext('2d');
-  function rgb(c){if(Array.isArray(c))return c;cv.fillStyle='#000';cv.fillStyle=c;const s=cv.fillStyle;
-    if(s[0]==='#')return [parseInt(s.slice(1,3),16),parseInt(s.slice(3,5),16),parseInt(s.slice(5,7),16)];
-    const m=s.match(/[\d.]+/g);return m?[+m[0],+m[1],+m[2]]:[128,128,128]}
-  const css=a=>'rgb('+Math.round(a[0])+','+Math.round(a[1])+','+Math.round(a[2])+')';
-  const mix=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
-  let PAL=null;
-  function pal(){const s=getComputedStyle(document.body),v=n=>rgb(s.getPropertyValue(n).trim()||'#888');
-    const bg=v('--bg'),dark=(bg[0]+bg[1]+bg[2])/3<110,card=v('--card');
-    const P={dark,bg,card,ink:v('--ink'),mute:v('--mute'),line:v('--line'),soft:v('--soft'),acc:v('--acc'),bad:v('--bad'),good:v('--good')};
-    ['c1','c2','c3','c4','c5','c6'].forEach(k=>P[k]=v('--'+k));
-    P.paper=dark?mix(card,P.ink,.1):[255,255,255];P.edge=dark?mix(P.ink,card,.35):mix(P.ink,[255,255,255],.12);
-    // the three roles used on every scene, matched to the prose colours: query orange, key teal, value purple
-    P.q=P.c2;P.k=P.c6;P.v=P.c4;return P}
-  // ---- the renderer ----
-  const L=nrm([-.45,1,.6]);
-  function R3(canvas){this.cv=canvas;this.cx=canvas.getContext('2d');this.q=[];this.top=[];this.under=[];this.lab=[]}
-  R3.prototype.size=function(w,h){const d=Math.min(2,window.devicePixelRatio||1);if(this.cv.width!==Math.round(w*d)||this.cv.height!==Math.round(h*d)){this.cv.width=Math.round(w*d);this.cv.height=Math.round(h*d)}
-    this.W=w;this.H=h;this.cx.setTransform(d,0,0,d,0,0)};
-  // camera orbiting the bounds' centre; the projection is fitted so the bounds fill the canvas at any size
-  R3.prototype.camera=function(theta,phi,B,m,dist){const c=mul(add(B[0],B[1]),.5),r=dist||Math.hypot(...sub(B[1],B[0]))*1.6; // dist: keep the camera this far away (a zoomed view keeps the full view's distance, so perspective does not distort)
-    this.eye=add(c,[r*Math.cos(phi)*Math.sin(theta),r*Math.sin(phi),r*Math.cos(phi)*Math.cos(theta)]);
-    this.fw=nrm(sub(c,this.eye));this.rt=nrm(cross(this.fw,[0,1,0]));this.up=cross(this.rt,this.fw);
-    let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(let i=0;i<8;i++){const p=[B[i&1?1:0][0],B[i&2?1:0][1],B[i&4?1:0][2]],v=sub(p,this.eye),z=dot(v,this.fw),x=dot(v,this.rt)/z,y=dot(v,this.up)/z;
-      x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}
-    m=m||[18,18,18,18];const aw=this.W-m[1]-m[3],ah=this.H-m[0]-m[2];const s=Math.min(aw/(x1-x0),ah/(y1-y0));
-    this.s=s;this.ox=m[3]+(aw-s*(x1-x0))/2-s*x0;this.oy=m[0]+(ah-s*(y1-y0))/2+s*y1};
-  R3.prototype.p=function(p){const v=sub(p,this.eye),z=dot(v,this.fw);return [this.ox+this.s*dot(v,this.rt)/z,this.oy-this.s*dot(v,this.up)/z,z]};
-  R3.prototype.px=function(p,r){return this.s*r/dot(sub(p,this.eye),this.fw)}; // world length r at p, in pixels
-  R3.prototype.begin=function(P,t){this.P=P;this.t=t||0;this.moving=false;this.q=[];this.top=[];this.under=[];this.lab=[]};
-  const col=(P,c)=>Array.isArray(c)?c:(c&&P[c])||rgb(c||'#888');
-  // a box: c is the centre of its bottom face, s = [w,h,d]; o.fill (rgb or palette key), o.a alpha, o.edge false to drop the ink
-  R3.prototype.box=function(c,s,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,x0=c[0]-s[0]/2,x1=c[0]+s[0]/2,y0=c[1],y1=c[1]+s[1],z0=c[2]-s[2]/2,z1=c[2]+s[2]/2;
-    const C=[];for(let i=0;i<8;i++)C.push([i&1?x1:x0,i&2?y1:y0,i&4?z1:z0]);
-    const F=[[[1,3,7,5],[1,0,0]],[[0,4,6,2],[-1,0,0]],[[2,6,7,3],[0,1,0]],[[0,1,5,4],[0,-1,0]],[[4,5,7,6],[0,0,1]],[[0,2,3,1],[0,0,-1]]];
-    const base=col(P,o.fill||P.paper),edge=o.edge===false?null:col(P,o.ec||P.edge),me=this;const faces=[];
-    F.forEach(([ix,n])=>{const fc=mul(ix.reduce((s,i)=>add(s,C[i]),[0,0,0]),.25);if(dot(n,sub(me.eye,fc))<=0)return;
-      const lam=Math.max(0,dot(n,L)),k=P.dark?.66+.34*lam:.86+.14*lam;faces.push({pts:ix.map(i=>me.p(C[i])),f:css(mix([0,0,0],base,k))})});
-    const z=this.p([c[0],c[1]+s[1]/2,c[2]])[2]+(o.dz||0),lw=o.lw||.9,ea=o.ea==null?(P.dark?.7:.78):o.ea,fa=o.fa==null?1:o.fa;
-    // a soft contact shadow under anything standing on the floor (o.shadow false to drop it)
-    if(o.shadow!==false&&c[1]<.05&&a>.2){const g=.06,ft=[[x0-g,0,z0-g],[x1+g,0,z0-g],[x1+g,0,z1+g],[x0-g,0,z1+g]].map(p=>me.p(p));
-      this.under.push(cx=>{cx.save();cx.globalAlpha=a*(P.dark?.5:.32);cx.fillStyle='rgba(20,30,45,.18)';cx.shadowColor='rgba(20,30,45,.35)';cx.shadowBlur=10;cx.beginPath();ft.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.closePath();cx.fill();cx.restore()})}
-    this.q.push({z,f:cx=>{faces.forEach(fc=>{cx.globalAlpha=a*fa;cx.beginPath();fc.pts.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.closePath();cx.fillStyle=fc.f;cx.fill();
-      if(edge){cx.globalAlpha=a*ea;cx.strokeStyle=css(edge);cx.lineWidth=lw;cx.lineJoin='round';cx.stroke()}})}})};
-  // a glass plate (a weight matrix): corner o0 and edge vectors u and v; tinted, see-through, with a grid of nu x nv cells and a thin rim
-  R3.prototype.glass=function(o0,u,v,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,c=col(P,o.c||P.c1),me=this;
-    const n=nrm(cross(u,v)),th=mul(n,o.th==null?.05:o.th),cr=[o0,add(o0,u),add(add(o0,u),v),add(o0,v)],back=cr.map(p=>add(p,th));
-    const pp=cr.map(p=>me.p(p)),pb=back.map(p=>me.p(p)),z=pp.reduce((s,p)=>s+p[2],0)/4+(o.dz||0),nu=o.nu||8,nv=o.nv||8,gl=[];
-    for(let i=1;i<nu;i++){gl.push([me.p(add(o0,mul(u,i/nu))),me.p(add(add(o0,mul(u,i/nu)),v))])}for(let j=1;j<nv;j++){gl.push([me.p(add(o0,mul(v,j/nv))),me.p(add(add(o0,mul(v,j/nv)),u))])}
-    const poly=(cx,q)=>{cx.beginPath();q.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.closePath()};
-    this.q.push({z,f:cx=>{cx.globalAlpha=a*(P.dark?.32:.26);cx.fillStyle=css(c);poly(cx,pb);cx.fill();poly(cx,pp);cx.fill();
-      cx.globalAlpha=a*.45;cx.strokeStyle=css(c);cx.lineWidth=.8;cx.beginPath();gl.forEach(([p,q])=>{cx.moveTo(p[0],p[1]);cx.lineTo(q[0],q[1])});cx.stroke();
-      cx.globalAlpha=a*.9;cx.strokeStyle=css(P.dark?mix(c,[255,255,255],.3):mix(c,[0,0,0],.35));cx.lineWidth=1.1;poly(cx,pp);cx.stroke();cx.globalAlpha=a*.5;poly(cx,pb);cx.stroke();
-      cx.beginPath();for(let i=0;i<4;i++){cx.moveTo(pp[i][0],pp[i][1]);cx.lineTo(pb[i][0],pb[i][1])}cx.stroke()}})};
-  // a stream of glowing dots moving along a path (data flowing from one thing into another); it keeps moving while the stage is on screen.
-  // o.c colour, o.n dots, o.r size (world units), o.speed (world units a second), o.a alpha. Under reduced motion the dots stand still.
-  R3.prototype.flow=function(pts,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01||pts.length<2)return;const seg=[];let L0=0;
-    for(let i=1;i<pts.length;i++){const d=Math.hypot(...sub(pts[i],pts[i-1]));seg.push(d);L0+=d}if(L0<=0)return;
-    const n=o.n||Math.max(3,Math.round(L0*2.2)),sp=o.speed||1.1,ph=RM?0:(this.t*sp/L0)%1,r=o.r||.07;if(!RM)this.moving=true;
-    for(let i=0;i<n;i++){let u=(ph+i/n)%1,d=u*L0,j=0;while(j<seg.length-1&&d>seg[j]){d-=seg[j];j++}const p=lerp3(pts[j],pts[j+1],Math.min(1,d/seg[j]));
-      const fade=Math.sin(Math.PI*u);this.glow(p,r*3.2,{c:o.c,a:a*.55*fade,top:o.top});this.ball(p,r*.55,{c:o.c,a:a*.9*fade,top:o.top})}};
-  R3.prototype.flowArc=function(a,b,h,o){const pts=[];for(let i=0;i<=24;i++)pts.push(this.arcPt(a,b,h,i/24));this.flow(pts,o)};
-  // a flat quad (a plate, a matrix face, a floor patch)
-  R3.prototype.quad=function(pts,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,pp=pts.map(p=>this.p(p)),z=pp.reduce((s,p)=>s+p[2],0)/pp.length+(o.dz||0);
-    const f=o.fill?css(col(P,o.fill)):null,e=o.edge===false?null:css(col(P,o.ec||P.edge));
-    this.q.push({z,f:cx=>{cx.globalAlpha=a*(o.fa==null?1:o.fa);cx.beginPath();pp.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.closePath();if(f){cx.fillStyle=f;cx.fill()}
-      if(e){cx.globalAlpha=a*(o.ea==null?.8:o.ea);cx.strokeStyle=e;cx.lineWidth=o.lw||1;if(o.dash)cx.setLineDash(o.dash);cx.stroke();cx.setLineDash([])}}})};
-  // a polyline in 3D; o.w is its width in pixels, o.top draws it above everything sorted
-  R3.prototype.line=function(pts,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,pp=pts.map(p=>this.p(p)),z=pp.reduce((s,p)=>s+p[2],0)/pp.length+(o.dz||0);
-    const d={z,f:cx=>{cx.globalAlpha=a;cx.strokeStyle=css(col(P,o.c||P.ink));cx.lineWidth=o.w||1.4;cx.lineCap='round';cx.lineJoin='round';if(o.dash)cx.setLineDash(o.dash);
-      cx.beginPath();pp.forEach((p,i)=>i?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke();cx.setLineDash([]);
-      if(o.head){const n=pp.length,p1=pp[n-1],p0=pp[n-2],an=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]),hl=o.head;cx.fillStyle=cx.strokeStyle;cx.beginPath();cx.moveTo(p1[0],p1[1]);
-        cx.lineTo(p1[0]-hl*Math.cos(an-.45),p1[1]-hl*Math.sin(an-.45));cx.lineTo(p1[0]-hl*Math.cos(an+.45),p1[1]-hl*Math.sin(an+.45));cx.closePath();cx.fill()}}};
-    (o.top?this.top:this.q).push(d)};
-  // a curve from a to b bowing up by h; t in (0,1] draws only its first part (an arc being drawn)
-  R3.prototype.arc=function(a,b,h,o){o=o||{};const n=28,t=o.t==null?1:o.t,pts=[];for(let i=0;i<=n;i++){const u=i/n*t,m=lerp3(a,b,u);pts.push([m[0],m[1]+4*h*u*(1-u),m[2]])}this.line(pts,o)};
-  R3.prototype.arcPt=(a,b,h,u)=>{const m=lerp3(a,b,u);return [m[0],m[1]+4*h*u*(1-u),m[2]]};
-  // a soft glow (a radial gradient), r in world units
-  R3.prototype.glow=function(p,r,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,q=this.p(p),rp=Math.max(2,this.px(p,r)),c=col(P,o.c||P.c2);
-    (o.top?this.top:this.q).push({z:q[2]-(o.lift||.01),f:cx=>{const gr=cx.createRadialGradient(q[0],q[1],0,q[0],q[1],rp);gr.addColorStop(0,'rgba('+c.map(Math.round).join(',')+','+(.75*a)+')');
-      gr.addColorStop(.35,'rgba('+c.map(Math.round).join(',')+','+(.35*a)+')');gr.addColorStop(1,'rgba('+c.map(Math.round).join(',')+',0)');cx.globalAlpha=1;cx.fillStyle=gr;cx.beginPath();cx.arc(q[0],q[1],rp,0,7);cx.fill()}})};
-  // a solid ball, r in world units
-  R3.prototype.ball=function(p,r,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01)return;const P=this.P,q=this.p(p),rp=Math.max(2,this.px(p,r)),c=col(P,o.c||P.c2);
-    (o.top?this.top:this.q).push({z:q[2],f:cx=>{const gr=cx.createRadialGradient(q[0]-rp*.35,q[1]-rp*.35,rp*.1,q[0],q[1],rp);gr.addColorStop(0,css(mix(c,[255,255,255],.45)));gr.addColorStop(1,css(c));
-      cx.globalAlpha=a;cx.fillStyle=gr;cx.beginPath();cx.arc(q[0],q[1],rp,0,7);cx.fill()}})};
-  // an upright label at a 3D point; o.al 'center'|'left'|'right', o.dx/o.dy pixels, o.fs size (12 or more), o.mono, o.serif, o.b bold;
-  // labels sharing o.grp are pushed apart vertically and get a leader line back to their anchor when moved
-  R3.prototype.label=function(p,text,o){o=o||{};const a=o.a==null?1:o.a;if(a<=.01||text==null)return;if((o.grp||o.wide)&&this.W<520)return; // side labels: wide screens only; the step text names the parts on a phone
-   const q=this.p(p);
-    this.lab.push({x:q[0]+(o.dx||0),y:q[1]+(o.dy||0),ax:q[0],ay:q[1],text,o,a})};
-  function drawLabel(cx,P,L){const o=L.o,fs=Math.max(12,o.fs||12.5);cx.font=(o.b?'600 ':'')+fs+'px '+(o.mono?'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace':o.serif?'"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif':'ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif');
-    cx.textAlign=o.al||'center';cx.textBaseline='middle';cx.globalAlpha=L.a;
-    const tw=cx.measureText(L.text).width;L.y=cl(L.y,fs/2+2,(cx.canvas.clientHeight||9999)-fs/2-2);{const lft=o.al==='right'?L.x-tw:o.al==='left'?L.x:L.x-tw/2,W=cx.canvas.clientWidth||9999;if(lft<4){L.x+=4-lft}else if(lft+tw>W-4){L.x-=lft+tw-W+4}}
-    // a leader line only when the label was pushed away from its anchor, and only from the anchor to the label's nearest edge (never through the text)
-    {const x0=o.al==='right'?L.x-tw:o.al==='left'?L.x:L.x-tw/2,x1=x0+tw,inside=L.ax>=x0-2&&L.ax<=x1+2&&Math.abs(L.ay-L.y)<8;if(inside)L.lead=false;const over=L.ax>=x0-2&&L.ax<=x1+2;
-      L.ex=over?cl(L.ax,x0,x1):L.ax<x0?x0-3:x1+3;L.ey=L.y+(over?(L.ay<L.y?-1:1)*(fs/2+2):0)}
-    if(L.lead){cx.strokeStyle=css(col(P,o.c||P.mute));cx.globalAlpha=L.a*.6;cx.lineWidth=1;cx.beginPath();cx.moveTo(L.ax,L.ay);cx.lineTo(L.ex,L.ey);cx.stroke();cx.globalAlpha=L.a}
-    if(o.halo!==false){cx.lineWidth=4;cx.lineJoin='round';cx.strokeStyle=css(P.card);cx.strokeText(L.text,L.x,L.y)}cx.fillStyle=css(col(P,o.c||P.ink));cx.fillText(L.text,L.x,L.y)}
-  function spread(labs){const G={};labs.forEach(L=>{if(L.o.grp)(G[L.o.grp]=G[L.o.grp]||[]).push(L)});
-    Object.values(G).forEach(ls=>{ls.sort((a,b)=>a.y-b.y);const gap=Math.max(12,ls[0].o.fs||12.5)+5;
-      for(let it=0;it<30;it++){let moved=false;for(let i=1;i<ls.length;i++){const d=ls[i].y-ls[i-1].y;if(d<gap){const m=(gap-d)/2;ls[i].y+=m;ls[i-1].y-=m;moved=true}}if(!moved)break}
-      ls.forEach(L=>{if(Math.abs(L.y-(L.ay+(L.o.dy||0)))>2)L.lead=true})})}
-  // the floor grid
-  // the floor grid, fading out towards its edges so the floor has no hard border
-  R3.prototype.grid=function(x0,x1,z0,z1,st,y){y=y||0;const P=this.P,me=this,cxw=(x0+x1)/2,czw=(z0+z1)/2,hx=(x1-x0)/2,hz=(z1-z0)/2,segs=[];
-    const fadeAt=(x,z)=>Math.max(0,1-Math.pow(Math.max(Math.abs(x-cxw)/hx,Math.abs(z-czw)/hz),3));
-    const add2=(a,b)=>{for(let i=0;i<10;i++){const p=lerp3(a,b,i/10),q=lerp3(a,b,(i+1)/10),m=lerp3(p,q,.5),f=fadeAt(m[0],m[2]);if(f>.02)segs.push([me.p(p),me.p(q),f])}};
-    for(let x=x0;x<=x1+1e-6;x+=st)add2([x,y,z0],[x,y,z1]);for(let z=z0;z<=z1+1e-6;z+=st)add2([x0,y,z],[x1,y,z]);
-    this.under.push(cx=>{cx.strokeStyle=css(P.dark?mix(P.card,P.ink,.16):mix(P.card,P.ink,.12));cx.lineWidth=1;segs.forEach(([p,q,f])=>{cx.globalAlpha=f;cx.beginPath();cx.moveTo(p[0],p[1]);cx.lineTo(q[0],q[1]);cx.stroke()});cx.globalAlpha=1})};
-  R3.prototype.end=function(){const cx=this.cx;cx.clearRect(0,0,this.W,this.H);this.under.forEach(f=>f(cx));this.q.sort((a,b)=>b.z-a.z).forEach(d=>d.f(cx));this.top.forEach(d=>d.f(cx));spread(this.lab);this.lab.forEach(L=>drawLabel(cx,this.P,L));cx.globalAlpha=1};
-  // ---- the stage: a sticky card with the canvas and its controls, driven by a step list in the prose ----
-  const stages=[];
-  function stage(o){const host=$(o.id);if(!host)return null;
-    host.classList.add('stg');host.innerHTML='<div class="stg-top"><span>'+(o.fig||'')+'</span><span class="stg-st" aria-live="polite"></span></div><div class="stg-cv"><canvas aria-hidden="true"></canvas><button class="stg-rv" id="'+o.id+'-v" hidden title="Reset the view">Reset view</button><span class="stg-hint">drag to turn</span></div>'+
-      '<div class="stg-bar an-ctl"><button class="stg-b" id="'+o.id+'-b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button class="stg-p an-play" id="'+o.id+'-p" aria-label="Play">&#9654; Play</button><button class="stg-f" id="'+o.id+'-f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" class="stg-r" id="'+o.id+'-r" min="0" max="1" value="0" step="1" aria-label="Scrub through the steps"><select class="stg-s" id="'+o.id+'-s" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div>';
-    const q=s=>host.querySelector(s),cvs=q('canvas'),R=new R3(cvs);
-    const st={vis:false,k:0,pk:0,e:1,play:false,hold:0,raf:0,last:0,lastFlow:0,flow:false,dth:0,dph:0,moved:false,spd:1,list:null,n:1};
-    const ov=$(o.list);
-    function bindList(el){st.list=el;const lis=el?[...el.children]:[];st.n=Math.max(1,lis.length);q('.stg-r').max=st.n-1;
-      lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');li.onclick=()=>{st.user=true;pause();go(i,false)};li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();st.user=true;pause();go(i,false)}}})}
-    function visible(){return host.offsetParent!==null&&cvs.clientWidth>0}
-    // on wide screens the card's height follows the scene's shape (o.aspect = height / width of the drawing area), capped by the window
-    function fitH(){if(!o.aspect||innerWidth<1100){host.style.height='';return}const w=host.clientWidth;if(!w)return;host.style.height=Math.round(Math.min(innerHeight-80,660,w*o.aspect+92))+'px'}
-    // the camera for a step: o.view(k) -> {cam:[theta,phi], bounds} when the scene moves its camera between steps, else o.cam and o.bounds;
-    // between two steps it glides from the last step's view to this one's, plus whatever the reader dragged
-    function viewAt(k){const v=o.view?o.view(k):null,B=(v&&v.bounds)||(typeof o.bounds==='function'?o.bounds(st):o.bounds),B0=typeof o.bounds==='function'?o.bounds(st):o.bounds;
-      return {cam:(v&&v.cam)||o.cam,B,r:Math.hypot(...sub(B0[1],B0[0]))*1.6}}
-    function draw(){if(!visible())return;fitH();const w=cvs.clientWidth,h=cvs.clientHeight;if(!w||!h)return;R.size(w,h);PAL=PAL||pal();R.begin(PAL,performance.now()/1000);host.dataset.draws=(+host.dataset.draws||0)+1;
-      const e=RM?1:ease(st.e),a=st.from||viewAt(st.pk),b=viewAt(st.k),t=st.e>=1||!o.view?1:e,mx=(u,v)=>u.map((x,i)=>lerp(x,v[i],t));
-      // the view drawn now (so a click mid-glide continues from here instead of jumping)
-      st.cur={cam:[lerp(a.cam[0],b.cam[0],t),lerp(a.cam[1],b.cam[1],t)],B:[mx(a.B[0],b.B[0]),mx(a.B[1],b.B[1])],r:lerp(a.r,b.r,t)};
-      R.camera(lerp(a.cam[0],b.cam[0],t)+st.dth,cl(lerp(a.cam[1],b.cam[1],t)+st.dph,.08,1.4),[mx(a.B[0],b.B[0]),mx(a.B[1],b.B[1])],typeof o.margin==='function'?o.margin(w,h):o.margin,lerp(a.r,b.r,t));
-      try{o.draw(R,st.k,e,st)}catch(err){console.error(err)}R.end();st.flow=R.moving&&!RM}
-    function ui(){q('.stg-st').textContent='step '+(st.k+1)+' of '+st.n;q('.stg-r').value=st.k;const p=q('.stg-p');p.innerHTML=st.play?'&#10073;&#10073; Pause':'&#9654; Play';p.setAttribute('aria-label',st.play?'Pause':'Play');
-      if(st.list)[...st.list.children].forEach((li,i)=>{li.classList.toggle('on',i===st.k);li.classList.toggle('done',i<st.k);if(i===st.k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});if(o.onStep)o.onStep(st.k,st)}
-    function go(k,anim){st.from=st.e<1&&st.cur?st.cur:null;st.pk=st.k;st.k=cl(k,0,st.n-1);st.e=anim&&!RM?0:1;st.hold=0;ui();draw();kick()}
-    function tick(now){st.raf=0;if(!visible()||!st.vis){st.last=0;return} // off screen: keep play and the hold, resume on return
-     const dt=st.last?Math.min(80,now-st.last):16;st.last=now;
-      if(st.e<1){st.e=Math.min(1,st.e+dt*st.spd/(o.dur||1300));host.dataset.frames=(+host.dataset.frames||0)+1;draw()}
-      else{if(st.flow&&now-st.lastFlow>30){st.lastFlow=now;draw()} // flowing dots keep moving at about 30 frames a second
-        if(st.play){st.hold+=dt*st.spd;if(st.hold>(o.hold||4200)){if(st.k<st.n-1)go(st.k+1,true);else{st.play=false;st.ended=true;ui()}}}}
-      kick()}
-    function kick(){const on=st.e<1||st.play||st.flow;if(on&&st.vis&&!st.raf){st.raf=requestAnimationFrame(tick)}if(!on)st.last=0}
-    function pause(){if(st.play){st.play=false;ui()}}
-    q('.stg-p').onclick=()=>{st.user=true;if(st.play){pause();return}st.play=true;if(st.k>=st.n-1)go(0,false);else if(st.e>=1)go(st.k+1,true);ui();kick()};
-    q('.stg-f').onclick=()=>{st.user=true;pause();go(st.k+1,true)};q('.stg-b').onclick=()=>{st.user=true;pause();go(st.k-1,false)};
-    q('.stg-r').oninput=e=>{const v=+e.target.value;st.user=true;pause();go(v,false)}; /* read the value before pause() redraws the controls */ q('.stg-s').onchange=e=>{st.spd=+e.target.value};
-    // drag to turn the model; vertical touch drags still scroll the page (touch-action: pan-y)
-    let drag=null;cvs.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,t:st.dth,p:st.dph};cvs.setPointerCapture(e.pointerId);cvs.classList.add('dr')});
-    cvs.addEventListener('pointermove',e=>{if(!drag)return;st.dth=drag.t-(e.clientX-drag.x)*.008;if(e.pointerType==='mouse')st.dph=cl(drag.p+(e.clientY-drag.y)*.006,-1.2,1.2);st.moved=true;q('.stg-rv').hidden=false;q('.stg-hint').hidden=true;draw()});
-    const up=()=>{drag=null;cvs.classList.remove('dr')};cvs.addEventListener('pointerup',up);cvs.addEventListener('pointercancel',up);
-    q('.stg-rv').onclick=()=>{st.dth=0;st.dph=0;st.moved=false;q('.stg-rv').hidden=true;draw()};
-    // autoplay (2026-11-06): a stage plays its steps by itself once it is well in view, from where it stands; leaving pauses it, coming back resumes.
-    // It stops for good once the reader takes a control (a step, back, forward, the scrubber, play or pause), after it has reached its last step, and never under reduced motion.
-    function auto(){if(RM||st.user||st.ended||st.play||!visible())return;st.play=true;if(!st.started)go(0,true);st.started=true;ui();kick()}
-    // in view: at least half of it, or half the window's height for a stage taller than the window
-    if('IntersectionObserver' in window)new IntersectionObserver(es=>es.forEach(x=>{st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis){draw();auto()}kick()}),{threshold:[0,.25,.5,.75]}).observe(host);else st.vis=true;
-    if('ResizeObserver' in window)new ResizeObserver(()=>requestAnimationFrame(()=>draw())).observe(cvs);
-    bindList(ov);
-    const api={draw,go,pause,st,R,host,
-      list(id){pause();bindList($(id));go(0,false);st.ended=false;st.user=false;st.started=false;auto()},
-      reset(){pause();go(0,false)}};
-    stages.push(api);ui();return api}
-  {const mq=matchMedia('(prefers-color-scheme: dark)'),f=()=>{PAL=null;stages.forEach(s=>s.draw())};(mq.addEventListener?mq.addEventListener.bind(mq,'change'):mq.addListener.bind(mq))(f)}
-  // redraw when any tab opens (a hidden tab has no width)
-  g.TAB_RENDER=g.TAB_RENDER||{};document.querySelectorAll('.tab[id]').forEach(t=>(g.TAB_RENDER[t.id]=g.TAB_RENDER[t.id]||[]).push(()=>{PAL=null;setTimeout(()=>stages.forEach(s=>s.draw()),0)}));
-  g.S3={stage,ease,lerp,lerp3,cl,add,sub,mul,rgb,mix,RM,
-    // how far a thing that appears at step s has arrived: 0 before, e during, 1 after
-    at:(k,e,s)=>k>s?1:k===s?e:0,
-    // the same, for something that leaves at step s
-    off:(k,e,s)=>k>s?0:k===s?1-e:1};
-})(window);
-</script>
 <script>/* 26_js_flg_agent.js */
 // ---- Reading section 9: create_agent graphs and the two recorded local-model runs ----
 (function(){
@@ -1261,130 +1074,155 @@ window.FLGC=(function(){
   $('flg-c-cli').textContent=D.e6.cli;
 })();
 </script>
-<script>/* 40_js_sc_common.js */
-// ---- 3D scenes, shared parts (renderer v2, 2026-11-06): a LangGraph graph laid out on the floor, its nodes, edges, the checkpoint stack ----
-// Rows of FLGG.LAYOUT run from left to right along x; nodes of one row stand side by side in depth (z), so parallel tasks sit one behind the other.
-// Colours: amber (P.c5) for a triggered or running node, green (P.c3) for writes and state, the page's accent for checkpoints, purple (P.c4) for model calls, P.bad for a kill or an error.
-window.FLG3=(function(){
-  const {mix}=S3;
-  // pos[node] = [x, z]; rows: FLGG.LAYOUT[name]
-  // START and END (always the first and last row) sit just outside [x0, x1]; the rows between share it evenly
-  function layout(rows,x0,x1,zc,dz){const pos={},n=rows.length,m=n-2;
-    rows.forEach((r,i)=>{const x=i===0?x0-1.1:i===n-1?x1+1.1:m>1?x0+(x1-x0)*(i-1)/(m-1):(x0+x1)/2;r.forEach((nd,j)=>{if(!nd)return;pos[nd]=[x,r.length>1?zc+dz*(j-(r.length-1)/2):zc]})});return pos}
-  const isSE=nd=>nd==='__start__'||nd==='__end__';
-  // a node: st 'idle'|'next'|'run'|'done'|'err'|'lost'; copies: parallel tasks of one node (Send) drawn one behind the other
-  function node(R,p,name,o){const P=R.P,st=o.st||'idle',a=o.a==null?1:o.a,W=o.w||.95,H=.3,D=.5;
-    if(isSE(name)){const c=[p[0],.14,p[1]];R.ball(c,.13,{c:name==='__start__'?P.c5:st==='done'?P.good:P.mute,a:Math.max(.5,a)});
-      R.label([p[0],.14,p[1]],name==='__start__'?'START':'END',{mono:true,fs:12,b:1,c:P.mute,al:name==='__start__'?'right':'left',dx:name==='__start__'?-12:12,a:Math.max(.55,a)});return}
-    const fill=st==='run'?mix(P.paper,P.c5,.75):st==='next'?mix(P.paper,P.c5,.18):st==='done'?mix(P.paper,P.acc,.22):st==='err'?mix(P.paper,P.bad,.7):st==='lost'?mix(P.paper,P.bad,.25):P.paper;
-    const n=o.copies||1;for(let c=n-1;c>=0;c--)R.box([p[0],0,p[1]-c*.22],[W,H,D],{fill,a,ec:st==='next'?P.c5:st==='err'||st==='lost'?P.bad:null,lw:st==='next'?2.2:.9});
-    if(o.label!==false)R.label([p[0],H,p[1]],o.text||name,{mono:true,fs:12,b:st==='run'||st==='next'||st==='err',c:st==='err'||st==='lost'?P.bad:P.ink,dy:-12,a:Math.max(.45,a)})}
-  // an edge on the floor between two nodes; a backward edge (a loop) arcs over the nodes
-  function edge(R,a,b,o){o=o||{};const P=R.P,al=o.a==null?.6:o.a,y=.03;if(!a||!b)return;
-    if(b[0]>a[0]+.01){const pts=[[a[0]+(isSE(o.s)?.16:.5),y,a[1]],[b[0]-(isSE(o.t)?.18:.52),y,b[1]]];R.line(pts,{c:o.c||P.mute,w:1.4,a:al,dash:o.cond?[5,4]:null,head:6});return pts}
-    const pts=[];for(let i=0;i<=24;i++)pts.push(R.arcPt([a[0],.32,a[1]-.25],[b[0],.32,b[1]-.25],.9,i/24));R.line(pts,{c:o.c||P.mute,w:1.4,a:al,dash:[5,4],head:6});return pts}
-  // the checkpointer: saved checkpoints as slabs stacked on the floor; the newest drops in with t (0..1)
-  function stack(R,c,n,t,o){o=o||{};const P=R.P,h=.12,a=o.a==null?1:o.a;
-    for(let i=0;i<n;i++){const last=i===n-1,drop=last&&t<1?(1-t)*.9:0,al=last&&t<1?a*t:a;
-      R.box([c[0],i*h+drop,c[2]],[1.3,h*.86,.9],{fill:mix(P.paper,P.acc,last&&o.hiLast?.5:.22),a:al,lw:.8,shadow:i===0})}
-    return n*h}
-  return {layout,node,edge,stack,isSE};
+<script>/* 40_js_fig_common.js */
+// ---- Figs. 1 and 2, shared parts (2D SVG, 2026-11-19; replaces the 3D scenes' shared part): a LangGraph graph drawn top to bottom, its nodes and edges,
+// the checkpoint stack, arrows that draw themselves, and the per-step tween. Both figures are RD.anim step animations with step lists on the left.
+// Colours: amber (--c5) for a triggered or running node, green (--c3) for writes and state, the accent for checkpoints, purple (--c4) for model calls, --bad for a kill or an error.
+window.FLGF=(function(){
+  const esc=RD.esc,MONO='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  const isSE=n=>n==='__start__'||n==='__end__';
+  const cl=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const ph=(e,a,b)=>cl((e-a)/(b-a),0,1); // progress of the part [a, b] of a step's tween
+  // text: mono for code names, sans for prose labels; widths estimated per character
+  const wMono=(s,fs)=>String(s).length*(fs||12)*.61,wSans=(s,fs)=>String(s).length*(fs||12)*.56;
+  function t(x,y,s,o){o=o||{};return '<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" font-size="'+(o.fs||12)+'"'+(o.mono?' style="font-family:'+MONO+'"':'')+(o.al?' text-anchor="'+(o.al==='right'?'end':o.al==='mid'?'middle':'start')+'"':'')+
+    ' fill="'+(o.c||'var(--ink)')+'"'+(o.b?' font-weight="600"':'')+(o.a!=null&&o.a<1?' opacity="'+o.a.toFixed(2)+'"':'')+'>'+esc(s)+'</text>'}
+  // rows of FLGG.LAYOUT from top to bottom inside [x0, x0+w]; nodes of one row side by side
+  function layout(rows,x0,w,y0,rh){const pos={};rows.forEach((r,i)=>r.forEach((nd,j)=>{if(nd)pos[nd]={x:x0+w*(j+.5)/r.length,y:y0+i*rh,cw:w/r.length}}));return pos}
+  const NH=26;
+  // a node: st 'idle'|'next'|'run'|'done'|'err'|'lost'; copies: parallel tasks of one node (Send), drawn as cards behind it
+  function node(p,name,o){o=o||{};const st=o.st||'idle',a=st==='idle'?.6:1;
+    if(isSE(name)){const lab=name==='__start__'?'START':'END',w=52,f=st==='done'?'var(--good)':name==='__start__'?'var(--c5)':'var(--mute)';
+      return '<g opacity="'+a+'"><rect x="'+(p.x-w/2)+'" y="'+p.y+'" width="'+w+'" height="'+NH+'" rx="13" fill="'+f+'" fill-opacity=".18" stroke="'+f+'" stroke-width="1.3"/>'+t(p.x,p.y+17,lab,{al:'mid',b:1,c:'var(--ink)'})+'</g>'}
+    const lab=o.text||name,w=Math.min(p.cw-8,Math.max(78,wMono(lab)+16));
+    const F={run:['var(--c5)',.62],next:['var(--c5)',.1],done:['var(--acc)',.16],err:['var(--bad)',.55],lost:['var(--bad)',.12]}[st]||['var(--bg)',1];
+    const S=st==='next'||st==='run'?'var(--c5)':st==='err'||st==='lost'?'var(--bad)':st==='done'?'var(--acc)':'var(--line)';
+    const sw=st==='next'||st==='lost'||st==='err'?2.2:1.2,dash=st==='lost'?' stroke-dasharray="4 3"':'';
+    let s='<g opacity="'+a+'">';for(let c=(o.copies||1)-1;c>=1;c--)s+='<rect x="'+(p.x-w/2+c*5)+'" y="'+(p.y-c*5)+'" width="'+w+'" height="'+NH+'" rx="6" fill="var(--card)" stroke="'+S+'" stroke-width="1.1"/>';
+    s+='<rect x="'+(p.x-w/2)+'" y="'+p.y+'" width="'+w+'" height="'+NH+'" rx="6" fill="var(--card)"/><rect x="'+(p.x-w/2)+'" y="'+p.y+'" width="'+w+'" height="'+NH+'" rx="6" fill="'+F[0]+'" fill-opacity="'+F[1]+'" stroke="'+S+'" stroke-width="'+sw+'"'+dash+'/>';
+    return s+t(p.x,p.y+17.5,lab,{al:'mid',mono:1,b:st==='run'||st==='next'||st==='err',c:st==='err'||st==='lost'?'var(--bad)':'var(--ink)'})+'</g>'}
+  // a purple ring around a node that is calling the model (red and dashed when the call is lost)
+  function ring(p,name,lost){const w=half(p,name)*2+8;return '<rect x="'+(p.x-w/2)+'" y="'+(p.y-4)+'" width="'+w+'" height="'+(NH+8)+'" rx="9" fill="none" stroke="'+(lost?'var(--bad)':'var(--c4)')+'" stroke-width="2"'+(lost?' stroke-dasharray="4 3"':'')+'/>'}
+  const half=(p,n)=>isSE(n)?26:Math.min(p.cw-8,Math.max(78,wMono(n)+16))/2;
+  // an edge: down from a to b, or a loop back up on the right; o.hi colours it (a trigger), o.cond dashes it
+  function edge(a,b,o){o=o||{};if(!a||!b)return '';const c=o.hi?'var(--c5)':'var(--mute)',w=o.hi?2:1.3,dash=o.cond?' stroke-dasharray="5 4"':'',m=' marker-end="url(#'+o.mk+(o.hi?'a':'m')+')"';
+    if(b.y>a.y)return '<path d="M'+a.x+','+(a.y+NH)+' C'+a.x+','+(a.y+NH+14)+' '+b.x+','+(b.y-14)+' '+b.x+','+(b.y-2)+'" fill="none" stroke="'+c+'" stroke-width="'+w+'"'+dash+m+'/>';
+    const xa=a.x+half(a,o.s),xb=b.x+half(b,o.t),xr=Math.max(xa,xb)+26;
+    return '<path d="M'+xa+','+(a.y+NH/2)+' C'+xr+','+(a.y+NH/2)+' '+xr+','+(b.y+NH/2)+' '+(xb+2)+','+(b.y+NH/2)+'" fill="none" stroke="'+c+'" stroke-width="'+w+'"'+dash+m+'/>'}
+  // an arrow from p to q that draws itself as d goes 0 to 1 (the head appears at the end); bend: sideways offset of the curve
+  function arrow(p,q,o){o=o||{};const d=o.d==null?1:o.d;if(d<=0)return '';const bx=o.bend||0,mx=(p[0]+q[0])/2+bx,my=o.up?Math.min(p[1],q[1])-o.up:(p[1]+q[1])/2;
+    const path='M'+p[0].toFixed(1)+','+p[1].toFixed(1)+' Q'+mx.toFixed(1)+','+my.toFixed(1)+' '+q[0].toFixed(1)+','+q[1].toFixed(1);
+    return '<path d="'+path+'" pathLength="1" stroke-dasharray="1" stroke-dashoffset="'+(1-d).toFixed(3)+'" fill="none" stroke="'+o.c+'" stroke-width="'+(o.w||1.8)+'"'+(d>.97?' marker-end="url(#'+o.mk+')"':'')+(o.a!=null?' opacity="'+o.a+'"':'')+'/>'}
+  // arrowhead markers, one per colour; ids carry the figure's prefix
+  function defs(id){const m=(k,c)=>'<marker id="'+id+k+'" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0L8,4L0,8z" fill="'+c+'"/></marker>';
+    return '<defs>'+m('m','var(--mute)')+m('a','var(--c5)')+m('g','var(--c3)')+m('k','var(--acc)')+m('p','var(--c4)')+m('r','var(--bad)')+'</defs>'}
+  // the checkpointer: saved checkpoints as slabs stacked upward from yb; the newest drops in with dr (0..1)
+  function stack(x,yb,n,dr,o){o=o||{};const w=o.w||104,h=8,g=3;let s='';
+    for(let i=0;i<n;i++){const last=i===n-1,y=yb-(i+1)*(h+g)-(last&&dr<1?(1-dr)*14:0),a=last&&dr<1?dr:1;
+      s+='<rect x="'+x+'" y="'+y.toFixed(1)+'" width="'+w+'" height="'+h+'" rx="2" fill="var(--acc)" fill-opacity="'+(last&&o.hiLast?.75:.35)+'" stroke="var(--acc)" stroke-width=".8" opacity="'+a.toFixed(2)+'"/>'}
+    return s}
+  // a chip: a short labelled box (a pending write, an interrupt)
+  function chip(x,y,s,c,o){o=o||{};const w=o.w||wMono(s)+14;return '<g'+(o.a!=null&&o.a<1?' opacity="'+o.a.toFixed(2)+'"':'')+'><rect x="'+x+'" y="'+y+'" width="'+w+'" height="20" rx="5" fill="'+c+'" fill-opacity=".16" stroke="'+c+'" stroke-width="1.2"/>'+t(x+7,y+14,s,{mono:1,c:c,b:1})+'</g>'}
+  // the per-step tween: when the reader or autoplay steps forward, render(k, e) runs with e from 0 to 1 over dur ms; back, the scrubber and reduced motion draw the end state
+  function tween(card,dur,render){let raf=0;return k=>{cancelAnimationFrame(raf);const host=document.getElementById(card);
+    if(!host.classList.contains('rd-fwd')||RD.RM){render(k,1);return}
+    const t0=performance.now(),f=now=>{const e=Math.min(1,(now-t0)/dur);render(k,e);if(e<1)raf=requestAnimationFrame(f)};render(k,0);raf=requestAnimationFrame(f)}}
+  return {ring,esc,isSE,cl,ph,t,wMono,wSans,layout,node,edge,arrow,defs,stack,chip,tween,NH,half};
 })();
 </script>
-<script>/* 41_js_sc_hero.js */
-// ---- Scene: Fig. 1, the idea in one picture (renderer v2, 2026-11-06). The running example's graph (section 2) on the floor, its shared state behind it,
-// the SqliteSaver's checkpoints stacked on the right, the model above the diagnoses. It plays run A of section 5 (durability "sync", real Claude Haiku 4.5
-// calls through claude -p): killed while one diagnosis was in flight, resumed by a second process, paused at interrupt(), approved by a third.
-// Times, calls and cost come from FLG.e6.runs.A; the stored totals (checkpoints, writes) from its database read back after the run. ----
+<script>/* 41_js_fig_hero.js */
+// ---- Fig. 1, the idea in one picture (2D step animation, 2026-11-19; was a 3D stage). The running example's graph (section 2) top to bottom inside the
+// process that runs it; the model, the shared state and the SqliteSaver's checkpoints beside it (below it on a phone). It plays run A of section 5
+// (durability "sync", real Claude Haiku 4.5 calls through claude -p): killed while one diagnosis was in flight, resumed by a second process,
+// paused at interrupt(), approved by a third. Times, calls and cost come from FLG.e6.runs.A; the stored totals (checkpoints, writes) from its database. ----
 (function(){
-  if(!document.getElementById('stg-hero'))return;const {at,mix}=S3;
-  const D=window.FLG,A=D.e6.runs.A,G=window.FLG3;
-  const pos=G.layout(FLGG.LAYOUT.real,-4.9,1.9,-.4,1.5);
+  const host=document.getElementById('flg-h-svg');if(!host)return;
+  const F=window.FLGF,{t,arrow,node,edge,chip,ph}=F,D=window.FLG,A=D.e6.runs.A,MK='flgH';
   const call=(n,p)=>A.calls.find(c=>c.node===n&&c.process===p)||{};
   const ret=A.calls.filter(c=>c.t1!==null),cost=ret.reduce((s,c)=>s+c.cost,0);
   const s1=x=>Number(x).toFixed(1)+' s';
   const tw=call('diagnose_top_words','start'),wc=call('diagnose_word_count','resume'),pf=call('propose_fix','resume');
   const pause=(A.events.find(e=>e.what==='process_end'&&e.process==='resume')||{}).t;
-  const NAME={read_and_test:'read_and_test',diagnose_word_count:'diagnose word_count',diagnose_top_words:'diagnose top_words',propose_fix:'propose_fix',human_review:'human_review',apply_and_test:'apply_and_test'};
   const EDGES=window.FLG_REAL_EDGES;
-  // the shared state: one column per key, behind the graph; diagnoses is a list with an operator.add reducer, so it holds one block per diagnosis
-  const KEYS=['core','test_output','diagnoses','patch','decision','passed'],ZS=1.55,KX=k=>-5.0+KEYS.indexOf(k)*1.45;
-  const DB=[4.6,0,-.4],ZM=-2.3;
-  // per step: node states, filled state keys (diagnoses: number of items), checkpoints stacked, process
-  const NODES=['read_and_test','diagnose_word_count','diagnose_top_words','propose_fix','human_review','apply_and_test'];
+  // the shared state: one row per key; diagnoses is a list with an operator.add reducer, so it holds one block per diagnosis
+  const KEYS=['core','test_output','diagnoses','patch','decision','passed'];
+  // per step: node states, filled state keys (diagnoses: number of items), checkpoints stacked, process, model status
   const S=[
-    {proc:1,ns:{},keys:{},ck:2},
-    {proc:1,ns:{read_and_test:'run'},keys:{core:1,test_output:1},ck:3,wr:['read_and_test',['core','test_output']]},
-    {proc:1,ns:{read_and_test:'done',diagnose_word_count:'run',diagnose_top_words:'run'},keys:{core:1,test_output:1},ck:3,pend:1},
-    {proc:0,ns:{read_and_test:'done',diagnose_word_count:'lost',diagnose_top_words:'done'},keys:{core:1,test_output:1},ck:3,pend:1,kill:1},
-    {proc:2,ns:{read_and_test:'done',diagnose_word_count:'run',diagnose_top_words:'done'},keys:{core:1,test_output:1,diagnoses:2},ck:4,load:1,wr:['diagnose_word_count',['diagnoses']]},
-    {proc:2,ns:{read_and_test:'done',diagnose_word_count:'done',diagnose_top_words:'done',propose_fix:'run',human_review:'next'},keys:{core:1,test_output:1,diagnoses:2,patch:1},ck:5,intr:1,wr:['propose_fix',['patch']]},
-    {proc:3,ns:{read_and_test:'done',diagnose_word_count:'done',diagnose_top_words:'done',propose_fix:'done',human_review:'done',apply_and_test:'done',__end__:'done'},keys:{core:1,test_output:1,diagnoses:2,patch:1,decision:1,passed:1},ck:A.db.checkpoints,load:1,wr:['apply_and_test',['decision','passed']]}];
-  function draw(R,k,e){const P=R.P,s=S[k],pv=S[Math.max(0,k-1)],nar=R.W<520;R.grid(-7,6,-2.8,2.8,.5);
-    // the process running the graph: a tinted floor plate; red when killed; gone when it exits at the interrupt
-    const PC=[null,P.acc,P.c6,P.c3][s.proc]||P.bad,pa=s.kill?1:k===5?1-.7*Math.max(0,(e-.6)/.4):1;
-    R.quad([[-6.4,0,-1.8],[3.5,0,-1.8],[3.5,0,.95],[-6.4,0,.95]],{fill:mix(P.paper,PC,s.kill?.3:.14),a:.9*pa,edge:false,dz:60}); // dz: sorted behind everything standing on it
-    R.label([-6.35,0,-1.8],s.kill?'process 1 · killed':k===5&&e>.6?'process 2 · exits, waiting':'process '+s.proc,{al:'left',fs:12.5,b:1,c:s.kill?P.bad:PC,dy:-10,wide:1});
-    // edges, then trigger flows into the nodes that run this step
-    EDGES.forEach(ed=>{const pts=G.edge(R,pos[ed.s],pos[ed.t],{a:.55,s:ed.s,t:ed.t});const st=s.ns[ed.t];
-      if(pts&&(st==='run'||(k===0&&ed.s==='__start__'))&&!(k===4&&ed.t==='diagnose_word_count'&&false))R.flow(pts,{c:P.c5,r:.06,n:5,speed:1,a:k===0?1:.8})});
-    Object.keys(pos).forEach(n=>{const st=s.ns[n]||'idle',p=pos[n];
-      const lab=n==='human_review'&&k===5?'human_review · interrupt()':n==='diagnose_word_count'&&st==='lost'?'word_count · call lost':NAME[n];
-      const show=!nar||st==='run'||st==='next'||st==='lost'||G.isSE(n);
-      G.node(R,p,n,{st,text:lab,label:show,a:st==='idle'?.55:1,w:1.0})});
-    // the model: an upright glass plate behind the diagnoses and propose_fix; calls flow back to it
-    const xm0=pos.diagnose_word_count[0]-.8,xm1=pos.propose_fix[0]+.8,mOn=k>=2&&k<=5;
-    R.glass([xm0,.1,ZM],[xm1-xm0,0,0],[0,1.15,0],{c:P.c4,a:mOn?.9:.3,nu:6,nv:4});
-    R.label([xm1,1.1,ZM],'Claude Haiku 4.5',{al:'left',dx:8,fs:12.5,b:1,c:P.c4,a:mOn?1:.5,wide:1});
-    const up=(n,a)=>{const p=pos[n];R.flowArc([p[0],.32,p[1]],[p[0]+.1,.75,ZM+.05],.35,{c:P.c4,r:.06,n:5,speed:1,a})};
-    if(k===2){up('diagnose_word_count',1);up('diagnose_top_words',1-.6*e)}
-    if(k===3){const p=pos.diagnose_word_count;R.line([[p[0],.32,p[1]],[p[0]+.1,.75,ZM+.05]],{c:P.bad,w:2,dash:[4,4],a:.9});
-      R.label([xm0,.9,ZM],'SIGKILL · '+s1(A.kill),{al:'right',dx:-10,fs:13,b:1,c:P.bad})}
-    if(k===4)up('diagnose_word_count',1);if(k===5)up('propose_fix',1);
-    if(k===2)R.label([pos.diagnose_top_words[0]+.5,.3,pos.diagnose_top_words[1]],'returns at '+s1(tw.t1),{al:'left',dx:12,fs:12.5,c:P.c4,a:e,wide:1});
-    // the shared state (in the process's memory): a plinth per key, a green block per value; memory is gone at the kill
-    const mem=s.kill?.15:s.load?(e<.35?.15+e*2:1):1;
-    KEYS.forEach(key=>{const x=KX(key),n=s.keys[key]||0,n0=pv.keys[key]||0,isNew=n>n0;
-      R.box([x,0,ZS],[.9,.06,.5],{a:.9,lw:.7});R.label([x,0,ZS+.25],key,{mono:true,fs:12,c:n?P.c3:P.mute,dy:14,a:n?1:.6,grp:nar?'k':null});
-      for(let i=0;i<n;i++){const ap=isNew&&i>=n0?Math.max(0,(e-.45)/.55):1;if(ap<=0)continue;
-        R.box([x,.06+i*.26,ZS],[.62,.22,.36],{fill:mix(P.paper,key==='passed'?P.good:P.c3,.55),a:mem*ap,lw:.7,shadow:false})}});
-    R.label([KX('core')-.6,.2,ZS],'state',{al:'right',dx:-4,fs:12.5,b:1,c:P.c3,wide:1});
-    // writes: from the node that ran into the state keys it returned
-    if(s.wr){const p=pos[s.wr[0]];s.wr[1].forEach(key=>R.flowArc([p[0],.32,p[1]],[KX(key),.4,ZS],.55,{c:P.c3,r:.06,n:5,speed:1,a:Math.min(1,e*1.6)}))}
+    {proc:1,ns:{},keys:{},ck:2,m:'idle: no model call yet'},
+    {proc:1,ns:{read_and_test:'run'},keys:{core:1,test_output:1},ck:3,wr:['read_and_test',['core','test_output']],m:'idle: read_and_test calls no model'},
+    {proc:1,ns:{read_and_test:'done',diagnose_word_count:'run',diagnose_top_words:'run'},keys:{core:1,test_output:1},ck:3,pend:1,m:'2 calls in flight; top_words returns at '+s1(tw.t1),calls:['diagnose_word_count','diagnose_top_words']},
+    {proc:0,ns:{read_and_test:'done',diagnose_word_count:'lost',diagnose_top_words:'done'},keys:{core:1,test_output:1},ck:3,pend:1,kill:1,m:'SIGKILL at '+s1(A.kill)+': word_count’s call is lost',calls:['diagnose_word_count']},
+    {proc:2,ns:{read_and_test:'done',diagnose_word_count:'run',diagnose_top_words:'done'},keys:{core:1,test_output:1,diagnoses:2},ck:4,load:1,wr:['diagnose_word_count',['diagnoses']],m:'only this call reruns: word_count, '+s1(wc.t1-wc.t0),calls:['diagnose_word_count']},
+    {proc:2,ns:{read_and_test:'done',diagnose_word_count:'done',diagnose_top_words:'done',propose_fix:'run',human_review:'next'},keys:{core:1,test_output:1,diagnoses:2,patch:1},ck:5,intr:1,wr:['propose_fix',['patch']],m:'propose_fix: model call '+s1(pf.t1-pf.t0),calls:['propose_fix']},
+    {proc:3,ns:{read_and_test:'done',diagnose_word_count:'done',diagnose_top_words:'done',propose_fix:'done',human_review:'done',apply_and_test:'done',__end__:'done'},keys:{core:1,test_output:1,diagnoses:2,patch:1,decision:1,passed:1},ck:A.db.checkpoints,load:1,wr:['apply_and_test',['decision','passed']],
+      m:A.calls.length+' model calls started, '+ret.length+' returned · $'+cost.toFixed(4)}];
+  const PC=['var(--bad)','var(--acc)','var(--c6)','var(--c3)'];
+  function render(k,e){const W=Math.round(RD.width(host)),wide=W>=560,s=S[k],pv=S[Math.max(0,k-1)];
+    // geometry: the graph on the left (full width on a phone), the model, state and checkpointer on the right (below on a phone)
+    const gw=wide?Math.min(Math.round(W*.5),380):W,rh=46,by=22,pos=F.layout(FLGG.LAYOUT.real,8,gw-16,by+12,rh),bh=FLGG.LAYOUT.real.length*rh+6;
+    const rx=wide?gw+22:0,rw=wide?W-rx:W,my=wide?6:by+bh+12;
+    const sx=rx,sy=my+84,sw=wide?rw:W/2-8,dx=wide?rx:W/2+8,dw=wide?rw:W/2-8;
+    const ckY=wide?sy+KEYS.length*20+112:sy+KEYS.length*20-8,dTitle=wide?[dx+116,ckY-22]:[dx,sy-12];
+    const H=wide?Math.max(by+bh+8,ckY+34):sy+KEYS.length*20+30;
+    let b=F.defs(MK);
+    // the process running the graph: a tinted band; red when killed; dashed when it exits at the interrupt
+    const gone=k===5&&e>.6,pc=PC[s.proc];
+    b+='<rect x="1" y="'+by+'" width="'+(gw-2)+'" height="'+bh+'" rx="10" fill="'+pc+'" fill-opacity="'+(s.kill?.13:gone?.02:.07)+'" stroke="'+pc+'" stroke-width="1.2"'+(gone?' stroke-dasharray="5 4"':'')+'/>';
+    const pl=s.kill?'process 1 · killed':k===4?'process 2 · loads the checkpoint':gone?'process 2 · returns the diff at '+s1(pause)+', exits':k===6?'process 3 · Command(resume="approve")':'process '+s.proc;
+    b+=t(6,15,pl,{b:1,c:pc,fs:12.5});
+    // edges (trigger edges into this step's running nodes in amber), then the nodes
+    EDGES.forEach(ed=>{const st=s.ns[ed.t];b+=edge(pos[ed.s],pos[ed.t],{mk:MK,s:ed.s,t:ed.t,hi:st==='run'||(k===0&&ed.s==='__start__')})});
+    Object.keys(pos).forEach(n=>{const st=s.ns[n]||'idle';b+=node(pos[n],n,{st,text:n==='human_review'&&k===5?'human_review · interrupt()':n})});
+    // the model: a purple box; this step's calls are dashed lines from the calling nodes (wide screens)
+    const mOn=k>=2&&k<=5||k===6;
+    b+='<rect x="'+rx+'" y="'+my+'" width="'+(rw-2)+'" height="46" rx="8" fill="var(--c4)" fill-opacity="'+(mOn?.1:.03)+'" stroke="var(--c4)" stroke-width="1.2" opacity="'+(mOn?1:.6)+'"/>';
+    b+=t(rx+9,my+18,'Claude Haiku 4.5',{b:1,c:'var(--c4)',fs:12.5,a:mOn?1:.7})+t(rx+9,my+36,s.m,{c:s.kill?'var(--bad)':'var(--ink)',b:s.kill,a:mOn?1:.7});
+    if(s.calls)s.calls.forEach(n=>{b+=F.ring(pos[n],n,s.ns[n]==='lost')});
+    b+='<rect x="'+(rx+rw-30)+'" y="'+(my+8)+'" width="10" height="10" rx="3" fill="none" stroke="var(--c4)" stroke-width="2"/>'+t(rx+rw-36,my+17,'calling',{al:'right',c:'var(--c4)',fs:12});
+    // the shared state (in the process's memory): a row per key, a green block per value; memory is gone at the kill and refilled from the checkpoint on load
+    const mem=s.kill?.18:s.load?(e<.35?.18+e*2.3:1):1;
+    b+=t(sx,sy-12,'state',{b:1,c:'var(--c3)',fs:12.5})+t(sx+44,sy-12,s.kill?'memory lost':wide?'in the process’s memory':'',{c:s.kill?'var(--bad)':'var(--mute)',b:s.kill});
+    KEYS.forEach((key,i)=>{const y=sy+i*20,n=s.keys[key]||0,n0=pv.keys[key]||0;
+      b+=t(sx,y+13,key,{mono:1,c:n?'var(--c3)':'var(--mute)',b:n>n0&&k>0});
+      b+='<rect x="'+(sx+92)+'" y="'+(y+2)+'" width="'+(wide?Math.min(sw-96,120):sw-96)+'" height="15" rx="3" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>';
+      for(let j=0;j<n;j++){const ap=j>=n0&&k>0?ph(e,.45,.85):1;if(ap<=0)continue;
+        b+='<rect x="'+(sx+95+j*18)+'" y="'+(y+4)+'" width="15" height="11" rx="2" fill="'+(key==='passed'?'var(--good)':'var(--c3)')+'" fill-opacity=".6" stroke="var(--c3)" stroke-width=".8" opacity="'+(mem*ap).toFixed(2)+'"/>'}});
+    // writes: from the node that ran into the state keys it returned (wide screens)
+    if(wide&&s.wr){const p=pos[s.wr[0]];const left=p.x<gw/2-10;s.wr[1].forEach(key=>{b+=arrow(left?[p.x+F.half(p,s.wr[0])-12,p.y-1]:[p.x+F.half(p,s.wr[0]),p.y+NH2],[sx-4,sy+KEYS.indexOf(key)*20+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.15,.6),bend:12,up:left?22:0})})}
     // the checkpointer: a stack of saved checkpoints; the pending write and the interrupt wait beside it
-    const pk=pv.ck,newSlab=s.ck>pk&&k>0;const top=G.stack(R,DB,s.ck,newSlab?Math.max(0,(e-.6)/.4):1,{hiLast:newSlab});
-    R.label([DB[0],top,DB[2]],(nar?'':'SqliteSaver · ')+s.ck+' checkpoints',{fs:12.5,b:1,c:P.acc,dy:-12});
-    const toDB=(from,c,a)=>R.flowArc(from,[DB[0]-.2,top,DB[2]],.6,{c,r:.06,n:6,speed:1.1,a});
-    if(newSlab&&!s.load)toDB([KX('passed')+.4,.4,ZS],P.acc,Math.max(0,(e-.4)/.6));
-    if(newSlab&&s.load)toDB([KX('passed')+.4,.4,ZS],P.acc,Math.max(0,(e-.6)/.4));
-    if(k===0)toDB([pos.__start__[0],.3,pos.__start__[1]],P.acc,1);
-    if(s.pend){const c=[DB[0]+.05,0,DB[2]+1.3];R.box(c,[.7,.16,.4],{fill:mix(P.paper,P.c3,.55),a:k===2?Math.max(0,(e-.3)/.7):1,lw:.8});
-      R.label([c[0],.16,c[2]+.2],nar?'pending write':'pending write · top_words',{fs:12.5,c:P.c3,b:1,dy:16,a:k===2?Math.max(0,(e-.3)/.7):1});
-      if(k===2){const p=pos.diagnose_top_words;R.flowArc([p[0],.32,p[1]],[c[0],.2,c[2]],.7,{c:P.c3,r:.06,n:6,speed:1.1,a:Math.max(0,(e-.3)/.7)})}}
-    if(s.intr){const c=[DB[0]+.05,0,DB[2]+1.3],a=Math.max(0,(e-.55)/.45);R.box(c,[.7,.16,.4],{fill:mix(P.paper,P.c5,.6),a,lw:.8});
-      R.label([c[0],.16,c[2]+.2],nar?'interrupt':'interrupt · waiting for a person',{fs:12.5,c:P.c5,b:1,dy:16,a});
-      if(!nar)R.label([pos.human_review[0],.3,pos.human_review[1]],'returns the diff at '+s1(pause),{fs:12,c:P.mute,dy:-30,a})}
-    // loading a checkpoint: the saved state flows back into the new process's memory
-    if(s.load)R.flowArc([DB[0]-.3,top,DB[2]],[KX('passed')+.4,.5,ZS],.6,{c:P.acc,r:.065,n:7,speed:1.2,a:e<.5?1:1-(e-.5)});
-    if(k===4&&!nar)R.label([pos.diagnose_word_count[0]+.5,.3,pos.diagnose_word_count[1]],'only this call reruns · '+s1(wc.t1-wc.t0),{al:'left',dx:12,fs:12.5,c:P.c4,a:e});
-    if(k===5&&!nar)R.label([pos.propose_fix[0]+.5,.3,pos.propose_fix[1]],'model call · '+s1(pf.t1-pf.t0),{al:'left',dx:12,fs:12.5,c:P.c4,a:e});
-    if(k===6){R.label([-1.2,1.3,ZM],A.calls.length+' model calls started, '+ret.length+' returned · $'+cost.toFixed(4)+' · '+A.db.writes+' writes saved',{fs:13,b:1,c:P.ink,dy:-14,a:e,wide:1})}
+    const newSlab=s.ck>pv.ck&&k>0,dr=newSlab?ph(e,.6,1):k===0?ph(e,.3,1):1,top=ckY-s.ck*11;
+    b+=F.stack(dx,ckY,s.ck,dr,{hiLast:newSlab||k===0});
+    const ckTxt=s.ck+' checkpoints'+(k===6&&wide?' · '+A.db.writes+' writes':'');
+    b+=t(dTitle[0],dTitle[1],'SqliteSaver',{b:1,c:'var(--acc)',fs:12.5})+t(dTitle[0],dTitle[1]+16,ckTxt,{c:'var(--acc)',b:1});
+    if(k===6&&!wide)b+=t(dx,ckY+16,A.db.writes+' writes saved',{c:'var(--acc)',b:1});
+    const chY=ckY+6,chX=dx;
+    if(s.pend){const a=k===2?ph(e,.3,.7):1;b+=chip(chX,chY,wide?'pending write · top_words':'pending write','var(--c3)',{a,w:wide?null:dw-4});
+      if(wide&&k===2){const p=pos.diagnose_top_words;b+=arrow([p.x,p.y+NH2*2],[chX-2,chY+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.3,.7),bend:-30})}}
+    if(s.intr){const a=ph(e,.55,1);b+=chip(chX,chY,wide?'interrupt · waiting for a person':'interrupt','var(--c5)',{a,w:wide?null:dw-4})}
+    // saving a checkpoint (state to the stack) and loading one (the stack back into a new process's memory)
+    const save=wide?[[sx+60,sy+KEYS.length*20+2],[dx+52,top-4]]:[[sx+sw-6,sy+30],[dx-4,top+4]];
+    if(newSlab)b+=arrow(save[0],save[1],{c:'var(--acc)',mk:MK+'k',d:ph(e,s.load?.55:.4,s.load?.85:.75),bend:wide?0:8});
+    if(k===0&&wide){const p=pos.__start__;b+=arrow([p.x+28,p.y+13],[dx-4,top+4],{c:'var(--acc)',mk:MK+'k',d:ph(e,0,.5),bend:-20})}
+    if(s.load){const p=wide?[[dx-6,top+10],[sx-6,sy+50]]:[[dx-4,top+20],[sx+sw-6,sy+60]];b+=arrow(p[0],p[1],{c:'var(--acc)',mk:MK+'k',d:ph(e,0,.35),bend:wide?-34:-8,w:2.2});
+      if(wide)b+=t(dx-34,(top+sy+60)/2,'load',{al:'right',c:'var(--acc)',b:1,a:ph(e,.1,.35)})}
+    host.innerHTML=RD.svg(W,H,b,'Fig. 1: the running example killed and resumed, step '+(k+1)+' of '+S.length);
   }
-  const full={cam:[.14,.74],bounds:[[-6.5,0,-2.4],[5.4,1.4,2.1]]};
-  S3.stage({id:'stg-hero',list:'sx-hero',fig:'Fig. 1 · the running example, killed and resumed',cam:full.cam,bounds:full.bounds,aspect:.46,dur:1700,hold:5200,draw,
-    margin:w=>w<520?[14,10,26,10]:[18,16,34,16],
-    view:()=>innerWidth<520?{cam:[.5,.92]}:null});
+  const NH2=F.NH/2;
+  const draw=F.tween('flg-h-card',1700,render);
+  const an=RD.anim({card:'flg-h-card',ctl:'flg-h-ctl',n:S.length,draw,ms:5600,label:'Step through Fig. 1',list:'sx-hero'});
+  RD.onResize(()=>an.redraw());
 })();
 </script>
-<script>/* 42_js_sc_steps.js */
-// ---- Scene: Fig. 2, super-steps (section 3; renderer v2, 2026-11-06; replaces the 2D super-step player). Seven recorded graphs (FLG.e1, langgraph 1.2.14,
-// InMemorySaver, no model). Step 0 is the input; each later step is one super-step, played in its three phases during the step's tween:
-// plan (the triggered nodes are outlined, their trigger channels flow in), execute (the nodes run; each task's writes land on the pending-writes tray),
-// update (the writes go through the reducers into the state's channels, whose columns rise with their version, and a checkpoint drops onto the stack).
+<script>/* 42_js_fig_steps.js */
+// ---- Fig. 2, super-steps (section 3; 2D step animation, 2026-11-19; was a 3D stage, before that the 2D super-step player). Seven recorded graphs (FLG.e1,
+// langgraph 1.2.14, InMemorySaver, no model). Step 0 is the input; each later step is one super-step, played in its three phases during the step's tween:
+// plan (the triggered nodes are outlined, their trigger edges light up), execute (the nodes run; each task's writes land in the pending-writes tray),
+// update (the writes go through the reducers into the state's channels, whose bars grow with their version, and a checkpoint drops onto the stack).
 // The step lists on the left are generated from the same recorded checkpoints, one item per step. ----
 (function(){
-  if(!document.getElementById('stg-steps'))return;const {mix,cl}=S3;
-  const D=window.FLG,G=window.FLG3,esc=RD.esc,$=id=>document.getElementById(id);
+  const host=document.getElementById('flg-s-svg');if(!host)return;
+  const F=window.FLGF,{t,arrow,node,edge,chip,ph}=F,MK='flgS';
+  const D=window.FLG,esc=RD.esc,$=id=>document.getElementById(id);
   const NAMES={linear:'Linear',fan_reducer:'Fan-out, reducer',fan_no_reducer:'Fan-out, no reducer',uneven_edges:'Uneven, plain edges',uneven_join_all:'Uneven, join',loop:'Loop',send:'Send (map-reduce)'};
   const TEACH={
     linear:'One task per super-step; four steps, five checkpoints after the input. The hidden branch:to: channels carry control from node to node.',
@@ -1399,59 +1237,60 @@ window.FLG3=(function(){
   const cut=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+'…':s};
   let cur='fan_reducer';
   const g=()=>D.e1.find(x=>x.name===cur);
-  // derived per graph: its state keys (in order of first write), node positions
+  // derived per graph: its state keys (in order of first write), the most keys changed in one step
   function info(gr){if(gr._i)return gr._i;const keys=[];gr.steps.forEach(s=>Object.keys(s.versions).concat(Object.keys(s.values)).forEach(k=>{if(!hid(k)&&!keys.includes(k))keys.push(k)}));
-    const pos=G.layout(FLGG.LAYOUT[gr.name],-4.6,1.0,-.9,1.45);const err=!!gr.error;return gr._i={keys,pos,err,n:gr.steps.length}}
-  const X0=-5.0,X1=.9,ZT=.55,ZS=1.65,DB=[3.7,0,-.6];
-  const keyX=(I,k)=>{const n=I.keys.length,i=I.keys.indexOf(k);return n>1?X0+.3+(X1-X0-.6)*i/(n-1):(X0+X1)/2};
+    let mch=1;gr.steps.forEach((s,i)=>{const nx=gr.steps[i+1];if(nx)mch=Math.max(mch,chgd(s,nx).length)});return gr._i={keys,mch,err:!!gr.error,n:gr.steps.length}}
   const ver=(s,k)=>+((s&&s.versions[k])||0);
   const chgd=(a,b)=>Object.keys(b.versions).filter(k=>!hid(k)&&b.versions[k]!==(a.versions||{})[k]);
-  // what the stage shows at step k: tasks run, writes pending, the checkpoint the update saves
-  function at(gr,k){const S=gr.steps,I=info(gr);if(k===0)return {kind:'input',ck:Math.min(2,S.length)};
+  // what the figure shows at step k: tasks run, writes pending, the checkpoint the update saves
+  function at(gr,k){const S=gr.steps;if(k===0)return {kind:'input',ck:Math.min(2,S.length)};
     const s=S[k],nx=S[k+1];if(!s.tasks.length)return {kind:'end',ck:S.length};
     if(!nx)return {kind:'err',ck:S.length,s};return {kind:'step',ck:k+2,s,nx}}
-  function draw(R,k,e){const P=R.P,gr=g(),I=info(gr),S=gr.steps,a=at(gr,k),nar=R.W<520;R.grid(-6.4,4.6,-2.6,2.6,.5);
-    const p1=cl(e/.3,0,1),p2=cl((e-.3)/.35,0,1),p3=cl((e-.65)/.35,0,1);
+  function render(k,e){const gr=g(),I=info(gr),S=gr.steps,a=at(gr,k),W=Math.round(RD.width(host)),wide=W>=560;
+    const p1=ph(e,0,.3),p2=ph(e,.3,.65),p3=ph(e,.65,1);
+    // geometry: the graph on the left (full width on a phone); the tray, the state channels and the checkpoints on the right (below on a phone)
+    const rows=FLGG.LAYOUT[gr.name],gw=wide?Math.min(Math.round(W*.48),360):W,rh=44,gy=34,pos=F.layout(rows,0,gw,gy,rh),gb=gy+(rows.length-1)*rh+F.NH;
+    const rx=wide?gw+24:0,rw=wide?W-rx:W,ty=wide?20:gb+30,cell=22,tray=ty+3*cell+8,sy=tray+30,nk=I.keys.length,vy=sy+nk*cell+6,ckT=vy+I.mch*16+22,ckB=ckT+I.n*11+8;
+    const H=Math.max(gb+8,ckB+26);let b=F.defs(MK);
+    // the phase of this super-step: plan, execute, update (the input and the end are labelled instead)
+    if(a.kind==='step'||a.kind==='err'){const P=['plan','execute','update'],cur=p3>0?2:p2>0?1:0;let x=0;
+      P.forEach((n,i)=>{const w=F.wSans(n)+18,on=i===cur,bad=a.kind==='err'&&i===2&&on;
+        b+='<rect x="'+x+'" y="2" width="'+w+'" height="20" rx="10" fill="'+(bad?'var(--bad)':on?'var(--c5)':'none')+'" fill-opacity="'+(on?.25:0)+'" stroke="'+(bad?'var(--bad)':on?'var(--c5)':'var(--line)')+'" stroke-width="1.2"/>'+t(x+w/2,16,n,{al:'mid',b:on,c:on?'var(--ink)':'var(--mute)'});x+=w+6});
+      b+=t(x+4,16,'super-step '+(a.s.step+1),{c:'var(--mute)'})}
+    else b+=t(0,16,a.kind==='input'?'input: invoke({})':'run ends: nothing triggered',{b:1,c:'var(--mute)'});
     // node states: done for every task of an earlier step, next/run/err for this step's tasks
     const ns={},runs={},cp={};for(let j=1;j<k;j++)(S[j].tasks||[]).forEach(t=>{ns[t.name]='done';runs[t.name]=(runs[t.name]||0)+1});
     const tasks=a.s?a.s.tasks:[];tasks.forEach(t=>{cp[t.name]=(cp[t.name]||0)+1});
     Object.keys(cp).forEach(n=>{ns[n]=a.kind==='err'&&p3>0?'err':p2>0?'run':'next';runs[n]=(runs[n]||0)+(p2>0?1:0)});
     if(a.kind==='end')ns.__end__='done';
-    // edges; trigger flows into this step's nodes during plan and execute
-    gr.edges.forEach(ed=>{const pts=G.edge(R,I.pos[ed.s],I.pos[ed.t],{a:.5,cond:ed.cond,s:ed.s,t:ed.t});
-      if(pts&&cp[ed.t]&&p3<1&&!(cur==='send'&&ed.t==='review'&&false))R.flow(pts,{c:P.c5,r:.06,n:5,speed:1,a:(1-p3)*(.4+.6*p1)});
-      if(pts&&k===0&&ed.s==='__start__')R.flow(pts,{c:P.c5,r:.06,n:5,speed:1})});
-    Object.keys(I.pos).forEach(n=>{const st=ns[n]||'idle',rn=runs[n]||0;
-      const show=!nar||st==='run'||st==='next'||st==='err'||G.isSE(n);
-      G.node(R,I.pos[n],n,{st,a:st==='idle'?.5:1,copies:cp[n]>1?cp[n]:1,label:show,text:n+(cp[n]>1?' ×'+cp[n]:'')+(rn>1?' · run '+rn:'')})});
-    // the pending-writes tray: a glass plate between the graph and the state
-    const trayA=a.kind==='step'||a.kind==='err'?1:.35;
-    R.glass([X0-.4,.02,ZT-.3],[X1-X0+.8,0,0],[0,0,.6],{c:P.c3,a:trayA*.8,nu:10,nv:2});
-    R.label([X0-.45,.02,ZT],'pending writes',{al:'right',dx:-6,fs:12.5,b:1,c:P.c3,a:trayA,wide:1});
-    const W=a.s?a.s.writes.filter(w=>!hid(w.channel)):[];
-    W.forEach((w,i)=>{const p=I.pos[w.task]||[X0,0],x=p[0]+(i%3-1)*.06+(W.filter((v,j)=>j<i&&v.task===w.task).length)*.32,c=[x,.04,ZT];
-      const shown=a.kind==='err'?p2:p2*(1-p3*.999);if(shown<=.01)return;
-      R.box(c,[.26,.16,.26],{fill:mix(P.paper,a.kind==='err'&&p3>0?P.bad:P.c3,.6),a:shown,lw:.7,shadow:false});
-      if(p3<.2||a.kind==='err')R.label([c[0],.2,c[2]],w.channel,{mono:true,fs:12,c:a.kind==='err'&&p3>0?P.bad:P.c3,dy:-8,a:shown,grp:'w'});
-      if(p2>0&&p3<1)R.flowArc([p[0],.3,p[1]],[c[0],.2,c[2]],.35,{c:P.c3,r:.055,n:4,speed:1,a:p2*(1-p3)});
-      if(a.kind==='step'&&p3>0)R.flowArc([c[0],.2,c[2]],[keyX(I,w.channel),.3,ZS],.4,{c:P.c3,r:.06,n:5,speed:1.1,a:p3})});
-    // the state's channels: a column per key whose height is its version; this step's changed keys light up
+    gr.edges.forEach(ed=>{b+=edge(pos[ed.s],pos[ed.t],{mk:MK,cond:ed.cond,s:ed.s,t:ed.t,hi:(cp[ed.t]&&p3<1)||(k===0&&ed.s==='__start__')})});
+    Object.keys(pos).forEach(n=>{const rn=runs[n]||0;b+=node(pos[n],n,{st:ns[n]||'idle',copies:cp[n]>1?cp[n]:1,text:n+(cp[n]>1?' ×'+cp[n]:'')+(rn>1?' · run '+rn:'')})});
+    // the pending-writes tray: one chip per task write, saved before the update; red when the update rejects them
+    const Wr=a.s?a.s.writes.filter(w=>!hid(w.channel)):[],bad=a.kind==='err'&&p3>0;
+    b+=t(rx,ty-6,'pending writes',{b:1,c:'var(--c3)',fs:12.5})+(wide?'':t(rx+112,ty-6,'saved before the update',{c:'var(--mute)'}));
+    b+='<rect x="'+rx+'" y="'+ty+'" width="'+(rw-2)+'" height="'+(tray-ty)+'" rx="8" fill="var(--c3)" fill-opacity=".04" stroke="var(--c3)" stroke-opacity=".5" stroke-dasharray="4 4"/>';
+    const shown=a.kind==='err'?p2:p2*(1-.4*p3); // after the update the applied writes stay, faded
+    Wr.forEach((w,i)=>{if(shown<=.01)return;const y=ty+5+i*cell,lab=w.task+' → '+w.channel,c=bad?'var(--bad)':'var(--c3)';b+=chip(rx+6,y,lab,c,{a:shown});
+      const p=pos[w.task];if(wide&&p&&p3<1)b+=arrow([p.x+F.half(p,w.task),p.y+F.NH/2],[rx+3,y+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.3,.55),a:1-p3,bend:8,w:1.5});
+      if(a.kind==='step'&&p3>0){const r=I.keys.indexOf(w.channel);if(r>=0)b+=arrow([rx+12,y+20],[rx-4+(wide?0:4),sy+r*cell+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.65,.85),bend:wide?-40:-20,w:1.5,a:1-ph(e,.92,1)})}});
+    // the state's channels: a bar per key whose length is its version; this step's changed keys light up and show their new value
     const sv=a.kind==='step'?(p3>.5?a.nx:a.s):a.kind==='input'?S[Math.min(1,S.length-1)]:S[Math.min(k,S.length-1)];
-    const changed=a.kind==='step'?chgd(a.s,a.nx):[];
-    I.keys.forEach(key=>{const x=keyX(I,key),v=a.kind==='step'?ver(a.s,key)+(ver(a.nx,key)-ver(a.s,key))*p3:ver(sv,key),hi=changed.includes(key)&&p3>0;
-      R.box([x,0,ZS],[.8,.05,.5],{a:.9,lw:.7});
-      if(v>0)R.box([x,.05,ZS],[.5,v*.2,.32],{fill:mix(P.paper,P.c3,hi?.75:.35),a:1,lw:.7,shadow:false});
-      R.label([x,0,ZS+.25],key,{mono:true,fs:12,c:hi?P.c3:P.mute,b:hi,dy:14,a:!nar||hi?1:0});
-      if(v>0)R.label([x,.05+v*.2,ZS],'v'+Math.round(v),{mono:true,fs:12,c:P.mute,dy:-9,a:!nar||hi?1:0});
-      if(hi&&!nar&&p3>.6){const val=(a.nx.values||{})[key];if(val!==undefined)R.label([x,.05+v*.2,ZS],cut(fmtv(val),34),{mono:true,fs:12,c:P.c3,b:1,dy:-26,a:(p3-.6)/.4,grp:'val'})}});
-    R.label([X0-.45,.1,ZS],'state channels',{al:'right',dx:-6,fs:12.5,b:1,c:P.c3,wide:1});
+    const changed=a.kind==='step'?chgd(a.s,a.nx):[],u=Math.min(14,(rw-96-40)/6);
+    b+=t(rx,sy-8,'state channels',{b:1,c:'var(--c3)',fs:12.5})+t(rx+112,sy-8,'bar = version',{c:'var(--mute)'});
+    I.keys.forEach((key,i)=>{const y=sy+i*cell,v=a.kind==='step'?ver(a.s,key)+(ver(a.nx,key)-ver(a.s,key))*p3:ver(sv,key),hi=changed.includes(key)&&p3>0;
+      b+=t(rx,y+14,key,{mono:1,b:hi,c:hi?'var(--c3)':'var(--ink)'});
+      b+='<rect x="'+(rx+96)+'" y="'+(y+3)+'" width="'+(6*u).toFixed(1)+'" height="14" rx="3" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>';
+      if(v>0)b+='<rect x="'+(rx+96)+'" y="'+(y+3)+'" width="'+(v*u).toFixed(1)+'" height="14" rx="3" fill="var(--c3)" fill-opacity="'+(hi?.7:.3)+'" stroke="var(--c3)" stroke-width=".8"/>';
+      if(v>0)b+=t(rx+96+6*u+6,y+14,'v'+Math.round(v),{mono:1,c:hi?'var(--c3)':'var(--mute)',b:hi})});
+    if(a.kind==='step'&&p3>.6){const n=Math.floor((rw-4)/(12*.61));changed.forEach((key,i)=>{const val=(a.nx.values||{})[key];if(val!==undefined)b+=t(rx,vy+12+i*16,cut(key+' = '+fmtv(val),n),{mono:1,c:'var(--c3)',a:ph(e,.8,1)})})}
+    if(bad)b+=t(rx,vy+12,'InvalidUpdateError: no checkpoint',{b:1,c:'var(--bad)',a:p3});
     // the checkpointer: one slab per saved checkpoint; the update drops the next one in
-    const n=a.ck,drop=a.kind==='step'?Math.max(0,(p3-.4)/.6):a.kind==='input'?e:1,top=G.stack(R,DB,a.kind==='step'&&drop<=0?n-1:n,a.kind==='step'||a.kind==='input'?drop:1,{hiLast:a.kind==='step'||a.kind==='input'});
-    R.label([DB[0],top,DB[2]],(a.kind==='step'&&drop<=0?n-1:n)+' checkpoints',{fs:12.5,b:1,c:P.acc,dy:-12});
-    if(a.kind==='step'&&p3>.3)R.flowArc([X1+.2,.4,ZS],[DB[0]-.3,top,DB[2]],.5,{c:P.acc,r:.06,n:6,speed:1.1,a:p3});
-    if((a.kind==='step'||a.kind==='err')&&p2>.3&&p3<1)R.flowArc([X1+.3,.15,ZT],[DB[0]-.4,top*.6,DB[2]+.3],.4,{c:P.c3,r:.05,n:5,speed:1.1,a:.7*(a.kind==='err'?1:1-p3)});
-    if(a.kind==='err'&&p3>0)R.label([DB[0]-1.6,0,ZT],'InvalidUpdateError: no checkpoint',{fs:13,b:1,c:P.bad,dy:30,a:p3});
-    if(a.kind==='end'&&!nar)R.label([DB[0],top,DB[2]],'run ends: nothing triggered',{fs:12.5,c:P.mute,dy:-30,a:e});
+    const n=a.ck,dr=a.kind==='step'?ph(p3,.4,1):a.kind==='input'?ph(e,.2,1):1,shownN=a.kind==='step'&&dr<=0?n-1:n,top=ckB-shownN*11;
+    b+=F.stack(rx,ckB,shownN,a.kind==='step'||a.kind==='input'?dr:1,{hiLast:a.kind==='step'||a.kind==='input'});
+    b+=t(rx+116,ckB-20,shownN+' checkpoints',{b:1,c:'var(--acc)',fs:12.5});
+    if(a.kind==='err'&&p3>0)b+=t(rx+116,ckB-4,'the failed step writes none',{c:'var(--bad)',a:p3});
+    if(a.kind==='step'&&p3>.3)b+=arrow([rx+150,sy+nk*cell-2],[rx+60,top-3],{c:'var(--acc)',mk:MK+'k',d:ph(e,.7,.9),bend:20,a:1-ph(e,.95,1)});
+    host.innerHTML=RD.svg(W,H,b,'Fig. 2: super-steps of the recorded graph '+NAMES[cur]+', step '+(k+1)+' of '+S.length);
   }
   // the step lists, one per graph, from the recorded checkpoints
   function items(gr){const S=gr.steps,out=[];const first=(S[0].writes[0]||{}).channel||'';
@@ -1487,11 +1326,11 @@ window.FLG3=(function(){
     $('flg-s-seen').innerHTML=seen.length?'<div class="tw"><table class="flg-ct"><thead><tr><th>Node</th><th>Channel versions it has seen</th></tr></thead><tbody>'+seen.map(n=>'<tr><td class="mono">'+esc(n)+'</td><td class="mono">'+esc(Object.entries(s.seen[n]).map(([c,v])=>c+': '+v).join(', '))+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small mute">No node has run yet, so versions_seen is empty apart from the input.</p>';
     const tasks=S.slice(1,a.kind==='step'||a.kind==='err'?k+1:k).reduce((t,x)=>t+x.tasks.length,0);
     $('flg-s-cnt').innerHTML=RD.stat('Super-step',a.kind==='input'?'0':String(a.s?a.s.step+1:S[S.length-2].step+1),'')+RD.stat('Tasks run',tasks,'node executions so far')+RD.stat('Checkpoints saved',a.kind==='step'?a.ck:a.ck,a.kind==='err'?'no new checkpoint: the step failed':'one per super-step, plus the input')}
-  const full={cam:[.12,.78],bounds:[[-6.0,0,-2.0],[4.5,1.0,2.1]]};
-  const st=S3.stage({id:'stg-steps',list:'sx-s-'+cur,fig:'Fig. 2 · super-steps of a recorded run',cam:full.cam,bounds:full.bounds,aspect:.47,dur:2700,hold:4600,draw,
-    margin:w=>w<520?[14,10,24,10]:[18,16,30,130],onStep:k=>{try{tables(k)}catch(e){console.error(e)}},view:()=>innerWidth<520?{cam:[.5,.92]}:null});
-  RD.seg($('flg-s-pick'),m=>{cur=m;note();D.e1.forEach(gr=>{$('sx-s-'+gr.name).hidden=gr.name!==m});st.list('sx-s-'+m)});
-  $('flg-s-hid').addEventListener('change',()=>tables(st.st.k));
+  const draw=F.tween('flg-s-fig',2600,(k,e)=>{render(k,e);if(e>=1||e===0)try{tables(k)}catch(err){console.error(err)}});
+  const an=RD.anim({card:'flg-s-fig',ctl:'flg-s-ctl',n:g().steps.length,draw,ms:5400,label:'Step through Fig. 2',list:'sx-s-'+cur});
+  RD.onResize(()=>an.redraw());
+  RD.seg($('flg-s-pick'),m=>{cur=m;note();D.e1.forEach(gr=>{$('sx-s-'+gr.name).hidden=gr.name!==m});an.reset(g().steps.length,'sx-s-'+m)});
+  $('flg-s-hid').addEventListener('change',()=>tables(an.i));
   // the summary table (closed)
   const runsOf=x=>{const c={};x.steps.forEach(s=>s.tasks.forEach(t=>c[t.name]=(c[t.name]||0)+1));return c};
   $('flg-s-sum').innerHTML='<thead><tr><th>Graph</th><th class="num">Super-steps</th><th>Node executions</th><th>Final state or error</th></tr></thead><tbody>'+

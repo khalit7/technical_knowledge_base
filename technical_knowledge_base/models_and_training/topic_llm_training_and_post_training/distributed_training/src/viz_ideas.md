@@ -90,3 +90,5 @@ Rejected again: a pipeline schedule animation (the DeepSeek and Llama 3 pages ha
 | Layout calculator tab | full width | a reader-driven tool used across the page |
 
 Rejected: a 3D hero (six stages would be small and slow); a 3D checkpointing stack (the message is three numbers); redrawing DualPipe (the DeepSeek page owns it).
+
+2026-11-19: Fig. 9 (stg-pp) on a phone: the 1F1B timeline's ops yet to run are tinted more strongly (.45 tint at .8 instead of .25 at .6), so the whole schedule stays visible in dark mode at 390 px, still clearly lighter than the ops already run.

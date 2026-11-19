@@ -15,7 +15,7 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2];
 if (!shots) { console.log('usage: check_stages.mjs <shots dir outside the repo>'); process.exit(2); }
 fs.mkdirSync(shots, { recursive: true });
-const STAGES = ['stg-cx', 'stg-g1', 'stg-hv'];
+const STAGES = ['stg-cx', 'stg-g1'];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const problems = [];
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });

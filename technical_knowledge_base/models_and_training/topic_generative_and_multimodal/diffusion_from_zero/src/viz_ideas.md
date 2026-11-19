@@ -44,3 +44,5 @@ Placement changed, not the evidence: every visual above is kept, and the three t
 | SD 1.5 guidance sets | Section 6 | before/after on one prompt and seed | Four sets (scale, rescale, interval, negative prompts); the zero-terminal-SNR and few-step sets have their own cards in sections 2 and 7. The separate rescale before/after card was merged into this one. |
 
 Rejected in the rebuild: a separate SD steps gallery and time split (the root lab's; the leading-spacing result is stated with its numbers in section 5); a real photograph or paper figure (no physical object to show; the SD 1.5 outputs are this page's real images, and the DDPM paper's figures are not openly licensed).
+
+2026-11-19: Fig. 3 (stg-score) steps 1 and 2, the close-up on one training example: the noisy cloud and the data behind it recede (.08 and .18, were .25 and .35), so x₀, xₜ, the noise arrow and the network's guess read first instead of sitting in a crowd of points.

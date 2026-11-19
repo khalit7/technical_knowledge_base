@@ -1,5 +1,5 @@
 // The 2026-11-06 layout and motion checks for the DSec page, at 1400 px light, 920 px light and 390 px dark:
-// the two 3D stages (#stg-rq, one request through DSec's components, container or VM and FnCall; #stg-pb, one burst placed by the page's
+// the 3D stage #stg-pb (Fig. 1, #stg-rq, became a 2D figure on 2026-11-19; #stg-pb, one burst placed by the page's
 // placement engine under four policies) and the two 2D step animations (#ly, layers against monolithic images; #pe, a rollout through a preemption)
 // each play by themselves once scrolled into view, step to their last step, and have exactly one step-list item per step (each mode has its own list);
 // flows stop drawing off screen; at 1400 px every split shows two columns; no errors, NaN, undefined or sideways scroll; under prefers-reduced-motion
@@ -17,8 +17,8 @@ const b = await puppeteer.launch({ headless: 'shell' });
 const problems = []; let checked = 0;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const ANIMS = { ly: 't-read', pe: 't-read' };
-const STAGE_MODES = { 'stg-rq': 'rqM', 'stg-pb': 'pbM' }; // each stage's mode toggle swaps its step list and replays it
-const COUNTERS = { 'stg-rq': ['rqCnt', /Components passed/i], 'stg-pb': ['pbCnt', /Fullest node/i] };
+const STAGE_MODES = { 'stg-pb': 'pbM' }; // each stage's mode toggle swaps its step list and replays it
+const COUNTERS = { 'stg-pb': ['pbCnt', /Fullest node/i] };
 for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });

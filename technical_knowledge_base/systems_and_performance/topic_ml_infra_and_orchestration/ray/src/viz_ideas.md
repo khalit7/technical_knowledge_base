@@ -38,3 +38,5 @@ Nothing to reproduce from a published table here; the reproducible things are de
 ## 2026-11-12 (split layout, renderer v2)
 Built: four 3D stages (Fig. 1 one call through the cluster with the owner's table as glass; Fig. 2 the Counter actor; Fig. 3 the node loss; Fig. 4 Ray Train's worker group, process group, reports and restart); the nap and Ray Data timelines replayed in stretches; the object stepper with a step list; the Train replay as a still widget.
 Rejected: a 3D object stepper (Fig. 1 draws the same path; the three columns read flat); a 3D Ray Serve (not run here); the 2D cluster map and life-of-a-task stepper (folded into Fig. 1).
+
+2026-11-19: Fig. 3 (one node lost, six fates): 3D stage `stg-loss` redrawn flat as `ry-loss-card` (`43_js_loss.js`, RD.anim, same 7 steps): head, w1 and w2 as boxes with the GCS, driver, D, A, B, C and the two actors; new under it, a timeline in seconds after the kill (0.42, the five health checks to 29.9, 31.4, 41.7). Why: which node holds what is the lesson; positions were schematic and depth carried nothing.

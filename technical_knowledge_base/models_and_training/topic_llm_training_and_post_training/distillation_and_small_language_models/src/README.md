@@ -17,7 +17,7 @@ Data scripts (outputs committed in `inputs/`; big inputs and checkpoints never):
 ## Tabs and parts
 | Tab | Parts |
 |---|---|
-| Reading `t-read` | `20_read_a` (nav; the idea in one screen: core sentence, hero, you need, new terms, levers in a closed block, the three flavours), `20_read_b` (soft targets, forward or reverse KL), `20_read_c` (whose text, toy summary, the teacher as reward model, distil or RL), `20_read_d` (prune then distil, what makes a good small model), `20_read_e` (practical notes, whose terms), `20_read_z`. JS: `21_js_pf.js` (page helpers PF), `21_js_rd_common.js` (template), `22_js_hero.js`, `23_js_pred.js` (predict then reveal), `24_js_toyg.js` (the 2D toy graph, for the Toy tab), `25_js_s3.js` (renderer v2, template), `25_js_ts.js`, `26_js_rl.js`, `27_js_bd.js`, scenes `28_js_sc_dk.js`, `28_js_sc_fl.js`, `28_js_sc_kl.js`, `28_js_sc_pr.js` |
+| Reading `t-read` | `20_read_a` (nav; the idea in one screen: core sentence, hero, you need, new terms, levers in a closed block, the three flavours), `20_read_b` (soft targets, forward or reverse KL), `20_read_c` (whose text, toy summary, the teacher as reward model, distil or RL), `20_read_d` (prune then distil, what makes a good small model), `20_read_e` (practical notes, whose terms), `20_read_z`. JS: `21_js_pf.js` (page helpers PF), `21_js_rd_common.js` (template), `22_js_hero.js`, `23_js_pred.js` (predict then reveal), `24_js_toyg.js` (the 2D toy graph, for the Toy tab), `25_js_s3.js` (renderer v2, template), `25_js_ts.js`, `26_js_rl.js`, `27_js_bd.js`, scenes `28_js_sc_dk.js`, `28_js_sc_fl.js`, `28_js_kl.js`, `28_js_sc_pr.js` |
 | Distil a toy student `t-toy` | `30_tab_toy.html`, `30_js_toy.js` |
 | Small models compared `t-small` | `31_tab_small.html`, `31_js_small.js` |
 | Further reading `t-more` | `39_tab_more.html` |
@@ -82,3 +82,8 @@ The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templ
 **Length**: Reading core 5,050 words (22.0 min) before, 5,561 (24.2 min) after; closed 1,749 (7.6 min) unchanged; other tabs unchanged. The growth is the step lists: the old cards wrote their step captions by script (invisible to the audit); they are now static text on the left, and no per-step caption repeats them.
 
 **Ledger**: 272 units, core 194, depth 63, fat 14, owned 1, problems 0 (5 units added for the stages' numbers; 10 Further-reading keys that contained a reading time re-keyed to their description words).
+
+## 2026-11-19: 3D stages judged against "When 3D earns its place"
+- Fig. 2 (forward or reverse KL): 3D stage `stg-kl` redrawn flat as `dsl-kl-card` (`28_js_kl.js`, RD.anim with the same 5 steps, sliders and numbers; each fit plays its 40 gradient steps within its step): teacher, forward-KL and reverse-KL students as stacked bar rows on one token axis, the valley shaded. Why: rows in depth hid heights behind each other; flat rows compare the three distributions directly.
+- Fig. 3 (route graph, 3D, kept: bar heights are per-state reverse KL): the last step was busy; there the graph edges fade to .12, the nodes off both routes to .1, the teacher route to .18, and the camera frames the student route, the teacher plate and the totals (audit kind 5).
+- `src/check_stages.mjs` still names the removed stage ids; the converted figures are checked by `html_utils/checkpage.sh` and `verify_layout.mjs` until it is updated.

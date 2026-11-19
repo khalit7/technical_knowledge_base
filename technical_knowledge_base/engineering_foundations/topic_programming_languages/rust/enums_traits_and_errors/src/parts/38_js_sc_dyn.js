@@ -38,18 +38,18 @@
       R.label([XR,0,ZR2],'&dyn Tokenizer · '+RD_+' B',{al:ph?'left':'right',dx:ph?0:-8,dy:ph?14:-4,fs:12.5,b:1,a:LA(A)});
       if(k===3||k===4){R.label([XR+B*RD_/4,.3,ZR2],'data',{fs:12,dy:-9,c:G,b:1,a:A});R.label([XR+B*RD_*3/4,.3,ZR2],'vtable',{fs:12,dy:-9,c:DY,b:1,a:A})}
       // the value
-      R.box([1.6,0,ZV],[1.8,.45,.6],{fill:mix(P.paper,V,.3),a:A});R.label([1.6,.45,ZV],'Chars { per_token: 3 }',{mono:true,fs:12,dy:-9,a:LA(A)});
+      R.box([1.6,0,ZV],[1.8,.45,.6],{fill:mix(P.paper,V,.3),a:A});R.label([1.6,.45,ZV],'Chars { per_token: 3 }',{mono:true,fs:12,dy:-9,a:LA(A),wide:k===4||k===5});   // on a phone it sat under the vtable's slot names in steps 5 and 6
       R.flowArc([XR+B*RD_/4,.3,ZR2],[1.6,.45,ZV+.1],.3,{c:G,a:A*(k===5?.4:.9),r:.06,n:5});
       if(hot)R.flowArc([XR+B*RS/2,.3,ZR1],[1.3,.45,ZV+.2],.45,{c:G,a:A*e,r:.06,n:5});
       // the vtables: Chars's, and Whitespace's behind it
-      const ta=k===3?0:k===4?e:1;
+      const ta=k===3?0:k===4?e:k===6?.2:1;   // step 7 is about the references and the value: the tables recede and their names drop (LA)
       if(ta>0){R.glass([XT-.8,.1,ZT],[1.6,0,0],[0,1.5,0],{c:DY,a:A*ta,nu:1,nv:6});
         SL.forEach((t,i)=>R.label([XT,SY(i),ZT],t,{mono:true,fs:12,b:t==='count'&&k===5,c:t==='count'&&k===5?DY:P.ink,a:LA(A*ta),wide:t!=='count'}));
         R.label([XT,1.6,ZT],'vtable for Chars',{fs:12.5,b:1,dy:-9,c:DY,a:LA(A*ta)});
         R.glass([XT-.5,.1,ZT-1.5],[1.2,0,0],[0,1.5,0],{c:DY,a:A*ta*.35,nu:1,nv:6});R.label([XT+.1,1.6,ZT-1.5],'Whitespace',{fs:12,dy:-9,c:P.mute,a:LA(A*ta),wide:1});
         if(k===4)R.flowArc([XR+B*RD_*3/4,.3,ZR2],[XT-.3,1.2,ZT],.5,{c:DY,a:A*e,r:.065,n:7});
         // slots point at code
-        FN.forEach(([n,z],i)=>{R.box([XF,0,z],[1.3,.4,.55],{fill:mix(P.paper,V,.25),a:A*ta});R.label([XF,.4,z],n,{mono:true,fs:12,al:'left',dx:30,dy:-4,a:LA(A*ta)});
+        FN.forEach(([n,z],i)=>{R.box([XF,0,z],[1.3,.4,.55],{fill:mix(P.paper,V,.25),a:A*ta});R.label([XF,.4,z],n,{mono:true,fs:12,al:'left',dx:30,dy:-4,a:LA(A*ta),wide:i!==1});   // on a phone only Chars::count, the one called, keeps its name
           if(k===4)R.flowArc([XT+.8,SY(3+i),ZT],[XF-.6,.3,z],.2,{c:DY,a:A*e*.5,r:.045,n:4})})}
       // total_dyn: one copy; the call loads count's address from the table, then jumps
       if(k>=5){const a=A*(k===5?e:1),td=[XTD,0,ZT];R.box(td,[1.4,.45,.55],{fill:mix(P.paper,G,.25),a});R.label([XTD,.45,ZT],'total_dyn: one copy',{mono:true,fs:12.5,b:1,dy:-10,a:LA(a)});

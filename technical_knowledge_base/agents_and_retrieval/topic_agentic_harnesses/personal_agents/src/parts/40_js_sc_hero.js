@@ -13,7 +13,7 @@
   function draw(R,k,e){const P=R.P,nar=R.W<520;R.grid(-5.6,5.0,-2.6,2.4,.5);
     // a part the step is not about recedes; one outside this step's close view (cut by the card's edge) almost disappears
     const vb=VIEW(k).bounds,XG={src:SX,gw:GW,ses:SS,mod:MX,mem:MX,gate:GX,run:OX,hold:OX,ref:OX},inV=g=>XG[g]>=vb[0][0]-.3&&XG[g]<=vb[1][0]+.3;
-    const f=g=>({src:k===0,gw:k<=1,ses:k===1||k===2,mod:k>=2&&k<=3,mem:k===2,gate:k>=3,run:k===4,hold:k===5,ref:k===5}[g]?1:inV(g)?.24:.07);
+    const f=g=>({src:k===0,gw:k<=1,ses:k===1||k===2,mod:k>=2&&k<=3,mem:k===2,gate:k>=3,run:k===4,hold:k===5,ref:k===5}[g]?1:inV(g)?.18:.02); // 2026-11-19: lower, so faded parts cut by the card's edge stop reading as blocks
     // 1. sources
     SRC.forEach(([t,c,z,u])=>{const a=f('src');R.box([SX,0,z],[.62,.42,.52],{fill:mix(P.paper,P[c],.45),a});
       if(k===0)R.label([SX-.35,.25,z],t,{fs:12.5,al:'right',dx:-6,c:mix(P.ink,P[c],.4),b:u,grp:'src'})});

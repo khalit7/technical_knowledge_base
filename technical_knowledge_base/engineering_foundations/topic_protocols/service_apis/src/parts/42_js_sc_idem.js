@@ -1,4 +1,4 @@
-// ---- Scene: Fig. 3, idempotency keys (stg-idem): the page's toy front door (src/lab/idem_run.py, recorded 2026-11-07) answering one lost reply
+// ---- Scene: Fig. 2, idempotency keys (stg-idem): the page's toy front door (src/lab/idem_run.py, recorded 2026-11-07) answering one lost reply
 // four ways. Parties: the client, the front door, and its store: a glass plate of idempotency keys and a plate of messages and charges.
 // Every time, status, message id and total is window.SA.idem; the work time, the client's timeout and the price are the toy's settings. ----
 (function () {
@@ -87,7 +87,7 @@
     }
   }
   const full = { cam: [.12, .5], bounds: [[-4.8, 0, -2.0], [5.0, 1.1, 2.3]] };
-  const st = S3.stage({ id: 'stg-idem', list: 'sx-idem-nokey', fig: 'Fig. 3 · one lost reply, recorded', cam: full.cam, bounds: full.bounds, aspect: .48, dur: 1500, hold: 4800, draw,
+  const st = S3.stage({ id: 'stg-idem', list: 'sx-idem-nokey', fig: 'Fig. 2 · one lost reply, recorded', cam: full.cam, bounds: full.bounds, aspect: .48, dur: 1500, hold: 4800, draw,
     margin: w => w < 520 ? [22, 8, 20, 8] : [28, 16, 26, 16],
     view: k => { const store = mode === 'nokey' ? [1] : mode === 'key' ? [1] : mode === 'early' ? [] : [];
       return store.indexOf(k) >= 0 ? { cam: [.14, .5], bounds: [[-1.2, 0, -2.0], [5.2, 1.1, 2.3]] } : null; } });

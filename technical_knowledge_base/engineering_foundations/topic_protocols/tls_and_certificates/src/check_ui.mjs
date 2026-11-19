@@ -59,7 +59,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   }
   await p.evaluate(() => document.querySelectorAll('#t-read details summary').forEach(s => s.click()));
   await check('reading details');
-  for (const id of ['tl-aead-card', 'tl-ks-card', 'tl-rev-card', 'tl-term-card', 'tl-insp-card', 'one-fig', 'dh-card', 'hrr-tab', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-card', 'tm-tab']) await shot(id, id);
+  for (const id of ['tl-ks-card', 'tl-rev-card', 'tl-term-card', 'tl-insp-card', 'one-fig', 'dh-card', 'hrr-tab', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-card', 'tm-tab']) await shot(id, id);
   // 3D stages (2026-11-07): every mode stepped to its last step
   for (const [id, sel, modes] of [['stg-hero', null, [null]], ['stg-hs', null, [null]], ['stg-res', '#res-mode', ['res', 'zr']], ['stg-chain', null, [null]], ['stg-mtls', null, [null]]]) for (const m of modes) {
     if (sel) await p.evaluate((s, m) => document.querySelector(s + ' [data-m="' + m + '"]').click(), sel, m);

@@ -75,3 +75,8 @@ The core grew by about seven minutes, almost all of it step lists: the PITR and 
 
 ## Ledger, 2026-11-06
 378 units: core 286, depth 15, volatile 15, fat 62; `python3 html_utils/ledger.py check` problems 0. Five keys re-pointed to the reworded step lists (units 13, 186, 189, 190, 239); unit 352 (a sibling's quoted reading time) relabelled fat.
+
+## 2026-11-19: 3D stages judged against "When 3D earns its place"
+- Fig. 2 (point-in-time recovery): 3D stage `stg-pitr` redrawn flat as `rd-pitr-card` (`29b_js_pitr.js`, RD.anim, same 8 steps per method and toggle): the clock, the midnight copy and the archived WAL segments on one time axis, production and recovered servers as row bars (today drawn wider, labelled), the result. Why: a timeline and two counts; the 3D step 5 was mostly faded (audit kind 5), now each step shows its part at full strength.
+- Fig. 1 (hero, 3D, kept): the kind 5 note (step 4 mostly faded) is already fixed by the close camera on the table files; checked 2026-11-19, no change.
+- `src/check_stages.mjs` still names the removed stage ids; the converted figures are checked by `html_utils/checkpage.sh` and `verify_layout.mjs` until it is updated.

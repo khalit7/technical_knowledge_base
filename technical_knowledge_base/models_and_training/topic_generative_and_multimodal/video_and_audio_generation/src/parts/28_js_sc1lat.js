@@ -23,17 +23,17 @@
       const d = disc(f); R.ball([x, .05 + d[0] * PH / 1.2, d[1]], .045, { c: P.ink, a: fa * .8 });
     }
     lab(R, [xF(0), .05 + PH, PW / 2], '81 frames · 480 × 832 · 97 million numbers', { fs: 12.5, b: 1, c: P.ink, al: 'left', dy: -14, a: la(st, e, q => q === 0 ? 1 : 0) });
-    lab(R, [xF(F - 1), .05, PW / 2], 'time →', { fs: 12.5, c: P.mute, al: 'left', dx: 8, a: la(st, e, q => q === 0 ? 1 : 0) });
+    lab(R, [xF(F - 1), .05, PW / 2], 'time →', { fs: 12.5, c: P.mute, al: 'left', dx: 8, wide: 1, a: la(st, e, q => q === 0 ? 1 : 0) });
     // 2. 21 latent frames: full size while grouping, then shrunk (step 3), gridded into 2 x 2 patches (step 4), receding (step 5)
     const ga = tw(st, e, q => q === 0 ? 0 : q === 4 ? .06 : 1) * (k === 1 && st.pk === 0 ? win(e, .55, 1) : 1);
-    const sh = tw(st, e, q => q >= 2 ? 1 : 0), pg = tw(st, e, q => q >= 3 ? 1 : 0);
+    const sh = tw(st, e, q => q >= 2 ? 1 : 0), pg = tw(st, e, q => q >= 3 ? 1 : 0), oth = tw(st, e, q => q === 3 ? .22 : .85); // the patch step's close view: the later latent frames recede (they ran off the card)
     if (ga > .01) for (let g = 0; g < LF; g++) {
       const w = lerp(PW, LW, sh), h = lerp(PH, LH, sh), x = xG(g), hot = g === 0 && k >= 3;
-      R.glass([x, .05, w / 2], [0, 0, -w], [0, h, 0], { c: gc(g), a: ga * (hot ? 1 : .85), nu: pg > .5 ? c.tw : 1, nv: pg > .5 ? c.th : 1, th: lerp(.015, .05, sh) });
+      R.glass([x, .05, w / 2], [0, 0, -w], [0, h, 0], { c: gc(g), a: ga * (hot ? 1 : g === 0 ? .85 : oth), nu: pg > .5 ? c.tw : 1, nv: pg > .5 ? c.th : 1, th: lerp(.015, .05, sh) });
     }
     lab(R, [xG(0), .05 + lerp(PH, LH, sh), lerp(PW, LW, sh) / 2], 'frame 0 alone', { fs: 12.5, b: 1, c: P.c4, al: 'right', dx: -6, dy: -10, a: la(st, e, q => q === 1 || q === 2 ? 1 : 0) });
     lab(R, [xG(LF - 1), .05 + lerp(PH, LH, sh), -lerp(PW, LW, sh) / 2], LF + ' latent frames = 1 + 80 / ' + ct, { fs: 12.5, b: 1, mono: 1, c: P.ink, al: 'left', dx: 8, a: la(st, e, q => q === 1 ? 1 : 0) });
-    lab(R, [xG(LF - 1), .05 + LH, -LW / 2], LF + ' × ' + c.lh + ' × ' + c.lw + ' × 16 latent', { fs: 12.5, b: 1, mono: 1, c: P.ink, al: 'left', dx: 8, a: la(st, e, q => q === 2 ? 1 : 0) });
+    lab(R, [xG(LF - 1), .05 + LH, -LW / 2], LF + ' × ' + c.lh + ' × ' + c.lw + ' × 16 latent', { fs: 12.5, b: 1, mono: 1, c: P.ink, al: 'right', dy: -16, a: la(st, e, q => q === 2 ? 1 : 0) });
     // 4. one token: a 2 x 2 patch of latent cells on the first latent frame, streaming into the sequence
     if (pg > .01 && k <= 3) {
       const cz = LW / c.tw, cy = LH / c.th, p0 = [xG(0) - .03, .05 + LH - 3.5 * cy, LW / 2 - 6.5 * cz];
@@ -48,7 +48,7 @@
       cols.forEach(([x, n, nm, col], i) => {
         const h = Math.max(.02, H * n / img.N * (k === 4 && st.pk < 4 ? win(e, .1 + .15 * i, .7 + .1 * i) : 1)), z = 1.55;
         R.box([x, 0, z], [.75, h, .75], { fill: mix(P.paper, col, .75), a: ca });
-        lab(R, [x, h, z], int(n) + ' tokens', { fs: 13, b: 1, mono: 1, c: col, dy: -14, a: la(st, e, q => q === 4 ? 1 : 0) });
+        lab(R, [x, h, z], int(n) + (R.W < 520 ? '' : ' tokens'), { fs: 13, b: 1, mono: 1, c: col, dy: -14, a: la(st, e, q => q === 4 ? 1 : 0) }); // phones: the counts alone, so Wan's and LTX's do not overlap
         lab(R, [x, 0, z + .4], nm, { fs: 12.5, c: P.ink, dy: 14, a: la(st, e, q => q === 4 ? 1 : 0) });
       });
       if (k === 4) R.flow(arcPts(R, [xG(10), .4, 0], [0, .7, 1.55], .5, 20), { c: P.c1, r: .07, a: ca, speed: 1.3 });

@@ -1,74 +1,92 @@
-// ---- Scene: Fig. 4, deadlines and cancellation (stg-dl): the recorded chain client -> gateway -> inference service (raw/deadline.json, 5 October 2026),
-// four runs. Each party has 40 token slots (the full answer); slots fill as tokens are generated, forwarded and received. Counts, end times,
-// headers and RST_STREAM times are window.SA.deadline; where a token sits along a hop follows the configured schedule (0.12 s, then 0.05 s). ----
+// ---- Fig. 3, deadlines and cancellation (sq-dl): the recorded chain client -> gateway -> inference service (raw/deadline.json, 5 October 2026),
+// four runs, drawn on a time axis (0 to 2.5 s): one row per party, a tick per token generated, forwarded or received, the deadline, the moment
+// the client gives up, the RST_STREAM on each hop and when the inference service stopped. A 3D stage until 2026-11-19, redrawn flat because
+// its depth carried nothing and a time axis shows what the 3D slots could not: when the deadline expires against when the work stops.
+// Counts, end times, headers and RST_STREAM times are window.SA.deadline; where a token sits on the axis follows the configured schedule
+// (first after 0.12 s, then every 0.05 s), not individual timings. Uses the card style of 28_js_seq.js (its CSS is injected by the hero,
+// 41_js_sc_hero.js, which runs first). ----
 (function () {
-  if (!document.getElementById('stg-dl') || !window.S3 || !window.SAK || !window.SA) return;
-  const { mix } = S3, { up, party, plate, bar, cross, path, win, seg, chips } = SAK;
-  const DL = SA.deadline, FIRST = .12, GAP = .05, tt = i => FIRST + GAP * i, made = t => t < FIRST ? 0 : Math.min(40, Math.floor((t - FIRST) / GAP + 1e-9) + 1);
+  const host = document.getElementById('sq-dl');
+  if (!host || !window.RD || !window.SA) return;
+  const DL = SA.deadline, FIRST = .12, GAP = .05, T = 2.5, tt = i => FIRST + GAP * i,
+    made = t => t < FIRST ? 0 : Math.min(40, Math.floor((t - FIRST) / GAP + 1e-9) + 1);
   window.SA_DL = { DL };   // read by src/check_stages.mjs
-  let m = 0;
-  const C = [-4.2, 0, -.4], G = [0, 0, -.4], I = [4.2, 0, -.4];
-  // 40 slots in front of a party: filled ones in its colour, the ones generated for nobody in red, the rest empty outlines
-  function slots(R, p, n, col, red, a) { const P = R.P;
-    for (let i = 0; i < 40; i++) { const x = p[0] - 1.17 + (i % 10) * .26, z = p[2] + 1.05 + Math.floor(i / 10) * .26, f = i < n;
-      R.box([x, 0, z], [.2, f ? .12 : .02, .2], { fill: f ? mix(P.paper, red != null && i >= red ? P.bad : col, .75) : P.paper, a: f ? a : a * .35, fa: f ? 1 : .3, shadow: false, lw: .6 }); } }
-  function draw(R, k, e) {
-    const P = R.P, r = DL[m], gone = r.client.gave_up_s, inf = r.inference, gw = r.gateway, rec = r.client.tokens_received;
-    R.grid(-5.6, 5.8, -2.0, 2.6, .5);
-    party(R, C, [1.5, .7, 1.0], P.c1, 'client', { a: k === 3 ? .35 : 1 });
-    party(R, G, [1.5, .7, 1.0], P.c5, 'gateway', { a: 1 });
-    party(R, I, [1.5, .8, 1.0], P.c3, 'inference', { a: 1, sub: k === 0 ? 'first token 0.12 s, then every 0.05 s' : null });
-    const cg = [[C[0] + .75, .45, C[2]], [G[0] - .75, .45, G[2]]], gi = [[G[0] + .75, .45, G[2]], [I[0] - .75, .45, I[2]]];
-    R.line(cg, { c: P.mute, w: 1, a: .3, dash: [4, 4] }); R.line(gi, { c: P.mute, w: 1, a: .3, dash: [4, 4] });
-    // time on this step's clock
-    const t = k === 0 ? 0 : k === 1 ? gone * e : k === 2 ? gone : k === 3 ? gone + (inf.dur_s - gone) * e : inf.dur_s;
-    const nI = Math.min(inf.tokens_made, made(t)), nC = Math.min(rec, made(Math.min(t, gone))), nG = Math.min(gw.tokens_forwarded, k >= 3 ? Math.max(nC, Math.min(gw.tokens_forwarded, made(t))) : nC);
-    slots(R, I, nI, P.c3, k >= 2 ? rec : null, 1); slots(R, G, nG, P.c5, null, k === 4 ? .5 : 1); slots(R, C, nC, P.c1, null, k === 4 ? .5 : 1);
-    R.label([I[0], 0, I[2] + 2.1], nI + ' made', { fs: 12.5, b: 1, mono: 1, c: P.c3, dy: 16 });
-    R.label([G[0], 0, G[2] + 2.1], nG + ' forwarded', { fs: 12.5, b: 1, mono: 1, c: P.c5, dy: 16 });
-    R.label([C[0], 0, C[2] + 2.1], nC + ' received', { fs: 12.5, b: 1, mono: 1, c: P.c1, dy: 16 });
-    if (k === 0) {   // the deadline (or, in run C, none) travels with the call
-      const pts = seg(cg[0], cg[1]).concat(seg(gi[0], gi[1]).slice(1)), q = path(pts, e);
-      R.flow(seg(cg[0], cg[1]), { c: P.c6, r: .065, n: 6, speed: 1.3 });
-      if (r.deadline) plate(R, [C[0], .7, C[2]], P.c6, 1, 'deadline ' + r.deadline + ' s', { w: .5, h: .4, mono: 1 });
-      else R.label([C[0], .7, C[2]], 'no deadline · cancels at ' + r.cancel_at + ' s', { fs: 12, b: 1, c: P.c6, dy: -30, wide: 1 });
-      if (gw.time_remaining_s != null) R.label([G[0], .7, G[2]], gw.time_remaining_s + ' s left', { fs: 12.5, b: 1, mono: 1, c: P.c6, dy: -30, a: win(e, .3, .5) });
-      R.flow(seg(gi[0], gi[1]), { c: P.c6, r: .065, n: 6, speed: 1.3, a: win(e, .4, .6) });
-      const h2 = r.hop2_timeout ? 'grpc-timeout: ' + r.hop2_timeout : r.mode === 'propagate' ? 'cancel hook: ctx.add_callback' : 'no grpc-timeout';
-      R.label([(G[0] + I[0]) / 2, .45, G[2]], h2, { fs: 12.5, b: 1, mono: 1, c: r.hop2_timeout || r.mode === 'propagate' ? P.c6 : P.bad, dy: -14, a: win(e, .5, .7) });
-      if (inf.time_remaining_s != null) R.label([I[0], .8, I[2]], inf.time_remaining_s + ' s left', { fs: 12.5, b: 1, mono: 1, c: P.c6, dy: -44, a: win(e, .7, .9) });
-      void q;
-    }
-    if (k === 1) {   // tokens stream back, one length-prefixed message each
-      R.flow(seg(gi[1], gi[0]), { c: P.c3, r: .06, n: 6, speed: 1.4 }); R.flow(seg(cg[1], cg[0]), { c: P.c5, r: .06, n: 6, speed: 1.4 });
-      R.label([G[0], .7, G[2]], 't = ' + t.toFixed(2) + ' s', { fs: 12.5, b: 1, mono: 1, c: P.ink, dy: -30 });
-    }
-    if (k === 2) {   // the client gives up: DEADLINE_EXCEEDED or CANCELLED, and an RST_STREAM to the gateway
-      cross(R, [(cg[0][0] + cg[1][0]) / 2, .45, C[2]], win(e, 0, .3));
-      R.label([C[0], .7, C[2]], r.client.code + ' at ' + gone + ' s', { fs: 12.5, b: 1, mono: 1, c: P.bad, dy: -30, a: win(e, .1, .4), wide: 1 });
-      R.flow(seg(cg[0], cg[1]), { c: P.bad, r: .06, n: 4, speed: 1.6, a: win(e, .3, .6) });
-      R.label([(C[0] + G[0]) / 2, .45, C[2]], 'RST_STREAM (CANCEL)', { fs: 12, b: 1, mono: 1, c: P.bad, dy: -14, a: win(e, .4, .7), wide: 1 });
-    }
-    if (k === 3) {   // what happens below the gateway
-      const end = r.hop2_end[0];
-      if (end.type === 'RSTSTREAM') { R.flow(seg(gi[0], gi[1]), { c: P.bad, r: .06, n: 4, speed: 1.6, a: win(e, 0, .3) });
-        R.label([(G[0] + I[0]) / 2, .45, G[2]], 'RST_STREAM (CANCEL) at ' + end.ms.toFixed(1) + ' ms', { fs: 12, b: 1, mono: 1, c: P.bad, dy: -14, a: win(e, .1, .4), wide: 1 });
-        cross(R, [(gi[0][0] + gi[1][0]) / 2, .45, G[2]], win(e, .3, .5)); }
-      else { R.flow(seg(gi[1], gi[0]), { c: P.c3, r: .06, n: 7, speed: 1.4 });
-        R.label([(G[0] + I[0]) / 2, .45, G[2]], 'the worker thread keeps reading', { fs: 12, b: 1, c: P.bad, dy: -14, wide: 1 }); }
-      R.label([I[0], .8, I[2]], 'stopped after ' + inf.tokens_made + ' tokens, ' + inf.dur_s + ' s', { fs: 12.5, b: 1, c: inf.tokens_made > rec ? P.bad : P.good, dy: -30, a: win(e, .7, 1), wide: 1 });
-    }
-    if (k === 4) {   // the bill
-      const waste = inf.tokens_made - rec;
-      bar(R, [I[0] - .45, 0, I[2] - 1.15], inf.tokens_made, .03, P.c3, 1, { w: .45, d: .4, lab: inf.tokens_made + ' generated' });
-      bar(R, [I[0] + .45, 0, I[2] - 1.15], rec, .03, P.c1, 1, { w: .45, d: .4, lab: rec + ' delivered' });
-      R.label([I[0], .8, I[2]], waste ? waste + ' for nobody' : 'nothing for nobody', { fs: 14, b: 1, c: waste ? P.bad : P.good, dy: -30 });
-    }
+  let m = 0, ctx = null;
+  const esc = RD.esc, FIG = 'Fig. 3 · one abandoned request, on a clock';
+  host.classList.add('sq'); if (host.parentElement) host.parentElement.classList.add('sq-wrap');
+  host.innerHTML = '<div class="sq-top"><span>' + esc(FIG) + '</span><span id="sq-dl-st"></span></div><div class="sq-svg" id="sq-dl-svg"></div><div class="an-ctl" id="sq-dl-ctl"></div>';
+  const box = document.getElementById('sq-dl-svg'), stl = document.getElementById('sq-dl-st');
+  function tw(t, fs) { if (!ctx) ctx = document.createElement('canvas').getContext('2d'); ctx.font = fs + 'px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif'); return ctx.measureText(t).width; }
+  function wrap(t, w, fs) { const out = []; let cur = ''; t.split(' ').forEach(x => { const n = cur ? cur + ' ' + x : x; if (tw(n, fs) > w && cur) { out.push(cur); cur = x; } else cur = n; }); if (cur) out.push(cur); return out; }
+  const txt = (x, y, s, o) => { o = o || {}; return '<text x="' + x + '" y="' + y + '" font-size="' + (o.fs || 12) + '"' + (o.a ? ' text-anchor="' + o.a + '"' : '') + (o.b ? ' font-weight="600"' : '') +
+    (o.cls ? ' class="' + o.cls + '"' : '') + ' paint-order="stroke" stroke="var(--card)" stroke-width="3" stroke-linejoin="round" style="fill:' + (o.c || 'var(--ink)') + '">' + esc(s) + '</text>'; };
+  function draw(k) {
+    const r = DL[m], gone = r.client.gave_up_s, inf = r.inference, gw = r.gateway, rec = r.client.tokens_received;
+    stl.textContent = 'step ' + (k + 1) + ' of 5';
+    const W = Math.max(280, Math.round((box.clientWidth || RD.width(host)) - 16)), narrow = W < 480, fs = 12, G = narrow ? 86 : 100, x0 = G, x1 = W - 12;
+    const X = t => x0 + (x1 - x0) * Math.min(t, T) / T, fwd = host.classList.contains('rd-fwd'), nu = () => fwd ? ' class="rd-new"' : '';
+    const t = k === 0 ? 0 : k < 3 ? gone : inf.dur_s;
+    const nI = Math.min(inf.tokens_made, made(t)), nC = Math.min(rec, made(Math.min(t, gone))), nG = k >= 3 ? gw.tokens_forwarded : nC;
+    const RB = 33, HG = 31, yC = 26, yG = yC + RB + HG, yI = yG + RB + HG, yA = yI + RB + 4;
+    let s = '';
+    // the time axis
+    s += '<line x1="' + x0 + '" y1="' + yA + '" x2="' + x1 + '" y2="' + yA + '" style="stroke:var(--mute)" stroke-width="1"/>';
+    [0, .5, 1, 1.5, 2, 2.5].forEach(v => { const x = X(v); s += '<line x1="' + x + '" y1="' + yA + '" x2="' + x + '" y2="' + (yA + 4) + '" style="stroke:var(--mute)"/>' +
+      txt(x, yA + 17, v === 2.5 ? '2.5 s' : String(v), { fs: 11.5, a: v === 2.5 ? 'end' : 'middle', c: 'var(--mute)' }); });
+    // the deadline (or the planned cancel) and, from step 3, the moment the client gave up
+    const dl = r.deadline != null ? r.deadline : r.cancel_at;
+    s += '<line x1="' + X(dl) + '" y1="14" x2="' + X(dl) + '" y2="' + yA + '" style="stroke:var(--c6)" stroke-width="1.6" stroke-dasharray="5 4"/>';
+    if (k < 2) s += txt(X(dl) + 5, 14, r.deadline != null ? 'deadline ' + r.deadline + ' s' : 'no deadline · cancels at ' + r.cancel_at + ' s', { b: 1, c: 'var(--c6)' });
+    else s += '<g' + (k === 2 ? nu() : '') + '><line x1="' + X(gone) + '" y1="14" x2="' + X(gone) + '" y2="' + (yC + RB + HG - 4) + '" style="stroke:var(--bad)" stroke-width="2.2"/>' +
+      txt(X(gone) + 5, 14, r.client.code + ' at ' + gone + ' s', { b: 1, c: 'var(--bad)' }) + '</g>';
+    // one row per party: 40 faint slots (the full answer on the schedule), a tick per token, the count under it
+    const rows = [[yC, 'client', 'var(--c1)', nC, nC + ' received', null],
+      [yG, 'gateway', 'var(--c5)', nG, nG + ' forwarded', gw.time_remaining_s != null ? gw.time_remaining_s + ' s left' : 'no deadline'],
+      [yI, 'inference', 'var(--c3)', nI, nI + ' made' + (k >= 3 ? (inf.end === 'ok' ? ' · ended at ' : ' · stopped at ') + inf.dur_s + ' s' : ''), inf.time_remaining_s != null ? inf.time_remaining_s + ' s left' : 'no deadline']];
+    const tkw = Math.max(2, Math.min(7, (X(GAP) - X(0)) * .62));
+    rows.forEach(([y, name, c, n, cnt, left], j) => {
+      s += txt(4, y + 12, name, { b: 1, fs: 12.5 });
+      if (left) s += txt(4, y + 28, left, { c: 'var(--c6)' });
+      else if (j === 0) s += txt(4, y + 28, r.deadline != null ? r.deadline + ' s set' : 'no deadline', { c: 'var(--c6)' });
+      for (let i = 0; i < 40; i++) s += '<rect x="' + (X(tt(i)) - tkw / 2) + '" y="' + y + '" width="' + tkw + '" height="14" rx="1.5" style="fill:none;stroke:var(--line)" stroke-width=".8"/>';
+      let g = '';
+      for (let i = 0; i < n; i++) { const red = j === 2 && k >= 3 && i >= rec; g += '<rect x="' + (X(tt(i)) - tkw / 2) + '" y="' + y + '" width="' + tkw + '" height="14" rx="1.5" style="fill:' + (red ? 'var(--bad)' : c) + '"/>'; }
+      s += '<g' + (k === 1 || (k === 3 && j > 0) ? nu() : '') + '>' + g + '</g>';
+      if (j === 2 && k >= 3) s += '<line x1="' + X(inf.dur_s) + '" y1="' + (y - 4) + '" x2="' + X(inf.dur_s) + '" y2="' + (y + 18) + '" style="stroke:' + (inf.tokens_made > rec ? 'var(--bad)' : 'var(--good)') + '" stroke-width="2.4"/>';
+      if (k >= 1) s += txt(x0, y + 28, cnt, { b: 1, c: j === 2 && k >= 3 ? (inf.tokens_made > rec ? 'var(--bad)' : 'var(--good)') : c });
+    });
+    // the two hops: what travels with the call (line 1), what ends the stream (line 2)
+    const h1 = yC + RB, h2 = yG + RB;
+    if (k === 1) s += txt(x0, h1 + 13, 'each token: one length-prefixed message', { c: 'var(--mute)', cls: fwd ? 'rd-new' : '' });
+    const hop2 = r.hop2_timeout ? 'grpc-timeout: ' + r.hop2_timeout : r.mode === 'propagate' ? 'cancel hook: ctx.add_callback' : 'no grpc-timeout';
+    s += txt(x0, h2 + 13, hop2, { b: 1, c: r.hop2_timeout || r.mode === 'propagate' ? 'var(--c6)' : 'var(--bad)' });
+    const xmark = (x, y) => '<path d="M' + (x - 4) + ' ' + (y - 4) + 'L' + (x + 4) + ' ' + (y + 4) + 'M' + (x - 4) + ' ' + (y + 4) + 'L' + (x + 4) + ' ' + (y - 4) + '" style="stroke:var(--bad)" stroke-width="2"/>';
+    if (k >= 2) s += '<g' + (k === 2 ? nu() : '') + '>' + xmark(X(gone), h1 + 23) + txt(X(gone) + 9, h1 + 27, 'RST_STREAM (CANCEL)', { b: 1, c: 'var(--bad)' }) + '</g>';
+    if (k >= 3) { const e = r.hop2_end[0];
+      s += '<g' + (k === 3 ? nu() : '') + '>' + (e.type === 'RSTSTREAM'
+        ? xmark(X(e.ms / 1000), h2 + 23) + txt(X(e.ms / 1000) + 9, h2 + 27, (narrow ? 'RST_STREAM at ' : 'RST_STREAM (CANCEL) at ') + e.ms.toFixed(1) + ' ms', { b: 1, c: 'var(--bad)' })
+        : txt(x0, h2 + 27, 'the worker thread keeps reading', { b: 1, c: 'var(--bad)' })) + '</g>'; }
+    // the step's one-line summary, under the axis
+    const waste = inf.tokens_made - rec;
+    const note = [FIRST + ' s to the first token, then one every ' + GAP + ' s: a full answer is 40 tokens, about 2.1 s',
+      'tokens stream back: ' + nI + ' made, ' + nG + ' forwarded, ' + nC + ' received by ' + gone + ' s',
+      r.client.code + ' at ' + gone + ' s, after ' + rec + ' tokens',
+      inf.end === 'ok' ? 'the inference service generated all ' + inf.tokens_made + ' tokens and ended at ' + inf.dur_s + ' s' : 'the inference service stopped after ' + inf.tokens_made + ' tokens, ' + inf.dur_s + ' s',
+      inf.tokens_made + ' generated · ' + rec + ' delivered · ' + (waste ? waste + ' for nobody' : 'nothing for nobody')][k];
+    const nc = k === 4 ? (waste ? 'var(--bad)' : 'var(--good)') : k === 3 && inf.tokens_made > rec ? 'var(--bad)' : 'var(--ink)';
+    // on a phone the step list under the card says the same, so the card stays short enough to stay under the nav
+    const lines = narrow ? [] : wrap(note, W - 24, 12.5), yN = yA + 28, hN = narrow ? -6 : lines.length * 17 + 10;
+    if (!narrow) s += '<g' + nu() + '><rect x="2" y="' + yN + '" width="' + (W - 4) + '" height="' + hN + '" rx="8" style="fill:var(--soft)"/>' +
+      lines.map((l, j) => txt(W / 2, yN + 5 + (j + 1) * 17 - 4, l, { fs: 12.5, a: 'middle', b: k === 4 ? 1 : 0, c: nc })).join('') + '</g>';
+    const H = yN + hN + 4;
+    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="' + esc(FIG + ', run ' + r.label + ', step ' + (k + 1) + ' of 5') + '">' + s + '</svg>';
   }
-  const full = { cam: [.1, .58], bounds: [[-5.4, 0, -1.4], [5.6, 1.1, 2.6]] };
-  const st = S3.stage({ id: 'stg-dl', list: 'sx-dl-0', fig: 'Fig. 4 · one abandoned request', cam: full.cam, bounds: full.bounds, aspect: .5, dur: 1500, hold: 4800, draw,
-    margin: w => w < 520 ? [22, 8, 18, 8] : [30, 16, 22, 16],
-    view: k => { const ph = innerWidth < 520;   // phone: turned and steeper, so the row runs into depth and the parts are larger
-      return k === 3 || k === 4 ? { cam: ph ? [.4, .85] : [.14, .56], bounds: [[-1.4, 0, -1.8], [5.8, 1.2, 2.6]] } : ph ? { cam: [.45, .85] } : null; } });
-  chips(document.getElementById('dl-mode'), 'sx-dl-', st, v => { m = +v; });
+  const A = RD.anim({ card: 'sq-dl', ctl: 'sq-dl-ctl', n: 5, draw, ms: 4800, label: 'Step', list: 'sx-dl-0' });
+  let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (host.offsetParent !== null) A.redraw(); }, 60); });
+  // the run chips: swap the step list and replay from step 1
+  const chips = document.getElementById('dl-mode');
+  if (chips) chips.addEventListener('click', ev => { const b = ev.target.closest('button[data-m]'); if (!b) return;
+    chips.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    chips.parentNode.querySelectorAll('ol.sx[id^="sx-dl-"]').forEach(o => o.hidden = o.id !== 'sx-dl-' + b.dataset.m);
+    m = +b.dataset.m; A.reset(5, 'sx-dl-' + b.dataset.m); });
 })();

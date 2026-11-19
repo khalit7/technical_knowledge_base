@@ -50,3 +50,7 @@ Rejected in this pass: a 3-D RoPE channel-split bar (a sentence with the three n
 | 23 | Fig. 5: a 6 x 4 token grid filled in flatten, parallel and delay order, height the generation step | 3D stage, 4 steps | Reading 8 | built; replaces the 2D three-mode grid |
 | 24 | Clip cost in 3D (a latent block lengthening with duration, linear against attention columns) | 3D stage | Reading 4 | rejected: the one-slider card is the right kind for one parameter, and the stage would repeat it |
 | 25 | Hero in 3D | 3D stage | top | rejected: a two-lane pipeline whose message is two highlighted counts reads best flat, and Figs. 1 and 4 already build both lanes in depth |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 (`28_js_sc1lat.js`): checked; step 5's "32,760 tokens" no longer overlaps the faded plates (cosmetic pass). Fixed what remained: step 3's "21 × 60 × 104 × 16 latent" ran off the right edge (now right-aligned above the last plates); at step 4's close view the later latent frames recede to .22 instead of running off the card at full strength; on phones the three counts drop the word "tokens" (Wan's and LTX's overlapped) and "time →" hides (it sat on the frames' label).
+- Fig. 5 (`28_js_sc5delay.js`): checked; the streams are drawn over the columns (cosmetic pass), so no longer faint. On phones the row names are short ("cb 1" to "cb 4"), as the full names ran over the grid.

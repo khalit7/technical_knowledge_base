@@ -42,3 +42,6 @@ What the methodology lacked: guidance for data whose "truth" is itself a human l
 | H25 | Disagreement as stacks of per-item vote distributions | none | rejected: no per-item ChaosNLI distributions in the page's data |
 | H26 | Annotator quality control stage (raters as plates, seeded gold items, drift flagged) | none | rejected: HelpSteer2 releases no rater identities; it would be invented data |
 | H27 | Hero in 3D | none | rejected: a map of six stages, nothing for depth to separate |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 4 (`34_js_sc_find.js`), step 4 (people decide): the field of 100 columns was busy at 1400 px, flawed and sound hard to tell apart. The camera now looks nearly straight down at that step (phi 1.25, so columns stop hiding each other) and the sound questions recede further (alpha .12), leaving the orange and gold flawed columns and the queue. Step count and list text unchanged.

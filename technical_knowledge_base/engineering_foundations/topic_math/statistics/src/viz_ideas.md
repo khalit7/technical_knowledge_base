@@ -29,3 +29,6 @@ Added (inline, each beside its claim): hero (population, sampling distribution, 
 
 ## 2026-11-07 rollout (split layout, renderer v2)
 Built: Fig. 1, 3D hero (population strip, eight seeded samples of 30 as rows, means landing on a value axis, the 20,000-mean bell, one sample's interval); Fig. 6, 3D bootstrap (one sample, six resamples with flows from the picked points, the 4,000-resample distribution against the 20,000-sample truth as glass; tiny n = 30 and lognormal n = 10). Regrouped: the 100-intervals animation into six explained stretches. Rejected: a 3D paired comparison (no per-item paired data on this page; Eval statistics owns real paired comparisons); a 3D bias-variance of fitted models (Regularisation owns it); 3D versions of the CLT histograms, power curves, bounds and the lab (curves and log axes read best flat).
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 6 (bootstrap, `36_js_sc_boot.js`): step 3 was a pile of six equally strong resample rows; now the five earlier rows and the sample recede (alpha .22 and .2) under a near top-down camera so the newest row and the means landing on the axis read first. Steps 4 and 5 fade the sample and resample rows out entirely (they had stayed faint behind the histograms), and the truth marker is taller so "truth" no longer collides with "true SE" at 390 px. Step count and list text unchanged.

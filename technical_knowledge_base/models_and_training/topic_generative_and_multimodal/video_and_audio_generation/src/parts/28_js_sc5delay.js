@@ -10,7 +10,7 @@
     const P = R.P; R.grid(-3.6, 3.6, -2.2, 2.2, .4);
     const lev = [P.c1, P.c4, P.c3, P.c5];
     for (let kk = 0; kk < NK; kk++) {
-      lab(R, [X(0) - .5, 0, Z(kk)], 'codebook ' + (kk + 1) + (kk === 0 ? ' (coarse)' : kk === NK - 1 ? ' (fine)' : ''), { fs: 12.5, b: 1, c: lev[kk], al: 'right', dx: -4 });
+      lab(R, [X(0) - .5, 0, Z(kk)], R.W < 520 ? 'cb ' + (kk + 1) : 'codebook ' + (kk + 1) + (kk === 0 ? ' (coarse)' : kk === NK - 1 ? ' (fine)' : ''), { fs: 12.5, b: 1, c: lev[kk], al: 'right', dx: -4 }); // phones: short row names (the full ones ran over the grid)
       for (let t = 0; t < NFR; t++) { const x = X(t), z = Z(kk);
         R.quad([[x - BW / 2, .005, z - BD / 2], [x + BW / 2, .005, z - BD / 2], [x + BW / 2, .005, z + BD / 2], [x - BW / 2, .005, z + BD / 2]], { ec: P.mute, ea: .5, dash: [4, 3], lw: 1 });
         if (!k) continue;

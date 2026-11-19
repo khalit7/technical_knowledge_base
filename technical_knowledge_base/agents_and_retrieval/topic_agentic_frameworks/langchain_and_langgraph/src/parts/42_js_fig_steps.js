@@ -1,11 +1,12 @@
-// ---- Scene: Fig. 2, super-steps (section 3; renderer v2, 2026-11-06; replaces the 2D super-step player). Seven recorded graphs (FLG.e1, langgraph 1.2.14,
-// InMemorySaver, no model). Step 0 is the input; each later step is one super-step, played in its three phases during the step's tween:
-// plan (the triggered nodes are outlined, their trigger channels flow in), execute (the nodes run; each task's writes land on the pending-writes tray),
-// update (the writes go through the reducers into the state's channels, whose columns rise with their version, and a checkpoint drops onto the stack).
+// ---- Fig. 2, super-steps (section 3; 2D step animation, 2026-11-19; was a 3D stage, before that the 2D super-step player). Seven recorded graphs (FLG.e1,
+// langgraph 1.2.14, InMemorySaver, no model). Step 0 is the input; each later step is one super-step, played in its three phases during the step's tween:
+// plan (the triggered nodes are outlined, their trigger edges light up), execute (the nodes run; each task's writes land in the pending-writes tray),
+// update (the writes go through the reducers into the state's channels, whose bars grow with their version, and a checkpoint drops onto the stack).
 // The step lists on the left are generated from the same recorded checkpoints, one item per step. ----
 (function(){
-  if(!document.getElementById('stg-steps'))return;const {mix,cl}=S3;
-  const D=window.FLG,G=window.FLG3,esc=RD.esc,$=id=>document.getElementById(id);
+  const host=document.getElementById('flg-s-svg');if(!host)return;
+  const F=window.FLGF,{t,arrow,node,edge,chip,ph}=F,MK='flgS';
+  const D=window.FLG,esc=RD.esc,$=id=>document.getElementById(id);
   const NAMES={linear:'Linear',fan_reducer:'Fan-out, reducer',fan_no_reducer:'Fan-out, no reducer',uneven_edges:'Uneven, plain edges',uneven_join_all:'Uneven, join',loop:'Loop',send:'Send (map-reduce)'};
   const TEACH={
     linear:'One task per super-step; four steps, five checkpoints after the input. The hidden branch:to: channels carry control from node to node.',
@@ -20,59 +21,60 @@
   const cut=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1)+'…':s};
   let cur='fan_reducer';
   const g=()=>D.e1.find(x=>x.name===cur);
-  // derived per graph: its state keys (in order of first write), node positions
+  // derived per graph: its state keys (in order of first write), the most keys changed in one step
   function info(gr){if(gr._i)return gr._i;const keys=[];gr.steps.forEach(s=>Object.keys(s.versions).concat(Object.keys(s.values)).forEach(k=>{if(!hid(k)&&!keys.includes(k))keys.push(k)}));
-    const pos=G.layout(FLGG.LAYOUT[gr.name],-4.6,1.0,-.9,1.45);const err=!!gr.error;return gr._i={keys,pos,err,n:gr.steps.length}}
-  const X0=-5.0,X1=.9,ZT=.55,ZS=1.65,DB=[3.7,0,-.6];
-  const keyX=(I,k)=>{const n=I.keys.length,i=I.keys.indexOf(k);return n>1?X0+.3+(X1-X0-.6)*i/(n-1):(X0+X1)/2};
+    let mch=1;gr.steps.forEach((s,i)=>{const nx=gr.steps[i+1];if(nx)mch=Math.max(mch,chgd(s,nx).length)});return gr._i={keys,mch,err:!!gr.error,n:gr.steps.length}}
   const ver=(s,k)=>+((s&&s.versions[k])||0);
   const chgd=(a,b)=>Object.keys(b.versions).filter(k=>!hid(k)&&b.versions[k]!==(a.versions||{})[k]);
-  // what the stage shows at step k: tasks run, writes pending, the checkpoint the update saves
-  function at(gr,k){const S=gr.steps,I=info(gr);if(k===0)return {kind:'input',ck:Math.min(2,S.length)};
+  // what the figure shows at step k: tasks run, writes pending, the checkpoint the update saves
+  function at(gr,k){const S=gr.steps;if(k===0)return {kind:'input',ck:Math.min(2,S.length)};
     const s=S[k],nx=S[k+1];if(!s.tasks.length)return {kind:'end',ck:S.length};
     if(!nx)return {kind:'err',ck:S.length,s};return {kind:'step',ck:k+2,s,nx}}
-  function draw(R,k,e){const P=R.P,gr=g(),I=info(gr),S=gr.steps,a=at(gr,k),nar=R.W<520;R.grid(-6.4,4.6,-2.6,2.6,.5);
-    const p1=cl(e/.3,0,1),p2=cl((e-.3)/.35,0,1),p3=cl((e-.65)/.35,0,1);
+  function render(k,e){const gr=g(),I=info(gr),S=gr.steps,a=at(gr,k),W=Math.round(RD.width(host)),wide=W>=560;
+    const p1=ph(e,0,.3),p2=ph(e,.3,.65),p3=ph(e,.65,1);
+    // geometry: the graph on the left (full width on a phone); the tray, the state channels and the checkpoints on the right (below on a phone)
+    const rows=FLGG.LAYOUT[gr.name],gw=wide?Math.min(Math.round(W*.48),360):W,rh=44,gy=34,pos=F.layout(rows,0,gw,gy,rh),gb=gy+(rows.length-1)*rh+F.NH;
+    const rx=wide?gw+24:0,rw=wide?W-rx:W,ty=wide?20:gb+30,cell=22,tray=ty+3*cell+8,sy=tray+30,nk=I.keys.length,vy=sy+nk*cell+6,ckT=vy+I.mch*16+22,ckB=ckT+I.n*11+8;
+    const H=Math.max(gb+8,ckB+26);let b=F.defs(MK);
+    // the phase of this super-step: plan, execute, update (the input and the end are labelled instead)
+    if(a.kind==='step'||a.kind==='err'){const P=['plan','execute','update'],cur=p3>0?2:p2>0?1:0;let x=0;
+      P.forEach((n,i)=>{const w=F.wSans(n)+18,on=i===cur,bad=a.kind==='err'&&i===2&&on;
+        b+='<rect x="'+x+'" y="2" width="'+w+'" height="20" rx="10" fill="'+(bad?'var(--bad)':on?'var(--c5)':'none')+'" fill-opacity="'+(on?.25:0)+'" stroke="'+(bad?'var(--bad)':on?'var(--c5)':'var(--line)')+'" stroke-width="1.2"/>'+t(x+w/2,16,n,{al:'mid',b:on,c:on?'var(--ink)':'var(--mute)'});x+=w+6});
+      b+=t(x+4,16,'super-step '+(a.s.step+1),{c:'var(--mute)'})}
+    else b+=t(0,16,a.kind==='input'?'input: invoke({})':'run ends: nothing triggered',{b:1,c:'var(--mute)'});
     // node states: done for every task of an earlier step, next/run/err for this step's tasks
     const ns={},runs={},cp={};for(let j=1;j<k;j++)(S[j].tasks||[]).forEach(t=>{ns[t.name]='done';runs[t.name]=(runs[t.name]||0)+1});
     const tasks=a.s?a.s.tasks:[];tasks.forEach(t=>{cp[t.name]=(cp[t.name]||0)+1});
     Object.keys(cp).forEach(n=>{ns[n]=a.kind==='err'&&p3>0?'err':p2>0?'run':'next';runs[n]=(runs[n]||0)+(p2>0?1:0)});
     if(a.kind==='end')ns.__end__='done';
-    // edges; trigger flows into this step's nodes during plan and execute
-    gr.edges.forEach(ed=>{const pts=G.edge(R,I.pos[ed.s],I.pos[ed.t],{a:.5,cond:ed.cond,s:ed.s,t:ed.t});
-      if(pts&&cp[ed.t]&&p3<1&&!(cur==='send'&&ed.t==='review'&&false))R.flow(pts,{c:P.c5,r:.06,n:5,speed:1,a:(1-p3)*(.4+.6*p1)});
-      if(pts&&k===0&&ed.s==='__start__')R.flow(pts,{c:P.c5,r:.06,n:5,speed:1})});
-    Object.keys(I.pos).forEach(n=>{const st=ns[n]||'idle',rn=runs[n]||0;
-      const show=!nar||st==='run'||st==='next'||st==='err'||G.isSE(n);
-      G.node(R,I.pos[n],n,{st,a:st==='idle'?.5:1,copies:cp[n]>1?cp[n]:1,label:show,text:n+(cp[n]>1?' ×'+cp[n]:'')+(rn>1?' · run '+rn:'')})});
-    // the pending-writes tray: a glass plate between the graph and the state
-    const trayA=a.kind==='step'||a.kind==='err'?1:.35;
-    R.glass([X0-.4,.02,ZT-.3],[X1-X0+.8,0,0],[0,0,.6],{c:P.c3,a:trayA*.8,nu:10,nv:2});
-    R.label([X0-.45,.02,ZT],'pending writes',{al:'right',dx:-6,fs:12.5,b:1,c:P.c3,a:trayA,wide:1});
-    const W=a.s?a.s.writes.filter(w=>!hid(w.channel)):[];
-    W.forEach((w,i)=>{const p=I.pos[w.task]||[X0,0],x=p[0]+(i%3-1)*.06+(W.filter((v,j)=>j<i&&v.task===w.task).length)*.32,c=[x,.04,ZT];
-      const shown=a.kind==='err'?p2:p2*(1-p3*.999);if(shown<=.01)return;
-      R.box(c,[.26,.16,.26],{fill:mix(P.paper,a.kind==='err'&&p3>0?P.bad:P.c3,.6),a:shown,lw:.7,shadow:false});
-      if(p3<.2||a.kind==='err')R.label([c[0],.2,c[2]],w.channel,{mono:true,fs:12,c:a.kind==='err'&&p3>0?P.bad:P.c3,dy:-8,a:shown,grp:'w'});
-      if(p2>0&&p3<1)R.flowArc([p[0],.3,p[1]],[c[0],.2,c[2]],.35,{c:P.c3,r:.055,n:4,speed:1,a:p2*(1-p3)});
-      if(a.kind==='step'&&p3>0)R.flowArc([c[0],.2,c[2]],[keyX(I,w.channel),.3,ZS],.4,{c:P.c3,r:.06,n:5,speed:1.1,a:p3})});
-    // the state's channels: a column per key whose height is its version; this step's changed keys light up
+    gr.edges.forEach(ed=>{b+=edge(pos[ed.s],pos[ed.t],{mk:MK,cond:ed.cond,s:ed.s,t:ed.t,hi:(cp[ed.t]&&p3<1)||(k===0&&ed.s==='__start__')})});
+    Object.keys(pos).forEach(n=>{const rn=runs[n]||0;b+=node(pos[n],n,{st:ns[n]||'idle',copies:cp[n]>1?cp[n]:1,text:n+(cp[n]>1?' ×'+cp[n]:'')+(rn>1?' · run '+rn:'')})});
+    // the pending-writes tray: one chip per task write, saved before the update; red when the update rejects them
+    const Wr=a.s?a.s.writes.filter(w=>!hid(w.channel)):[],bad=a.kind==='err'&&p3>0;
+    b+=t(rx,ty-6,'pending writes',{b:1,c:'var(--c3)',fs:12.5})+(wide?'':t(rx+112,ty-6,'saved before the update',{c:'var(--mute)'}));
+    b+='<rect x="'+rx+'" y="'+ty+'" width="'+(rw-2)+'" height="'+(tray-ty)+'" rx="8" fill="var(--c3)" fill-opacity=".04" stroke="var(--c3)" stroke-opacity=".5" stroke-dasharray="4 4"/>';
+    const shown=a.kind==='err'?p2:p2*(1-.4*p3); // after the update the applied writes stay, faded
+    Wr.forEach((w,i)=>{if(shown<=.01)return;const y=ty+5+i*cell,lab=w.task+' → '+w.channel,c=bad?'var(--bad)':'var(--c3)';b+=chip(rx+6,y,lab,c,{a:shown});
+      const p=pos[w.task];if(wide&&p&&p3<1)b+=arrow([p.x+F.half(p,w.task),p.y+F.NH/2],[rx+3,y+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.3,.55),a:1-p3,bend:8,w:1.5});
+      if(a.kind==='step'&&p3>0){const r=I.keys.indexOf(w.channel);if(r>=0)b+=arrow([rx+12,y+20],[rx-4+(wide?0:4),sy+r*cell+10],{c:'var(--c3)',mk:MK+'g',d:ph(e,.65,.85),bend:wide?-40:-20,w:1.5,a:1-ph(e,.92,1)})}});
+    // the state's channels: a bar per key whose length is its version; this step's changed keys light up and show their new value
     const sv=a.kind==='step'?(p3>.5?a.nx:a.s):a.kind==='input'?S[Math.min(1,S.length-1)]:S[Math.min(k,S.length-1)];
-    const changed=a.kind==='step'?chgd(a.s,a.nx):[];
-    I.keys.forEach(key=>{const x=keyX(I,key),v=a.kind==='step'?ver(a.s,key)+(ver(a.nx,key)-ver(a.s,key))*p3:ver(sv,key),hi=changed.includes(key)&&p3>0;
-      R.box([x,0,ZS],[.8,.05,.5],{a:.9,lw:.7});
-      if(v>0)R.box([x,.05,ZS],[.5,v*.2,.32],{fill:mix(P.paper,P.c3,hi?.75:.35),a:1,lw:.7,shadow:false});
-      R.label([x,0,ZS+.25],key,{mono:true,fs:12,c:hi?P.c3:P.mute,b:hi,dy:14,a:!nar||hi?1:0});
-      if(v>0)R.label([x,.05+v*.2,ZS],'v'+Math.round(v),{mono:true,fs:12,c:P.mute,dy:-9,a:!nar||hi?1:0});
-      if(hi&&!nar&&p3>.6){const val=(a.nx.values||{})[key];if(val!==undefined)R.label([x,.05+v*.2,ZS],cut(fmtv(val),34),{mono:true,fs:12,c:P.c3,b:1,dy:-26,a:(p3-.6)/.4,grp:'val'})}});
-    R.label([X0-.45,.1,ZS],'state channels',{al:'right',dx:-6,fs:12.5,b:1,c:P.c3,wide:1});
+    const changed=a.kind==='step'?chgd(a.s,a.nx):[],u=Math.min(14,(rw-96-40)/6);
+    b+=t(rx,sy-8,'state channels',{b:1,c:'var(--c3)',fs:12.5})+t(rx+112,sy-8,'bar = version',{c:'var(--mute)'});
+    I.keys.forEach((key,i)=>{const y=sy+i*cell,v=a.kind==='step'?ver(a.s,key)+(ver(a.nx,key)-ver(a.s,key))*p3:ver(sv,key),hi=changed.includes(key)&&p3>0;
+      b+=t(rx,y+14,key,{mono:1,b:hi,c:hi?'var(--c3)':'var(--ink)'});
+      b+='<rect x="'+(rx+96)+'" y="'+(y+3)+'" width="'+(6*u).toFixed(1)+'" height="14" rx="3" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>';
+      if(v>0)b+='<rect x="'+(rx+96)+'" y="'+(y+3)+'" width="'+(v*u).toFixed(1)+'" height="14" rx="3" fill="var(--c3)" fill-opacity="'+(hi?.7:.3)+'" stroke="var(--c3)" stroke-width=".8"/>';
+      if(v>0)b+=t(rx+96+6*u+6,y+14,'v'+Math.round(v),{mono:1,c:hi?'var(--c3)':'var(--mute)',b:hi})});
+    if(a.kind==='step'&&p3>.6){const n=Math.floor((rw-4)/(12*.61));changed.forEach((key,i)=>{const val=(a.nx.values||{})[key];if(val!==undefined)b+=t(rx,vy+12+i*16,cut(key+' = '+fmtv(val),n),{mono:1,c:'var(--c3)',a:ph(e,.8,1)})})}
+    if(bad)b+=t(rx,vy+12,'InvalidUpdateError: no checkpoint',{b:1,c:'var(--bad)',a:p3});
     // the checkpointer: one slab per saved checkpoint; the update drops the next one in
-    const n=a.ck,drop=a.kind==='step'?Math.max(0,(p3-.4)/.6):a.kind==='input'?e:1,top=G.stack(R,DB,a.kind==='step'&&drop<=0?n-1:n,a.kind==='step'||a.kind==='input'?drop:1,{hiLast:a.kind==='step'||a.kind==='input'});
-    R.label([DB[0],top,DB[2]],(a.kind==='step'&&drop<=0?n-1:n)+' checkpoints',{fs:12.5,b:1,c:P.acc,dy:-12});
-    if(a.kind==='step'&&p3>.3)R.flowArc([X1+.2,.4,ZS],[DB[0]-.3,top,DB[2]],.5,{c:P.acc,r:.06,n:6,speed:1.1,a:p3});
-    if((a.kind==='step'||a.kind==='err')&&p2>.3&&p3<1)R.flowArc([X1+.3,.15,ZT],[DB[0]-.4,top*.6,DB[2]+.3],.4,{c:P.c3,r:.05,n:5,speed:1.1,a:.7*(a.kind==='err'?1:1-p3)});
-    if(a.kind==='err'&&p3>0)R.label([DB[0]-1.6,0,ZT],'InvalidUpdateError: no checkpoint',{fs:13,b:1,c:P.bad,dy:30,a:p3});
-    if(a.kind==='end'&&!nar)R.label([DB[0],top,DB[2]],'run ends: nothing triggered',{fs:12.5,c:P.mute,dy:-30,a:e});
+    const n=a.ck,dr=a.kind==='step'?ph(p3,.4,1):a.kind==='input'?ph(e,.2,1):1,shownN=a.kind==='step'&&dr<=0?n-1:n,top=ckB-shownN*11;
+    b+=F.stack(rx,ckB,shownN,a.kind==='step'||a.kind==='input'?dr:1,{hiLast:a.kind==='step'||a.kind==='input'});
+    b+=t(rx+116,ckB-20,shownN+' checkpoints',{b:1,c:'var(--acc)',fs:12.5});
+    if(a.kind==='err'&&p3>0)b+=t(rx+116,ckB-4,'the failed step writes none',{c:'var(--bad)',a:p3});
+    if(a.kind==='step'&&p3>.3)b+=arrow([rx+150,sy+nk*cell-2],[rx+60,top-3],{c:'var(--acc)',mk:MK+'k',d:ph(e,.7,.9),bend:20,a:1-ph(e,.95,1)});
+    host.innerHTML=RD.svg(W,H,b,'Fig. 2: super-steps of the recorded graph '+NAMES[cur]+', step '+(k+1)+' of '+S.length);
   }
   // the step lists, one per graph, from the recorded checkpoints
   function items(gr){const S=gr.steps,out=[];const first=(S[0].writes[0]||{}).channel||'';
@@ -108,11 +110,11 @@
     $('flg-s-seen').innerHTML=seen.length?'<div class="tw"><table class="flg-ct"><thead><tr><th>Node</th><th>Channel versions it has seen</th></tr></thead><tbody>'+seen.map(n=>'<tr><td class="mono">'+esc(n)+'</td><td class="mono">'+esc(Object.entries(s.seen[n]).map(([c,v])=>c+': '+v).join(', '))+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small mute">No node has run yet, so versions_seen is empty apart from the input.</p>';
     const tasks=S.slice(1,a.kind==='step'||a.kind==='err'?k+1:k).reduce((t,x)=>t+x.tasks.length,0);
     $('flg-s-cnt').innerHTML=RD.stat('Super-step',a.kind==='input'?'0':String(a.s?a.s.step+1:S[S.length-2].step+1),'')+RD.stat('Tasks run',tasks,'node executions so far')+RD.stat('Checkpoints saved',a.kind==='step'?a.ck:a.ck,a.kind==='err'?'no new checkpoint: the step failed':'one per super-step, plus the input')}
-  const full={cam:[.12,.78],bounds:[[-6.0,0,-2.0],[4.5,1.0,2.1]]};
-  const st=S3.stage({id:'stg-steps',list:'sx-s-'+cur,fig:'Fig. 2 · super-steps of a recorded run',cam:full.cam,bounds:full.bounds,aspect:.47,dur:2700,hold:4600,draw,
-    margin:w=>w<520?[14,10,24,10]:[18,16,30,130],onStep:k=>{try{tables(k)}catch(e){console.error(e)}},view:()=>innerWidth<520?{cam:[.5,.92]}:null});
-  RD.seg($('flg-s-pick'),m=>{cur=m;note();D.e1.forEach(gr=>{$('sx-s-'+gr.name).hidden=gr.name!==m});st.list('sx-s-'+m)});
-  $('flg-s-hid').addEventListener('change',()=>tables(st.st.k));
+  const draw=F.tween('flg-s-fig',2600,(k,e)=>{render(k,e);if(e>=1||e===0)try{tables(k)}catch(err){console.error(err)}});
+  const an=RD.anim({card:'flg-s-fig',ctl:'flg-s-ctl',n:g().steps.length,draw,ms:5400,label:'Step through Fig. 2',list:'sx-s-'+cur});
+  RD.onResize(()=>an.redraw());
+  RD.seg($('flg-s-pick'),m=>{cur=m;note();D.e1.forEach(gr=>{$('sx-s-'+gr.name).hidden=gr.name!==m});an.reset(g().steps.length,'sx-s-'+m)});
+  $('flg-s-hid').addEventListener('change',()=>tables(an.i));
   // the summary table (closed)
   const runsOf=x=>{const c={};x.steps.forEach(s=>s.tasks.forEach(t=>c[t.name]=(c[t.name]||0)+1));return c};
   $('flg-s-sum').innerHTML='<thead><tr><th>Graph</th><th class="num">Super-steps</th><th>Node executions</th><th>Final state or error</th></tr></thead><tbody>'+

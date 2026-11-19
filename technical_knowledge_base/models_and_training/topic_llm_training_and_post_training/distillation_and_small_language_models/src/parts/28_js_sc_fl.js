@@ -23,13 +23,13 @@
   function node(R,v,o){const q=P3(v);R.box([q[0],0,q[2]],[.24,.1,.24],{fill:o.fill||R.P.paper,a:o.a==null?1:o.a,lw:.8});
     if(o.lab)R.label([q[0],.1,q[2]],NM[v],{fs:12.5,b:1,dy:o.dy||-11,c:o.c||R.P.ink,a:o.a==null?1:o.a})}
   function draw(R,k,e){const P=R.P,narrow=R.W<520,RED=S3.rgb(P.dark?'#ef6f7f':'#d1495b');R.grid(-5,5,-3,3,.5);
-    const ea=k===2?.45:k===4?.3:.85; // the grading step lets the graph recedeG.edges.forEach(([a,b])=>{const p=P3(a),q=P3(b);R.line([[p[0],.01,p[2]],[q[0],.01,q[2]]],{c:mix(P.paper,P.ink,.28),w:1.2,a:ea})});
+    const ea=k===2?.45:k===4?.12:.85; // the grading step lets the graph recedeG.edges.forEach(([a,b])=>{const p=P3(a),q=P3(b);R.line([[p[0],.01,p[2]],[q[0],.01,q[2]]],{c:mix(P.paper,P.ink,.28),w:1.2,a:ea})});
     const lab=new Set();if(k===1)tPath.forEach(v=>lab.add(v));if(k===2){Object.keys(TP.t).forEach(v=>+v<G.n&&lab.add(+v))}
     if(k>=3)sPath.forEach(v=>lab.add(v));
-    for(let v=0;v<G.n;v++){const isS=v===A.s,isT=v===A.t;node(R,v,{fill:isS?P.c3:isT?P.c4:null,lab:isS||isT||(lab.has(v)&&!narrow),c:isS?P.c3:isT?P.c4:P.ink,a:(k===2||k===4)&&!lab.has(v)&&!isS&&!isT?(k===4?.25:.4):1})}
+    for(let v=0;v<G.n;v++){const isS=v===A.s,isT=v===A.t;node(R,v,{fill:isS?P.c3:isT?P.c4:null,lab:isS||isT||(lab.has(v)&&!narrow),c:isS?P.c3:isT?P.c4:P.ink,a:(k===2||k===4)&&!lab.has(v)&&!isS&&!isT?(k===4?.1:.4):1})}
     if(k===0){R.label(P3(A.s),'start',{fs:12.5,b:1,dy:16,c:P.c3,a:e});R.label(P3(A.t),'target',{fs:12.5,b:1,dy:16,c:P.c4,a:e})}
     // 1. the teacher's route: off-policy text
-    if(k>=1){const tp=pathPts(tPath),ta=k===1?1:k===2?.5:.3;R.line(tp,{c:P.c1,w:k===1?3.2:2.2,a:ta*(k===1?Math.min(1,e*1.5):1)});if(k<=2)R.flow(tp,{c:P.c1,a:ta,r:.07,speed:1.3})}
+    if(k>=1){const tp=pathPts(tPath),ta=k===1?1:k===2?.5:k===4?.18:.3;R.line(tp,{c:P.c1,w:k===1?3.2:2.2,a:ta*(k===1?Math.min(1,e*1.5):1)});if(k<=2)R.flow(tp,{c:P.c1,a:ta,r:.07,speed:1.3})}
     // 2. one position, two targets: the teacher's distribution standing on the candidate next nodes, the one-hot label as an outline
     if(k===2){const a0=P3(TP.at);R.label([a0[0],.1,a0[2]],'here: '+NM[TP.at],{fs:12.5,b:1,dy:16,c:P.c1,a:e});
       Object.keys(TP.t).map(Number).forEach(v=>{const pr=TP.t[v];if(pr<.005)return;const q=v===EOS?a0:P3(v),h=Math.max(.02,pr*TS*e);
@@ -48,8 +48,10 @@
   }
   const full={cam:[.08,.95],bounds:[[-4.6,0,-2.8],[4.4,1.2,2.8]]};
   const a0=P3(TP.at);
+  // the grading step frames the student's route, the teacher plate and the totals, not the whole graph (2026-11-19: the last step was busy)
+  const SB=(()=>{const xs=sPath.map(v=>P3(v)[0]),zs=sPath.map(v=>P3(v)[2]);return [[Math.min(-4.4,Math.min(...xs)-.5),0,Math.min(-3.3,Math.min(...zs)-.5)],[Math.max(...xs)+.6,2.5,Math.max(3.1,Math.max(...zs)+.5)]]})();
   S3.stage({id:'stg-fl',list:'sx-fl',fig:'Fig. 3 · the teacher’s text against the student’s own',cam:full.cam,bounds:full.bounds,aspect:.64,dur:1600,hold:4800,draw,
     margin:w=>w<520?[16,10,18,10]:[22,18,26,18],
-    view:k=>k===2?{cam:[.25,.72],bounds:[[a0[0]-2.8,0,a0[2]-2.1],[a0[0]+2.8,1.9,a0[2]+2.1]]}:k===4?{cam:[.1,.75],bounds:[[-4.4,0,-3.3],[4.4,2.5,3.3]]}:full});
+    view:k=>k===2?{cam:[.25,.72],bounds:[[a0[0]-2.8,0,a0[2]-2.1],[a0[0]+2.8,1.9,a0[2]+2.1]]}:k===4?{cam:[.1,.75],bounds:SB}:full});
   writeList();
 })();

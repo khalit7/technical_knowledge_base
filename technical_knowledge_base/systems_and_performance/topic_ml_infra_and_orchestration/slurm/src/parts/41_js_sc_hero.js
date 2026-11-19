@@ -19,16 +19,17 @@
     const blkA=k<3?1:k===3?Math.max(0,1-e*2.5):0,mine=k<3?0:k===3?Math.max(0,(e-.55)/.45):k===5?1-e*.7:1;
     const nodeA=k===1||k===2?.55:1;
     [0,1,2].forEach(n=>{const own=n<2&&mine>0,fill=g=>own&&g<2?mix(P.paper,J,Math.min(1,mine)):blkA>0?mix(P.paper,BLK,blkA):null;
-      G.node(R,n,{a:nodeA,gpu:[0,1,2,3].map(fill),cpu:[0,1,2,3].map(fill)});
-      lab([G.NX[n],0,G.SD/2+.05],G.NAMES[n]+' · slurmd',{dy:14,b:1,a:nodeA,c:P.mute})});
+      const na=k===4&&n===2?0:nodeA; // step 5's close view is about c1 and c2: c3 would sit cropped at its edge, so it leaves
+      G.node(R,n,{a:na,gpu:[0,1,2,3].map(fill),cpu:[0,1,2,3].map(fill)});
+      lab([G.NX[n],0,G.SD/2+.05],G.NAMES[n]+' · slurmd',{dy:14,b:1,a:k===4&&n===2?0:nodeA,c:P.mute})});
     if(blkA>0)lab([G.NX[0]-G.SW/2,G.SH+.2,.3],k===0&&R.W>=520?'job 78 · 12 GPUs':'job 78',{al:'right',dx:-8,b:1,a:blkA,c:P.c4,mono:true,fs:12});
     // the daemons at the back
-    const dA=k<=2||k===5?1:k===4?.15:.5;
+    const dA=k<=2||k===5?1:k===4?.04:.5;
     R.box(CTL,[2.9,.8,1.1],{fill:mix(P.paper,J,.18),a:dA});lab([CTL[0],.8,ZC],'slurmctld',{dy:-12,b:1,a:k===4?0:k===3?dA*(1-e):dA,mono:true}); // faded out under step 4's allocation label and in step 5's close view
     R.box(DBD,[1.8,.6,1.1],{fill:mix(P.paper,P.c5,.3),a:k===5?1:dA*.8});lab([DBD[0],.6,ZC],'slurmdbd',{dy:-12,b:1,a:k===5?1:k===4?0:dA,mono:true});
     // the queue in front
-    const qA=k===0?.35:k<=3?1:.35;
-    R.box([-1.2,0,ZQ],[3.6,.07,1.1],{fill:mix(P.paper,P.ink,.05),a:qA,shadow:false});
+    const qA=k===0?.35:k<=3?1:k===4?0:.35;
+    if(qA>0)R.box([-1.2,0,ZQ],[3.6,.07,1.1],{fill:mix(P.paper,P.ink,.05),a:qA,shadow:false});
     lab([-3.0,0,ZQ],'queue',{al:'right',dx:-8,mono:true,c:P.mute,a:k===4?0:qA,grp:'side'});
     // job 79: two halves, one per node, that move together
     const inQ=k===1?e:k===2?1:0;

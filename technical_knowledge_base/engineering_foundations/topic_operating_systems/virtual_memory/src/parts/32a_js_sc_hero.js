@@ -19,24 +19,24 @@
     // 1. the address space
     const a0=A(0);R.box([0,0,ZV],[TOT+.4,.06,1.0],{a:a0*.7,shadow:false});
     RG.forEach((r,i)=>{const p=X[i];R.box([p.c,.06,ZV],[p.w,.3,.7],{fill:mix(P.paper,P[r[2]],.5),a:a0});
-      R.label([p.c,.36,ZV],r[0],{fs:12.5,b:1,dy:-10-(i%2)*16,a:Math.max(.35,a0),c:P.ink});
+      R.label([p.c,.36,ZV],r[0],{fs:12.5,b:1,dy:-10-(i%2)*16,a:Math.max(.35,a0),c:P.ink,wide:a0<.5});   // wide when receding: on a phone only the layer in focus is named (the faded names piled up)
       R.label([p.c,.06,ZV+.35],hum(r[1]),{mono:true,fs:12,dy:12,a:a0,c:P.mute,wide:1})});
     R.label([-TOT/2-.2,.1,ZV],nar?'virtual':'virtual address space',{al:'right',dx:-6,fs:12.5,b:1,c:P.mute,a:Math.max(.35,a0),wide:1});
     // 2. translation: the TLB and the page tables
-    const a1=A(1);R.box([-4.6,0,ZT],[.75,.42,.6],{fill:mix(P.paper,P.c2,.35),a:a1});R.label([-4.6,.42,ZT],'TLB',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a1)});
-    R.glass([-3.9,.38,ZT-.4],[8.3,0,0],[0,0,.8],{c:P.c5,nu:24,nv:2,a:a1});R.label([3.2,.38,ZT+.4],'page tables',{fs:12.5,b:1,dy:12,c:P.c5,a:Math.max(.3,a1)});
+    const a1=A(1);R.box([-4.6,0,ZT],[.75,.42,.6],{fill:mix(P.paper,P.c2,.35),a:a1});R.label([-4.6,.42,ZT],'TLB',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a1),wide:a1<.5});
+    R.glass([-3.9,.38,ZT-.4],[8.3,0,0],[0,0,.8],{c:P.c5,nu:24,nv:2,a:a1});R.label([3.2,.38,ZT+.4],'page tables',{fs:12.5,b:1,dy:12,c:P.c5,a:Math.max(.3,a1),wide:a1<.5});
     if(k===1){const xd=X[1].c;R.flow([[xd,.36,ZV+.35],[xd,.45,ZT],[xd,.25,ZF-.1]],{c:P.c2,a:e,r:.07,speed:1.2});R.flowArc([xd,.45,ZT],[-4.6,.42,ZT],.5,{c:P.c2,a:e*.8,r:.05,n:7})}
     // 3. frames from three places
     const a2=A(2);FR.forEach(f=>R.box([f.x,0,ZF],[.32,.32,.32],{fill:mix(P.paper,P[f.c],.55),a:a2}));
-    R.box([ZP.x,0,ZF],[.36,.36,.36],{fill:P.paper,a:a2});R.label([ZP.x,.36,ZF],'zero page',{fs:12,dy:-10,a:a2,c:P.ink});
-    if(k>=2){[[0,'page cache'],[2,'anonymous'],[3,'shmem']].forEach(([i,t])=>R.label([X[i].c,.32,ZF],t,{fs:12,dy:-10-(i===3?14:0),c:P[RG[i][2]],a:a2,b:1}));
+    R.box([ZP.x,0,ZF],[.36,.36,.36],{fill:P.paper,a:a2});R.label([ZP.x,.36,ZF],'zero page',{fs:12,dy:-10,a:a2,c:P.ink,wide:a2<.5});
+    if(k>=2){[[0,'page cache'],[2,'anonymous'],[3,'shmem']].forEach(([i,t])=>R.label([X[i].c,.32,ZF],t,{fs:12,dy:-10-(i===3?(nar?28:14):0),c:P[RG[i][2]],a:a2,b:1,wide:a2<.5}));
       if(k===2){[[1,'c1'],[2,'c3'],[3,'c4']].forEach(([i,c])=>R.flow([[X[i].c,.36,ZV+.35],[X[i].c,.45,ZT],[X[i].c,.34,ZF]],{c:P[c],a:e,r:.06,speed:1.1}));
         R.line([[X[4].c+.85,.3,ZV+.35],[ZP.x,.38,ZF]],{c:P.mute,w:1.2,dash:[4,4],a:e});
         R.label([X[4].c-.3,.3,ZV+.6],nar?'untouched':'most of it untouched: no frame',{fs:12,dy:16,c:P.mute,a:e,wide:1})}}
     // 4. below memory: files and swap
     const a3=A(3),xf=(X[0].c+X[1].c)/2,xs=(X[2].c+X[4].c)/2;
-    R.box([xf,0,ZD],[2.6,.2,.7],{fill:mix(P.paper,P.mute,.3),a:a3});R.label([xf,.2,ZD],'files on disk',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a3)});
-    R.box([xs,0,ZD],[2.6,.2,.7],{fill:mix(P.paper,P.c5,.35),a:a3});R.label([xs,.2,ZD],'swap',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a3)});
+    R.box([xf,0,ZD],[2.6,.2,.7],{fill:mix(P.paper,P.mute,.3),a:a3});R.label([xf,.2,ZD],'files on disk',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a3),wide:a3<.5});
+    R.box([xs,0,ZD],[2.6,.2,.7],{fill:mix(P.paper,P.c5,.35),a:a3});R.label([xs,.2,ZD],'swap',{fs:12.5,b:1,dy:-10,a:Math.max(.3,a3),wide:a3<.5});
     if(k===3){R.flowArc([xf,.2,ZD-.3],[X[0].c,.3,ZF+.1],.5,{c:P.c1,a:e,r:.06});R.flowArc([X[2].c,.3,ZF+.1],[xs,.2,ZD-.3],.5,{c:P.c3,a:e,r:.06});
       R.label([xf,0,ZD+.35],'clean pages: drop, read again',{fs:12,dy:14,c:P.c1,a:e,wide:1});R.label([xs,0,ZD+.35],'anonymous pages: only to swap',{fs:12,dy:14,c:P.c3,a:e,wide:1})}
     // 5. the container's budget

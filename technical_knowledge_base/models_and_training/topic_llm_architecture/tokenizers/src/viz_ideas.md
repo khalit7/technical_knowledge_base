@@ -74,3 +74,5 @@ Rejected in this rebuild:
 - Built: Fig. 1 sentence through the tokenizer (replaces hero SVG and pipeline stepper), Fig. 2 BPE trained on the running story, Fig. 3 encoding one word by rank, Fig. 4 vocabulary tables as model strips, Fig. 5 language tax as token rows. All from the page's own data and engines.
 - Kept 2D: the cost plot (log axis, two curves), the share bars (45 configs, a ranking), the timeline (log axis over dates), the arithmetic and letters results (tables of answers), every real tokenizer output (text reads best as text), the merge replay and the three trainers (reader-driven widgets).
 - Rejected: a 3D bar field of premiums (6 languages x 5 tokenizers): a heatmap reads better flat, and Fig. 5 already shows the premiums on the rows; a 3D special-token trap: the ids are a short list, text is clearer.
+
+2026-11-19: Fig. 2 (stg-bpe) steps 2 to 6: each candidate pair's name now sits above its count, over the column, instead of at the column's foot, where it crowded the sentence's tiles in front (rollout note: tile and pair labels crowd each other at 1400).

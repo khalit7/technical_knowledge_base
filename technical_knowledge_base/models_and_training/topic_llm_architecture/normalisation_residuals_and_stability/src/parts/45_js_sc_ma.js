@@ -17,7 +17,7 @@
     ['0.01', '', '1', '', '100', '', '10,000', ''].forEach((t, d) => t && lab(R, [X(N - 1) + .3, d / 7 * HM, ZW], t, { fs: 12, c: P.mute, al: 'left', dx: 6, a: lg > .5 ? lg : 0 }));
     [0, 10000, 20000].forEach(v => lab(R, [X(N - 1) + .3, Hn(v || .001), ZW], v ? v.toLocaleString('en-GB') : '0', { fs: 12, c: P.mute, al: 'left', dx: 6, a: lin > .5 ? lin : 0 }));
     // which rows a step is about
-    const aM = tw(st, e, q => q === 0 || q === 2 || q === 6 ? 1 : .14), aL = tw(st, e, q => q === 0 ? .0 : q === 4 ? .16 : 1), aS = tw(st, e, q => q === 4 ? 1 : q >= 5 ? .14 : 0), aT = tw(st, e, q => q === 5 ? 1 : 0);
+    const aM = tw(st, e, q => q === 0 || q === 2 || q === 6 ? 1 : .07), aL = tw(st, e, q => q === 0 ? .0 : q === 4 ? .05 : 1), aS = tw(st, e, q => q === 4 ? 1 : q >= 5 ? .1 : 0), aT = tw(st, e, q => q === 5 ? 1 : 0);
     const upto = k === 1 ? Math.min(BL - 1, Math.floor(e * (BL - 1) + .5)) : k === 2 ? BL : N - 1, rideFrom = k === 3 && st.pk === 2 ? BL + e * (N - 1 - BL) : N - 1;
     for (let j = 0; j < N; j++) {
       R.box([X(j), 0, ZM], [BW, H(Sm.median_abs[j]), BW], { fill: mix(P.paper, P.c6, .6), a: aM, shadow: false, lw: .7 });
@@ -37,8 +37,8 @@
         lab(R, [X(6), H(Sm.max_abs[6]), ZL], 'channel ' + Sm.max_dim[6] + ' of token ' + Sm.max_tok[6] + ' ("' + Sm.tok[Sm.max_tok[6]] + '"): about ' + Math.round(Sm.max_abs[3] / 10) * 10, { fs: 12.5, b: 1, c: P.c2, dy: -14, a: L1 });
     lab(R, [X(BL), H(TOP), ZL], fmt(TOP) + ' · channel ' + Sm.max_dim[BL] + ' of token 0', { fs: 12.5, b: 1, c: P.bad, al: 'left', dx: 10, dy: -6, a: L2 });
     lab(R, [X(BL), H(Sm.median_abs[BL]), ZM], 'median ' + fmt(Sm.median_abs[BL]), { fs: 12.5, b: 1, c: P.c6, al: 'right', dx: -10, a: L2 });
-    lab(R, [X(N - 2), H(Sm.max_abs[N - 2]), ZL], fmt(Sm.max_abs[N - 2]), { fs: 12, b: 1, c: P.c2, al: 'right', dx: -8, dy: -8, a: L3 });
-    lab(R, [X(N - 1), H(Sm.max_abs[N - 1]), ZL], fmt(Sm.max_abs[N - 1]) + ' after the final norm', { fs: 12, b: 1, c: P.c2, al: 'right', dx: -6, dy: 30, a: L3 });
+    lab(R, [X(N - 2), H(Sm.max_abs[N - 2]), ZL], fmt(Sm.max_abs[N - 2]), { fs: 12, b: 1, c: P.c2, dy: -14, a: L3 });
+    lab(R, [X(N - 1), H(Sm.max_abs[N - 1]), ZL], fmt(Sm.max_abs[N - 1]) + ' after the final norm', { fs: 12, b: 1, c: P.c2, al: 'left', dx: 10, dy: 26, a: L3 });
     lab(R, [X(BL + 8), H(Sm.max_abs[BL + 8]), ZL], 'about 20,000 to layer 28', { fs: 12.5, b: 1, c: P.bad, dy: -14, a: L3 });
     lab(R, [X(BL), Sm.sink[BL] * 1.2, ZS], 'sink on: ' + Sm.sink[BL].toFixed(2), { fs: 12.5, b: 1, c: P.c4, al: 'left', dx: 10, dy: -8, a: L4 });
     lab(R, [X(BL - 2), .3, ZS], 'at most ' + Math.max(...Sm.sink.slice(0, BL)).toFixed(3) + ' before', { fs: 12, b: 1, c: P.c4, al: 'right', dx: -6, dy: -14, a: L4 });

@@ -33,3 +33,8 @@ Scores: 0 to 2 on the Methodology's questions (reader-controlled quantity, repro
 ## What the methodology lacked for this page
 
 When the paper's contribution is an instrument (a transformation of benchmarks) rather than a model or a result, the strongest live ingredient is the instrument itself, ported from the released code and checked against it seed for seed; papers.md's table has no row for "evaluation method" papers. Reading the released code against the text is where most of this page's corrections came from (Level 3 file selection, Level 1 prompt, default view counts, silent fallback).
+
+## 2026-11-19 (3D step fixes)
+
+- 2026-11-19, `stg-idea`: steps 3 and 4 (a command mapped back, an output mapped forward) now show only the field file's round trip at full strength; the other three real files and their three view copies recede (.25) and lose their names, which crowded the translator plate and ran to the right edge; step 5's close-up fades the other real files too and its Level 3 labels (35 definitions, seed 1; 34 of 35 moved; no base below its subclass) sit further left and higher, clear of the tower and the boxes; step 6 fades the agent's side fully and moves the camera to the real container and the test bench, whose 30 Pass-to-Pass tests were cut at the right edge (bounds to x 6.9), with the patch formula above the file names.
+- 2026-11-19, `stg-cs`: the `django/` label moved just left of its plinth's corner, off `base.py`'s name.

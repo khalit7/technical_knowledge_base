@@ -101,6 +101,14 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #ovBars .track{height:12px}
 #pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+/* eased steps (2026-11-19, the template's rule): RD.anim adds rd-fwd to the card on a forward step; marks with class rd-new ease in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style><style id="kb-look">
 /* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
 :root{--bg:#f4f5f7;--card:#fff;--soft:#f0f2f5;--line:#e1e4e9;--ink:#1d2733;--mute:#5f6b7a;--acc:#2a62a8;--acc2:#dde8f6;
@@ -343,7 +351,9 @@ ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 <div class="co key"><div class="t">The framework is not the bottleneck of an LLM product</div>Measured on an Apple M1 Pro, one uvicorn worker, loopback, keep-alive, 2,000 requests after 200 warm-up: <code>GET /v1/health</code> p50 0.341 ms, p99 0.451 ms; <code>GET /v1/chats/{id}</code> with a database read p50 0.383 ms, p99 0.597 ms. An LLM reply takes seconds (the root's Step 5), so what decides the service's behaviour is how it waits: on the model, on the database, on other requests. That is what the rest of the page is about.</div>
 </section>
 
-<div class="s3sp"><div class="s3R"><div class="ba-stick"><div id="stg-life"></div><div class="ba-art" id="rd-life-art"></div></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="ba-stick"><div class="card" id="rd-life-card"><p class="small" style="margin:0 0 4px"><b>Fig. 2 · one recorded request, stage by stage</b></p>
+<div id="rd-life"></div>
+<div class="an-ctl" id="rd-life-ctl"></div></div><div class="ba-art" id="rd-life-art"></div></div></div><div class="s3L">
 <section id="s-life">
 <h2>2. One request through the service, stage by stage</h2>
 <p>A Python web service has two programs in one process. The <b>server</b>, uvicorn, owns the socket: it accepts connections and parses the HTTP bytes. The <b>application</b>, FastAPI (built on Starlette), receives each parsed request through <dfn>ASGI</dfn> (<a href="https://asgi.readthedocs.io/en/latest/" target="_blank" rel="noopener noreferrer">asgi.readthedocs.io</a>): a dictionary called the <em>scope</em>, plus two functions, <code>receive</code> for the body and <code>send</code> for the response. Fig. 2 follows one real request to <code>exp_app.py</code>, <code>GET /trace</code> with an API key; the order of the stages was logged by the app itself <span class="real">recorded</span>, and under the figure is what each stage saw or ran.</p>
@@ -1233,67 +1243,63 @@ window.BAK = (function () {
       : k === 4 ? { cam: [.35, .7], bounds: [[-5.2, 0, 1.8], [5.0, .5, 3.3]] } : null });
 })();
 </script>
-<script>/* 34_js_sc_life.js */
-// ---- Scene: Fig. 2 (stg-life): one recorded request, GET /trace on exp_app.py, through every stage in the order it ran.
-// The order numbers come from API_DATA.runs.trace.order (logged by the app itself, run_experiments.py, 2026-10-24); router and validation
-// are not logged and carry no number. Under the stage, the artefact of each step: the ASGI scope, the log lines, the code that ran. ----
-(function () {
-  if (!document.getElementById('stg-life') || !window.BAK || !window.API_DATA) return;
-  const { mix } = S3, { party, stagePlate, win, seg, poly , lab } = BAK;
-  const D = window.API_DATA, T = D.runs.trace, O = T.order, esc = RD.esc;
-  const pos = s => O.findIndex(o => o.startsWith(s)) + 1;   // 1-based position of a logged event
-  const N = { mw2in: pos('middleware added second: enter'), mw1in: pos('middleware added first: enter'), dep: pos('dependency'), h: pos('handler'),
-    mw1out: pos('middleware added first: exit'), mw2out: pos('middleware added second: exit') };
-  window.BA_LIFE = N;   // read by src/check_stages.mjs
-  const X = { cl: -6.0, srv: -4.5, mw2: -3.45, mw1: -2.6, route: -1.6, dep: -.6, val: .4, h: 1.8 };
-  const ord = n => ['1st', '2nd', '3rd', '4th', '5th', '6th'][n - 1];
-  function draw(R, k, e) {
-    const P = R.P;
-    R.grid(-7, 3.4, -2.2, 2.2, .5);
-    party(R, [X.cl, 0, 0], [.9, .6, .9], P.c2, k <= 1 || k === 6 ? 'client' : null, { a: k === 0 || k === 6 ? 1 : .35 });
-    const PL = [['srv', 'uvicorn', 0], ['mw2', 'middleware added second', 1], ['mw1', 'middleware added first', 1], ['route', 'router', 2], ['dep', 'dependency', 3], ['val', 'validation', 4]];
-    // in a close view, only the stages in it carry their names (labels are clamped inside the canvas, so names of stages out of view would pile up at its edge)
-    const VIS = [['srv', 'mw2'], ['srv', 'mw2', 'mw1'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['mw1', 'route', 'dep', 'val'], ['dep', 'val'], ['srv', 'mw2', 'mw1', 'dep', 'val']][k];   // last step: the router's faded name sat on the middleware's
-    PL.forEach(([id, nm, s]) => { const now = s === k || (k === 6 && (id === 'mw1' || id === 'mw2' || id === 'srv')), done = s < k;
-      const c = id === 'mw1' || id === 'mw2' ? P.c1 : id === 'dep' ? P.c5 : id === 'val' ? P.c3 : id === 'route' ? P.c6 : P.c2;
-      stagePlate(R, X[id], 0, c, now ? 1 : done ? .45 : .22, !VIS || VIS.includes(id) ? nm : null, { d: 1.4, h: 1.1, glow: c, gl: now ? .7 : 0, grp: 'pl', lc: now ? c : P.ink, amin: .35 }); });
-    party(R, [X.h, 0, 0], [1.2, .8, 1.1], P.acc, k >= 2 ? 'handler' : null, { a: k >= 5 ? 1 : .3, t: .35 });
-    // the request travels as far as this step's stage; the response comes back on the last step
-    const stopX = [X.srv, X.mw1, X.route, X.dep, X.val, X.h - .62][Math.min(k, 5)], fromX = k === 0 ? X.cl + .5 : [X.srv, X.mw1, X.route, X.dep, X.val][Math.min(k - 1, 4)];
-    if (k < 6) { R.line([[X.cl + .5, .52, 0], [stopX, .52, 0]], { c: P.c2, w: 1.4, a: .35, dash: [4, 4] });
-      R.flow(seg([fromX, .52, 0], [stopX, .52, 0], 16), { c: P.c2, r: .075, n: 6, speed: 1.3, a: Math.min(1, e * 2) }); }
-    else R.flow(seg([X.h - .62, .32, .25], [X.cl + .5, .32, .25], 40), { c: P.c3, r: .075, n: 14, speed: 1.6, a: Math.min(1, e * 2) });
-    // the recorded order, where the app logged it
-    const tag = (x, y, t, c, a) => lab(R, [x, y, 0], t, { fs: 12, b: 1, mono: 1, c, dy: 14, a, wide: 1, grp: 'tag' });
-    if (k >= 1 && k < 6) { tag(X.mw2, 0, 'in ' + ord(N.mw2in), P.c1, k === 1 ? win(e, .1, .4) : .6); tag(X.mw1, 0, 'in ' + ord(N.mw1in), P.c1, k === 1 ? win(e, .4, .7) : .6) }
-    if (k === 2) lab(R, [X.route, 0, 0], 'GET /trace → trace()', { fs: 12, mono: 1, c: P.c6, dy: 34, a: win(e, .3, .6), wide: 1 });
-    if (k >= 3) tag(X.dep, 0, ord(N.dep), P.c5, k === 3 ? win(e, .2, .5) : .6);
-    if (k === 3) lab(R, [X.dep, 0, 0], 'current_user → "' + T.user + '"', { fs: 12, mono: 1, c: P.c5, dy: 34, a: win(e, .4, .7), wide: 1 });
-    if (k === 4) lab(R, [X.val, 0, 0], 'header read; no body', { fs: 12, c: P.c3, dy: 34, a: win(e, .3, .6), wide: 1 });
-    if (k >= 5) lab(R, [X.h, 0, .55], ord(N.h), { fs: 12, b: 1, mono: 1, c: P.acc, dy: 14, a: k === 5 ? win(e, .2, .5) : .6, wide: 1 });
-    if (k === 5) lab(R, [X.h, 0, .55], 'returns a dict → JSON', { fs: 12, mono: 1, c: P.acc, dy: 34, a: win(e, .3, .6), wide: 1 });
-    if (k === 6) { tag(X.mw1, 0, 'in ' + ord(N.mw1in) + ' · out ' + ord(N.mw1out), P.c3, win(e, .3, .6)); tag(X.mw2, 0, 'in ' + ord(N.mw2in) + ' · out ' + ord(N.mw2out), P.c3, win(e, .6, .9)) }
-  }
-  // the artefact of each step, under the stage
-  const art = document.getElementById('rd-life-art');
-  const logl = hl => '<div class="raw" style="white-space:pre-wrap">' + O.map((o, i) => '<span class="ln' + (hl.includes(i) ? ' on' : '') + '">' + (i + 1) + '. ' + esc(o) + '</span>').join('') + '</div>';
-  const code = (a, b) => '<div class="code">' + RAW.excerpt(D.src2, a, b, 0) + '</div>';
-  const scope = JSON.stringify(T.scope, null, 1).replace(/\[\s*([^\[\]{}]*?)\s*\]/g, (m, a) => '[' + a.replace(/\s*\n\s*/g, ' ') + ']');
-  const ART = [() => '<div class="small mute">The ASGI scope, as the app received it (client port elided)</div><div class="raw codebox">' + esc(scope) + '</div>',
-    () => '<div class="small mute">The app\'s own log</div>' + logl([0, 1]),
-    () => '<div class="small mute">The route that matched</div>' + code('@app.get("/trace")', 'async def trace'),
-    () => '<div class="small mute">The log, and the dependency</div>' + logl([2]) + code('def current_user', 'return "alice"'),
-    () => '<p class="small mute">No body on this route; the 422 answers of the chat API are in section 3.</p>',
-    () => '<div class="small mute">The app\'s own log</div>' + logl([3]),
-    () => '<div class="small mute">The app\'s own log</div>' + logl([4, 5])];
-  const full = { cam: [.7, .45], bounds: [[-6.6, 0, -1.3], [2.6, 1.3, 1.3]] };
-  S3.stage({ id: 'stg-life', list: 'sx-life', fig: 'Fig. 2 · one recorded request, stage by stage', cam: full.cam, bounds: full.bounds, aspect: .44, dur: 1400, hold: 4600, draw,
-    margin: w => w < 520 ? [22, 8, 16, 8] : [30, 14, 22, 14],
-    view: k => k === 0 ? { cam: [.72, .42], bounds: [[-6.6, 0, -1.2], [-3.4, 1.2, 1.2]] }
-      : k === 1 ? { cam: [.72, .42], bounds: [[-5.2, 0, -1.2], [-1.9, 1.2, 1.2]] }
-      : k >= 2 && k <= 4 ? { cam: [.72, .42], bounds: [[-3.0, 0, -1.2], [1.2, 1.2, 1.2]] }
-      : k === 5 ? { cam: [.72, .42], bounds: [[-1.4, 0, -1.2], [2.8, 1.2, 1.2]] } : null,
-    onStep: k => { if (art) art.innerHTML = ART[k]() } });
+<script>/* 34_js_life.js */
+// ---- Fig. 2 (rd-life-card): one recorded request, GET /trace on exp_app.py, through every stage in the order it ran, flat (2026-11-19: was a 3D stage
+// of plates in a row; a pipeline reads the same flat). The order numbers come from API_DATA.runs.trace.order (logged by the app itself, run_experiments.py,
+// 2026-10-24); router and validation are not logged and carry no number. Under the figure, the artefact of each step: the ASGI scope, the log lines, the code that ran. ----
+(function(){
+  // flat SVG helpers (2026-11-19): rect, text, line, arrow, eased marks (class rd-new eases in on a forward step)
+  const fx=v=>(+v).toFixed(1),MONO='ui-monospace,SFMono-Regular,Menlo,monospace';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" width="'+fx(Math.max(0,w))+'" height="'+fx(Math.max(0,h))+'" rx="'+(o.r==null?5:o.r)+'" fill="'+(o.fill||'none')+'"'+(o.fo!=null?' fill-opacity="'+o.fo+'"':'')+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1.2)+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const text=(x,y,s,o)=>{o=o||{};return '<text'+(o.cl?' class="'+o.cl+'"':'')+' x="'+fx(x)+'" y="'+fx(y)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' fill="'+(o.c||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.mono?' font-family="'+MONO+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>'};
+  const line=(x1,y1,x2,y2,o)=>{o=o||{};return '<line'+(o.cl?' class="'+o.cl+'"':'')+' x1="'+fx(x1)+'" y1="'+fx(y1)+'" x2="'+fx(x2)+'" y2="'+fx(y2)+'" stroke="'+(o.c||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x1,y1,x2,y2,o)=>{o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=o.h||7,c=o.c||'var(--ink)';
+    const p=[[x2,y2],[x2-h*Math.cos(a-.42),y2-h*Math.sin(a-.42)],[x2-h*Math.cos(a+.42),y2-h*Math.sin(a+.42)]].map(q=>fx(q[0])+','+fx(q[1])).join(' ');
+    return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+line(x1,y1,x2-(h*.6)*Math.cos(a),y2-(h*.6)*Math.sin(a),{c,sw:o.sw||1.6,da:o.da})+'<polygon points="'+p+'" fill="'+c+'"/></g>'};
+  const grp=(s,o)=>{o=o||{};return '<g'+(o.cl?' class="'+o.cl+'"':'')+(o.op!=null&&o.op<1?' opacity="'+o.op+'"':'')+'>'+s+'</g>'};
+  const card=document.getElementById('rd-life-card');if(!card||!window.API_DATA)return;
+  const D=window.API_DATA,T=D.runs.trace,O=T.order,esc=RD.esc;
+  const pos=s=>O.findIndex(o=>o.startsWith(s))+1;   // 1-based position of a logged event
+  const N={mw2in:pos('middleware added second: enter'),mw1in:pos('middleware added first: enter'),dep:pos('dependency'),h:pos('handler'),
+    mw1out:pos('middleware added first: exit'),mw2out:pos('middleware added second: exit')};
+  window.BA_LIFE=N;   // read by src/check_stages.mjs
+  const ord=n=>['1st','2nd','3rd','4th','5th','6th'][n-1];
+  // the stages top to bottom in the order a request meets them; the request goes down the left, the response comes back up the right
+  const ST=[['cl','client','var(--c2)'],['srv','uvicorn','var(--c2)'],['mw2','middleware added second','var(--c1)'],['mw1','middleware added first','var(--c1)'],
+    ['route','router','var(--c6)'],['dep','dependency','var(--c5)'],['val','validation','var(--c3)'],['h','handler','var(--acc)']];
+  const ON=[['cl','srv'],['mw2','mw1'],['route'],['dep'],['val'],['h'],['h','mw1','mw2','srv','cl']],STOP=[1,3,4,5,6,7,7];
+  const NOTE=['ASGI scope built: method, path, headers; no body yet','both middlewares log their entry, outermost first','GET /trace → trace()','current_user → "'+T.user+'"','header read; no body','returns a dict → JSON','out innermost first, then uvicorn writes the bytes'];
+  function draw(k){const el=document.getElementById('rd-life'),W=RD.width(el),ph=W<520;let s='';
+    const bx=ph?26:40,bw=W-bx-(ph?26:40),bh=30,gap=10,y0=4,Y=i=>y0+i*(bh+gap),on=new Set(ON[k]);
+    ST.forEach(([id,nm,c],i)=>{const isOn=on.has(id),done=i<=STOP[k],op=isOn?1:done?.55:.3;
+      s+=grp(rect(bx,Y(i),bw,bh,{fill:c,fo:isOn?.22:.08,s:isOn?c:'var(--line)',sw:isOn?2:1.2,r:7})+text(bx+10,Y(i)+bh/2+4,nm,{fs:ph?12:12.5,w:isOn?700:500}),{op,cl:isOn&&k<6?'rd-new':''})});
+    // the order each stage logged (router and validation do not log, so they carry no number)
+    const tag=(i,t,c)=>{s+=text(bx+bw-10,Y(i)+bh/2+4,t,{a:'end',fs:12,mono:1,w:700,c,cl:'rd-new'})};
+    if(k>=1&&k<6){tag(2,'in '+ord(N.mw2in),'var(--c1)');tag(3,'in '+ord(N.mw1in),'var(--c1)')}
+    if(k>=3&&k<6)tag(5,ord(N.dep),'var(--c5)');
+    if(k>=5)tag(7,ord(N.h),'var(--acc)');
+    if(k===6){tag(3,'in '+ord(N.mw1in)+' · out '+ord(N.mw1out),'var(--c3)');tag(2,'in '+ord(N.mw2in)+' · out '+ord(N.mw2out),'var(--c3)');tag(5,ord(N.dep),'var(--c5)')}
+    // the request travels down as far as this step's stage; the response comes back up on the last step
+    const lx=bx-(ph?13:20),rx=bx+bw+(ph?13:20);
+    s+=line(lx,Y(0)+bh/2,lx,Y(7)+bh/2,{c:'var(--line)',da:'3 4'});
+    s+=grp(line(lx,Y(0)+bh/2,lx,Y(STOP[k])+bh/2,{c:'var(--c2)',sw:2.2})+arrow(lx,Y(STOP[k])+bh/2,bx-1,Y(STOP[k])+bh/2,{c:'var(--c2)',sw:2.2}),{op:k===6?.4:1});
+    if(k===6)s+=grp(arrow(bx+bw+1,Y(7)+bh/2,rx,Y(7)+bh/2,{c:'var(--c3)',sw:2.2,h:1})+arrow(rx,Y(7)+bh/2,rx,Y(0)+bh/2+2,{c:'var(--c3)',sw:2.2})+arrow(rx,Y(0)+bh/2,bx+bw+2,Y(0)+bh/2,{c:'var(--c3)',sw:2.2}),{cl:'rd-new'});
+    const yb=Y(8)+8;s+=text(bx,yb,esc(NOTE[k]),{fs:12.5,w:700,mono:k>=2&&k<=5?1:0,c:ST[STOP[k]][2],cl:'rd-new'});
+    el.innerHTML=RD.svg(W,yb+8,s,'One recorded request through the service, stage by stage');
+    const art=document.getElementById('rd-life-art');if(art)art.innerHTML=ART[k]()}
+  // the artefact of each step, under the figure
+  const logl=hl=>'<div class="raw" style="white-space:pre-wrap">'+O.map((o,i)=>'<span class="ln'+(hl.includes(i)?' on':'')+'">'+(i+1)+'. '+esc(o)+'</span>').join('')+'</div>';
+  const code=(a,b)=>'<div class="code">'+RAW.excerpt(D.src2,a,b,0)+'</div>';
+  const scope=JSON.stringify(T.scope,null,1).replace(/\[\s*([^\[\]{}]*?)\s*\]/g,(m,a)=>'['+a.replace(/\s*\n\s*/g,' ')+']');
+  const ART=[()=>'<div class="small mute">The ASGI scope, as the app received it (client port elided)</div><div class="raw codebox">'+esc(scope)+'</div>',
+    ()=>'<div class="small mute">The app\'s own log</div>'+logl([0,1]),
+    ()=>'<div class="small mute">The route that matched</div>'+code('@app.get("/trace")','async def trace'),
+    ()=>'<div class="small mute">The log, and the dependency</div>'+logl([2])+code('def current_user','return "alice"'),
+    ()=>'<p class="small mute">No body on this route; the 422 answers of the chat API are in section 3.</p>',
+    ()=>'<div class="small mute">The app\'s own log</div>'+logl([3]),
+    ()=>'<div class="small mute">The app\'s own log</div>'+logl([4,5])];
+  const an=RD.anim({card:'rd-life-card',ctl:'rd-life-ctl',n:7,ms:5200,draw,label:'Request stage',list:'sx-life'});
+  RD.onResize(()=>an.redraw());
 })();
 </script>
 <script>/* 35_js_sc_pool.js */

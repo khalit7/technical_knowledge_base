@@ -49,7 +49,12 @@ def rename_chat(chat_id, title):
 <p>Whatever the method, keep a TTL underneath: it is the only mechanism that also repairs the bugs of the others. Facebook runs the event-driven kind at the largest scale on record: daemons called mcsqueal read the committed SQL on every database, extract the cache deletes embedded in it and broadcast them to every cache cluster in the region; "only 4% of all deletes issued result in the actual invalidation of cached data" ({{Nishtala et al., Scaling Memcache at Facebook, NSDI 2013|https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf}}). The outbox and change data capture are taught on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
 <p><b>Delete, do not update.</b> Putting the new value into the cache on a write works with one writer and breaks with two: they can commit in one order and reach the cache in the other, leaving the older value cached until the TTL. Two real writers renaming the same chat, each setting the cache after its commit with a small random delay, left the cache disagreeing with Postgres in <span class="nv" data-n="race.strategies.set_on_write.stale_share" data-f="pct"></span> of <span class="nv" data-n="race.trials" data-f="int"></span> trials <span class="meas">measured</span>. A delete is idempotent and order-free, which is why Facebook's write path deletes ("We choose to delete cached data instead of updating it because deletes are idempotent", same paper).</p>
 </section>
-<div class="s3sp"><div class="s3R"><div id="stg-race"></div></div><div class="s3L">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-race-card">
+<div class="small mute" style="margin-bottom:4px">Fig. 2 · a measured race, step by step <span class="meas">measured</span></div>
+<div id="rd-race-svg"></div>
+<div class="an-ctl" id="rd-race-ctl"></div>
+<p class="small mute" style="margin:6px 0 0">One row per recorded event, in order (rows evenly spaced; the times on the left are as recorded). Orange is the old title, green the new; the gold bar is the reader's pause.</p>
+</div></div></div><div class="s3L">
 <section id="rd-race">
 <h3 id="rd-race-h">The race that delete alone does not close</h3>
 <p>The window: a slow reader fills a value it read <b>before</b> the writer's commit, <b>after</b> the writer's delete, and the old title stays cached for the whole TTL: a <dfn id="g-staleset">stale set</dfn>, in Facebook's words. Predict before it plays: which of the four strategies can still lose? Fig. 2 replays real trials (two Python clients, the local Postgres 16.2 and Redis 8.8, timestamps as recorded); the same trial number has the same delays under every strategy.</p>

@@ -37,5 +37,5 @@
     R.label([0,TOP+.75,0],'all-gathers so far '+CNT[k][0]+' · reductions '+CNT[k][1],{fs:12,mono:true,c:P.mute,dy:-2,wide:1})}
   // bounds three times the view's: they set the camera's distance, so the outer ranks show less of their sides
   S3.stage({id:'stg-fsdp',list:'sx-fsdp',fig:'Fig. 3 · one FSDP2 step on 4 ranks',cam:[.06,.5],bounds:[[-10.2,0,-2.25],[10.2,5.55,2.25]],view:()=>({bounds:[[-3.4,0,-.75],[3.4,2.35,.75]]}),aspect:.5,dur:1400,hold:5200,draw,
-    margin:w=>w<520?[14,8,14,8]:[16,16,18,16]});
+    margin:w=>w<520?[14,8,14,8]:[16,16,18,56]}); // room on the left for the row names (they touched rank 0's stack)
 })();

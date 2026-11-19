@@ -3,7 +3,7 @@
 ## Stable anchors for siblings (fixed, do not rename)
 - Reading section ids: `sec-one`, `sec-words`, `sec-keys`, `sec-sess`, `sec-oauth`, `sec-oidc`, `sec-jwt`, `sec-pop`, `sec-xchg`, `sec-agent`, `sec-debug` (`sec-iq` was folded into `sec-debug` as a closed block on 2026-10-24).
 - Agent-era auth: `sec-agent`, heading "9. Agent-era auth: MCP authorization, audience binding, no token passthrough"; the recorded MCP flow stepper is `mf-sec` inside it.
-- The JWT verifier lab is `jl-sec` in section 6 (its heading now heads the Fig. 3 split); the passthrough/exchange before/after is the stage `#stg-xchg` in section 8 (`#mfB` until 2026-11-07).
+- The JWT verifier lab is `jl-sec` in section 6 (its heading now heads the Fig. 3 split); the passthrough/exchange before/after is the 2D sequence `#sq-xchg` in section 8 (`#mfB` until 2026-11-07, the 3D stage `#stg-xchg` until 2026-11-19).
 - The old tabs `t-mcpflow` and `t-jwt` were moved into Reading on 2026-10-24; `99_js_tabs.js` sends `#t-mcpflow` and `#t-jwt` links to `mf-sec` and `jl-sec`.
 
 ## Build and check
@@ -28,14 +28,21 @@
 | `25_js_figs.js` | static figures: sessions/JWT/BFF, refresh rotation, device grant, ID token against access token, DPoP proof, workload identity |
 | `25_js_s3.js` | the 3D renderer v2 and `S3.stage` (template, unchanged) |
 | `29_js_sc_kit.js` | this page's scene pieces: parties, people, credentials as glass plates, the refusal cross |
-| `30_js_sc_hero.js` | Fig. 1, the hero stage (6 steps) |
-| `31_js_sc_oauth.js` | Fig. 2, one login three ways (implicit 6, code without PKCE 7, code with PKCE 10 steps) |
+| `21_js_rd_common.js` | the skill template: `RD.anim`, the step controller the 2D sequences use (added 2026-11-19) |
+| `28_js_seq.js` | `SQ`, the 2D sequence figure (parties as columns, time down the card, one band per step, `RD.anim` with the step list); shared with the other protocol pages converted on 2026-11-19 |
+| `30_js_sc_hero.js` | Fig. 1, the hero as a 2D sequence `#sq-hero` (6 steps) |
+| `31_js_sc_oauth.js` | Fig. 2, one login three ways as a 2D sequence `#sq-oauth` (implicit 6, code without PKCE 7, code with PKCE 10 steps) |
 | `33_js_sc_jwt.js` | Fig. 3, the recorded good token as three plates checked in order (8 steps) |
 | `34_js_jwt.js` | section 6 JWT verifier lab and the closed tamper box |
 | `35_js_sc_mtls.js` | Fig. 4, mTLS as identity (5 steps, illustrative) |
-| `36_js_sc_xchg.js` | Fig. 5, passthrough to a careful upstream (4), to a careless one (4), token exchange (6); fills the closed raw-bytes block per step |
+| `36_js_sc_xchg.js` | Fig. 5 (2D sequence `#sq-xchg`), passthrough to a careful upstream (4), to a careless one (4), token exchange (6); fills the closed raw-bytes block per step |
 | `39_tab_more.html` | Further reading |
 | `99_js_tabs.js` | the skill template (storage key `auth-tab`), plus redirects for the two retired tab hashes |
+
+## 2026-11-19: Figs. 1, 2 and 5 redrawn flat (2D by default)
+- The visual-candidates audit (kind 8) flagged the hero, the OAuth flow and the exchange before/after: their 3D depth carried nothing (parties, hops, who holds which token), and a schematic map of parties is exactly what three-d.md now keeps flat. Each is a 2D sequence (`28_js_seq.js`): parties as columns, time down the card, one band per step, earlier steps kept, later ones faint; under 1100 px only the current step, sticky. Same steps, same step lists, same recorded values from `AUTHDATA`; modes swap steps and lists as before; Fig. 5 still fills the raw-bytes block per step.
+- Kept 3D: Fig. 3 (`stg-jwt`: the token's three parts drawn to scale with their base64url lengths) and Fig. 4 (`stg-mtls`); not flagged.
+- `check_stages.mjs` now drives only the two remaining stages (it still checks the step tables of Figs. 2 and 5 against their lists); `verify_layout.mjs` covers the 2D figures. Ledger unit 418 re-keyed to the new caption wording ("an arrow that carries a token is labelled with its audience"). Reading time unchanged (the step lists did not change).
 
 ## 2026-11-07: split layout, five 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
 - **Templates** `02_split.html`, `25_js_s3.js` (renderer v2) and `99_js_tabs.js` (key `auth-tab`, this page's two old-tab redirects kept) copied; `build.sh` cats `02_split.html` after `01_head.html`. `21_js_rd_common.js` was not copied: no 2D animation remains, so `RD.anim` would be dead code. `AU.anim` (the never-autoplay controller) was removed with its two users.

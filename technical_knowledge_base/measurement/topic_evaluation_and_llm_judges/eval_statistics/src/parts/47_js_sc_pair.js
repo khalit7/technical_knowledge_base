@@ -29,9 +29,9 @@
     for(let i=0;i<n;i++){const q=K.pos[i],a=A[i],b=B[i],dis=a!==b,pz=[q[0],0,q[2]+ZF];
       let lift=0,al=fa,ca=a?cG:cW,cb=b?cG:cW;
       if(k===1){if(dis){lift=.14*e;ca=cb=mix(a?cG:cW,a?cA:cB,e)}else al=1-.8*e}
-      else if(k>=2){const far=k<4?.4:1; // in steps 3 and 4 the field, cut by the card's lower edge, recedes further
+      else if(k>=2){const far=k===2?.4*(1-e):k===3?0:1; // in steps 3 and 4 the camera frames the intervals and cuts the field at the card's lower edge: it fades out fully there and returns at step 5
         if(dis){lift=.14;ca=cb=a?cA:cB;al=Math.max(fa,.45)*far}else al=fa*.6*far}
-      const hw2=K.TS/2;K.tile(R,[pz[0]-hw2/2-.004,0,pz[2]],lift,hw2,ca,al);K.tile(R,[pz[0]+hw2/2+.004,0,pz[2]],lift,hw2,cb,al)}
+      if(al<.01)continue;const hw2=K.TS/2;K.tile(R,[pz[0]-hw2/2-.004,0,pz[2]],lift,hw2,ca,al);K.tile(R,[pz[0]+hw2/2+.004,0,pz[2]],lift,hw2,cb,al)}
     if(k===0){R.label([0,0,ZF+K.D/2+.1],R.W<520?'left half A, right half B':'each question: left half A, right half B · A '+(b11+b10)+' right, B '+(b11+b01)+' right',{fs:12.5,dy:16,c:P.ink,b:1})}
     // step 2: the questions where exactly one model is right flow into two piles
     if(k>=1){const t=k===1?e:1,aa=k===1?1:k===2?1-e:0;[[b10,cA,'only A right',-.3],[b01,cB,'only B right',.3]].forEach(([c,col,txt,dz])=>{const h=c*BS*t,z=ZF+dz*2.2;

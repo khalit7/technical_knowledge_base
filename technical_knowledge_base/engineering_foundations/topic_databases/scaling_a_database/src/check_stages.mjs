@@ -9,10 +9,10 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 // (Scaling a database: adapted from Caching; six stages, no 2D animations (the toggles and sliders are widgets); the step lists' numbers are checked against window.SC)
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
-const STAGES = ['stg-hero', 'stg-ryw', 'stg-fan', 'stg-2pc', 'stg-rebal', 'stg-rg'];
+const STAGES = ['stg-hero', 'stg-fan', 'stg-2pc', 'stg-rebal', 'stg-rg'];
 // [card, controls, {mode: step list}, mode buttons, data attribute]
 const ANIMS = [];
-const MODES = { 'stg-ryw': ['rwM', 'm', ['naive', 'sticky', 'lsn']] };
+const MODES = { };
 const WIDGETS = [];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });

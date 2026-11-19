@@ -34,3 +34,5 @@ Central question: "how does each index avoid comparing the query with every vect
 
 ## What the methodology lacked
 A rule for "ports used as instruments": a re-implementation of a library is acceptable evidence only when checked against the library on real data (here link-for-link and top-10 identity), and its departures listed.
+
+2026-11-19: Fig. 2 (stg-pq) step 4, one candidate: the 72 cells all but vanish (.02, probed cells .25; were .1 and .55), so the abstract, the claim, the table and the score bars are the only things at full strength instead of a card full of faded posts.

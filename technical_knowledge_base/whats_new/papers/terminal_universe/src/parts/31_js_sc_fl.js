@@ -13,6 +13,9 @@
   window.TUFL={n:N,e0:e0.length,e0l:R.e0_lines,known:known.length,held:agent.length,base,imit,res,e0names:e0.map(p=>p.slice(p.lastIndexOf('/')+1))};
   const KIND=(P,k)=>k==='read-pre'?P.c3:k==='read-part'?P.c6:k==='list'?P.c5:k==='run'?P.mute:k==='look'?P.paper:P.c2;
   const short=p=>p.slice(p.lastIndexOf('/')+1);
+  const KN=k=>k==='read-pre'||k==='read-part'||k==='list'||k==='run'||k==='look'?k:'agent';
+  const KEY={'read-pre':'read before any change: enters Ê₀','read-part':'partial read','list':'listing: names only','run':'run: may change files','look':'read-only, nothing to replay','agent':'the agent writes, or reads after a change: held back'},
+    KEYS={'read-pre':'read: enters Ê₀','read-part':'partial read','list':'listing','run':'run','look':'read-only','agent':'agent\'s file: held back'};
   // layout: the trace in front, the workspace slab behind it, the tray of held-back files to its right (the training record later takes its place),
   // the bars at the back right; each step shows its own objects at full strength and lets the rest recede
   const ZT=2.6,TX=i=>(i-(N-1)/2)*.56,WX=-1.7,SZ=0,SW=4.0,SD=2.2,TRX=2.1,BZ=-2.3,BX=[1.2,2.25,3.3];
@@ -28,11 +31,16 @@
   function draw(R0,k,e){const P=R0.P;R0.grid(-6,6,-3.6,3.6,.5);
     const ta=k===0?1:mode==='imit'?(k===1?1:.3):(k===1?.6:.22);
     strip(R0,P,ta);
-    if(k===0)R0.label([TX(0)-.2,.2,ZT-.5],R0.W<520?'source trajectory · '+N+' commands':'source trajectory · '+N+' commands by DeepSeek-V3.2 in Terminus-2, one tile each',{al:'left',fs:12.5,c:P.ink,dy:-36,a:e});
+    if(k===0){R0.label([TX(0)-.2,.2,ZT-.5],R0.W<520?'source trajectory · '+N+' commands':'source trajectory · '+N+' commands by DeepSeek-V3.2 in Terminus-2, one tile each',{al:'left',fs:12.5,c:P.ink,dy:-36,a:e});
+      // the colour key, on the trace itself: the first tile of each kind gets a stalk forward to its name, the leftmost kind furthest forward so no
+      // stalk crosses a name (short names on a phone)
+      {const seen={},F=[],KY=R0.W<520?KEYS:KEY;EV.forEach((x,i)=>{const kk=KN(x.kind);if(!seen[kk]){seen[kk]=1;F.push([kk,i])}});
+        F.forEach(([kk,i],r)=>{const z=ZT+1.0+(F.length-1-r)*(R0.W<520?1.15:.62);
+        R0.line([[TX(i),.12,ZT+.25],[TX(i),0,z]],{c:P.mute,w:1,a:e*.8});R0.label([TX(i),0,z],KY[kk],{al:'left',dx:4,fs:12,c:P.ink,a:e})})}}
     if(mode==='imit'){
       // the workspace is never rebuilt: an empty outline
-      R0.quad([[WX-SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ+SD/2],[WX-SW/2,0,SZ+SD/2]],{fill:null,ec:P.mute,dash:[5,4],a:.8});
-      R0.label([WX,0,SZ+SD/2],'no environment rebuilt',{fs:12.5,c:P.mute,dy:14});
+      if(k>0){R0.quad([[WX-SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ-SD/2],[WX+SW/2,0,SZ+SD/2],[WX-SW/2,0,SZ+SD/2]],{fill:null,ec:P.mute,dash:[5,4],a:.8});
+      R0.label([WX,0,SZ+SD/2],'no environment rebuilt',{fs:12.5,c:P.mute,dy:14})}
       const rec=[WX,0,SZ];
       if(k>=1){const a=k===1?e:1;R0.box(rec,[1.5,.45,1],{fill:mix(P.paper,P.c2,.3),a});if(k<2)R0.label([rec[0],.45,rec[2]],'1 SFT record, as recorded',{fs:12.5,b:1,dy:-14,a});
         if(k===1)R0.flow([[0,.3,ZT],[-.8,.6,1.6],[rec[0],.6,rec[2]+.2]],{c:P.c2,a:a*.9,n:9})}
@@ -43,7 +51,7 @@
       return}
     // ---- rebuild and re-solve ----
     const wa=k>=1?(k===1?e:1):0,dim=k>=5?.35:k>=3?.7:1;
-    R0.box([WX,0,SZ],[SW,.12,SD],{a:Math.max(.15,wa),dz:4});
+    if(k>0)R0.box([WX,0,SZ],[SW,.12,SD],{a:Math.max(.15,wa),dz:4});
     if(wa>0)R0.label([WX-SW/2,.12,SZ+SD/2],k===2?'completed workspace Ê · '+MED_REP+' → '+MED_COMP+' files (pool median)':k>=2?'completed workspace Ê':'replayed workspace Ê₀',{al:'left',dx:2,dy:16,fs:12.5,b:1,a:wa*(k>=5?.6:1)});
     // replay: this trace's own files; the read that revealed each flows from its command tile into the slab
     const ra=k===1?e:k>=1?1:0;
@@ -80,8 +88,8 @@
   }
   const full={cam:[.3,.62],bounds:[[-4.9,0,-2.0],[4.9,1.4,3.1]]},end={cam:[.3,.6],bounds:[[-4.9,0,-2.9],[4.9,2.2,3.1]]};
   const st=S3.stage({id:'stg-fl',list:'sx-fl-res',fig:'Fig. 1 · one real trace, imitated or rebuilt',cam:full.cam,bounds:full.bounds,aspect:.56,dur:1500,hold:4800,draw,
-    // step 1 is the trace alone: the camera comes in on it, turned a little so the long strip fills more of the card
-    view:k=>k===0?{cam:[.55,.62],bounds:[[-4.7,0,ZT-1.1],[4.7,.5,ZT+.5]]}:mode==='resolve'&&(k===1||k===2)?{cam:[.3,.74],bounds:[[-4.8,0,-1.3],[4.8,.9,3.1]]}:k===(mode==='imit'?3:6)?end:full});
+    // step 1 is the trace alone: the camera comes in on it from the front, the strip across the card with its colour key in front of it
+    view:k=>k===0?{cam:[.1,.78],bounds:[[-4.7,0,ZT-1.1],[4.7,.5,ZT+3.9]]}:mode==='resolve'&&(k===1||k===2)?{cam:[.3,.74],bounds:[[-4.8,0,-1.3],[4.8,.9,3.1]]}:k===(mode==='imit'?3:6)?end:full});
   const seg=document.getElementById('flM');
   seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.m===mode)return;mode=b.dataset.m;
     seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});

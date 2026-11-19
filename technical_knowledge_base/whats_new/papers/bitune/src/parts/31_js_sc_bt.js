@@ -42,21 +42,21 @@
     ids.forEach((_,j)=>{R.box([xs(0,j),0,ZT],[C*.7,.18,.5],{a:ta,fill:j===MI?mix(P.paper,P.good,.35):j===CH?mix(P.paper,P.c5,.45):P.paper});
       R.label([xs(0,j),0,ZT+.42],lab[j],{fs:13,serif:true,dy:10,b:j===MI||j===CH,c:j===MI?P.good:P.ink,a:k===0?1:0,wide:j===MI||j===CH?0:1})});
     // pass 1: causal (the standard prefill, default adapter)
-    const fade=k===ks.close?0:k>=ks.ans?.14:k>=ks.mix?.22:k===ks.cache?.5:1,a1=k<ks.pass1?0:k===ks.pass1?e:k===ks.pass2?.3:fade;
+    const fade=k===ks.close?0:k>=ks.ans?.14:k>=ks.mix?.22:k===ks.cache?.5:1,a1=k<ks.pass1?0:k===ks.pass1?e:k===ks.pass2?.3*(1-e):fade; // pass 1 leaves the frame while pass 2's close-up is on screen (it was cut at the card edge)
     plate(R,c1,d.att[0],true,CAU,a1,k===ks.pass1);
     if(k===ks.pass1)ids.forEach((_,j)=>R.flowArc([xs(0,j),.2,ZT-.2],[xs(c1,j),.1,ZF],.7,{c:CAU,a:e*.8,r:.05,n:5,speed:1.4}));
-    R.label([c1,.05,ZB-.3],bi?'pass 1 · causal · default adapter':'causal pass',{mono:true,fs:12,b:1,c:CAU,dy:-8,a:a1>=.45?a1:0});
+    R.label([c1,.05,ZB-.3],bi?'pass 1 · causal · default adapter':'causal pass',{mono:true,fs:12,b:1,c:CAU,dy:-8,a:a1>=.6?a1:0}); // named only while the plate is at full strength (at the caches step the two names collided)
     if(k===ks.pass1)R.label([xs(c1,CH),0,ZF],'shaded: masked · no person sees "chess"',{mono:true,fs:12,c:P.ink,a:e,al:'right',dx:12,dy:16,wide:1});
     // pass 2: bidirectional, its own adapter; the person rows read "?" and "chess" on their right
     if(bi){const a2=k<ks.pass2?0:k===ks.pass2?e:fade;plate(R,c2,d.att[1],false,BID,a2,k===ks.pass2);
-      R.label([c2,.05,ZB-.3],'pass 2 · bidirectional · own adapter',{mono:true,fs:12,b:1,c:BID,dy:-8,a:a2>=.45?a2:0});
+      R.label([c2,.05,ZB-.3],'pass 2 · bidirectional · own adapter',{mono:true,fs:12,b:1,c:BID,dy:-8,a:a2>=.6?a2:0});
       if(k===ks.pass2){for(let i=1;i<QM;i++)[CH,QM].forEach(j=>{const w=d.att[1][i][j];R.flow([[xs(c2,j),.12,zr(i)],[xs(c2,i),.12,zr(i)]],{c:BID,a:e*(.3+.7*Math.min(1,w*2.5)),r:.04+.06*w,n:Math.max(2,Math.round(2+w*10)),speed:1.1})});
         ids.forEach((_,j)=>R.flowArc([xs(0,j),.2,ZT-.2],[xs(c2,j),.1,ZF],.7,{c:BID,a:e*.5,r:.045,n:4,speed:1.4}))}}
     // the caches: every prompt token leaves one (K, V) per block in each pass
     if(k>=ks.cache){const ac=k===ks.cache?e:k===ks.mix?1:k===ks.close?.05:bi?.25:1;
       cache(R,c1,ZC,()=>CAU,ac);if(bi)cache(R,c2,ZC,()=>BID,ac);
       if(k===ks.cache){[c1].concat(bi?[c2]:[]).forEach((cx,p)=>ids.forEach((_,j)=>R.flow([[xs(cx,j),.15,ZF],[xs(cx,j),.3,ZC-.25]],{c:p?BID:CAU,a:e*.8,r:.045,n:3,speed:.9})));
-        R.label([c1,0,ZC+.3],bi?'causal K, V':'KV cache',{mono:true,fs:12,c:CAU,dy:16,a:e});if(bi)R.label([c2,0,ZC+.3],'bidirectional K, V',{mono:true,fs:12,c:BID,dy:16,a:e})}} // the labels stand in front of the caches, not on them
+        R.label([c1,0,ZC+.45],bi?'causal K, V':'KV cache',{mono:true,fs:12,b:1,c:CAU,dy:20,a:e});if(bi)R.label([c2,0,ZC+.45],'bidirectional K, V',{mono:true,fs:12,b:1,c:BID,dy:20,a:e})}} // the labels stand in front of the caches, not on them
     // the mix, block by block: K = K_c (1 − α_k) + K_b α_k, the same for V; the mixed cache has the usual size
     if(bi&&k>=ks.mix){const am=k===ks.mix?e:k===ks.close?.06:1;cache(R,0,ZT,l=>mixC(l),am);
       if(k===ks.mix){for(let l=0;l<L;l++){const ak=d.alpha[0][l];[[c1,1-ak,CAU],[c2,ak,BID]].forEach(([cx,w,c])=>R.flowArc([cx,l*.27+.15,ZC+.2],[0,l*.27+.15,ZT-.25],.35+.15*l,{c,a:e*(.35+.65*w),r:.05+.06*w,n:Math.max(3,Math.round(3+w*10)),speed:1.2}));
@@ -64,11 +64,14 @@
         R.label([0,0,ZT+.3],'mixed cache · the usual size',{mono:true,fs:12,b:1,dy:16,a:e})}}
     // up close: one cache entry (the member's key in block 2) before and after the mix
     if(bi&&k===ks.close){const m=Math.max(...d.kc.map(Math.abs),...d.kb.map(Math.abs),...d.km.map(Math.abs)),ak=d.alpha[0][BL];
-      comb(R,[-2.6,.35,ZK],d.kc,m,CAU,e,.6,2.2);comb(R,[2.6,.35,ZK],d.kb,m,BID,e,.6,2.2);comb(R,[0,.35,ZK+.3],d.km,m,mixC(BL),Math.min(1,e*1.4),.6,2.2);
-      [[-2.6,1-ak,CAU],[2.6,ak,BID]].forEach(([x,w,c])=>R.flowArc([x*.62,.7,ZK],[x*.2,.7,ZK+.3],.3,{c,a:e*(.3+.7*w),r:.03+.04*w,n:Math.max(2,Math.round(2+w*8)),speed:.8}));
-      R.label([-2.6,.35,ZK],'K_c · causal',{mono:true,fs:12,c:CAU,dy:34,a:e,wide:1});R.label([2.6,.35,ZK],'K_b · bidirectional',{mono:true,fs:12,c:BID,dy:34,a:e,wide:1});
-      R.label([0,.35,ZK+.3],'K = (1 − '+ak.toFixed(2)+') K_c + '+ak.toFixed(2)+' K_b',{mono:true,fs:12,b:1,dy:40,a:e});
-      R.label([0,1.05,ZK],lab[MI]+', block '+(BL+1)+': '+d.kc.length+' numbers',{mono:true,fs:12,c:P.mute,dy:-6,a:e})}
+      // stacked: the causal key on top, the bidirectional key below it, their mix at the bottom; each comb spans the card, so the 32 bars stay large on a phone
+      const YC=2.55,YB=1.5,YM=.45,W=5;
+      comb(R,[0,YC,ZK],d.kc,m,CAU,e,.38,W);comb(R,[0,YB,ZK],d.kb,m,BID,e,.38,W);comb(R,[0,YM,ZK],d.km,m,mixC(BL),Math.min(1,e*1.4),.38,W);
+      R.flow([[-2.75,YC,ZK],[-2.95,(YC+YM)/2,ZK],[-2.75,YM+.05,ZK]],{c:CAU,a:e*(.3+.7*(1-ak)),r:.03+.04*(1-ak),n:Math.max(2,Math.round(2+(1-ak)*8)),speed:.8});
+      R.flow([[2.75,YB,ZK],[2.95,(YB+YM)/2,ZK],[2.75,YM+.05,ZK]],{c:BID,a:e*(.3+.7*ak),r:.03+.04*ak,n:Math.max(2,Math.round(2+ak*8)),speed:.8});
+      R.label([0,YC+.42,ZK],'K_c · causal',{mono:true,fs:12,b:1,c:CAU,dy:-2,a:e});R.label([0,YB+.42,ZK],'K_b · bidirectional',{mono:true,fs:12,b:1,c:BID,dy:-2,a:e});
+      R.label([0,YM-.42,ZK],'K = (1 − '+ak.toFixed(2)+') K_c + '+ak.toFixed(2)+' K_b',{mono:true,fs:12,b:1,dy:12,a:e});
+      R.label([0,YC+.42,ZK],lab[MI]+', block '+(BL+1)+': '+d.kc.length+' numbers',{mono:true,fs:12,c:P.mute,dy:-22,a:e})}
     // the answer: ":" reads the cache causally with the ordinary weights; its own K, V are plain causal ones
     if(k>=ks.ans){const zs=bi?ZT:ZC;
       R.box([0,0,ZA],[C*.8,.24,.55],{fill:mix(P.paper,CAU,.25),a:e});R.label([0,.24,ZA],':',{mono:true,fs:16,b:1,dy:-10,a:e});
@@ -92,8 +95,8 @@
   const st=S3.stage({id:'stg-bt',list:'sx-bt',fig:'Fig. 2 · prefill on the trained toy, live',cam:[.12,.74],bounds:()=>fullB[MODE],aspect:.8,dur:1500,hold:4800,draw,
     margin:w=>w<520?[14,10,14,10]:[18,16,14,70],
     view:k=>{if(MODE==='lora')return k===0?{cam:[.1,.7],bounds:[[-3.4,0,1.2],[3.4,.6,3.6]]}:k===1?{cam:[.12,.85],bounds:[[-3.4,0,-6.6],[3.4,1.2,3.0]]}:null;
-      return k===0?{cam:[.1,.7],bounds:[[-3.4,0,1.2],[3.4,.6,3.6]]}:k===1?{cam:[.12,.85],bounds:[[-6.6,0,-6.6],[-.1,1.2,3.0]]}:k===2?{cam:[.12,.85],bounds:[[.1,0,-6.6],[6.6,1.2,3.0]]}:
-        k===3?{cam:[.12,.72],bounds:[[-6.7,0,-6.6],[6.7,1.2,1.4]]}:k===4?{cam:[.12,.62],bounds:[[-6.4,0,-.4],[6.4,1.0,3.4]]}:k===5?{cam:[.1,.42],bounds:[[-3.9,0,3.1],[3.9,1.1,4.4]]}:k===6?{cam:[.12,.66],bounds:[[-4.4,0,1.2],[4.4,1.5,6.7]]}:null},
+      return k===0?{cam:[.1,.7],bounds:[[-3.4,0,1.2],[3.4,.6,3.6]]}:k===1?{cam:[.12,.85],bounds:[[-6.6,0,-6.6],[2.9,1.2,3.0]]}:k===2?{cam:[.12,.85],bounds:[[-2.9,0,-6.6],[6.6,1.2,3.0]]}:
+        k===3?{cam:[.12,.72],bounds:[[-6.7,0,-6.6],[6.7,1.2,1.4]]}:k===4?{cam:[.12,.62],bounds:[[-6.4,0,-.4],[6.4,1.0,3.4]]}:k===5?{cam:[.06,.22],bounds:[[-3.1,0,3.4],[3.1,3.4,4.0]]}:k===6?{cam:[.12,.66],bounds:[[-4.4,0,1.2],[4.4,1.5,6.7]]}:null},
     onStep:()=>{try{readout()}catch(e){}}});
   if(!st)return;
   try{fill()}catch(e){console.error(e)}

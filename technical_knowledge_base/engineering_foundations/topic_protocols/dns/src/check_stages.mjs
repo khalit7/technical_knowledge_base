@@ -1,4 +1,4 @@
-// The 2026-11-06 rollout checks for the DNS page: every 3D stage plays by itself once scrolled into view, steps to its last step in every mode with
+// The 2026-11-06 rollout checks for the DNS page (Fig. 2 a 2D sequence since 2026-11-19): every 3D stage and the walk play by itself once scrolled into view, steps to its last step in every mode with
 // one step-list item per step, stops redrawing off screen and never moves under reduced motion; the rebinding animation (RD.anim) plays on view and
 // has one list item per step; the two widgets (the resolver lab, the change planner) never play by themselves; no errors, NaN, undefined or sideways
 // scroll; the splits are two columns at 1400 px and one below 1100. The recorded values written into the step lists are checked against window.DNSD.
@@ -14,7 +14,6 @@ const file = 'file://' + path.resolve(here, '../index.html'), shots = process.ar
 fs.mkdirSync(shots, { recursive: true });
 // [stage, mode chips or null, {mode: step list}]
 const STAGES = [['stg-hero', null, { all: 'sx-hero' }],
-  ['stg-walk', 'wk-mode', { qmin: 'sx-walk-qmin', full: 'sx-walk-full', warm: 'sx-walk-warm' }],
   ['stg-cache', 'ch-mode', { change: 'sx-cache-change', neg: 'sx-cache-neg', stale: 'sx-cache-stale' }],
   ['stg-sec', 'ds-mode', { valid: 'sx-sec-valid', expired: 'sx-sec-expired', rolled: 'sx-sec-rolled', nx: 'sx-sec-nx' }]];
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -39,8 +38,9 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2400);
     if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${tag}: ${id} did not play when scrolled into view`);
   }
-  await p.$eval('#rb-card', e => e.scrollIntoView({ block: 'center' })); await wait(2000);
-  if (!/Pause/.test(await p.$eval('#rb-ctl', e => e.textContent))) problems.push(`${tag}: the rebinding animation did not play when scrolled into view`);
+  for (const c of ['sq-walk', 'rb-card']) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await wait(2000);
+    const ctl = c === 'rb-card' ? 'rb-ctl' : c + '-ctl';
+    if (!/Pause/.test(await p.$eval('#' + ctl, e => e.textContent))) problems.push(`${tag}: ${c} did not play when scrolled into view`); }
   for (const w of ['pd', 'cc']) { await p.$eval(`#${w}-card`, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
     if (/Pause/.test(await p.$eval(`#${w}-ctl`, e => e.textContent))) problems.push(`${tag}: the widget ${w}-card played by itself`); }
   // flows stop off screen
@@ -67,6 +67,17 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
       await audit(`${id} ${m} last step`);
       for (let k = 0; k < n; k++) await p.evaluate((lid, k) => document.getElementById(lid).children[k].click(), lid, k);
     }
+  }
+  // Fig. 2, the walk (a 2D sequence since 2026-11-19): every mode, list length, last step
+  for (const m of ['qmin', 'full', 'warm']) {
+    await p.$eval(`#wk-mode button[data-m="${m}"]`, e => e.click()); await wait(100);
+    const n = await p.$eval('#sq-walk-ctl-s', s => +s.max + 1), lis = await p.$eval('#sx-walk-' + m, e => e.hidden ? -1 : e.children.length);
+    if (n !== lis) problems.push(`${tag}: walk ${m} has ${n} steps, list ${lis}`);
+    for (let k = 1; k < n; k++) { await p.click('#sq-walk-ctl-f'); await wait(30) }
+    const last = await p.$eval('#sx-walk-' + m, e => [...e.children].findIndex(li => li.classList.contains('on')));
+    if (last !== n - 1) problems.push(`${tag}: walk ${m} list marks item ${last + 1}, not the last`);
+    if (width === 1400) { const el = await p.$('#sq-walk'); await el.screenshot({ path: `${shots}/x-sq-walk-${m}-last-${scheme}-${width}.png` }) }
+    await audit('walk ' + m);
   }
   // the rebinding animation: both modes, list length, last step
   for (const m of ['naive', 'pinned']) {
@@ -118,8 +129,8 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file);
   for (const [id] of STAGES) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
     const r = await p.$eval('#' + id, e => [+e.dataset.frames || 0, e.querySelector('.stg-st').textContent]); if (r[0] > 0 || !/^step 1 of/.test(r[1])) problems.push(`reduced motion: ${id} moved by itself (${r})`) }
-  await p.$eval('#rb-card', e => e.scrollIntoView({ block: 'center' })); await wait(2500);
-  if (await p.$eval('#rb-ctl-s', s => +s.value) !== 0 || /Pause/.test(await p.$eval('#rb-ctl', e => e.textContent))) problems.push('reduced motion: the rebinding animation moved by itself');
+  for (const [c, ctl] of [['rb-card', 'rb-ctl'], ['sq-walk', 'sq-walk-ctl']]) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await wait(2500);
+    if (await p.$eval('#' + ctl + '-s', s => +s.value) !== 0 || /Pause/.test(await p.$eval('#' + ctl, e => e.textContent))) problems.push('reduced motion: ' + c + ' moved by itself'); }
   const d0 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0)); await wait(1200); const d1 = await p.$$eval('.stg', xs => xs.map(x => +x.dataset.draws || 0));
   if (d1.some((v, i) => v !== d0[i])) problems.push(`reduced motion: flows kept redrawing (${d0} -> ${d1})`);
   await p.close();

@@ -24,27 +24,6 @@ window.TLF=(function(){
 (function(){
   const F=TLF,D=window.D,fmt=n=>Number(n).toLocaleString('en-US');
 
-  // ---- one record to scale ----
-  F.fig('tl-aead','The 277-byte request inside a 299-byte TLS record: 5-byte header, 278 bytes of ciphertext, 16-byte tag',W=>{
-    const m=2,tot=299,px=(W-2*m)/tot;let s='';
-    const y1=18,h=26;
-    s+=F.text(m,12,'plaintext: the HTTP request, 277 bytes',{fs:11,fill:'var(--mute)'});
-    s+=F.rect(m+5*px,y1,277*px,h,{fill:'var(--hl)',stroke:'var(--c5)',rx:3})+F.text(m+(5+277/2)*px,y1+17,'POST /v1/messages ...',{a:'middle',fs:11});
-    const y2=y1+h+30;
-    s+='<path d="M'+(m+5*px)+' '+(y1+h)+' L'+(m+5*px)+' '+y2+' M'+(m+282*px)+' '+(y1+h)+' L'+(m+283*px)+' '+y2+'" stroke="var(--mute)" stroke-dasharray="3 3" fill="none"/>';
-    s+=F.text(m+12*px,y1+h+19,'AEAD encrypt',{fs:11,fill:'var(--acc)',w:600});
-    s+=F.rect(m,y2,5*px,h,{fill:'var(--hl)',stroke:'var(--c5)',rx:2})+F.rect(m+5*px,y2,277*px,h,{fill:'var(--acc2)',stroke:'var(--acc)',rx:2})+
-       F.rect(m+282*px,y2,1*px+1,h,{fill:'var(--c6)',stroke:'var(--c6)',rx:0})+F.rect(m+283*px,y2,16*px,h,{fill:'var(--acc)',stroke:'var(--acc)',rx:2});
-    s+=F.text(m+(5+277/2)*px,y2+17,'ciphertext',{a:'middle',fs:11});
-    const y3=y2+h;
-    // leaders and labels
-    s+='<path d="M'+(m+2.5*px)+' '+y3+' V'+(y3+14)+'" stroke="var(--mute)"/>'+F.text(m,y3+26,'header 5 B, in clear',{fs:11,fill:'var(--mute)'});
-    s+='<path d="M'+(m+291*px)+' '+y3+' V'+(y3+14)+'" stroke="var(--mute)"/>'+F.text(W-m,y3+26,'+16 B tag',{a:'end',fs:11,fill:'var(--mute)'});
-    s+='<path d="M'+(m+282.5*px)+' '+y2+' V'+(y2-10)+'" stroke="var(--mute)" fill="none"/>'+F.text(m+282.5*px-4,y2-4,'+1 B hidden content type',{a:'end',fs:11,fill:'var(--mute)'});
-    s+=F.text(m,y3+42,'record on the wire: 5 + 294 = 299 bytes, drawn to scale',{fs:11,fill:'var(--mute)'});
-    return [s,y3+44];
-  });
-
   // ---- key schedule, simplified ----
   F.fig('tl-ks','Key derivation: the shared secret, an optional PSK and the transcript hash go into HKDF, which yields every key',W=>{
     const id='tlk',m=2;let s=F.defs(id);

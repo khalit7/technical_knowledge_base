@@ -12,7 +12,7 @@ const require = createRequire(path.resolve(here, '../../../../../html_utils/pack
 const puppeteer = require('puppeteer');
 const file = 'file://' + path.resolve(here, '../index.html'), shots = process.argv[2] || path.resolve(here, '../.shots');
 fs.mkdirSync(shots, { recursive: true });
-const STAGES = [['stg-hero', [['', 'sx-hero']], null], ['stg-run', [['0', 'sx-run-0'], ['1', 'sx-run-1'], ['2', 'sx-run-2']], '#run-mode'], ['stg-pk', [['hat', 'sx-pk-hat'], ['at', 'sx-pk-at']], '#pk-mode']];
+const STAGES = [['stg-hero', [['', 'sx-hero']], null], ['stg-pk', [['hat', 'sx-pk-hat'], ['at', 'sx-pk-at']], '#pk-mode']];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const problems = [];
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });

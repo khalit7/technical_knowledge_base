@@ -38,3 +38,6 @@ Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each
 | P-pagedattention.11 | **Hero: the paper's own Figures 3 and 7** (CC BY 4.0), the same two requests contiguous and then paged, a before/after in the paper's own drawing; each in a sideways scroll box on phones | Reading, top | built |
 | P-pagedattention.12 | Figure 2, Figure 15 and Figure 18b (each against the simulator) moved out of their predict reveals into titled inline cards after the questions | Reading | built |
 | P-pagedattention.13 | A hand-built SVG before/after hero | | rejected: the paper's figures are CC BY, are the ones people cite, and the inline block-table animation already redraws Figures 6 to 9 step by step |
+
+## 2026-11-19 visual pass (3D step fixes)
+- Fig. 1 hero (`31_js_sc_hero.js`): in the close views (steps 2 to 5) the other three floors sat at .3, cut at the card's edge (their red waste rows read as noise above the floor in focus); they now drop to .05. On phones "requests per batch, Figure 13a" hides at step 6 (it sat on the Orca (Max) label; the step list names it). Step count and list text unchanged.
