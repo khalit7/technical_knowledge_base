@@ -93,3 +93,6 @@ The Reading tab was the trial; this pass applied the same rules to Run, Tables a
 
 ## Ask Claude (pilot, 2026-11-16)
 This page piloted the Ask Claude panel (questions about the page answered by the Claude API from the reader's own key, with the page's text as context). After the pilot it went onto every page the same way: `html_utils/kb_ask.js` is the source and `html_utils/apply_ask.py` writes it as one marked block into `parts/01_css.html`, the part that closes this page's head; the pilot's separate `95_js_ask.js` part was removed.
+
+## Notebook (pilot, 2026-11-18)
+This page pilots the Notebook: write by hand (Apple Pencil, pen, mouse) or keyboard, and about 3 s after you stop Claude reads it and thinks with you, in a drawer or full screen. `html_utils/kb_diary.js` is the source and `html_utils/apply_diary.py` writes it as one marked `kb-diary` block into `parts/01_css.html`; edit the source, rerun the apply script on this folder, rebuild.
