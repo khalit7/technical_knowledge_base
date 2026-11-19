@@ -521,7 +521,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 // script block (id kb-buddy), into the source part that closes the page's <head>; edit it here, rerun apply_buddy.py and rebuild.
 // On a page that has it, it replaces the Ask Claude button (kb_ask.js stays on the page but its button is hidden).
 // Toolbar: docked to an edge of the screen (top by default; drag its grip to any edge), or made small. Read (no pen), pen,
-//   highlighter, eraser, Text (tap the notebook and type there; Enter sends), six colours, two widths, Undo, Claude on or off (on: Claude reads 3 s after you stop; off: marks are just
+//   highlighter, eraser, Text (tap the notebook and type there; Enter sends), six colours, two widths, Undo, Claude on or off (on: Claude reads after a pause, 3 s unless Settings say otherwise; off: marks are just
 //   notes, Send asks), the Notebook, Settings.
 // On the page: with a pen chosen, the Apple Pencil and the mouse write (fingers still scroll and work the page). Marks stay, pinned to
 //   the element they were drawn on, so they follow reflow and tabs. Claude's replies are sticky notes right by them (fold, move,
@@ -543,7 +543,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   try { const gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   function init(){
-  const API = 'https://api.anthropic.com/v1/messages', PAUSE = 3000, KEEP = 12;
+  const API = 'https://api.anthropic.com/v1/messages', KEEP = 12, WAITS = [1, 2, 3, 5, 8, 12];
   const MODELS = {
     'claude-opus-5-5':   {name:'Claude Opus 5.5',   in:4, write:5, read:0.2, out:20},
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
@@ -702,7 +702,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="width" title="Line width: thin or thick" aria-label="Line width"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18L18 6"/></svg></button>' +
     '<button type="button" data-b="undo" title="Undo your last mark" aria-label="Undo">' + ic(ICON.undo) + '</button>' +
     '<span class="kb-sep"></span>' +
-    '<button type="button" data-b="claude" title="Claude reads your writing after a 3 s pause (on), or only when you tap Send (off)">' + ic(ICON.claude) + '<span>Claude</span></button>' +
+    '<button type="button" data-b="claude" title="">' + ic(ICON.claude) + '<span>Claude</span></button>' +
     '<button type="button" data-b="send" title="Send your new marks to Claude now" hidden>Send</button>' +
     '<button type="button" data-b="notebook" title="Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
     '<button type="button" data-b="set" title="Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
@@ -786,6 +786,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let tool = /^(hand|pen|hl|erase|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
+  // how long after the last stroke Claude reads (Settings; 3 s by default); typing waits twice as long. "Never" is Claude off: Send only
+  const waitS = () => { const v = parseFloat(mine.get('wait')); return WAITS.includes(v) ? v : 3 };
+  const claudeTitle = () => 'Claude reads your writing ' + waitS() + ' s after you stop (on), or only when you tap Send (off); the wait is in Settings';
   const penOn = () => tool === 'pen' || tool === 'hl' || tool === 'erase';   // the tools that write on the page; Read and Text leave it alone
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
@@ -813,7 +816,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     for (const b of bar.querySelectorAll('[data-t]')) { const on = b.dataset.t === tool; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('kb-cur', on) }
     for (const b of bar.querySelectorAll('[data-c]')) b.setAttribute('aria-pressed', String(b.dataset.c === color));
     const wb = bar.querySelector('[data-b=width] path'); wb.parentElement.style.strokeWidth = thick ? 4.2 : 1.9;
-    const cb = bar.querySelector('[data-b=claude]'); cb.setAttribute('aria-pressed', String(claudeOn()));
+    const cb = bar.querySelector('[data-b=claude]'); cb.setAttribute('aria-pressed', String(claudeOn())); cb.title = claudeTitle();
     bar.querySelector('[data-b=send]').hidden = !(pendPage.length || pend.length || pendTyped.length || (ed && ed.ta.value.trim()));
     bar.querySelector('[data-b=send]').title = claudeOn() ? 'Send now instead of waiting' : 'Send your new marks to Claude';
     bar.querySelector('[data-b=notebook]').setAttribute('aria-pressed', String(!P.hidden));
@@ -829,7 +832,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.c != null) { color = b.dataset.c; mine.set('color', color || null); if (tool === 'hand' || tool === 'erase') setTool('pen'); else syncBar() }
     else if (b.dataset.b === 'width') { thick = !thick; mine.set('thick', thick ? '1' : null); syncBar() }
     else if (b.dataset.b === 'undo') undo();
-    else if (b.dataset.b === 'claude') { mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing 3 s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
+    else if (b.dataset.b === 'claude') { mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing ' + waitS() + ' s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
     else if (b.dataset.b === 'send') { commit(PG); commit(NB) }
     else if (b.dataset.b === 'notebook') P.hidden ? open() : close();
     else if (b.dataset.b === 'set') open('set');
@@ -1450,8 +1453,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     clearTimeout(S.timer); syncBar();
     if (!(S === NB ? pend.length : pendPage.length) && !S.out.typed()) { if (S === NB) renderOn(); return }
     if (!claudeOn()) return;
-    const typing = S === NB && ed && document.activeElement === ed.ta, wait = typing ? 6000 : PAUSE;
-    S.out.status(typing ? 'Reading 6 s after you stop typing (Enter sends now)…' : 'Reading in 3 s…'); S.timer = setTimeout(() => commit(S), wait);
+    const typing = S === NB && ed && document.activeElement === ed.ta, wait = waitS() * (typing ? 2 : 1);
+    S.out.status(typing ? 'Reading ' + wait + ' s after you stop typing (Enter sends now)…' : 'Reading in ' + wait + ' s…'); S.timer = setTimeout(() => commit(S), wait * 1000);
   }
   const needKey = S => { if (store.get('key')) return false; S.out.status('Add your Claude API key in Settings (the gear on the toolbar).'); open('set'); return true };
   async function commit(S){
@@ -1863,10 +1866,18 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <div class="kb-row"><button type="button" class="kb-go" data-a="save">Save</button>${k ? '<button type="button" data-a="forget">Forget key</button>' : ''}<span class="kb-meta"></span><button type="button" data-a="back">Back</button></div>
 <p>The same key and model as Ask Claude on the other pages. Create a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>; API use is billed per message, separately from a Claude subscription.</p>
 <label for="kbBuddyModel">Model</label><select id="kbBuddyModel">${Object.keys(MODELS).map(m => '<option value="' + m + '"' + (m === model() ? ' selected' : '') + '>' + MODELS[m].name + '</option>').join('')}</select>
+<label for="kbBuddyWait">When Claude answers</label><select id="kbBuddyWait">${WAITS.map(v => '<option value="' + v + '"' + (claudeOn() && v === waitS() ? ' selected' : '') + '>' + v + ' s after you stop writing' + (v === 3 ? ' (default)' : '') + '</option>').join('')}<option value="never"${claudeOn() ? '' : ' selected'}>Never by itself: only when you press Send</option></select>
+<p>Typing waits twice as long (Enter sends at once). The Claude button on the toolbar switches between this wait and Send only.</p>
 <label class="kb-ck"><input type="checkbox" id="kbBuddySee"${seeOn() ? ' checked' : ''}><span>Let Claude see the screen: an image of the figures and animations in view, the text in view, the controls' values and your highlight, sent with each message.</span></label>
 <p>The key is saved only in this browser. Each message sends this page's text, what you wrote, the screen as above (with your marks and Claude's notes on the page) and your recent exchanges from your browser straight to api.anthropic.com; your notebook and your marks on the page stay in this browser.</p>`;
     setv.querySelector('select').onchange = e => store.set('model', e.target.value);
     setv.querySelector('#kbBuddySee').onchange = e => mine.set('see', e.target.checked ? null : 'off');
+    setv.querySelector('#kbBuddyWait').onchange = e => {
+      const v = e.target.value;
+      if (v === 'never') { mine.set('claude', 'off'); clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' }
+      else { mine.set('wait', v === '3' ? null : v); mine.set('claude', null); arm(PG); arm(NB) }
+      syncBar();
+    };
     const inp = setv.querySelector('input'); if (!k) inp.focus();
   }
   setv.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'kbBuddyKey') { e.preventDefault(); setv.querySelector('[data-a=save]').click() } });
