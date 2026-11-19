@@ -523,6 +523,8 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 // Flow: ink and typing collect on the paper; 3 s after the last pen lift or key press the page is committed: the ink is cropped
 // into a PNG (black on white) and sent with any typed text, the section in view and the last exchanges to the Claude API. The
 // reader's ink fades; the reply writes itself on the paper in a handwriting face and fades when the pen comes down again.
+// Pen, mouse and finger all draw (a palm-sized contact or a touch right after the pen does not). Claude can answer with a small sketch
+// (an <svg> in its reply, rebuilt from an allow-list) that draws itself stroke by stroke.
 // Every exchange (transcription, reply, a small image of the ink) is kept in this browser (IndexedDB) under the page's address.
 // The API key and model are shared with the Ask Claude panel (localStorage kbAsk.*); requests go straight to api.anthropic.com.
 (function(){
@@ -557,8 +559,12 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 #kbDiary .kd-paper{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--card,var(--bg));background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 35px,color-mix(in srgb,var(--line) 70%,transparent) 35px,color-mix(in srgb,var(--line) 70%,transparent) 36px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #kbDiary.kd-full .kd-paper{margin:0 auto;width:min(900px,100%);border-left:1px solid var(--line);border-right:1px solid var(--line)}
 #kbDiary canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.4s ease}
-#kbDiary .kd-reply{position:absolute;left:0;right:0;top:0;padding:6px 22px;font-family:Caveat,"Bradley Hand","Segoe Print",cursive;font-size:27px;line-height:36px;color:var(--acc);pointer-events:none;transition:opacity 1.2s ease;white-space:pre-wrap;overflow-wrap:anywhere}
+#kbDiary .kd-reply{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;padding:6px 22px;font-family:Caveat,"Bradley Hand","Segoe Print",cursive;font-size:27px;line-height:36px;color:var(--acc);pointer-events:none;transition:opacity 1.2s ease;white-space:pre-wrap;overflow-wrap:anywhere}
 #kbDiary .kd-reply span{display:inline;animation:kdInk .5s ease-out both}
+#kbDiary .kd-sk{display:block;margin:4px 0 8px}
+#kbDiary .kd-sk svg{display:block;width:100%;max-width:460px;height:auto;max-height:340px;color:var(--acc);overflow:visible}
+#kbDiary .kd-sk text{font-family:Caveat,"Bradley Hand","Segoe Print",cursive;stroke:none;fill:currentColor}
+#kbDiary .kd-cl .kd-sk svg{max-width:380px;max-height:260px}
 @keyframes kdInk{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
 #kbDiary .kd-fade{opacity:0}
 #kbDiary .kd-st{position:absolute;right:10px;bottom:6px;font-size:11.5px;color:var(--mute);pointer-events:none}
@@ -601,7 +607,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   document.body.append(btn, P);
   const $ = s => P.querySelector(s);
   const paper = $('.kd-paper'), cv = $('canvas'), reply = $('.kd-reply'), stat = $('.kd-st'), log = $('.kd-log'), setv = $('.kd-set'), foot = $('.kd-f'), ta = $('textarea');
-  const ctx2 = cv.getContext('2d');
+  const ctx2 = cv.getContext('2d', {desynchronized:true}) || cv.getContext('2d');   // low-latency canvas where the browser offers it
 
   // ---- saved pages: IndexedDB in this browser, one list per page address (in memory if storage is blocked) ----
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');
@@ -614,7 +620,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   const save = e => { entries.push(e); tx('readwrite', s => s.add(e)).then(id => { if (id != null) e.id = id }) };
 
   // ---- ink: strokes in CSS pixels, each point [x, y, pressure] ----
-  let strokes = [], cur = null, stale = false, penSeen = false, timer = 0, dpr = 1, inkColor = '#222';
+  let strokes = [], cur = null, stale = false, penUp = 0, timer = 0, dpr = 1, inkColor = '#222';
   function size(){
     const r = cv.getBoundingClientRect(); dpr = window.devicePixelRatio || 1;
     cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
@@ -632,10 +638,13 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   }
   new ResizeObserver(size).observe(cv);
   const pt = (e, r) => [e.clientX - r.left, e.clientY - r.top, e.pointerType === 'pen' ? (e.pressure || 0.05) : 0.5];
+  // iPadOS Scribble (handwriting into text fields) watches Pencil touches and holds back a stroke that starts soon after the last one
+  // (WebKit bug 217430); cancelling the touch events on the canvas keeps every touch for the drawing (the fix Excalidraw shipped, #4705)
+  for (const t of ['touchstart', 'touchmove', 'touchend']) cv.addEventListener(t, e => { if (e.cancelable) e.preventDefault() }, {passive:false});
   cv.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'pen') penSeen = true;
-    else if (e.pointerType === 'touch' && penSeen) return;   // after a pen is seen, a resting palm or finger does not draw
-    if (e.button > 0) return;
+    if (cur || e.button > 0) return;   // one stroke at a time: a second finger or the palm during a stroke does not draw
+    // fingers draw too; only a large contact (a resting palm) or a touch while the pen was just writing is ignored
+    if (e.pointerType === 'touch' && (Math.max(e.width || 0, e.height || 0) > 44 || performance.now() - penUp < 400)) return;
     e.preventDefault(); cv.setPointerCapture(e.pointerId); clearTimeout(timer); fadeReply(); unfadeInk();
     const r = cv.getBoundingClientRect(); cur = {id:e.pointerId, r, p:[pt(e, r)]}; strokes.push(cur.p);
     ctx2.strokeStyle = ctx2.fillStyle = inkColor; drawStroke(ctx2, cur.p, 2.6); status('');
@@ -645,7 +654,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for (const x of (evs.length ? evs : [e])) { const p = pt(x, cur.r), q = cur.p[cur.p.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.6) continue; cur.p.push(p); seg(ctx2, q, p, 2.6) }
   });
-  const up = e => { if (!cur || e.pointerId !== cur.id) return; cur = null; arm() };
+  const up = e => { if (!cur || e.pointerId !== cur.id) return; if (e.pointerType === 'pen') penUp = performance.now(); cur = null; arm() };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   ta.addEventListener('input', () => { fadeReply(); unfadeInk(); ta.value.trim() ? arm() : (strokes.length ? arm() : clearTimeout(timer)) });
   ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit() } });
@@ -707,6 +716,63 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
     return [b && 'tab "' + b.textContent.trim() + '"', h && 'section "' + h.textContent.trim().replace(/\s+/g, ' ') + '"'].filter(Boolean).join(', ');
   }
 
+  // ---- Claude's sketches: an <svg> in the reply, rebuilt from an allow-list (no scripts, links, styles or images), drawn like ink ----
+  const SVG_TAGS = new Set(['svg', 'g', 'path', 'line', 'polyline', 'polygon', 'rect', 'circle', 'ellipse', 'text', 'tspan', 'defs', 'marker']);
+  const SVG_ATTRS = new Set(['viewBox', 'd', 'points', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'dx', 'dy', 'transform', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline', 'opacity', 'id', 'marker-start', 'marker-end', 'markerWidth', 'markerHeight', 'refX', 'refY', 'orient', 'markerUnits']);
+  const NS = 'http://www.w3.org/2000/svg';
+  let sketchN = 0;
+  function sketch(src){
+    const pre = 'kds' + (++sketchN) + '-';   // ids unique per sketch, so arrowheads keep working when several sketches share the page
+    let doc; try { doc = new DOMParser().parseFromString(src, 'image/svg+xml') } catch(e) { return null }
+    const root = doc.documentElement; if (!root || root.localName !== 'svg' || doc.querySelector('parsererror')) return null;
+    const copy = (n, inMarker) => {
+      if (n.nodeType === 3) return document.createTextNode(n.nodeValue);
+      if (n.nodeType !== 1 || !SVG_TAGS.has(n.localName)) return null;
+      const e = document.createElementNS(NS, n.localName), mk = inMarker || n.localName === 'marker', txt = /^(text|tspan)$/.test(n.localName);
+      for (const a of n.attributes) {
+        const k = a.name, v = a.value.trim();
+        if (!SVG_ATTRS.has(k) || /javascript:|url\((?!#[\w-]+\))/i.test(v)) continue;
+        if (k === 'fill' || k === 'stroke') {   // one pen: any colour becomes the ink colour; a filled shape is a light wash
+          const on = v !== 'none' && v !== 'transparent'; e.setAttribute(k, on ? 'currentColor' : 'none');
+          if (k === 'fill' && on && !txt && !mk) e.setAttribute('fill-opacity', '0.15');
+          continue;
+        }
+        e.setAttribute(k, k === 'id' ? pre + v : v.replace(/url\(#([\w-]+)\)/g, 'url(#' + pre + '$1)'));
+      }
+      for (const c of n.childNodes) { const x = copy(c, mk); if (x) e.appendChild(x) }
+      return e;
+    };
+    const svg = copy(root, false); if (!svg) return null;
+    svg.removeAttribute('width'); svg.removeAttribute('height');   // the sketch scales to the paper
+    if (!svg.getAttribute('viewBox')) { const w = parseFloat(root.getAttribute('width')) || 400, h = parseFloat(root.getAttribute('height')) || 240; svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h) }
+    svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); if (!svg.getAttribute('stroke-width')) svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Sketch by Claude');
+    for (const t of svg.querySelectorAll('text')) { if (!t.getAttribute('fill') || t.getAttribute('fill') === 'none') t.setAttribute('fill', 'currentColor'); t.setAttribute('stroke', 'none') }
+    const box = el('span', {class:'kd-sk'}); box.appendChild(svg); return box;
+  }
+  // draw the shapes one after another with a moving dash, then fade the labels in; returns how long that takes (ms)
+  function inkIn(box){
+    const shapes = [...box.querySelectorAll('path,line,polyline,polygon,rect,circle,ellipse')].filter(x => !x.closest('marker')), texts = [...box.querySelectorAll('text')];
+    const lens = shapes.map(x => { try { return x.getTotalLength() } catch(e) { return 0 } });
+    const total = lens.reduce((a, b) => a + b, 0) || 1, budget = Math.min(4000, 800 + total * 2);
+    let t = 0;
+    shapes.forEach((x, i) => {
+      const L = lens[i]; if (!L) return; const d = Math.max(120, budget * 0.8 * L / total), keep = x.getAttribute('stroke-dasharray') || '';
+      x.style.strokeDasharray = L + ' ' + L; x.style.strokeDashoffset = L;
+      x.getBoundingClientRect(); x.style.transition = 'stroke-dashoffset ' + d + 'ms ease-in-out ' + t + 'ms'; x.style.strokeDashoffset = 0;
+      setTimeout(() => { x.style.transition = ''; x.style.strokeDasharray = keep; x.style.strokeDashoffset = '' }, t + d + 60); t += d * 0.85;
+    });
+    texts.forEach((x, i) => { x.style.opacity = 0; x.getBoundingClientRect(); x.style.transition = 'opacity .4s ease ' + Math.round(t * 0.5 + i * 90) + 'ms'; x.style.opacity = 1 });
+    return Math.max(t, texts.length ? t * 0.5 + texts.length * 90 + 400 : 0);
+  }
+  // a saved reply as pieces in order: text, and {svg} for each sketch
+  function replyPieces(text){
+    const out = [], rx = /<svg[\s\S]*?<\/svg>/gi; let i = 0, m;
+    while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex }
+    if (i < text.length) out.push(text.slice(i).replace(/<svg[\s\S]*$/i, ''));
+    return out;
+  }
+
   const SYSTEM = `You are a thinking partner in the reader's notebook, beside one page of their personal technical knowledge base (interactive explainer pages on AI/ML and systems). The page's text is below between <page> tags; figures and labs are not included, only their text and captions. The reader writes to you by hand (you get an image of their ink) or by keyboard, then pauses; you answer on the same paper.
 Your job is to think with them, not to lecture or test them. They read to understand deeply, not to memorise: never quiz them.
 - Take up exactly what they wrote: build on the idea, sharpen it, connect it to the page (name the section when useful), or point out gently where it goes wrong and why.
@@ -714,6 +780,7 @@ Your job is to think with them, not to lecture or test them. They read to unders
 - Short: usually 1 to 4 sentences, plain words, like a note written in the margin. Never use lists, headings, bold, code fences or LaTeX; write maths inline with Unicode (softmax(QKᵀ/√d), ×, ², ᵀ). Do not use em dashes.
 - Use the page first; when you go beyond it, say so briefly. Never invent numbers or citations.
 - If their handwriting is unclear, say what you read and ask if that is right.
+- When a picture says it better than words (a shape, a matrix, an arrow diagram, a curve, a small graph, a tensor's dimensions), draw a small sketch in your reply: one <svg viewBox="0 0 W H">...</svg> with W at most 600, using only g, path, line, polyline, polygon, rect, circle, ellipse and text (and a marker in defs for arrowheads). It is drawn in pen on the paper, so no colours, styles, gradients, images or scripts; labels of a few words; at most about 40 shapes. Always write a sentence with it, never only the sketch, and do not sketch when words are enough.
 Output format, always: first <read>exactly what they wrote, transcribed (handwriting and typed text; describe any sketch in a few words in brackets)</read>, then your reply as plain text after it.`;
 
   // ---- sending: the committed page, the section in view and the last exchanges ----
@@ -743,8 +810,35 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
     content.push({type:'text', text:(where ? 'They are reading the ' + where + '.\n' : '') + (job.img ? 'Their handwriting is in the image.' : 'They wrote nothing by hand this time.') + (job.typed ? '\nTyped:\n' + job.typed : '')});
     let raw = '', shown = 0, usage = {}, stop = null, queue = [], drip = 0;
     const replyPart = () => { const i = raw.indexOf('</read>'); if (i >= 0) return raw.slice(i + 7).replace(/^\s+/, ''); return /^\s*<read/.test(raw) || raw.length < 6 ? '' : raw };
-    const pump = () => { if (drip) return; drip = setInterval(() => { if (!queue.length) { clearInterval(drip); drip = 0; return } const w = queue.shift(); reply.appendChild(el('span', null, esc(w))) }, 70) };
-    const feed = () => { const r = replyPart(); if (r.length <= shown) return; const nl = r.lastIndexOf(' ') + 1; const upto = stop ? r.length : Math.max(shown, nl); if (upto <= shown) return; const chunk = r.slice(shown, upto); shown = upto; queue.push(...chunk.match(/\S+\s*|\s+/g) || []); pump() };
+    let hold = 0;   // a sketch being drawn holds the words after it back
+    const pump = () => { if (drip) return; drip = setInterval(() => {
+      if (performance.now() < hold) return;
+      if (!queue.length) { clearInterval(drip); drip = 0; return }
+      const w = queue.shift();
+      if (typeof w === 'string') reply.appendChild(el('span', null, esc(w)));
+      else { const b = sketch(w.svg); if (b) { reply.appendChild(b); hold = performance.now() + inkIn(b) } }
+      reply.scrollTop = reply.scrollHeight;
+    }, 70) };
+    const words = t => queue.push(...(t.match(/\S+\s*|\s+/g) || []));
+    // move newly streamed reply text into the queue: whole words, and each sketch only once its </svg> has arrived
+    const feed = () => {
+      const r = replyPart(), lo = r.toLowerCase();
+      while (r.length > shown) {
+        const a = lo.indexOf('<svg', shown);
+        if (a === shown) {
+          const z = lo.indexOf('</svg>', a);
+          if (z < 0) { if (stop) shown = r.length; return }
+          queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; pump(); continue;
+        }
+        let upto = a > 0 ? a : r.length;
+        if (a < 0 && !stop) {   // still streaming: stop at the last whole word, and before a '<' that may start a sketch
+          upto = r.lastIndexOf(' ') + 1; const lt = r.lastIndexOf('<'); if (lt >= shown && lt < upto) upto = lt;
+        }
+        if (upto <= shown) return;
+        words(r.slice(shown, upto)); shown = upto; pump();
+        if (a < 0) return;
+      }
+    };
     try {
       const res = await fetch(API, {method:'POST', headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
           'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
@@ -795,7 +889,8 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
     if (!entries.length) { log.innerHTML = '<p class="kd-hint">No pages yet. What you write and what Claude answers are kept here, in this browser only.</p>'; return }
     log.innerHTML = '<div class="kd-row" style="margin:0 0 6px"><span class="kd-sp">' + entries.length + ' page' + (entries.length > 1 ? 's' : '') + ' on this page of the knowledge base, kept in this browser.</span><button type="button" data-a="wipe">Delete all</button></div>' +
       entries.slice().reverse().map(e => '<div class="kd-e"><time>' + esc(new Date(e.t).toLocaleString()) + (e.where ? ' · ' + esc(e.where) : '') + '</time>' + (e.img ? '<img alt="Your handwriting" src="' + e.img + '">' : '') +
-        '<div class="kd-me">' + esc(e.read || e.typed || '') + '</div><div class="kd-cl">' + esc(e.reply || '') + '</div></div>').join('');
+        '<div class="kd-me">' + esc(e.read || e.typed || '') + '</div><div class="kd-cl" data-i="' + entries.indexOf(e) + '"></div></div>').join('');
+    for (const c of log.querySelectorAll('.kd-cl')) for (const x of replyPieces(entries[+c.dataset.i].reply || '')) { if (typeof x === 'string') c.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) c.appendChild(b) } }
   }
   function renderSet(){
     const k = store.get('key');
