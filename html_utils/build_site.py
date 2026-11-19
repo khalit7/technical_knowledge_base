@@ -198,6 +198,25 @@ document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e
 </body></html>"""
 
 
+def kb_index():
+    """every page for the AI buddy (html_utils/kb_buddy.js): path from the site root, title, id, prerequisite ids, section headings and a
+    one-line summary (the first real paragraph); the buddy searches it and links pages Claude names"""
+    out = []
+    for p in pages:
+        f = ROOT / p["path"] / "index.html"
+        if not f.exists():
+            continue
+        s = re.sub(r"<(script|style|svg)\b.*?</\1>", " ", f.read_text(), flags=re.S | re.I)
+        txt = lambda h: html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", h))).strip()
+        heads = list(dict.fromkeys(t for t in (txt(h) for h in re.findall(r"<h2\b[^>]*>(.*?)</h2>", s, re.S | re.I)) if t))[:14]
+        summ = next((t for t in (txt(x) for x in re.findall(r"<p\b[^>]*>(.*?)</p>", s, re.S | re.I)) if len(t) > 80), "")
+        if len(summ) > 260:
+            summ = summ[:260].rsplit(" ", 1)[0] + "..."
+        out.append({"p": p["path"].removeprefix("technical_knowledge_base/"), "t": title(p), "id": p["id"].replace("-", ""),
+                    "pre": [x.replace("-", "") for x in p.get("prereqs", [])], "h": heads, "s": summ})
+    return {"pages": out}
+
+
 def desc(p):
     return [c for k in children(p) for c in [k] + desc(k)]
 
@@ -250,6 +269,7 @@ def main():
             (d / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><title>Redirect</title><meta name="robots" content="noindex">'
                                           f'<script>location.replace({json.dumps(url(p))}+location.hash)</script><a href="{url(p)}">{html.escape(p["title"])}</a>')
     (OUT / "index.html").write_text(home())
+    (OUT / "kb_index.json").write_text(json.dumps(kb_index(), ensure_ascii=False, separators=(",", ":")))
     print(f"site: {n} pages in {OUT}")
 
 

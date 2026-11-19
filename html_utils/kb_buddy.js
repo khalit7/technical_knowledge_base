@@ -85,6 +85,10 @@
 .kb-selbox{position:absolute;border:1.5px dashed var(--acc);border-radius:6px;background:color-mix(in srgb,var(--acc) 6%,transparent);cursor:move;pointer-events:auto;touch-action:none}
 .kb-selgrip{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;background:var(--acc);border:2px solid var(--card,var(--bg));cursor:nwse-resize;touch-action:none}
 #kbPsel{position:absolute;left:0;top:0;width:0;height:0;z-index:59}
+.kb-cite{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;margin:0 2px;vertical-align:.35em;border:0;border-radius:99px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);font:700 10.5px/1 system-ui,-apple-system,sans-serif;cursor:pointer;pointer-events:auto}
+.kb-cite:hover{background:var(--acc);color:var(--card,var(--bg))}
+.kb-kbl{color:var(--acc);text-decoration:underline;text-decoration-style:dotted;pointer-events:auto}
+.kb-cited{outline:3px solid var(--acc)!important;outline-offset:4px;border-radius:6px;transition:outline-color 2s ease}
 #kbNib{position:fixed;z-index:80;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(255,255,255,.7)}
 #kbNib[hidden]{display:none}
 #kbAskPop input{flex:1;min-width:0;font:inherit;font-size:14.5px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
@@ -193,6 +197,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbBuddy .kd-ovf .kb-chips i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
 #kbBuddy .kd-ovi{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:9px 10px;margin:0 0 7px;border:1px solid var(--line);border-radius:10px;background:var(--card,var(--bg));color:var(--ink);font:inherit;cursor:pointer}
 #kbBuddy .kd-ovi:hover{border-color:var(--acc)}
+#kbBuddy a.kd-ovi{text-decoration:none}
+#kbBuddy .kd-relh{margin:16px 0 8px;font-size:13px;color:var(--mute)}
 #kbBuddy .kd-ovi>i{flex:none;width:12px;height:12px;border-radius:50%;margin-top:5px}
 #kbBuddy .kd-ovi span{display:block;min-width:0}
 #kbBuddy .kd-ovi b{font-size:13px}
@@ -453,6 +459,34 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   const clean = s => s.replace(/[ \t ]+/g, ' ').split('\n').map(l => l.trim()).filter((l, i, a) => l || (a[i - 1] && a[i - 1].trim())).join('\n').trim();
   const tabName = tab => { const b = tab && document.querySelector('[role=tab][data-t="' + tab.id + '"]'); return b ? b.textContent.trim() : '' };
+  // ---- the page as a citable document: one block per paragraph, heading, list item, caption or cell, in reading order, each with its
+  // element (so a citation can jump there); text outside those is grouped by its nearest box; a block marks where each tab starts ----
+  const CITE_SEL = 'h1,h2,h3,h4,h5,h6,p,li,figcaption,dt,dd,pre,blockquote,td,th,caption,summary';
+  let DOCB = null;
+  function docBlocks(){
+    if (DOCB) return DOCB;
+    const root = pageRoot(), own = new Map(), order = [], skip = OURS + ',script,style,svg,canvas,button,select,input,textarea,nav,template,noscript,[aria-hidden=true],[role=tablist]';
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: t => { const q = t.parentElement; return !q || !t.nodeValue.trim() || q.closest(skip) ? 2 : 1 }});
+    for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+      const q = t.parentElement, o = q.closest(CITE_SEL) || q.closest('div,section,figure,aside,header,footer,main,article,details') || root;
+      if (!own.has(o)) { own.set(o, []); order.push(o) } own.get(o).push(t.nodeValue);
+    }
+    const content = [], els = []; let tab = undefined;
+    for (const o of order) {
+      const text = own.get(o).join('').replace(/\s+/g, ' ').trim(); if (!text) continue;
+      const tb = o.closest('.tab'); if (tb !== tab) { tab = tb; if (tb) { content.push({type:'text', text:'=== Tab: ' + (tabName(tb) || tb.id) + ' ==='}); els.push(null) } }
+      content.push({type:'text', text:(/^H[1-6]$/.test(o.tagName) ? '#'.repeat(+o.tagName[1]) + ' ' : '') + text}); els.push(o);
+    }
+    if (!content.length) { content.push({type:'text', text:document.title}); els.push(root) }
+    return DOCB = {content, els};
+  }
+  // go to a cited block: its tab opened, scrolled to the middle of the screen, outlined for a moment
+  function jumpBlock(i){
+    const B = docBlocks(); let e = null; for (let k = i; k < B.els.length && !e; k++) e = B.els[k]; if (!e) return;
+    if (!P.hidden && P.classList.contains('kb-full')) close();
+    const tab = e.closest('.tab'); if (tab && !tab.getClientRects().length) { const t = document.querySelector('[role=tab][data-t="' + tab.id + '"]'); if (t) t.click() }
+    setTimeout(() => { e.scrollIntoView({block:'center', behavior:'smooth'}); e.classList.remove('kb-cited'); void e.offsetWidth; e.classList.add('kb-cited'); setTimeout(() => e.classList.remove('kb-cited'), 2200) }, 120);
+  }
   let PAGE = null;
   function pageText(){
     if (PAGE) return PAGE;
@@ -640,6 +674,16 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     texts.forEach((x, i) => { x.style.opacity = 0; x.getBoundingClientRect(); x.style.transition = 'opacity .4s ease ' + Math.round(t * 0.5 + i * 90) + 'ms'; x.style.opacity = 1 });
     return Math.max(t, texts.length ? t * 0.5 + texts.length * 90 + 400 : 0);
   }
+  // reply text as HTML: a citation marker (⟦c12⟧, added where the API cited block 12) becomes a small numbered chip that jumps there;
+  // [[Page title]] becomes a link to that page of the knowledge base
+  function renderStr(str, box){
+    let n = box ? box.querySelectorAll('.kb-cite').length : 0;
+    return esc(str).replace(/⟦c(\d+)⟧/g, (_, i) => { const B = docBlocks(), t = (B.content[+i] || {}).text || ''; return '<button type="button" class="kb-cite" data-cb="' + i + '" title="' + esc(t.slice(0, 160)) + '">' + (++n) + '</button>' })
+      .replace(/\[\[([^\]]{1,160})\]\]/g, (_, t) => { const u = kbUrl(t); return u ? '<a class="kb-kbl" href="' + esc(u) + '">' + t + '</a>' : '<u>' + t + '</u>' });
+  }
+  const txt = (str, box) => { const sp = el('span'); sp.innerHTML = renderStr(str, box); return sp };
+  const noMarks = t => String(t || '').replace(/⟦[^⟧]*⟧/g, '');
+  document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.kb-cite'); if (c) { e.preventDefault(); e.stopPropagation(); jumpBlock(+c.dataset.cb) } }, true);
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
   function replyPieces(text){
     const out = [], rx = /<svg[\s\S]*?<\/svg>/gi; let i = 0, m;
@@ -649,8 +693,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
 
   // ---- prompts ----
-  const COMMON = `It sits beside one page of the reader's personal technical knowledge base (interactive explainer pages on AI/ML and systems). The page's full text is below between <page> tags; its figures and labs are not in it. With each message you may also get what is on their screen right now: the tab and section in view, the text in view, the values of the controls in view (sliders, selects, steps), a passage they highlighted, and an image of the figures, animations (their current frame) and images in view at their screen positions. Use that to know exactly what they are looking at; refer to it naturally ("the heatmap on your screen", "step 3 of the animation"), and never describe the screen back to them unless asked.
+  const COMMON = `It sits beside one page of the reader's personal technical knowledge base (interactive explainer pages on AI/ML and systems). The page's full text is the document at the start of the conversation, one block per paragraph, heading, list item or caption; its figures and labs are not in it. Your answers are linked back to the page through the citations the API attaches when you draw on the document, so ground what you say in it. With each message you may also get what is on their screen right now: the tab and section in view, the text in view, the values of the controls in view (sliders, selects, steps), a passage they highlighted, and an image of the figures, animations (their current frame) and images in view at their screen positions. Use that to know exactly what they are looking at; refer to it naturally ("the heatmap on your screen", "step 3 of the animation"), and never describe the screen back to them unless asked.
 - Use the page first; when you go beyond it, say so briefly. Never invent numbers or citations; if unsure, say so.
+- The page is one of about 300 in their knowledge base. When the answer needs another page (a prerequisite, a related method, a comparison), use the tools: search_kb to find pages, read_kb_page to read one. Name a page you used as [[its exact title]]; it becomes a link. Do not search when this page is enough.
 - Write maths in plain text with Unicode (softmax(QKᵀ/√d), ×, ², ᵀ), never LaTeX. Do not use em dashes.
 - When a picture says it better than words (a shape, a matrix, an arrow diagram, a curve, a tensor's dimensions), you may draw one small sketch: <svg viewBox="0 0 W H">...</svg> with W at most 600, using only g, path, line, polyline, polygon, rect, circle, ellipse and text (and a marker in defs for arrowheads); it is drawn in pen, so no colours, styles, images or scripts; labels of a few words; at most about 40 shapes. Always write a sentence with it, and do not sketch when words are enough.`;
   const SYS_NOTE = `You are a thinking partner in the reader's notebook. ${COMMON}
@@ -666,12 +711,22 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- one streamed request; onText gets the text so far ----
   const cents = (u, m) => { const p = MODELS[m]; if (!p || !u) return 0; return ((u.input_tokens || 0) * p.in + (u.cache_creation_input_tokens || 0) * p.write + (u.cache_read_input_tokens || 0) * p.read + (u.output_tokens || 0) * p.out) / 1e4 };
   let spent = 0;
+  // the first user message starts with the page as a document (citations on, cached), so the cached prefix is the same every turn
+  function withDoc(messages){
+    const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order; "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral'}};
+    const m0 = messages[0], c0 = typeof m0.content === 'string' ? [{type:'text', text:m0.content}] : m0.content;
+    return [{role:'user', content:[doc].concat(c0)}].concat(messages.slice(1));
+  }
+  const TOOLS = [
+    {name:'search_kb', description:'Search every page of the reader\'s knowledge base (about 300 explainer pages on AI/ML and systems) by words; returns the best matching pages with their path and a snippet. Use it when the answer needs another page.', input_schema:{type:'object', properties:{query:{type:'string', description:'A few key words'}}, required:['query']}},
+    {name:'read_kb_page', description:'Read the text of one page of the knowledge base, by the path search_kb returned.', input_schema:{type:'object', properties:{path:{type:'string'}}, required:['path']}}
+  ];
   async function stream(system, messages, effort, maxTokens, onText, signal){
-    const m = model(), usage = {}; let raw = '', stop = null;
+    const m = model(), usage = {}; let raw = '', stop = null; const blocks = [];
     const res = await fetch(API, {method:'POST', signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
-        system:[{type:'text', text:system}, {type:'text', text:'<page>\n' + pageText() + '\n</page>', cache_control:{type:'ephemeral'}}], messages})});
+        system:[{type:'text', text:system}], tools:TOOLS, messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {} throw new Error(res.status === 401 ? 'The API key was not accepted. Check it in Settings.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) {
@@ -682,16 +737,66 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const data = evt.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
         if (!data) continue; let d; try { d = JSON.parse(data) } catch(e) { continue }
         if (d.type === 'message_start') Object.assign(usage, d.message.usage || {});
-        else if (d.type === 'content_block_delta' && d.delta.type === 'text_delta') { raw += d.delta.text; onText(raw, false) }
+        else if (d.type === 'content_block_start') { const b = d.content_block || {}; blocks[d.index] = {type:b.type, text:'', id:b.id, name:b.name, json:'', cites:[]} }
+        else if (d.type === 'content_block_delta' && d.delta.type === 'text_delta') { raw += d.delta.text; if (blocks[d.index]) blocks[d.index].text += d.delta.text; else blocks[d.index] = {type:'text', text:d.delta.text, cites:[]}; onText(raw, false) }
+        else if (d.type === 'content_block_delta' && d.delta.type === 'citations_delta') { const b = blocks[d.index]; if (b) b.cites.push(d.delta.citation) }
+        else if (d.type === 'content_block_delta' && d.delta.type === 'input_json_delta') { const b = blocks[d.index]; if (b) b.json += d.delta.partial_json || '' }
+        else if (d.type === 'content_block_stop') {   // a cited stretch of text ends: its chips go right after it
+          const b = blocks[d.index], c = b && b.cites.filter(x => x.type === 'content_block_location' && x.document_index === 0);
+          if (c && c.length) { raw += [...new Set(c.map(x => x.start_block_index))].map(i => '⟦c' + i + '⟧').join(''); onText(raw, false) }
+        }
         else if (d.type === 'message_delta') { if (d.delta && d.delta.stop_reason) stop = d.delta.stop_reason; Object.assign(usage, d.usage || {}) }
         else if (d.type === 'error') throw new Error((d.error && d.error.message) || 'stream error');
       }
     }
-    onText(raw, true);
+    stop = stop || 'end_turn'; onText(raw, stop !== 'tool_use');
     const c = cents(usage, m); spent += c;
-    return {raw, stop:stop || 'end_turn', usage, model:m, cents:c};
+    const content = blocks.filter(Boolean).map(b => b.type === 'tool_use' ? (() => { let input = {}; try { input = JSON.parse(b.json || '{}') } catch(e) {} return {type:'tool_use', id:b.id, name:b.name, input} })() : b.text ? {type:'text', text:b.text} : null).filter(Boolean);
+    return {raw, stop, usage, model:m, cents:c, content};
   }
   const costLine = r => MODELS[r.model].name + ' · ≈ ' + r.cents.toFixed(2) + '¢ (this visit ≈ ' + spent.toFixed(1) + '¢)';
+
+  // ================= The rest of the knowledge base =================
+  // kb_index.json (html_utils/build_site.py) sits at the site's root: the nearest folder above this page that has it. Search uses the
+  // site's full-text index (Pagefind) when it loads, else words over the index's titles, headings and summaries
+  let KBI = null, KBROOT = null;
+  let kbP = null;
+  const kbIndex = () => kbP || (kbP = (async () => {
+    let u = new URL('.', location.href);
+    for (let k = 0; k < 7; k++) { try { const r = await fetch(new URL('kb_index.json', u)); if (r.ok) { const j = await r.json(); KBROOT = u.href; KBI = j.pages || []; return KBI } } catch(e) {} if (u.pathname === '/') break; u = new URL('..', u) }
+    return null;
+  })());
+  setTimeout(kbIndex, 2500);   // after the page has settled
+  const kbUrl = t => { if (!KBI) return null; const k = t.trim().toLowerCase(), e = KBI.find(x => x.t.toLowerCase() === k) || KBI.find(x => x.t.toLowerCase().startsWith(k) || k.startsWith(x.t.toLowerCase())); return e ? KBROOT + e.p + '/' : null };
+  const kbTitle = p => { const e = KBI && KBI.find(x => x.p === String(p || '').replace(/^\/+|\/+$/g, '')); return e ? '"' + e.t + '"' : 'a page' };
+  let pf = null;
+  async function runTool(u){
+    try {
+      await kbIndex(); if (!KBI) return 'The knowledge base index is not available here.';
+      if (u.name === 'search_kb') {
+        const q = String(u.input.query || '').trim(); if (!q) return 'Empty query.';
+        let hits = [];
+        try { if (pf === null) { pf = await import(KBROOT + 'pagefind/pagefind.js'); await pf.init() } } catch(e) { pf = false }
+        if (pf) { const r = await pf.search(q); for (const x of r.results.slice(0, 8)) { const d = await x.data(); const p = new URL(d.url, KBROOT).href.replace(KBROOT, '').replace(/\/(index\.html)?$/, ''); const e = KBI.find(y => y.p === p); hits.push((e ? e.t : d.meta && d.meta.title) + ' | path: ' + p + ' | ' + d.excerpt.replace(/<[^>]+>/g, '')) } }
+        if (!hits.length) {
+          const w = q.toLowerCase().split(/\W+/).filter(x => x.length > 2);
+          hits = KBI.map(e => { const h = (e.t + ' ' + (e.h || []).join(' ') + ' ' + (e.s || '')).toLowerCase(); return [w.reduce((n, x) => n + (h.includes(x) ? (e.t.toLowerCase().includes(x) ? 3 : 1) : 0), 0), e] }).filter(x => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 8)
+            .map(([, e]) => e.t + ' | path: ' + e.p + ' | ' + (e.s || '') + (e.h && e.h.length ? ' Sections: ' + e.h.slice(0, 8).join('; ') : ''));
+        }
+        return hits.length ? hits.join('\n') : 'No page matches "' + q + '".';
+      }
+      if (u.name === 'read_kb_page') {
+        const p = String(u.input.path || '').replace(/^\/+|\/+$/g, ''), e = KBI.find(x => x.p === p); if (!e) return 'No page at path "' + p + '". Use a path from search_kb.';
+        const r = await fetch(KBROOT + p + '/'); if (!r.ok) return 'Could not load that page.';
+        const d = new DOMParser().parseFromString(await r.text(), 'text/html');
+        for (const x of d.querySelectorAll('script,style,svg,canvas,button,select,nav,template,noscript,[aria-hidden=true]')) x.remove();
+        const w = d.querySelector('.w') || d.body, out = [];
+        for (const x of w.querySelectorAll(CITE_SEL)) { const t = x.textContent.replace(/\s+/g, ' ').trim(); if (t && !x.querySelector(CITE_SEL)) out.push((/^H[1-6]$/.test(x.tagName) ? '#'.repeat(+x.tagName[1]) + ' ' : '') + t) }
+        const text = out.join('\n'); return 'Page: ' + e.t + ' (path ' + p + ')\n\n' + (text.length > 45000 ? text.slice(0, 45000) + '\n[cut here]' : text);
+      }
+      return 'Unknown tool.';
+    } catch(err) { return 'The tool failed: ' + String(err.message || err) }
+  }
 
   // ================= Notebook =================
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');
@@ -923,7 +1028,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     } else {
       e = el('div', {class:'kd-it kb-ink kd-' + it.kind}); Object.assign(e.style, {left:it.x + 'px', top:it.y + 'px', width:it.w + 'px'}); styleItem(e, it);
       if (it.kind === 'typed') { e.textContent = it.text; if (it.c) e.style.color = it.c }
-      else for (const x of replyPieces(it.text || '')) { if (typeof x === 'string') e.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) e.appendChild(b) } }
+      else for (const x of replyPieces(it.text || '')) { if (typeof x === 'string') e.appendChild(txt(x, e)); else { const b = sketch(x.svg); if (b) e.appendChild(b) } }
     }
     elOf.set(it, e); return e;
   }
@@ -1211,7 +1316,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   function noteHistory(){
     const h = [];
-    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:e.reply || '…'});
+    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:noMarks(e.reply) || '…'});
     return h;
   }
   async function send(S, job){
@@ -1226,7 +1331,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     content.push(...job.scr.blocks);
     content.push({type:'text', text:job.kind === 'page'
       ? job.nudge ? 'A quiet nudge: they ' + (job.nudge.reread ? 'came back to re-read' : 'just finished reading') + ' the section "' + job.nudge.name + '" and tapped the dot on the toolbar to hear your one thought on it. Offer the single most useful thing for understanding that section deeply: the key intuition, a connection they may have missed, or a gentle correction of something they marked there. One to three sentences, as a note beside the section heading. If nothing is genuinely worth adding, answer only NONE. No <at> or <point> here.'
-      : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + t.a).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
+      : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + noMarks(t.a)).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
       : job.lasso ? 'They drew a loop round part of the page (the dashed loop, outlined NEW on the screen image' + (job.marks.length > 1 ? '; their own marks inside it are part of what they mean' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The loop is on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Answer that question about what is inside the loop, in a note that will sit beside it. No <at> or <point> here.'
       : job.typed ? 'They selected a passage on the page (its text is in <highlight> above; it is now highlighted in yellow and outlined NEW on the screen image) and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that question about that passage, in a note that will sit beside it. No <at> or <point> here.'
       : 'They drew on the page itself, over what is on their screen: their new marks are in the dashed box marked NEW on the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. ' + colourNote(job.marks) + ' ' + (job.near ? 'They are on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Read what they wrote or marked (a circle, an arrow, an underline, a highlight, a note in the margin, a sketch) and answer about exactly that, in a note that will sit beside their marks. No <at> or <point> here.'
@@ -1240,11 +1345,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (performance.now() < hold) return;
       if (!queue.length) { clearInterval(drip); drip = 0; return }
       const w = queue.shift(), R = target();
-      if (typeof w === 'string') R.appendChild(el('span', null, esc(w)));
+      if (typeof w === 'string') R.appendChild(txt(w, R));
       else { const b = sketch(w.svg); if (b) { R.appendChild(b); hold = performance.now() + inkIn(b) } }
       S.out.follow(job);
     }, 70) };
-    const words = t => queue.push(...(t.match(/\S+\s*|\s+/g) || []));
+    const words = t => queue.push(...(t.match(/\[\[[^\]]*\]\]\S*\s*|\S+\s*|\s+/g) || []));
     // newly streamed reply text goes into the queue: whole words, and each sketch only once its </svg> has arrived
     const feed = (raw, end) => {
       rawNow = raw; if (end) stopped = true;
@@ -1257,7 +1362,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
           queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; pump(); continue;
         }
         let upto = a > 0 ? a : r.length;
-        if (a < 0 && !stopped) { upto = r.lastIndexOf(' ') + 1; const lt = r.lastIndexOf('<'); if (lt >= shown && lt < upto) upto = lt }
+        if (a < 0 && !stopped) { upto = r.lastIndexOf(' ') + 1; const lt = r.lastIndexOf('<'); if (lt >= shown && lt < upto) upto = lt; const lb = r.lastIndexOf('[[', upto); if (lb >= shown && lb < upto) { const rb = r.indexOf(']]', lb); if (rb < 0) upto = lb; else if (rb + 2 > upto) upto = rb + 2 } }   // a [[page link]] is never cut in two
         if (upto <= shown) return;
         words(r.slice(shown, upto)); shown = upto; pump();
         if (a < 0) return;
@@ -1266,7 +1371,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
       S.out.status('Reading…');
-      const r = await stream(SYS_NOTE, noteHistory().concat([{role:'user', content}]), 'low', 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(raw, end) });
+      let msgs = noteHistory().concat([{role:'user', content}]), before = '', r, cost = 0;
+      for (let turn = 0; ; turn++) {
+        r = await stream(SYS_NOTE, msgs, 'low', 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(before + raw, end) });
+        cost += r.cents; const uses = r.content.filter(b => b.type === 'tool_use');
+        if (r.stop !== 'tool_use' || !uses.length || turn >= 4) break;
+        before += r.raw; msgs = msgs.concat([{role:'assistant', content:r.content}]);
+        const results = []; for (const u of uses) { S.out.status(u.name === 'search_kb' ? 'Searching the knowledge base for "' + (u.input.query || '') + '"…' : 'Reading ' + kbTitle(u.input.path) + '…'); results.push({type:'tool_result', tool_use_id:u.id, content:await runTool(u)}) }
+        msgs = msgs.concat([{role:'user', content:results}]);
+      }
+      r = Object.assign({}, r, {raw:before + r.raw, cents:cost});
       const m2 = r.raw.match(/<read>([\s\S]*?)<\/read>/), text = replyPart(r.raw).trim();
       await drained();
       if (!text) { if (S.out.empty) S.out.empty(job, reply); else target().innerHTML = '<span class="kb-err">' + (r.stop === 'refusal' ? 'Claude declined to answer this one.' : 'No reply.') + '</span>' }
@@ -1588,7 +1702,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const d = el('div', {class:'kb-turn'});
     if (t.q) d.appendChild(el('div', {class:'kb-nq'}, 'You: ' + esc(t.q)));
     const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
-    for (const x of replyPieces(t.a || '')) { if (typeof x === 'string') a.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
+    for (const x of replyPieces(t.a || '')) { if (typeof x === 'string') a.appendChild(txt(x, a)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
     return d;
   }
   let noteZ = 1;
@@ -1766,6 +1880,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       return '<button type="button" class="kd-ovi" data-g="' + k + '"><i style="background:' + (g.ms[0] ? (c || 'var(--ink)') : 'var(--acc)') + '"></i><span><b>' + esc(head) + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
         '<q>' + esc(quote.slice(0, 140)) + (quote.length > 140 ? '…' : '') + '</q>' + (q ? '<em>You: ' + esc(q.q) + '</em>' : '') + (a ? '<em class="kd-ova">' + esc(a.slice(0, 120)) + (a.length > 120 ? '…' : '') + '</em>' : '') + '</span></button>' }).join('') || '<p class="kb-hint">Nothing matches these filters.</p>';
     ovList._g = list;
+    relatedNotes().then(h => { if (h && !ovView.hidden) ovList.insertAdjacentHTML('beforeend', h) });
+  }
+  // the reader's notes on the pages this one builds on and the pages that build on it (the knowledge base's prerequisite map)
+  async function relatedNotes(){
+    await kbIndex(); if (!KBI) return '';
+    const here = new URL('.', location.href).href, me = KBI.find(e => KBROOT + e.p + '/' === here); if (!me) return '';
+    const rel = KBI.filter(e => e !== me && ((me.pre || []).includes(e.id) || (e.pre || []).includes(me.id))).slice(0, 20), out = [];
+    for (const e of rel) {
+      const r = await tx('readonly', st => st.get(new URL(e.p + '/', KBROOT).pathname), 'books'); const ns = r && Array.isArray(r.notes) ? r.notes : [];
+      for (const n of ns) { const t = (n.turns || [{q:n.q, a:n.text}]).find(x => x.q || x.a); if (t) out.push({e, n, t}) }
+    }
+    if (!out.length) return '';
+    return '<h4 class="kd-relh">From related pages</h4>' + out.slice(0, 30).map(({e, n, t}) => '<a class="kd-ovi" href="' + esc(KBROOT + e.p + '/') + '"><i style="background:var(--acc)"></i><span><b>' + esc(e.t) + '</b>' + (n.hl ? '<q>' + esc(n.hl.slice(0, 120)) + '</q>' : '') + (t.q ? '<em>You: ' + esc(t.q) + '</em>' : '') + '<em class="kd-ova">' + esc(plain(t.a).slice(0, 120)) + '</em></span></a>').join('');
   }
   ovBar.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.k) ovF.kind = b.dataset.k; else if (b.dataset.col != null) ovF.col = ovF.col === b.dataset.col ? null : b.dataset.col; else if (b.dataset.done) ovF.done = !ovF.done; renderOverview() });
   ovList.addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (b) goGroup(ovList._g[+b.dataset.g]) });
@@ -1820,7 +1947,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     log.innerHTML = '<div class="kb-row" style="margin:0 0 6px"><span class="kb-meta">' + entries.length + ' exchange' + (entries.length > 1 ? 's' : '') + ' on this page of the knowledge base, kept in this browser.</span>' + wipe + '</div>' +
       entries.slice().reverse().map(e => '<div class="kd-e"><time>' + esc(new Date(e.t).toLocaleString()) + (e.nbPage ? ' · notebook page ' + e.nbPage : e.kind === 'page' ? ' · drawn on the page' : '') + (e.where ? ' · ' + esc(e.where) : '') + '</time>' + (e.img ? '<img alt="Your handwriting" src="' + e.img + '">' : '') +
         '<div class="kd-me">' + esc(e.read || e.typed || '') + '</div><div class="kd-cl" data-i="' + entries.indexOf(e) + '"></div></div>').join('');
-    for (const c of log.querySelectorAll('.kd-cl')) for (const x of replyPieces(entries[+c.dataset.i].reply || '')) { if (typeof x === 'string') c.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) c.appendChild(b) } }
+    for (const c of log.querySelectorAll('.kd-cl')) for (const x of replyPieces(entries[+c.dataset.i].reply || '')) { if (typeof x === 'string') c.appendChild(txt(x, c)); else { const b = sketch(x.svg); if (b) c.appendChild(b) } }
   }
 
 
