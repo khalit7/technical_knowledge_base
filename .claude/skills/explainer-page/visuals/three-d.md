@@ -3,12 +3,13 @@
 Agreed with Khalid on 2026-11-06 after the trial on the Attention Is All You Need paper page (`technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`, parts `30_js_s3.js` to `36_js_sc_pe.js`; read them before building a scene). The look is that of the every-joule explainers (Khalid, 2026-11-06: "I like the new motion and style"): white objects with thin ink edges on a floor grid that fades out, soft contact shadows, tinted glass plates for weight matrices, glowing dots that keep flowing along the paths data takes, a camera that glides between steps, drag to turn. The reference scene is Fig. 3 (attention) on the Attention Is All You Need page, `src/parts/33_js_sc_att.js`: read it before writing a scene. **Use one when it is reasonable, never force it** ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)): Khalid prefers a 3D visual to none, but a concept that reads best flat (a curve, a log-scale scatter, a heatmap, a table) stays 2D.
 
 ## When 3D earns its place
-- Stacks and pipelines: the layers of a model, the sub-layers of a block, a request moving through serving stages.
+2D is the default (Khalid, 2026-11-19): a 3D stage must make the idea faster to understand or harder to misread than a flat figure, because the third dimension carries information the reader needs. Ask before building one: would a flat diagram, or the step list alone, teach the same as fast? If yes, draw it flat or not at all. The cases below qualify only when that test passes.
+- Stacks where the count, order or nesting matters: the layers of a model, the sub-layers of a block. (A request moving through stages is usually a flat row: 3D only if position in depth carries meaning.)
 - Shapes: a tensor's dimensions, a vector split into heads, the FFN's expansion drawn in depth, a KV cache by layer, head and token.
 - Many matrices at once: attention weights as bar fields (rows queries, columns keys, height weight), one plate per head or layer.
 - Spatial systems: GPUs in a node, a rack, a memory hierarchy, a mesh of devices with the collective moving over it.
 - Before/after of two architectures on the same input, side by side in depth.
-Not for: anything whose message is a number on an axis, decoration, or a picture that would be the same flat.
+Not for: anything whose message is a number on an axis, decoration, a schematic map of named boxes, a flowchart or pipeline that reads the same in a row, steps that mostly fade boxes in and out, or a picture that would be the same flat.
 
 ## Files
 - [../build/templates/25_js_s3.js](../build/templates/25_js_s3.js) into `src/parts/`, unchanged: `window.S3` (the renderer on Canvas 2D, no WebGL, no library, so pages stay self-contained and checkable in headless Chrome) and `S3.stage` (the card, its controls, autoplay on view, the link to the step list).

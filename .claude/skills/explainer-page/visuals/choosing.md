@@ -7,7 +7,7 @@ How to decide which visuals a page gets, where each goes, and how their numbers 
 - Write down, in one sentence, the question the subject keeps returning to (for Topic: llm-landscape: where the test-time budget goes and what a model costs to serve; for DeepSeek: what it costs to train and serve). A visual is worth building when it makes that question measurable.
 - List the page's existing visuals and outbound links first (and the root's, the siblings' and the paper pages' when building a child), so new ideas do not repeat what exists and the page's own sources become the first places to look.
 - Only then open [animation-types.md](animation-types.md) to pick a form.
-- **Ask whether it should be 3D** ([three-d.md](three-d.md)): when the concept has spatial structure, prefer a 3D stage to a flat drawing or to none; when it is a curve, scatter, heatmap or table, keep it 2D. Reasonable, never forced.
+- **Ask whether it must be 3D** ([three-d.md](three-d.md)): 2D is the default. Choose a 3D stage only when depth carries information the reader needs and makes the idea faster or more robust to grasp than a flat figure; if a flat diagram or the step list alone would teach the same as fast, draw it flat. Never 3D for looks. Curves, scatters, heatmaps and tables stay 2D.
 - **Every visual goes in the right column of its section** (the split layout, [../teaching/teaching-contract.md](../teaching/teaching-contract.md)); a section without one is full width.
 
 ## 2. The two most valuable kinds
