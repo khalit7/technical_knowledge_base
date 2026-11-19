@@ -64,9 +64,24 @@
 #kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur){display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-v [data-b=claude] span{display:none}
+#kbBar .kb-dash{stroke-dasharray:3 2.4}
 #kbBar .kb-A{font:700 17px/1 Georgia,'Times New Roman',serif}
-#kbAskPop{position:fixed;z-index:66;display:flex;gap:6px;align-items:center;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
+#kbAskPop{position:fixed;z-index:66;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
 #kbAskPop[hidden]{display:none}
+#kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
+.kb-chips{display:flex;flex-wrap:wrap;gap:4px}
+.kb-chips button{padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:12px/1.6 system-ui,-apple-system,sans-serif;cursor:pointer}
+.kb-chips button:hover{border-color:var(--acc)}
+.kb-note .kb-chips{display:none;padding:0 8px 8px}
+.kb-note:focus-within .kb-chips{display:flex}
+.kb-selbar{position:absolute;display:flex;flex-direction:column;gap:5px;width:max-content;max-width:min(420px,calc(100vw - 24px));padding:6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2));font:13px/1.4 system-ui,-apple-system,sans-serif;pointer-events:auto;z-index:5}
+.kb-selbar .kb-pr{display:flex;gap:5px;align-items:center}
+.kb-selbar input{flex:1;min-width:150px;font:inherit;font-size:14px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.kb-selbar button{padding:4px 10px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:inherit;cursor:pointer}
+.kb-selbar button.kb-go{background:var(--acc);border-color:var(--acc);color:var(--card,var(--bg));font-weight:600}
+.kb-selbox{position:absolute;border:1.5px dashed var(--acc);border-radius:6px;background:color-mix(in srgb,var(--acc) 6%,transparent);cursor:move;pointer-events:auto;touch-action:none}
+.kb-selgrip{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;background:var(--acc);border:2px solid var(--card,var(--bg));cursor:nwse-resize;touch-action:none}
+#kbPsel{position:absolute;left:0;top:0;width:0;height:0;z-index:59}
 #kbNib{position:fixed;z-index:80;pointer-events:none;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(255,255,255,.7)}
 #kbNib[hidden]{display:none}
 #kbAskPop input{flex:1;min-width:0;font:inherit;font-size:14.5px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
@@ -154,6 +169,18 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbBuddy .kd-me::before{content:"You: ";color:var(--mute)}
 #kbBuddy .kd-cl{font-family:${HAND};font-size:22px;line-height:1.3;color:var(--acc);white-space:pre-wrap}
 #kbBuddy .kb-hint{color:var(--mute);font-size:13px}
+#kbBuddy .kd-fbar{padding:8px 12px;border-bottom:1px solid var(--line)}
+#kbBuddy .kd-fbar input{width:100%;font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+#kbBuddy .kd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+#kbBuddy .kd-th{cursor:pointer;text-align:center;font-size:12px;color:var(--mute)}
+#kbBuddy .kd-th img{display:block;width:100%;aspect-ratio:800/1130;border:1px solid var(--line);border-radius:4px;background:#fff;margin-bottom:3px}
+#kbBuddy .kd-th:hover img{border-color:var(--acc)}
+#kbBuddy .kd-th span{display:block;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#kbBuddy .kd-hit{display:block;width:100%;text-align:left;padding:8px 10px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer}
+#kbBuddy .kd-hit b{color:var(--mute);font-weight:600;font-size:12px;margin-right:6px}
+#kbBuddy .kd-hit mark{background:#ffe066;color:inherit;border-radius:2px}
+#kbBuddy .kd-flash{position:absolute;border:3px solid var(--acc);border-radius:8px;pointer-events:none;animation:kdFlash 1.6s ease-out forwards}
+@keyframes kdFlash{0%{opacity:1}100%{opacity:0}}
 #kbBuddy .kb-err,.kb-note .kb-err{color:var(--bad,#c2703a)}
 #kbBuddy .kb-set label{display:block;font-weight:600;margin:10px 0 4px;font-size:13px}
 #kbBuddy .kb-set label.kb-ck{display:flex;gap:8px;align-items:flex-start;font-weight:400}
@@ -181,7 +208,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-t="pen" title="Pen: the Apple Pencil or the mouse writes on the page (fingers still scroll); in the notebook a finger writes too" aria-label="Pen">' + ic(ICON.pen) + '</button>' +
     '<button type="button" data-t="hl" title="Highlighter" aria-label="Highlighter">' + ic(ICON.hl) + '</button>' +
     '<button type="button" data-t="erase" title="Eraser: touch a mark to remove it" aria-label="Eraser">' + ic(ICON.erase) + '</button>' +
-    '<button type="button" data-t="text" title="Text: tap anywhere in the notebook and type there (Enter sends, Shift+Enter is a new line)" aria-label="Text"><span class="kb-A">A</span></button>' +
+    '<button type="button" data-t="lasso" title="Lasso: draw a loop round marks or part of the page or notebook to ask about it, move it, resize it (notebook) or delete it" aria-label="Lasso"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="kb-dash" d="M12 4.5c4.4 0 8 2.2 8 5s-3.6 5-8 5-8-2.2-8-5 3.6-5 8-5z"/><path d="M8 13.8c-.8 1.8-.6 3.6.6 5.2"/></svg></button>' +
+    '<button type="button" data-t="text" title=""Text: tap anywhere in the notebook and type there (Enter sends, Shift+Enter is a new line)" aria-label="Text"><span class="kb-A">A</span></button>' +
     '<span class="kb-sep"></span><span class="kb-sws">' + COLORS.map(([c, n]) => '<button type="button" class="kb-sw" data-c="' + c + '" title="' + n + '" aria-label="' + n + '" style="--c:' + (c || 'var(--ink)') + '"></button>').join('') + '</span>' +
     '<button type="button" data-b="width" title="Line width: thin or thick" aria-label="Line width"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18L18 6"/></svg></button>' +
     '<button type="button" data-b="undo" title="Undo your last mark" aria-label="Undo">' + ic(ICON.undo) + '</button>' +
@@ -193,10 +221,11 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="min" title="Make the toolbar small" aria-label="Make the toolbar small">&#x2013;</button>');
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
-  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
+  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="find" title="All pages at a glance, and search what you and Claude wrote">Pages</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
 <div class="kb-hl" hidden><span>Your highlight:</span><q></q><button type="button" data-a="unhl" title="Do not send this highlight" aria-label="Do not send this highlight">&#x2715;</button></div>
 <div class="kb-view" data-v="notebook"><div class="kd-paper"><div class="kd-scr"><div class="kd-book"></div></div><div class="kd-st" aria-live="polite"></div></div></div>
 <div class="kb-view" data-v="pages" hidden><div class="kb-scroll kd-log"></div></div>
+<div class="kb-view" data-v="find" hidden><div class="kd-fbar"><input type="search" placeholder="Search your notebook: your writing, your notes and Claude's replies" aria-label="Search the notebook"></div><div class="kb-scroll kd-find"></div></div>
 <div class="kb-view" data-v="set" hidden><div class="kb-scroll kb-set"></div></div>
 <div class="kb-grip" title="Drag to resize"></div>`;
   document.body.append(bar, toastEl, P);
@@ -204,7 +233,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const head = $('.kb-h'), grip = $('.kb-grip'), hlBox = $('.kb-hl');
   const nbView = $('[data-v=notebook]'), pgView = $('[data-v=pages]'), stView = $('[data-v=set]');
   const stat = $('.kd-st'), scr = $('.kd-scr'), book$ = $('.kd-book');
-  const log = $('.kd-log'), setv = $('.kb-set');
+  const log = $('.kd-log'), setv = $('.kb-set'), fdView = $('[data-v=find]'), fdList = $('.kd-find'), fdIn = fdView.querySelector('input');
 
   // ---- the notebook window: full screen by default (clear of the toolbar), or floating (dragged by its title bar, resized from the
   // corner, remembered) ----
@@ -248,8 +277,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let sub = null;   // null, 'pages' or 'set'
   function show(){
     const v = sub || 'notebook';
-    nbView.hidden = v !== 'notebook'; pgView.hidden = v !== 'pages'; stView.hidden = v !== 'set';
-    $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set');
+    nbView.hidden = v !== 'notebook'; pgView.hidden = v !== 'pages'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find';
+    $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set'); $('[data-a=find]').classList.toggle('kb-on', sub === 'find');
+    if (v === 'find') renderFind();
     if (v === 'pages') renderLog();
     if (v === 'set') renderSet();
     if (v === 'notebook') requestAnimationFrame(layoutBook);
@@ -262,19 +292,29 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     sub = !store.get('key') ? 'set' : (view || null); show();
   }
   function close(){ P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (sel || psel) { clearSel(); clearPsel() } else if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
 
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let tool = /^(hand|pen|hl|erase|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
+  let tool = /^(hand|pen|hl|erase|text|lasso)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
   const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off';
+  // one-tap prompts beside every Ask box: "Label: prompt" per line; a prompt ending in "…" is put in the box to finish, not sent
+  const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …';
+  const prompts = () => (mine.get('prompts') || PROMPTS0).split('\n').map(l => { const i = l.indexOf(':'); return i > 0 ? {label:l.slice(0, i).trim(), text:l.slice(i + 1).trim()} : null }).filter(x => x && x.label && x.text).slice(0, 8);
+  const chipsHtml = () => '<div class="kb-chips">' + prompts().map((x, i) => '<button type="button" data-q="' + i + '" title="' + esc(x.text) + '">' + esc(x.label) + '</button>').join('') + '</div>';
+  // a chip: ask its prompt at once, or put an unfinished one ("…") in the box
+  function chipClick(e, input, askFn){
+    const b = e.target.closest('[data-q]'); if (!b) return false; e.preventDefault(); const x = prompts()[+b.dataset.q]; if (!x) return true;
+    if (/…$|\.\.\.$/.test(x.text)) { input.value = x.text.replace(/\s*(…|\.\.\.)$/, ' '); input.focus() } else askFn(x.text);
+    return true;
+  }
   // how long after the last stroke Claude reads (Settings; 3 s by default); typing waits twice as long. "Never" is Claude off: Send only
   const waitS = () => { const v = parseFloat(mine.get('wait')); return WAITS.includes(v) ? v : 3 };
   const claudeTitle = () => 'Claude reads your writing ' + waitS() + ' s after you stop (on), or only when you tap Send (off); the wait is in Settings';
-  const penOn = () => tool === 'pen' || tool === 'hl' || tool === 'erase';   // the tools that write on the page; Read and Text leave it alone
+  const penOn = () => tool === 'pen' || tool === 'hl' || tool === 'erase' || tool === 'lasso';   // the tools that act on the page; Read and Text leave it alone
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
   function placeBar(){
@@ -310,7 +350,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     if (penOn()) hidePop();
     placeBar();
   }
-  function setTool(t){ tool = t; mine.set('tool', t); syncBar() }
+  function setTool(t){ tool = t; mine.set('tool', t); if (t !== 'lasso') { clearSel(); clearPsel() } syncBar() }
   bar.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.t) setTool(b.dataset.t === tool && tool !== 'hand' ? 'hand' : b.dataset.t);
@@ -354,7 +394,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- page text (every tab; frozen at first use so the cached prefix stays identical) and what is in view now ----
   const SKIP = /^(SCRIPT|STYLE|SVG|CANVAS|BUTTON|SELECT|INPUT|TEXTAREA|NAV|TEMPLATE|NOSCRIPT)$/;
   const BLOCK = /^(P|DIV|LI|UL|OL|SECTION|ARTICLE|DETAILS|SUMMARY|FIGURE|FIGCAPTION|TABLE|TR|PRE|BLOCKQUOTE|H[1-6]|BR|HR|DL|DT|DD|ASIDE|HEADER|FOOTER|MAIN)$/;
-  const OURS = '#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbAskPop,#kbAsk,#kbAskBtn,#kbAskSel,#jsErr', OURS_UI = '#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbAskPop,#kbAsk,#kbAskBtn,#kbAskSel';
+  const OURS = '#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbAsk,#kbAskBtn,#kbAskSel,#jsErr', OURS_UI = '#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbAsk,#kbAskBtn,#kbAskSel';
   function walk(n, out){
     if (n.nodeType === 3) { out.push(n.nodeValue); return }
     if (n.nodeType !== 1) return;
@@ -704,6 +744,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       e.preventDefault(); cv.setPointerCapture(e.pointerId);
       const r = cv.getBoundingClientRect();
       if (opt.texter && opt.texter()) { opt.textAt(pt(e, r), e); return }
+      if (opt.lassoer && opt.lassoer()) { o.cur = {id:e.pointerId, r, la:true, p:[pt(e, r)]}; opt.lasso(o.cur.p, false); return }
       if (opt.eraser && opt.eraser()) { o.cur = {id:e.pointerId, r, er:true}; opt.erase(pt(e, r)); return }
       opt.down(); const st = Object.assign({p:[pt(e, r)]}, opt.style()); o.cur = {id:e.pointerId, r, s:st, p:st.p, hx:st.p[0][0], hy:st.p[0][1]}; o.strokes.push(st); if (opt.start) opt.start(st); setT(); drawStroke(g, st, opt.color());
       hold(o.cur);
@@ -716,6 +757,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     cv.addEventListener('pointermove', e => {
       if (!o.cur || e.pointerId !== o.cur.id) return; e.preventDefault();
       if (o.cur.er) { opt.erase(pt(e, o.cur.r)); return }
+      if (o.cur.la) { o.cur.p.push(pt(e, o.cur.r)); opt.lasso(o.cur.p, false); return }
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       const st = o.cur.s, c = o.cur; if (c.snapped) return; let moved = false;
       g.save(); g.strokeStyle = g.fillStyle = st.c || opt.color(); g.lineCap = 'round';
@@ -726,7 +768,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       }
       g.restore(); if (st.h && moved) o.redraw();   // a highlighter stroke is redrawn whole, so it stays one even wash
     });
-    const up = e => { if (!o.cur || e.pointerId !== o.cur.id) return; clearTimeout(o.ht); if (e.pointerType === 'pen') penUp = performance.now(); const c = o.cur; o.cur = null; if (c.er) { if (opt.erased) opt.erased() } else { o.redraw(); opt.up(c.s) } };
+    const up = e => { if (!o.cur || e.pointerId !== o.cur.id) return; clearTimeout(o.ht); if (e.pointerType === 'pen') penUp = performance.now(); const c = o.cur; o.cur = null; if (c.er) { if (opt.erased) opt.erased() } else if (c.la) opt.lasso(c.p, true); else { o.redraw(); opt.up(c.s) } };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     return o;
   }
@@ -760,7 +802,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const drop = (a, s) => { const k = a.findIndex(x => x === s || (x && (x.s === s || x.m === s))); if (k >= 0) a.splice(k, 1) };
   const r1 = v => Math.round(v * 10) / 10;
   let saveT = 0;
-  const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => tx('readwrite', s => s.put({page:PAGE_ID, t:Date.now(), pages:book.map(p => ({ink:p.ink.map(roundS), items:p.items})), marks:marks.map(m => Object.assign({}, m, {p:m.p.map(rq)})), notes}), 'books'), 400) };
+  const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => tx('readwrite', s => s.put({page:PAGE_ID, t:Date.now(), pages:book.map(p => ({ink:p.ink.map(roundS), items:p.items, reads:p.reads || []})), marks:marks.map(m => Object.assign({}, m, {p:m.p.map(rq)})), notes}), 'books'), 400) };
   const rq = q => [r1(q[0]), r1(q[1]), Math.round(q[2] * 100) / 100], roundS = s => ({p:s.p.map(rq), c:s.c || null, w:s.w, h:!!s.h, t:s.t});
   // how wide a typed note's text really is (its box runs to the margin)
   function measureW(it){ const e = elOf.get(it); if (!e) return it.w; const rg = document.createRange(); rg.selectNodeContents(e); const base = e.getBoundingClientRect(), k = base.width / it.w || 1; let r = 0; for (const q of rg.getClientRects()) r = Math.max(r, (q.right - base.left) / k); return Math.max(40, r) }
@@ -773,7 +815,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     inner.append(c, items, no); outer.appendChild(inner);
     if (pgs[i]) book$.insertBefore(outer, pgs[i].outer); else book$.appendChild(outer);
     const ink = Ink(c, {lw:PW, color:() => inkColor, style:curStyle,
-      texter:() => tool === 'text', textAt:(p, e) => typeAt(ix(), p, e),
+      texter:() => tool === 'text', textAt:(p, e) => typeAt(ix(), p, e), lassoer:() => tool === 'lasso', lasso:(pts, end) => lassoNb(ix(), pts, end),
       block:() => tool === 'hand' || !!gest || performance.now() < gestEnd || pgs.some(p => p.ink.busy()),
       eraser:() => tool === 'erase', erase:p => eraseAt(ix(), p), erased:() => { saveBook(); renderOn() },
       down:() => { clearTimeout(NB.timer); stat.textContent = ''; if (ed) finishEd() }, start:s => { s.t = Date.now(); pend.push({pg:ix(), s}); undoStack.push({pg:ix(), s}); syncBar() },
@@ -825,7 +867,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   });
 
   // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
-  function styleItem(e, it){ if (it.kind === 'reply' && it.fs && it.fs !== 1) { e.style.fontSize = 30 * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
+  function styleItem(e, it){ if ((it.kind === 'reply' || it.kind === 'typed') && it.fs && it.fs !== 1) { const b = it.kind === 'reply' ? 30 : 22; e.style.fontSize = b * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
   const arrowD = a => {
     const dx = a.x2 - a.x1, dy = a.y2 - a.y1, cx = (a.x1 + a.x2) / 2 - dy * 0.15, cy = (a.y1 + a.y2) / 2 + dx * 0.15;
     const hx = a.x2 - cx, hy = a.y2 - cy, hl = Math.hypot(hx, hy) || 1, ux = hx / hl, uy = hy / hl, h = 15, f = v => Math.round(v);
@@ -859,6 +901,74 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (hit) pgs[i].ink.redraw();
   }
   function renderOn(){ if (!pend.length && !NB.out.typed()) { clearTimeout(NB.timer); stat.textContent = '' } }
+
+  // ---- the lasso in the notebook: a loop selects the strokes and notes mostly inside it; the selection can be moved (drag the box),
+  // resized (the corner dot), deleted, or asked about (Claude gets it outlined on the page and close up, and answers next to it) ----
+  const pip = (x, y, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c } return c };
+  let sel = null, lassoSvg = null;
+  function clearSel(){ if (sel) { sel.ui.remove(); sel = null } if (lassoSvg) { lassoSvg.remove(); lassoSvg = null } }
+  function lassoNb(i, pts, end){
+    if (!end) {
+      if (pts.length === 1) { clearSel(); lassoSvg = document.createElementNS(NS, 'svg'); lassoSvg.setAttribute('class', 'kd-it kd-arrow'); lassoSvg.setAttribute('viewBox', `0 0 ${PW} ${PH}`); lassoSvg.innerHTML = '<path fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="7 6"/>'; pgs[i].items.appendChild(lassoSvg) }
+      if (lassoSvg) lassoSvg.firstChild.setAttribute('d', 'M' + pts.map(q => r1(q[0]) + ' ' + r1(q[1])).join('L') + 'Z');
+      return;
+    }
+    if (lassoSvg) { lassoSvg.remove(); lassoSvg = null }
+    if (pts.length < 4 || plen(pts) < 40) return;
+    const d = book[i], ss = d.ink.filter(s2 => s2.p.filter(q => pip(q[0], q[1], pts)).length >= s2.p.length * 0.6);
+    const its = d.items.filter(it => it.kind === 'arrow' ? pip((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, pts) : pip(it.x + Math.min(it.w, measureW(it)) / 2, it.y + (it.h || LH) / 2, pts));
+    const box = ss.length || its.length ? unionBox(ss, its) : pbox(pts);
+    showSel(i, ss, its, box);
+  }
+  function unionBox(ss, its){
+    let b = ss.length ? bbox(ss) : null;
+    for (const it of its) { const t = it.kind === 'arrow' ? {x0:Math.min(it.x1, it.x2), y0:Math.min(it.y1, it.y2), x1:Math.max(it.x1, it.x2), y1:Math.max(it.y1, it.y2)} : {x0:it.x, y0:it.y, x1:it.x + Math.min(it.w, measureW(it)), y1:it.y + (it.h || LH)}; b = b ? {x0:Math.min(b.x0, t.x0), y0:Math.min(b.y0, t.y0), x1:Math.max(b.x1, t.x1), y1:Math.max(b.y1, t.y1)} : t }
+    return b;
+  }
+  function showSel(i, ss, its, box){
+    const pad = 8, ui = el('div', {class:'kd-it', style:'left:0;top:0;width:0;height:0;overflow:visible'});
+    const bx = el('div', {class:'kb-selbox'}), gr = el('div', {class:'kb-selgrip', title:'Drag to resize'});
+    const n = ss.length + its.length, br = el('div', {class:'kb-selbar'}, '<div class="kb-pr"><input type="text" placeholder="Ask about this…" enterkeyhint="send"><button type="button" class="kb-go" data-s="ask">Ask</button>' + (n ? '<button type="button" data-s="del" title="Delete what is selected">Delete</button>' : '') + '<button type="button" data-s="done" aria-label="Done">&#x2715;</button></div>' + chipsHtml());
+    if (n) bx.appendChild(gr); ui.append(bx, br); pgs[i].items.appendChild(ui);
+    sel = {pg:i, ss, its, box, ui};
+    const place = () => { const b = sel.box; Object.assign(bx.style, {left:(b.x0 - pad) + 'px', top:(b.y0 - pad) + 'px', width:(b.x1 - b.x0 + 2 * pad) + 'px', height:(b.y1 - b.y0 + 2 * pad) + 'px'});
+      const k = 1 / scale, above = b.y0 - pad - 8 - 92 * k; Object.assign(br.style, {left:(b.x0 - pad) + 'px', top:(above >= 4 ? above : b.y1 + pad + 10) + 'px', transform:'scale(' + k + ')', transformOrigin:'0 0'}) };   // above the box, or under it when there is no room
+    place();
+    const inp = br.querySelector('input'), ask = q => { if (q && q.trim()) askLasso(q.trim()) };
+    br.addEventListener('pointerdown', e => e.stopPropagation());
+    br.addEventListener('click', e => {
+      if (chipClick(e, inp, ask)) return; const b = e.target.closest('[data-s]'); if (!b) return;
+      if (b.dataset.s === 'ask') ask(inp.value);
+      else if (b.dataset.s === 'done') clearSel();
+      else if (b.dataset.s === 'del') { for (const s2 of ss) { drop(book[i].ink, s2); drop(pend, s2); drop(undoStack, s2) } for (const it of its) { drop(pendTyped, it); removeItem(i, it) } pgs[i].ink.redraw(); clearSel(); saveBook(); syncBar() }
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask(inp.value) } else if (e.key === 'Escape') clearSel() });
+    // move and resize work from a copy of where everything was when the drag began
+    const drag = (h, resize) => h.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); h.setPointerCapture(e.pointerId);
+      const sx = e.clientX, sy = e.clientY, b0 = Object.assign({}, sel.box), S0 = ss.map(s2 => ({p:s2.p.map(q => q.slice()), w:s2.w})), I0 = its.map(it => Object.assign({}, it));
+      const mv = ev => {
+        const dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale, W = b0.x1 - b0.x0 || 1, f = resize ? Math.max(0.2, Math.min(5, (W + dx) / W)) : 1;
+        const T = (x, y) => resize ? [b0.x0 + (x - b0.x0) * f, b0.y0 + (y - b0.y0) * f] : [x + dx, y + dy];
+        ss.forEach((s2, k) => { s2.p = S0[k].p.map(q => { const t = T(q[0], q[1]); return [t[0], t[1], q[2]] }); if (resize) s2.w = S0[k].w * f });
+        its.forEach((it, k) => { const o = I0[k];
+          if (it.kind === 'arrow') { const a = T(o.x1, o.y1), z = T(o.x2, o.y2); Object.assign(it, {x1:a[0], y1:a[1], x2:z[0], y2:z[1]}) }
+          else { const t = T(o.x, o.y); it.x = t[0]; it.y = t[1]; if (resize) { it.w = o.w * f; it.fs = (o.fs || 1) * f; it.h = (o.h || LH) * f } }
+          const old = elOf.get(it), ne = itemEl(it); if (old) old.replaceWith(ne) });
+        const t0 = T(b0.x0, b0.y0), t1 = T(b0.x1, b0.y1); sel.box = {x0:t0[0], y0:t0[1], x1:t1[0], y1:t1[1]}; place(); pgs[i].ink.redraw();
+      };
+      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); saveBook() };
+      h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+    });
+    drag(bx, false); drag(gr, true);
+  }
+  async function askLasso(q){
+    const S = sel; if (!S) return; clearSel(); if (needKey(NB)) return;
+    stat.textContent = 'Looking…';
+    const job = {kind:'note', typed:q, lasso:true, hl:null, pg:S.pg, A:S.box, fresh:S.ss, img:snapshot(S.ss), scr:await screenBlocks(P.classList.contains('kb-full'), null, null)};
+    if (NB.busy) { NB.queued = job; stat.textContent = 'Will read after this reply…'; return }
+    send(NB, job);
+  }
 
   // ---- typing on the paper: with the Text tool, a tap opens a line where it lands (an earlier typed note there opens for editing).
   // The text becomes a typed note on the page when the box closes: Enter (sends at once), Esc, a tap elsewhere, or Claude reading it ----
@@ -1074,8 +1184,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     content.push(...job.scr.blocks);
     content.push({type:'text', text:job.kind === 'page'
       ? job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + t.a).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
+      : job.lasso ? 'They drew a loop round part of the page (the dashed loop, outlined NEW on the screen image' + (job.marks.length > 1 ? '; their own marks inside it are part of what they mean' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The loop is on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Answer that question about what is inside the loop, in a note that will sit beside it. No <at> or <point> here.'
       : job.typed ? 'They selected a passage on the page (its text is in <highlight> above; it is now highlighted in yellow and outlined NEW on the screen image) and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that question about that passage, in a note that will sit beside it. No <at> or <point> here.'
       : 'They drew on the page itself, over what is on their screen: their new marks are in the dashed box marked NEW on the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. ' + (job.near ? 'They are on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Read what they wrote or marked (a circle, an arrow, an underline, a highlight, a note in the margin, a sketch) and answer about exactly that, in a note that will sit beside their marks. No <at> or <point> here.'
+      : job.lasso ? 'They drew a loop round this part of their notebook page (outlined NEW on the notebook image' + (job.img ? '; the handwriting in it is close up in the first image' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that, about what they selected.\nFree spots for your reply:\n' + job.slots.map(q => q.key + ': ' + q.where + ', ' + room(q)).join('\n') + '\nStart with <at>letter</at>.'
       : (job.img ? 'What they just wrote by hand is in the NEW box on the notebook page and close up in the first image.' : 'They wrote nothing by hand this time.') + (job.typed ? '\nThey typed this on the page (it is in the NEW box too):\n' + job.typed : '') +
         '\nFree spots for your reply:\n' + job.slots.map(q => q.key + ': ' + q.where + ', ' + room(q)).join('\n') + '\nStart with <at>letter</at>.'});
     let shown = 0, queue = [], drip = 0, hold = 0, stopped = false;
@@ -1118,6 +1230,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       else if (S.out.done) S.out.done(job, text, r.raw);
       S.out.status(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
       const img = job.kind === 'page' ? (job.scr.img ? await thumb(job.scr.img, job.box, job.scr.k) : null) : (job.img ? await thumb(job.img) : null);
+      if (job.kind === 'note' && m2 && m2[1].trim() && book[job.pg]) { (book[job.pg].reads = book[job.pg].reads || []).push({t:Date.now(), text:m2[1].trim(), box:job.A}); saveBook() }
       save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
     } catch(e) {
       await drained();
@@ -1204,6 +1317,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function styleMark(g, m){
     g.setAttribute('fill', 'none'); g.setAttribute('stroke', m.c || 'currentColor'); g.setAttribute('stroke-width', markW(m).toFixed(2));
     g.setAttribute('stroke-linecap', 'round'); g.setAttribute('stroke-linejoin', 'round'); if (m.h) g.setAttribute('stroke-opacity', '0.35');
+    if (m.dash) { g.style.stroke = 'var(--acc)'; g.setAttribute('stroke-dasharray', '7 6'); g.setAttribute('stroke-opacity', '0.55'); g.setAttribute('stroke-width', '1.6') } else g.style.stroke = '';
   }
   function markNode(m){ const g = document.createElementNS(NS, 'path'); styleMark(g, m); g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(g); markEl.set(m, g); return g }
   function placeMarks(){
@@ -1256,6 +1370,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (!penOn() || live || e.button > 0 || !(e.pointerType === 'pen' || e.pointerType === 'mouse') || !onPage(e)) return;
     e.preventDefault(); e.stopPropagation();
     if (tool === 'erase') { live = {id:e.pointerId, er:true}; erasePage(e.clientX, e.clientY); return }
+    if (tool === 'lasso') { clearPsel(); const o = marksSvg.getBoundingClientRect(), g = document.createElementNS(NS, 'path'); g.setAttribute('fill', 'none'); g.style.stroke = 'var(--acc)'; g.setAttribute('stroke-width', '2'); g.setAttribute('stroke-dasharray', '7 6'); marksSvg.appendChild(g); live = {id:e.pointerId, la:true, o, g, p:[[r1(e.clientX - o.left), r1(e.clientY - o.top), 0.5]]}; return }
     clearTimeout(PG.timer); PG.out.status('');
     const o = marksSvg.getBoundingClientRect(), m = Object.assign({p:[[r1(e.clientX - o.left), r1(e.clientY - o.top), e.pointerType === 'pen' ? (e.pressure || 0.3) : 0.5]]}, curStyle());
     live = {id:e.pointerId, m, o, g:document.createElementNS(NS, 'path'), hx:m.p[0][0], hy:m.p[0][1]}; styleMark(live.g, m); live.g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(live.g);
@@ -1265,6 +1380,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   document.addEventListener('pointermove', e => {
     if (!live || e.pointerId !== live.id) return; e.preventDefault(); e.stopPropagation();
     if (live.er) { erasePage(e.clientX, e.clientY); return }
+    if (live.la) { live.p.push([r1(e.clientX - live.o.left), r1(e.clientY - live.o.top), 0.5]); live.g.setAttribute('d', 'M' + live.p.map(q => q[0] + ' ' + q[1]).join('L') + 'Z'); return }
     if (live.snapped) return;
     const m = live.m, o = live.o, evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for (const x of (evs.length ? evs : [e])) { const p = [r1(x.clientX - o.left), r1(x.clientY - o.top), x.pointerType === 'pen' ? (x.pressure || 0.3) : 0.5], q = m.p[m.p.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 0.8) m.p.push(p); if (Math.hypot(p[0] - live.hx, p[1] - live.hy) > 3) { live.hx = p[0]; live.hy = p[1]; holdLive(live) } }
@@ -1273,9 +1389,52 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const endLive = e => {
     if (!live || e.pointerId !== live.id) return; e.stopPropagation(); const L = live; live = null; lastStroke = performance.now();
     clearTimeout(L.ht); if (L.er) { saveBook(); return }
+    if (L.la) { lassoPage(L); return }
     if (scratchOn() && !L.m.sh && isScratch(L.m.p) && scratchPage(L)) return;
     pin(L.m, L.o, L.g); pendPage.push(L.m); saveBook(); arm(PG);
   };
+  // ---- the lasso on the page: a loop selects the marks mostly inside it and the part of the page under it; the box can be moved
+  // (the marks with it), the marks deleted, or the region asked about (the loop stays as a faint dashed mark the note is pinned to) ----
+  const psel$ = el('div', {id:'kbPsel'}); document.body.appendChild(psel$);
+  let psel = null;
+  function clearPsel(){ if (psel) { psel.g.remove(); psel = null } psel$.innerHTML = '' }
+  function lassoPage(L){
+    const poly = L.p; if (poly.length < 4 || plen(poly) < 40) { L.g.remove(); return }
+    const o = marksSvg.getBoundingClientRect(), ms = marks.filter(m => { const f = frameOf(m); if (!f) return false; const pts = m.p.map(q => [f.x - o.left + q[0] * f.s, f.y - o.top + q[1] * f.s]); return pts.filter(q => pip(q[0], q[1], poly)).length >= pts.length * 0.6 });
+    psel = {g:L.g, poly, o, ms};
+    const b = pbox(poly), ob = psel$.getBoundingClientRect(), off = [o.left - ob.left, o.top - ob.top], k = ms.length;
+    const bx = el('div', {class:'kb-selbox'}), br = el('div', {class:'kb-selbar'}, '<div class="kb-pr"><input type="text" placeholder="Ask about this…" enterkeyhint="send"><button type="button" class="kb-go" data-s="ask">Ask</button>' + (k ? '<button type="button" data-s="del">Delete ' + k + ' mark' + (k > 1 ? 's' : '') + '</button>' : '') + '<button type="button" data-s="done" aria-label="Done">&#x2715;</button></div>' + chipsHtml());
+    Object.assign(bx.style, {left:(b.x0 + off[0] - 6) + 'px', top:(b.y0 + off[1] - 6) + 'px', width:(b.x1 - b.x0 + 12) + 'px', height:(b.y1 - b.y0 + 12) + 'px', background:'transparent', borderColor:'transparent', cursor:k ? 'move' : 'default'});
+    const W = Math.min(420, innerWidth - 24); Object.assign(br.style, {left:Math.max(scrollX + 8, Math.min(scrollX + innerWidth - W - 8, b.x0 + off[0])) + 'px', top:(b.y1 + off[1] + 10) + 'px'});
+    psel$.append(bx, br);
+    const inp = br.querySelector('input'), ask = q => { if (q && q.trim()) askPageLasso(q.trim()) };
+    br.addEventListener('pointerdown', e => e.stopPropagation(), true);
+    br.addEventListener('click', e => {
+      if (chipClick(e, inp, ask)) return; const t = e.target.closest('[data-s]'); if (!t) return;
+      if (t.dataset.s === 'ask') ask(inp.value); else if (t.dataset.s === 'done') clearPsel();
+      else if (t.dataset.s === 'del') { for (const m of ms) removeMark(m); clearPsel(); saveBook(); syncBar() }
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask(inp.value) } else if (e.key === 'Escape') clearPsel() });
+    if (k) bx.addEventListener('pointerdown', e => {   // drag the selection: its marks move with it
+      e.preventDefault(); e.stopPropagation(); bx.setPointerCapture(e.pointerId); const sx = e.clientX, sy = e.clientY, M0 = ms.map(m => m.p.map(q => q.slice())), l0 = parseFloat(bx.style.left), t0 = parseFloat(bx.style.top), P0 = psel.poly.map(q => q.slice());
+      const mv = ev => { const dx = ev.clientX - sx, dy = ev.clientY - sy;
+        ms.forEach((m, j) => { const f = frameOf(m) || {s:1}; m.p = M0[j].map(q => [r1(q[0] + dx / f.s), r1(q[1] + dy / f.s), q[2]]); const g = markEl.get(m); if (g) g.setAttribute('d', pathD(m.p, m.sh)) });
+        psel.poly = P0.map(q => [q[0] + dx, q[1] + dy, q[2]]); psel.g.setAttribute('d', 'M' + psel.poly.map(q => q[0] + ' ' + q[1]).join('L') + 'Z');
+        bx.style.left = (l0 + dx) + 'px'; bx.style.top = (t0 + dy) + 'px'; br.style.top = (parseFloat(bx.style.top) + parseFloat(bx.style.height) + 4) + 'px' };
+      const up = () => { bx.removeEventListener('pointermove', mv); bx.removeEventListener('pointerup', up); bx.removeEventListener('pointercancel', up); saveBook() };
+      bx.addEventListener('pointermove', mv); bx.addEventListener('pointerup', up); bx.addEventListener('pointercancel', up);
+    });
+  }
+  async function askPageLasso(q){
+    const S = psel; if (!S) return; psel = null; psel$.innerHTML = ''; if (needKey(PG)) { S.g.remove(); return }
+    // the loop itself is kept as a faint dashed mark, so the note has something to stay beside and to be reopened from
+    const m = {p:S.poly.concat([S.poly[0]]).map(q => [q[0], q[1], 0.5]), c:null, w:1.6, dash:true}; styleMark(S.g, m); pin(m, S.o, S.g); saveBook();
+    const ms = [m].concat(S.ms);
+    PG.out.status('Looking…');
+    const job = {kind:'page', typed:q, lasso:true, hl:null, marks:ms, box:viewBox([m]), near:nearText([m]), scr:await screenBlocks(false, ms, null)};
+    if (PG.busy) { PG.queued = job; PG.out.status('Will read after this reply…'); return }
+    send(PG, job);
+  }
   // a scratch-out over marks on the page: the marks mostly under it go, and so does the scratch
   function scratchPage(L){
     const o = marksSvg.getBoundingClientRect(), b = pbox(L.m.p); let hit = false;
@@ -1305,21 +1464,22 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 
   // ---- select text on the page (Read or Text tool): a small box asks Claude about it; the passage is highlighted in yellow and the
   // answer comes as a note beside it, like a reply to a mark ----
-  const pop = el('div', {id:'kbAskPop', hidden:'', role:'dialog', 'aria-label':'Ask Claude about the selection'}, '<input type="text" placeholder="Ask Claude about this…" enterkeyhint="send" aria-label="Your question"><button type="button">Ask</button>');
+  const pop = el('div', {id:'kbAskPop', hidden:'', role:'dialog', 'aria-label':'Ask Claude about the selection'}, '<div class="kb-pr"><input type="text" placeholder="Ask Claude about this…" enterkeyhint="send" aria-label="Your question"><button type="button" data-ask>Ask</button></div><div class="kb-chipsbox"></div>');
   document.body.appendChild(pop);
   const popIn = pop.querySelector('input');
+  pop.addEventListener('click', e => { chipClick(e, popIn, q => askSel(q)) });
   function showPop(){
     if (!hl || !hl.rects.length) return;
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
-    let y = last.y - scrollY + last.h + 12; if (y + 50 > innerHeight) y = Math.max(8, first.y - scrollY - 58);
+    let y = last.y - scrollY + last.h + 12; if (y + 90 > innerHeight) y = Math.max(8, first.y - scrollY - 96);
     const x = Math.max(8, Math.min(innerWidth - w - 8, last.x - scrollX + last.w / 2 - w / 2));
-    Object.assign(pop.style, {left:x + 'px', top:y + 'px'}); pop.hidden = false;
+    pop.querySelector('.kb-chipsbox').innerHTML = chipsHtml(); Object.assign(pop.style, {left:x + 'px', top:y + 'px'}); pop.hidden = false;
   }
   function hidePop(){ pop.hidden = true; popIn.value = '' }
   document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target)) setTimeout(() => { if (document.activeElement !== popIn || !popIn.value.trim()) { const sel = getSelection(); if (!sel || sel.isCollapsed) hidePop() } }, 300) }, true);
   addEventListener('scroll', () => { if (!pop.hidden && !popIn.value.trim() && document.activeElement !== popIn && hl && hl.rects.length) { const q = hl.rects[hl.rects.length - 1]; const y = q.y - scrollY; if (y < -40 || y > innerHeight + 40) hidePop(); else showPop() } }, {passive:true});
   const ask = () => { const q = popIn.value.trim(); if (q) askSel(q) };
-  pop.querySelector('button').addEventListener('click', ask);
+  pop.querySelector('[data-ask]').addEventListener('click', ask);
   popIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask() } else if (e.key === 'Escape') hidePop() });
   async function askSel(q){
     const h = hl; if (!h) return; hidePop(); try { getSelection().removeAllRanges() } catch(e) {} hl = null; showHl();
@@ -1369,7 +1529,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   let noteZ = 1;
   function noteNode(n){
-    const e = el('div', {class:'kb-note' + (n.fold ? ' kb-folded' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form><button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
+    const e = el('div', {class:'kb-note' + (n.fold ? ' kb-folded' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
     e.style.width = (n.w || 340) + 'px'; const body = e.querySelector('.kb-nb');
     for (const t of turnsOf(n)) body.appendChild(turnEl(t));
     e.addEventListener('click', ev => {
@@ -1379,6 +1539,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     });
     const f = e.querySelector('form'), inp = f.querySelector('input');
     f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (q) { inp.value = ''; followUp(n, q) } });
+    e.querySelector('.kb-chips').addEventListener('pointerdown', ev => ev.preventDefault());   // keep the box focused so the chips stay
+    e.querySelector('.kb-chips').addEventListener('click', ev => chipClick(ev, inp, q => followUp(n, q)));
     const h = e.querySelector('.kb-nh');
     h.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || ev.target.closest('button')) return; ev.preventDefault(); h.setPointerCapture(ev.pointerId); front(e);
@@ -1434,7 +1596,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       }
       const b = job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);
       let x, y;
-      if (job.hl && job.typed) { x = b.x0; y = b.y1 + 6 }   // a question about a selection: just under the highlighted lines
+      if ((job.hl || job.lasso) && job.typed) { x = b.x0; y = b.y1 + 6 }   // a question about a selection or a loop: just under it
       else if (b.x1 + 12 + w <= W - 8) { x = b.x1 + 12; y = b.y0 }
       else if (b.x0 - 12 - w >= 8) { x = b.x0 - 12 - w; y = b.y0 }
       else { x = b.x0; y = b.y1 + 8 }
@@ -1450,6 +1612,46 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     done(job, text){ job.note.t.a = text; saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ const J = job.note; if (J && !J.d.querySelector('.kb-na').textContent.trim()) this.empty(job); else if (J) { J.t.a = J.d.querySelector('.kb-na').textContent; saveBook() } toast(msg, 9000) }});
+
+  // ---- Pages: every notebook page as a small picture (tap to go there), and search over what is on them: Claude's reading of the
+  // handwriting (kept from each exchange), typed notes and Claude's replies ----
+  const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/⟦[^⟧]*⟧/g, '').replace(/\s+/g, ' ').trim();
+  function thumbOf(i){
+    const c = document.createElement('canvas'), k = 0.25; c.width = PW * k; c.height = PH * k; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k);
+    for (const s2 of book[i].ink) drawStroke(g, Object.assign({}, s2, {w:(s2.w || 2.6) * 1.8}), '#222');
+    for (const it of book[i].items) { if (it.kind === 'arrow') continue; g.fillStyle = it.kind === 'reply' ? 'rgba(160,82,45,.35)' : 'rgba(0,0,0,.28)'; const w = Math.min(it.w, measureW(it)); for (let y = it.y + 10; y < it.y + (it.h || LH) - 4; y += LH) g.fillRect(it.x, y, w, 18) }
+    return c.toDataURL('image/png');
+  }
+  function textsOf(i){
+    const d = book[i], out = [];
+    for (const r of d.reads || []) out.push({who:'You wrote', text:r.text, box:r.box});
+    for (const it of d.items) if (it.kind === 'typed' || it.kind === 'reply') out.push({who:it.kind === 'typed' ? 'You typed' : 'Claude', text:plain(it.text), box:{x0:it.x, y0:it.y, x1:it.x + it.w, y1:it.y + (it.h || LH)}});
+    return out;
+  }
+  function renderFind(){
+    const q = fdIn.value.trim().toLowerCase(), used = book.map((d, i) => i).filter(i => !blank(book[i]));
+    if (!q) {
+      fdList.innerHTML = used.length ? '<div class="kd-grid">' + used.map(i => { const t = textsOf(i)[0]; return '<div class="kd-th" data-pg="' + i + '"><img alt="Page ' + (i + 1) + '" src="' + thumbOf(i) + '">Page ' + (i + 1) + (t ? '<span>' + esc(t.text.slice(0, 60)) + '</span>' : '') + '</div>' }).join('') + '</div>' : '<p class="kb-hint">Nothing written in the notebook yet.</p>';
+      return;
+    }
+    const hits = []; for (const i of used) for (const t of textsOf(i)) { const at = t.text.toLowerCase().indexOf(q); if (at >= 0) hits.push({i, t, at}) }
+    fdList.innerHTML = hits.length ? hits.map((h, k) => { const s0 = Math.max(0, h.at - 50), a = h.t.text.slice(s0, h.at), m = h.t.text.slice(h.at, h.at + q.length), z = h.t.text.slice(h.at + q.length, h.at + q.length + 80);
+      return '<button type="button" class="kd-hit" data-hit="' + k + '"><b>Page ' + (h.i + 1) + ' · ' + h.t.who + '</b>' + (s0 ? '…' : '') + esc(a) + '<mark>' + esc(m) + '</mark>' + esc(z) + '</button>' }).join('') : '<p class="kb-hint">No match. Search covers Claude\'s reading of your handwriting, your typed notes and Claude\'s replies.</p>';
+    fdList._hits = hits;
+  }
+  fdIn.addEventListener('input', renderFind);
+  fdList.addEventListener('click', e => {
+    const th = e.target.closest('[data-pg]'), hit = e.target.closest('[data-hit]');
+    if (th) goPaper(+th.dataset.pg, null); else if (hit) { const h = fdList._hits[+hit.dataset.hit]; goPaper(h.i, h.t.box) }
+  });
+  // back to the notebook, at a page (and a place on it, briefly outlined)
+  function goPaper(i, box){
+    sub = null; show();
+    requestAnimationFrame(() => { const p = pgs[i]; if (!p) return; const y = box ? box.y0 : 0;
+      scr.scrollTop = Math.max(0, p.outer.offsetTop + y * scale - (box ? scr.clientHeight / 3 : 10));
+      if (box) { const f = el('div', {class:'kd-flash'}); Object.assign(f.style, {left:(box.x0 - 10) + 'px', top:(box.y0 - 8) + 'px', width:(box.x1 - box.x0 + 20) + 'px', height:(box.y1 - box.y0 + 16) + 'px'}); p.items.appendChild(f); setTimeout(() => f.remove(), 1700) } });
+  }
 
   function renderLog(){
     const used = book.filter(p => !blank(p)).length, wipe = '<button type="button" data-a="wipe">Delete all</button>';
@@ -1471,6 +1673,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <label for="kbBuddyModel">Model</label><select id="kbBuddyModel">${Object.keys(MODELS).map(m => '<option value="' + m + '"' + (m === model() ? ' selected' : '') + '>' + MODELS[m].name + '</option>').join('')}</select>
 <label for="kbBuddyWait">When Claude answers</label><select id="kbBuddyWait">${WAITS.map(v => '<option value="' + v + '"' + (claudeOn() && v === waitS() ? ' selected' : '') + '>' + v + ' s after you stop writing' + (v === 3 ? ' (default)' : '') + '</option>').join('')}<option value="never"${claudeOn() ? '' : ' selected'}>Never by itself: only when you press Send</option></select>
 <p>Typing waits twice as long (Enter sends at once). The Claude button on the toolbar switches between this wait and Send only.</p>
+<label for="kbBuddyPrompts">One-tap prompts</label><textarea id="kbBuddyPrompts" rows="5" spellcheck="false">${esc(prompts().map(x => x.label + ': ' + x.text).join('\n'))}</textarea>
+<p>One per line, "Label: what to ask". They appear under every Ask box; one ending in "…" is put in the box for you to finish.</p>
 <label class="kb-ck"><input type="checkbox" id="kbBuddyQ"${qOn() ? ' checked' : ''}><span>A question mark sends at once: end what you write or type with "?" and Claude reads it straight away (even when Claude waits for Send).</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddyScratch"${scratchOn() ? ' checked' : ''}><span>Scratch out to erase: a quick zigzag over your writing deletes it. Holding the pen still at the end of a stroke straightens it into a line, an ellipse or a box.</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddySee"${seeOn() ? ' checked' : ''}><span>Let Claude see the screen: an image of the figures and animations in view, the text in view, the controls' values and your highlight, sent with each message.</span></label>
@@ -1478,6 +1682,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     setv.querySelector('select').onchange = e => store.set('model', e.target.value);
     setv.querySelector('#kbBuddySee').onchange = e => mine.set('see', e.target.checked ? null : 'off');
     setv.querySelector('#kbBuddyQ').onchange = e => mine.set('qsend', e.target.checked ? null : 'off');
+    setv.querySelector('#kbBuddyPrompts').onchange = e => { const v = e.target.value.trim(); mine.set('prompts', v && v !== PROMPTS0 ? v : null) };
     setv.querySelector('#kbBuddyScratch').onchange = e => mine.set('scratch', e.target.checked ? null : 'off');
     setv.querySelector('#kbBuddyWait').onchange = e => {
       const v = e.target.value;
@@ -1494,6 +1699,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (act === 'close') close();
     else if (act === 'full') setFull(!P.classList.contains('kb-full'));
     else if (act === 'pages') { sub = sub === 'pages' ? null : 'pages'; show() }
+    else if (act === 'find') { sub = sub === 'find' ? null : 'find'; show(); if (sub === 'find') fdIn.focus() }
     else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
     else if (act === 'back') { sub = null; show() }
     else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) store.set('key', v); sub = null; show() }
