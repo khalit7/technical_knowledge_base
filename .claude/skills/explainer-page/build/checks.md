@@ -8,12 +8,12 @@ sh html_utils/checkpage.sh <page folder>
 ```
 It opens every tab in light at 920 and 1400 px and dark at 390 px (`tabshot.mjs`), screenshots each into `<page folder>/.shots/`, reports script errors, a visible error box or sideways scroll, then runs `clipcheck.mjs` at 390 px dark for text cut off without a scrollbar. The last line must read:
 ```
-<folder>: tabs N, bytes ..., emdash 0, errbox 1, ask 1, scripts ..., clipped 0, fail=0
+<folder>: tabs N, bytes ..., emdash 0, errbox 1, ask 0, buddy 1, scripts ..., clipped 0, fail=0
 ```
 - `fail=0`: no tab had errors or sideways scroll, nothing clipped.
 - `emdash 0`: no em-dash anywhere in the built page.
 - `errbox 1`: exactly one `#jsErr` box (the fail-safe build is in place).
-- `ask 1`: exactly one Ask Claude block (`<script id="kb-ask">`, from `html_utils/kb_ask.js`). A page made from the templates has it in `01_head.html`; a page copied from an older page has it in whatever part closes its head. If it reads 0, run `python3 html_utils/apply_ask.py <page>` and rebuild. `python3 html_utils/apply_ask.py --check` checks every built page at once.
+- `ask 0`, `buddy 1`: no Ask Claude block (retired 2026-11-19) and exactly one AI buddy loader (`<script id="kb-buddy">`, from `html_utils/kb_buddy_loader.js`); checkpage fails the page otherwise. A page made from the templates has the loader in `01_head.html`; a page copied or rebuilt from an older page has it in whatever part closes its head. If it is missing or an Ask Claude block remains, run `python3 html_utils/apply_buddy.py <page>` and rebuild. `python3 html_utils/apply_buddy.py --check` checks every built page at once.
 - `clipped 0`: no text cut off at phone width.
 On a root built by a team, failures in another agent's unfinished tab may be reported as theirs; your own tabs must be clean.
 

@@ -81,7 +81,7 @@ SCAFFOLD AND FILE OWNERSHIP: the scaffold exists in the root's `src/`: `build.sh
 - Size: the whole root under about 1.5 MB, images included (lab data budget {{LAB_DATA_KB}} KB each if the lead sets one); no file over about 1 MB in the repo.
 
 CHECKS BEFORE REPORTING (details in `build/checks.md`):
-- `sh src/build.sh`; from the repo root `sh html_utils/checkpage.sh {{ROOT_FOLDER}}` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 1`, `clipped 0` (failures in other agents' unfinished tabs may be reported as theirs).
+- `sh src/build.sh`; from the repo root `sh html_utils/checkpage.sh {{ROOT_FOLDER}}` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 0`, `buddy 1`, `clipped 0` (failures in other agents' unfinished tabs may be reported as theirs).
 - Your own puppeteer script (`headless: 'shell'`, puppeteer via `createRequire` from `html_utils/node_modules`, one browser, closed at the end) clicking every control at 390 px dark, 920 px light and 1400 px light (the split shows at 1100 px and wider): no errors, NaN or undefined, no sideways scroll.
 - A script confirming the page embeds exactly your recorded data and that numbers in prose match the data.
 - Look at the screenshots and fix what looks wrong.

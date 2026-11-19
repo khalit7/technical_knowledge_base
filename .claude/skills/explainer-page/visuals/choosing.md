@@ -31,6 +31,8 @@ Subtract build cost. Ties go to the visual that links to more of the page's othe
 
 **Reject** a visual when it decorates, when a sentence says the same thing completely, when it shows a single number with nothing to move, when its data exists only in images, when it repeats something already shown on this page or a neighbour (link that instead), or when its subject belongs to another page. Record every candidate, its score, and every rejection with its reason in `src/viz_ideas.md`.
 
+**Reject (and on a rebuild, remove) a visual whose every fact is already stated in the step list or prose beside it, and never draw a figure another page owns** (link to the owner, `technical_knowledge_base/OWNERS.md`). Before removing one, move any number that appears only in it into the caption. Keep: real or recorded data, a reproduced or contradicted published figure, labs with more than one control, predict-then-reveal, to-scale structure or a crossover, the page hero, and the concept owner's visual. The score above orders candidates; it is never a removal criterion on its own. The AI buddy can draw an extra picture for one reader on demand, so an authored visual must teach something the page needs for every reader; authored visuals stay the record (sourced, checked, real data).
+
 Pages that are not about mechanisms fit the scoring poorly: categorical facts (licences per checkpoint) become a checker or matrix read verbatim; on a data page the table is the main visual and keeps every field; a breadth page puts many small subjects on the same axes with an evidence column; a news issue earns one index visual (the week strip) plus a visual only where a headline hides a mechanism.
 
 ## 4. Placement follows scope

@@ -36,7 +36,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 
 ## Hard constraints
 - **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`. Never force content into a shape.
-- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)).
+- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)). The one exception is the AI buddy loader in the head, which fetches the shared buddy only when the reader turns it on ([build/scaffold.md](build/scaffold.md)); keep the page buddy-friendly (rules there) and `checkpage.sh` at `ask 0, buddy 1`.
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
 - **Split layout everywhere** (Khalid, 2026-11-06): a section with a visual is text on the left, the visual on the right (sticky); a section without one is full width ([teaching/teaching-contract.md](teaching/teaching-contract.md), [visuals/mechanics.md](visuals/mechanics.md)). **3D stages when reasonable, never forced** ([visuals/three-d.md](visuals/three-d.md)). Every animation is explained step by step on the left.
 - Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll; animations play by themselves once in view, pause off screen, stop on any reader control, and never move by themselves under reduced motion (a long replay the reader drives is a widget that never autoplays).

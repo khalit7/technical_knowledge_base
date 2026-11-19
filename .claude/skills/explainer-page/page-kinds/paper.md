@@ -130,7 +130,7 @@ When you copy `mk_coverage.py` from another paper, **replace its item list entir
 - **Stay in your folder**: never write to Notion, commit, edit `pages.json` or other papers' folders. Temporary scripts go in scratch or `src/`; this paper's visual ideas go in `src/viz_ideas.md` with ids `P-<folder>.<k>`.
 
 ## Checks
-- `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 1`, `clipped 0`.
+- `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 0`, `buddy 1`, `clipped 0`.
 - `node src/check_page.mjs` passes: every animation plays when scrolled into view; none moves under reduced motion.
 - `python3 html_utils/ledger.py check <folder>` prints problems 0; the header matches the measured minutes.
 - `check_forward.py` passes, and `mk_coverage.py` accounts for every item.

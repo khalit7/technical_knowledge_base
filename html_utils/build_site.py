@@ -8,8 +8,12 @@ usage: python3 html_utils/build_site.py [out dir, default site/] [base path, def
        the GitHub Pages site lives under /technical_knowledge_base/, so CI passes that as the base path
 then:  (cd html_utils && NPM_CONFIG_USERCONFIG= npx -y pagefind@1.3.0 --site ../site)   full-text search index
 The site is a build output (gitignored); CI builds and deploys it (.github/workflows/site.yml).
+Also written at the site root: kb_index.json (path, title, id, prereqs, headings and a one-line summary per page, for the AI buddy's
+knowledge-base search) and kb_buddy.js (the AI buddy, html_utils/kb_buddy.js), whose address, with a version stamp, goes into each
+page's buddy loader (the kb-buddy block) as data-src. The bar is inserted at each page's first closing head tag and opening body tag,
+so no inline script may contain those literally.
 """
-import html, json, re, shutil, sys
+import hashlib, html, json, re, shutil, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -25,6 +29,8 @@ by_id = {p["id"].replace("-", ""): p for p in pages}
 for _p in pages:
     for _a in _p.get("aliases", []):
         by_id.setdefault(_a.replace("-", ""), _p)
+BUDDY = (ROOT / "html_utils/kb_buddy.js").read_text()
+BUDDY_SRC = BASE + "kb_buddy.js?v=" + hashlib.sha1(BUDDY.encode()).hexdigest()[:10]   # a new stamp whenever the buddy changes, so browsers fetch it again
 NEWS, PAPERS = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers"
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]  # What's new sits above them
 
@@ -244,6 +250,7 @@ def main():
         if f.exists():
             s = relink(f.read_text())
             s = s.replace("</head>", BAR_CSS + "</head>", 1)
+            s = s.replace('<script id="kb-buddy">', f'<script id="kb-buddy" data-src="{BUDDY_SRC}">', 1)
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)
             n += 1
@@ -269,6 +276,7 @@ def main():
             (d / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><title>Redirect</title><meta name="robots" content="noindex">'
                                           f'<script>location.replace({json.dumps(url(p))}+location.hash)</script><a href="{url(p)}">{html.escape(p["title"])}</a>')
     (OUT / "index.html").write_text(home())
+    (OUT / "kb_buddy.js").write_text(BUDDY)
     (OUT / "kb_index.json").write_text(json.dumps(kb_index(), ensure_ascii=False, separators=(",", ":")))
     print(f"site: {n} pages in {OUT}")
 

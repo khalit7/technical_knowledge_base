@@ -1,7 +1,7 @@
 # Publishing a topic
 
 Since 2026-10-23 publishing is the lead's job and needs no agent: the procedure is the `sync-kb-github` skill. For a finished topic:
-1. Each page: `sh html_utils/checkpage.sh <page>` ends `fail=0, emdash 0, errbox 1, ask 1, clipped 0`; its own checks pass; privacy grep clean.
+1. Each page: `sh html_utils/checkpage.sh <page>` ends `fail=0, emdash 0, errbox 1, ask 0, buddy 1, clipped 0`; its own checks pass; privacy grep clean.
 2. `python3 html_utils/page_finalize.py <child> ... <root>` commits each page's own files with `pages.json`; `git push`; confirm the site's deploy run succeeded and a page loads.
 3. Notion: every page of the topic has its link page (new children created under the root with the link line; reused old pages retitled; the root's body is the link line plus its child pages). Record `"notion": "link"` in `pages.json`.
 4. New concept owners go into `technical_knowledge_base/OWNERS.md`.

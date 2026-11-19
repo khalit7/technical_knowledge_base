@@ -37,6 +37,9 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 - Illustrative data where real data exists: real logits, real configs, real weights, real logs.
 - A toy that does not show the mechanism. Toys are welcome when they show a mechanism, complete a published experiment, or give a known answer ([../evidence/local-runs.md](../evidence/local-runs.md)).
 - A chart with nothing to move, a visual that repeats another page's, or one whose data exists only in images ([../visuals/choosing.md](../visuals/choosing.md)).
+- A step list repeated in the paragraph beside it; the step list is the explanation.
+- A table and a figure showing the same data twice, or a figure duplicated from another page (link to its owner, `technical_knowledge_base/OWNERS.md`).
+- A number that appears only inside a figure: every figure number is also in the caption, the text or a closed data table.
 - Price-history, business-ledger, training-bill or compute-across-generations tabs, unless the page truly centres on them (Khalid removed them from DeepSeek).
 - Rebuilding what a sibling, the root or a paper page already animates: link it and build what is missing.
 - Long idle prose on history. A lineage stays only when the order explains the design, and then short.

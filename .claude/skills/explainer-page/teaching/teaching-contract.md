@@ -44,6 +44,12 @@ There is no word or minute budget. Each page is as long as its subject needs, an
 5. **Check the ledger after the rebuild** (`html_utils/ledger.py check`): every non-fat unit is found on the page or at its owner.
 6. **Record the judgement** in `src/README.md`: core reading time before and after, and why that length is right. A long page whose ledger is all core is fine; a thin page whose subject matters grows.
 
+## Writing rules (2026-11-19)
+- **A step list is the only explanation of its animation.** The paragraph beside it does not repeat the steps; this repetition was the main source of the reading-time growth after the 2026-11-06 layout rollout.
+- **Every number a figure shows also appears in its caption or a closed data table**, so readers and the AI buddy can cite it.
+- **Each core paragraph opens with its claim**, specific enough to stay a stable anchor: citations and the reader's marks re-anchor by a block's opening text.
+- **No glossaries and no on-page "ask" prompts or buttons**: the AI buddy's highlight-and-ask does that. Keep "New terms" and the definition at first use.
+
 ## Choosing a visual: by what the concept is
 | Kind of concept | Visual |
 |---|---|
