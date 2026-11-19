@@ -165,6 +165,8 @@
 .kb-vish small{color:var(--mute)}
 .kb-vish button{padding:1px 9px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
 .kb-vis iframe{display:block;width:100%;border:0;background:transparent}
+.kb-vtr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font:13px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}
+.kb-vtr button{padding:2px 10px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font:inherit;cursor:pointer}
 .kb-vsp .kb-vis{margin:6px 0 0}
 .kb-vex{border-left:3px solid var(--acc);padding:2px 0 2px 14px;margin:14px 0}
 .kb-vex h3{margin:0 0 6px}
@@ -798,13 +800,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     {name:'insert_text', description:'Add a new paragraph to this page right after a block (a list item after a list item), when the reader asked to add something: an explanation, an example, a bridge, a summary. It shows marked as added; they can refine, keep or remove it.', input_schema:{type:'object', properties:{after_block:{type:'integer', description:'Index of the block in the page document to put it after'}, text:{type:'string', description:'The new paragraph: plain text, with <b>, <i>, <code>, <sub>, <sup> and <br> allowed; maths in Unicode'}, why:{type:'string', description:'A few words on what it adds'}}, required:['after_block', 'text']}},
     {name:'hide_block', description:'Hide one block of this page when the reader asked to hide or remove it (a block inside a figure hides the whole figure). It shrinks to a one-line stub they can show again.', input_schema:{type:'object', properties:{block:{type:'integer', description:'Index of the block in the page document'}}, required:['block']}},
     {name:'move_block', description:'Move one block of this page to just after another block in the same container (reorder paragraphs or list items) when the reader asked to move or reorder. Blocks move only within their own container.', input_schema:{type:'object', properties:{block:{type:'integer', description:'Index of the block to move'}, after_block:{type:'integer', description:'Index of the block it goes after'}}, required:['block', 'after_block']}},
-    {name:'add_visual', description:'Add an interactive visual (diagram, chart, slider, small simulation) to this page when the reader asked for one. It appears like the page\'s own split sections, after the section holding the block: your short explanation on the left, the visual on the right (on a phone the visual comes first, then the explanation). The visual runs in a sandboxed frame about 560 to 720 px wide on a desktop and full width on a phone. Give a complete body: HTML plus inline <style> and <script>, under about 25 KB, no external requests (no libraries, fonts or images from the web; they are blocked). Draw with SVG or canvas. When the reader does not say which, 2D is the default: draw in 3D only when depth carries information the reader needs and makes the idea faster to grasp or harder to misread than a flat figure (a tensor\'s shape and the axis an operation runs along, many heads or matrices at once, stacked layers whose count or order matters, a GPU or memory topology, real data as heights); never for looks, never a map of named boxes or a pipeline that reads the same in a row. This rule is only for your own choice: when the reader asks for 3D, always draw it in 3D, and when they ask for 2D or a flat figure, draw it flat. For 3D, use the page\'s own renderer, loaded in the frame as window.S3 when the page has it: put <div id="stg"></div> in your body, and if it has steps also <ol id="sx" hidden> with one <li> per step (the stage counts its steps from it), then call const st = S3.stage({id:"stg", list:"sx", fig:"Title", cam:[theta,phi] (about [0.6,0.45]), bounds:[[x0,y0,z0],[x1,y1,z1]], aspect:0.7, draw:(R,k,e)=>{...}, onStep:k=>parent.postMessage({kbVisStep:k},"*")}); on a {kbStep:i} message call st.go(i,true). In draw, k is the step and e its eased progress 0..1; R.P is the palette (P.c1..P.c6, P.paper, P.ink, P.mute, P.acc; P.q, P.k, P.v for query, key, value); S3.at(k,e,s) fades a thing in at step s, S3.off(k,e,s) out, S3.mix(a,b,t) mixes colours. Primitives: R.grid(x0,x1,z0,z1,step) a floor; R.box([x,y,z] bottom-face centre,[w,h,d],{fill,a,fa,shadow}); R.glass(corner,[edge u],[edge v],{c,nu,nv,a}) a see-through gridded matrix plate; R.line(points,{c,w,head}); R.arc(a,b,height,{c,w,t,top}); R.quad(points,{fill}); R.ball(p,r,{c}); R.glow(p,r,{c}); R.flow(points,{c,r,speed,n,a}) dots moving along a path; R.label(p,"text",{mono,fs,al,dx,grp}) upright labels. The stage brings its own play, step and drag-to-turn controls and the page\'s look. Colour it with the CSS variables --ink (text), --bg (background), --acc (accent), --line (rules), --soft and --card (panels), --mute (secondary text) and --c1 to --c8 (the page palette) so it suits light and dark; size it fluidly to the width, at most about 560 px tall; label it clearly; controls must work with touch. If it animates in steps, pass steps (one short line each, shown as the page\'s numbered step list beside it) and follow this protocol: listen for window message events; {kbInView:true|false} starts or pauses autoplay; {kbStep:i} shows step i (0-based) and stops autoplay; whenever your own step changes, call parent.postMessage({kbVisStep:i}, "*"); stop autoplay as soon as the reader uses a control.', input_schema:{type:'object', properties:{after_block:{type:'integer', description:'Index of a block in the section the visual explains (it goes after that section)'}, title:{type:'string', description:'A short title'}, explanation:{type:'string', description:'For the left column: 2 to 4 sentences, at most about 80 words, saying what the visual shows, what to try and what to notice. Plain text.'}, steps:{type:'array', items:{type:'string'}, description:'Optional: one short line per animation step (at most 8)'}, html:{type:'string', description:'The body: HTML with inline <style> and <script>'}}, required:['after_block', 'title', 'explanation', 'html']}}
+    {name:'patch_visual', description:'Change the visual being refined or repaired with small find-and-replace edits on its current HTML (copied exactly from current_html; each find must occur exactly once), and optionally a new title, explanation or steps. Cheaper, faster and safer than rebuilding it with add_visual when the change is local. Only in a refinement or repair of a visual. A second call edits what the first one made; for two alternative designs, make the second with add_visual.', input_schema:{type:'object', properties:{edits:{type:'array', items:{type:'object', properties:{find:{type:'string'}, replace:{type:'string'}}, required:['find', 'replace']}}, title:{type:'string'}, explanation:{type:'string'}, steps:{type:'array', items:{type:'string'}}}, required:['edits']}},
+    {name:'add_visual', description:'Add an interactive visual (diagram, chart, slider, small simulation) to this page when the reader asked for one. It appears like the page\'s own split sections, after the section holding the block: your short explanation on the left, the visual on the right (on a phone the visual comes first, then the explanation). The visual runs in a sandboxed frame about 560 to 720 px wide on a desktop and full width on a phone. Give a complete body: HTML plus inline <style> and <script>, under about 25 KB, no external requests (no libraries, fonts or images from the web; they are blocked). Draw with SVG or canvas. When the reader does not say which, 2D is the default: draw in 3D only when depth carries information the reader needs and makes the idea faster to grasp or harder to misread than a flat figure (a tensor\'s shape and the axis an operation runs along, many heads or matrices at once, stacked layers whose count or order matters, a GPU or memory topology, real data as heights); never for looks, never a map of named boxes or a pipeline that reads the same in a row. This rule is only for your own choice: when the reader asks for 3D, always draw it in 3D, and when they ask for 2D or a flat figure, draw it flat. For 3D, use the page\'s own renderer, loaded in the frame as window.S3 when the page has it: put <div id="stg"></div> in your body, and if it has steps also <ol id="sx" hidden> with one <li> per step (the stage counts its steps from it), then call const st = S3.stage({id:"stg", list:"sx", fig:"Title", cam:[theta,phi] (about [0.6,0.45]), bounds:[[x0,y0,z0],[x1,y1,z1]], aspect:0.7, draw:(R,k,e)=>{...}, onStep:k=>parent.postMessage({kbVisStep:k},"*")}); on a {kbStep:i} message call st.go(i,true). In draw, k is the step and e its eased progress 0..1; R.P is the palette (P.c1..P.c6, P.paper, P.ink, P.mute, P.acc; P.q, P.k, P.v for query, key, value); S3.at(k,e,s) fades a thing in at step s, S3.off(k,e,s) out, S3.mix(a,b,t) mixes colours. Primitives: R.grid(x0,x1,z0,z1,step) a floor; R.box([x,y,z] bottom-face centre,[w,h,d],{fill,a,fa,shadow}); R.glass(corner,[edge u],[edge v],{c,nu,nv,a}) a see-through gridded matrix plate; R.line(points,{c,w,head}); R.arc(a,b,height,{c,w,t,top}); R.quad(points,{fill}); R.ball(p,r,{c}); R.glow(p,r,{c}); R.flow(points,{c,r,speed,n,a}) dots moving along a path; R.label(p,"text",{mono,fs,al,dx,grp}) upright labels. The stage brings its own play, step and drag-to-turn controls and the page\'s look. Colour it with the CSS variables --ink (text), --bg (background), --acc (accent), --line (rules), --soft and --card (panels), --mute (secondary text) and --c1 to --c8 (the page palette) so it suits light and dark; size it fluidly to the width, at most about 560 px tall; label it clearly; controls must work with touch. If it animates in steps, pass steps (one short line each, shown as the page\'s numbered step list beside it) and follow this protocol: listen for window message events; {kbInView:true|false} starts or pauses autoplay; {kbStep:i} shows step i (0-based) and stops autoplay; whenever your own step changes, call parent.postMessage({kbVisStep:i}, "*"); stop autoplay as soon as the reader uses a control. A house kit is loaded in the frame as window.kit; prefer it for 2D, since it keeps the look, sizing and touch handling of the page: kit.svg(w,h,{label}) makes a fluid SVG; kit.line, kit.arrow, kit.rect, kit.circle, kit.text and kit.path (s, coordinates, {c, w, fill, fs, al, bold, mono}) draw on it with the palette kit.P (ink, acc, mute, line, soft, card, c[0..7]); kit.matrix(s,x,y,rows,cols,{values,color,cell,dp,label,rowLabels,colLabels}) draws a grid of cells; kit.heat(v,lo,hi) gives a colour; kit.plot(s,{x:[a,b],y:[a,b],w,h,left,top,xlabel,ylabel}) draws axes and returns {curve(f,{c}), points(pts), clear(), sx, sy}; kit.bars(s,values,{labels,color}); kit.slider({label,min,max,step,value,dp,onInput}) and kit.button(label,fn) add touch-sized controls under the picture; kit.steps({n,draw:k=>{...},ms}) runs the step protocol for you (autoplay in view, the step list beside it, reporting the step); kit.loop(t=>{...}) animates only while in view; call kit.ready() once drawn. Errors and a blank result are caught and sent back to you to repair.', input_schema:{type:'object', properties:{after_block:{type:'integer', description:'Index of a block in the section the visual explains (it goes after that section)'}, title:{type:'string', description:'A short title'}, explanation:{type:'string', description:'For the left column: 2 to 4 sentences, at most about 80 words, saying what the visual shows, what to try and what to notice. Plain text.'}, steps:{type:'array', items:{type:'string'}, description:'Optional: one short line per animation step (at most 8)'}, html:{type:'string', description:'The body: HTML with inline <style> and <script>'}}, required:['after_block', 'title', 'explanation', 'html']}}
   ];
   // web search and web fetch run on Anthropic's servers; their results are untrusted data (see pageEdit: they can never change the page)
   const WEB_TOOLS = [{type:'web_search_20260209', name:'web_search', max_uses:3}, {type:'web_fetch_20260209', name:'web_fetch', max_uses:3}];
   let webBroken = false;   // the account refused the web tools: this visit goes on without them
-  async function stream(system, messages, effort, maxTokens, onText, signal, onTool){
-    const m = model(), usage = {}; let raw = '', stop = null; const blocks = [], web = webOn() && !webBroken;
+  async function stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl){
+    const m = MODELS[mdl] ? mdl : model(), usage = {}; let raw = '', stop = null; const blocks = [], web = webOn() && !webBroken;
     const res = await fetch(API, {method:'POST', signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
@@ -1062,7 +1065,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let pf = null;
   async function runTool(u, job){
     try {
-      if (/^(rewrite_block|add_visual|insert_text|hide_block|move_block)$/.test(u.name)) return pageEdit(u, job);
+      if (/^(rewrite_block|add_visual|patch_visual|insert_text|hide_block|move_block)$/.test(u.name)) return pageEdit(u, job);
       await kbIndex(); if (!KBI) return 'The knowledge base index is not available here.';
       if (u.name === 'search_kb') {
         const q = String(u.input.query || '').trim(); if (!q) return 'Empty query.';
@@ -1127,14 +1130,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const hashT = t => { let h = 2166136261; for (const ch of normT(t)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) } return (h >>> 0).toString(36) };
   // a change's versions: revs holds each version (newest last, at most 6); the one shown (cur) is mirrored onto the record itself
   const REV_KEYS = {rewrite:['html', 'why'], insert:['html', 'why'], visual:['title', 'expl', 'steps', 'html']};
+  const madeHere = new Set();   // the versions made in this browser since the page opened (only these may be repaired in place or dropped)
+  const rk = (x, r) => x.id + ':' + ((r || {}).rid || '');   // a version's key: its change and its id
   function normEdit(x){
     const ks = REV_KEYS[x.kind]; if (!ks) return x;
     if (!Array.isArray(x.revs) || !x.revs.length) { const r = {t:x.t || Date.now(), ask:x.ask || ''}, has = ks.some(k => x[k] != null); for (const k of ks) if (x[k] != null) r[k] = x[k]; x.revs = has ? [r] : []; x.cur = 0 }   // a record from before versions becomes version 1; a new one starts empty
     if (!x.revs.length) return x;
+    x.revs.forEach((r, i) => { if (!r.rid) r.rid = 'r' + (r.t || 0) + '.' + i });   // a version from before ids: the same id on every device
     x.cur = Math.max(0, Math.min(x.revs.length - 1, Math.floor(+x.cur || 0))); const r = x.revs[x.cur] || {}; for (const k of ks) x[k] = r[k]; return x;
   }
   function addRev(x, content, ask){
-    normEdit(x); x.revs.push(Object.assign({t:Date.now(), ask:ask || ''}, content)); x.cur = x.revs.length - 1;
+    normEdit(x); const rid = newId(); madeHere.add(x.id + ':' + rid); x.revs.push(Object.assign({t:Date.now(), ask:ask || '', rid}, content)); x.cur = x.revs.length - 1;
     const size = () => x.revs.reduce((n, r) => n + String(r.html || '').length, 0);
     while (x.revs.length > 6 || (x.revs.length > 1 && size() > 200000)) { x.revs.shift(); x.cur = x.revs.length - 1 }   // at most 6 versions and about 200 KB
     x.show = 'edit'; x.st = 'new'; normEdit(x);
@@ -1145,14 +1151,24 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the block a hide, a move or added text acts on: a whole table or definition list rather than one of its cells or terms
   const wideBlock = e => e && (/^(TD|TH|TR|CAPTION|THEAD|TBODY)$/.test(e.tagName) ? e.closest('table') || e : /^(DT|DD)$/.test(e.tagName) ? e.closest('dl') || e : e);
   const textOK = e => REWRITABLE.test(e.tagName) && !e.querySelector('input,select,button:not(.kb-edtag),canvas,svg,textarea,iframe,ul,ol,p,table,div,pre,blockquote,figure') && !(e.closest('figure,.lab,.stage,.viz,[class*=viz],[class*=lab]') && e.tagName !== 'FIGCAPTION');
+  // a repair writes into the version that failed, if the reader is still on it: in place when it was made in this browser, else as a new
+  // version (the old one is kept, and the new one is not repaired again: if it fails it is dropped and the old one shows)
+  function repairInto(x, job, content){
+    normEdit(x); const r = x.revs[x.cur];
+    if (!r || r.rid !== job.repairRid) return 'Not done: the reader has moved to another version of this visual; leave it.';
+    if (madeHere.has(rk(x, r))) { Object.assign(r, content, {fx:(r.fx || 0) + 1}); normEdit(x); return '' }
+    const rid = newId(); madeHere.add(x.id + ':' + rid); x.revs.push(Object.assign({t:Date.now(), ask:'Fix: ' + job.repair, rid, fix:1, from:r.rid}, content));   // not trimmed, Keep left as it was
+    x.cur = x.revs.length - 1; x.show = 'edit'; normEdit(x); fixTries.set(rk(x, x.revs[x.cur]), 2);
+    return '';
+  }
   // a change Claude makes with a tool, or a new version of the change being refined
   function pageEdit(u, job){
     if (!job.refineId && !ASKED_CHANGE.test(job.typed || '')) return 'Not done: the reader did not ask to change the page. Answer in your note instead; offer the change if it would help.';
     const B = docBlocks(), R = job.refineId ? edits.find(y => y.id === job.refineId) : null, inp = u.input || {};
     if (job.refineId && !R) return 'Not done: the reader removed this change while you were working on it.';
     const i = +(u.name === 'add_visual' || u.name === 'insert_text' ? inp.after_block : inp.block); let e = B.els[i];
-    const sameKind = R && (R.kind === 'visual' ? u.name === 'add_visual' : R.kind === 'rewrite' ? u.name === 'rewrite_block' : R.kind === 'insert' ? u.name === 'insert_text' || u.name === 'rewrite_block' : false);
-    if (R && !sameKind) return 'Not done: in a refinement you may only make a new version of this change, with ' + (R.kind === 'visual' ? 'add_visual' : R.kind === 'insert' ? 'insert_text' : 'rewrite_block') + '.';
+    const sameKind = R && (R.kind === 'visual' ? u.name === 'add_visual' || u.name === 'patch_visual' : R.kind === 'rewrite' ? u.name === 'rewrite_block' : R.kind === 'insert' ? u.name === 'insert_text' || u.name === 'rewrite_block' : false);
+    if (R && !sameKind) return 'Not done: in a refinement you may only make a new version of this change, with ' + (R.kind === 'visual' ? 'patch_visual or add_visual' : R.kind === 'insert' ? 'insert_text' : 'rewrite_block') + '.';
     if (sameKind) e = anchorOf(R) || e;   // a new version stays where its change is
     if (!e) return 'There is no block ' + i + ' (or it is a tab heading). Use the index of a block in the page document.';
     let x = null, msg = '';
@@ -1170,8 +1186,23 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const content = {title:String(inp.title || 'Visual').slice(0, 120), expl:String(inp.explanation || '').slice(0, 900), steps:Array.isArray(inp.steps) ? inp.steps.slice(0, 8).map(s2 => String(s2).slice(0, 240)).filter(Boolean) : [], html};
       x = sameKind ? R : null;
       if (!x) { x = newEdit('visual', e, job); edits.push(x) }
-      addRev(x, content, job.typed); showEl(e);
+      if (job.repair) { if (x !== R) return 'Not done: there is no visual to repair.'; const m = repairInto(x, job, content); if (m) return m } else { addRev(x, content, job.typed); showEl(e) }
       msg = 'Done: the visual "' + content.title + '" is on the page' + (x.revs.length > 1 ? ' as version ' + x.revs.length + ' (the earlier ones are kept)' : ' as a split section (your explanation left, the visual right) after the section holding block ' + i) + '.';
+    } else if (u.name === 'patch_visual') {
+      if (!R || R.kind !== 'visual') return 'patch_visual changes the visual being refined; there is none here. Use add_visual.';
+      let html = String(R.html || ''); const eds = Array.isArray(inp.edits) ? inp.edits.slice(0, 40) : [];
+      if (!eds.length && inp.title == null && inp.explanation == null && !Array.isArray(inp.steps)) return 'No edits were given.';
+      for (let k = 0; k < eds.length; k++) {
+        const d = eds[k] || {}, f = String(d.find || ''), rp = d.replace == null ? '' : String(d.replace);
+        if (!f) return 'Edit ' + (k + 1) + ' has an empty find.';
+        const at = html.indexOf(f); if (at < 0) return 'Edit ' + (k + 1) + ': its find text is not in the current HTML (copy it exactly from current_html), or use add_visual to replace the whole visual. Nothing was changed.';
+        if (html.indexOf(f, at + 1) >= 0) return 'Edit ' + (k + 1) + ': its find text occurs more than once; include more of what is around it. Nothing was changed.';
+        html = html.slice(0, at) + rp + html.slice(at + f.length);
+      }
+      if (html.length > 60000) return 'That visual is too big; keep it under about 25 KB.';
+      const content = {title:inp.title != null ? String(inp.title).slice(0, 120) : R.title, expl:inp.explanation != null ? String(inp.explanation).slice(0, 900) : R.expl, steps:Array.isArray(inp.steps) ? inp.steps.slice(0, 8).map(s2 => String(s2).slice(0, 240)).filter(Boolean) : R.steps, html};
+      x = R; if (job.repair) { const m = repairInto(x, job, content); if (m) return m } else addRev(x, content, job.typed);
+      msg = job.repair ? 'Done: the visual is repaired.' : 'Done: the visual is changed (version ' + x.revs.length + '; the earlier ones are kept).';
     } else if (u.name === 'hide_block') {
       const t = e.closest('figure') || wideBlock(e);
       if (edits.some(y => y.kind === 'hide' && anchorOf(y) === t)) return 'Block ' + i + ' is already hidden.';
@@ -1180,6 +1211,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const r = B.els[+inp.after_block]; if (!r) return 'There is no block ' + inp.after_block + '.';
       const m = moveTo(wideBlock(e), wideBlock(r), 'after', job); if (typeof m === 'string') return m; if (!m) { renderEdits(); saveBook(); refreshOv(); return 'Done: the block is back in its original place.' } x = m; msg = 'Done: block ' + i + ' now comes after block ' + inp.after_block + '.';
     } else return 'Unknown change.';
+    if (job.repair) { renderEdits(); saveBook(); refreshOv(); return msg }   // out of sight: no tab switch, no scrolling
     origView = false;   // the reader may be looking at the page as written: show them what was just made
     renderEdits(); saveBook(); refreshOv();
     setTimeout(() => { const n = editNode(x); if (!n) return; if (x.kind === 'visual') n.scrollIntoView({block:'start', behavior:'smooth'}); flashEl(n) }, 300);
@@ -1204,8 +1236,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const what = x.kind === 'visual' ? 'a visual you added after block ' + i + ' (title "' + (x.title || '') + '")\n<current_explanation>\n' + (x.expl || '') + '\n</current_explanation>\n<current_steps>\n' + (x.steps || []).join('\n') + '\n</current_steps>\n<current_html>\n' + (x.html || '') + '\n</current_html>'
       : x.kind === 'insert' ? 'a paragraph you added after block ' + i + '\n<current>\n' + plainT(x.html) + '\n</current>'
       : 'your rewrite of block ' + i + '\n<original>\n' + (e ? normT(origText(e)) : '') + '\n</original>\n<current>\n' + plainT(x.html) + '\n</current>';
-    const tool = x.kind === 'visual' ? 'add_visual with after_block ' + i : x.kind === 'insert' ? 'insert_text with after_block ' + i : 'rewrite_block with block ' + i;
-    return 'They are refining a change you made to this page earlier: ' + what + '\nTheir request:\n<question>\n' + job.typed + '\n</question>\nMake it by calling ' + tool + '; the result becomes a new version of that same change, and they can step back to the earlier ones. If they ask for two versions or variants, call the tool twice with two genuinely different takes. Keep everything they did not ask to change. Then say in one short sentence what you changed. No <at> or <point> here.';
+    const tool = x.kind === 'visual' ? 'patch_visual (small find-and-replace edits on current_html) when the change is local, or add_visual with after_block ' + i + ' for a new design' : x.kind === 'insert' ? 'insert_text with after_block ' + i : 'rewrite_block with block ' + i;
+    if (job.repair) return 'A visual you added to this page fails in the reader\'s browser: ' + job.repair + '\n' + what + '\nFix it, preferably with patch_visual, keeping its design and content (the frame has no network: no libraries or fonts from the web; window.kit and, for 3D, window.S3 are there). Then say in a few words what you fixed. No <at> or <point> here.';
+    const pk = job.pick ? '\nThey pointed at a spot about ' + job.pick.x + '% across and ' + job.pick.y + '% down the visual' + (job.pick.tag ? ', on a ' + job.pick.tag + (job.pick.text ? ' reading "' + job.pick.text + '"' : '') : '') + ' (marked there with a red ring); their request is about that part.' : '';
+    return 'They are refining a change you made to this page earlier: ' + what + pk + '\nTheir request:\n<question>\n' + job.typed + '\n</question>\nMake it by calling ' + tool + '; the result becomes a new version of that same change, and they can step back to the earlier ones. If they ask for two versions or variants, call the tool twice with two genuinely different takes. Keep everything they did not ask to change. Then say in one short sentence what you changed. No <at> or <point> here.';
   }
   const flashEl = e => { e.classList.remove('kb-cited'); void e.offsetWidth; e.classList.add('kb-cited'); setTimeout(() => e.classList.remove('kb-cited'), 2200) };
   // the page's own 3D renderer (S3, the explainer-page template's 25_js_s3.js), for visuals that draw in 3D: the page's inline copy
@@ -1220,20 +1254,178 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return S3SRC;
   })();
   s3Ready.then(s => { if (s && typeof edits !== 'undefined' && edits.some(x => x.kind === 'visual' && /\bS3\./.test(x.html || ''))) renderEdits() });
+  // ---- inside every visual's frame (their source is these functions' own text): a guard that reports errors, a blank result and a
+  // pointed-at part to the page, and the house kit, window.kit, for drawing 2D visuals the page's way ----
+  function kbGuard(){
+    var report = function(d){ try { parent.postMessage(d, '*') } catch(e) {} }, loaded = false, inView = false, timer = 0, judged = false, picking = null;
+    addEventListener('error', function(e){ report({kbVisErr:String(e.message || 'error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')}) });
+    addEventListener('unhandledrejection', function(e){ report({kbVisErr:'unhandled promise rejection: ' + String(e.reason && e.reason.message || e.reason)}) });
+    // nothing drawn: judged 3 s after the visual is first in view and laid out (a closed tab or a frame off screen is not judged);
+    // kit.ready() ends the wait; the kit's own controls do not count as a drawing
+    var check = function(){
+      if (judged || window.__kbReady) return; if (innerWidth < 2 || innerHeight < 2) return; judged = true;
+      var n = 0; [].forEach.call(document.querySelectorAll('svg,canvas,img,table,p,li,div,input,button'), function(x){ if (x.closest('#kbCtl,#kbRing')) return; var r = x.getBoundingClientRect(); if (r.width * r.height > 400 && (x.tagName !== 'DIV' || (x.textContent || '').trim() || x.querySelector('svg,canvas,img'))) n++ });
+      report(n ? {kbVisOk:true} : {kbVisBlank:true});
+    };
+    var arm = function(){ if (!judged && loaded && inView) { clearTimeout(timer); timer = setTimeout(check, 3000) } };
+    addEventListener('load', function(){ loaded = true; report({kbVisHello:true}); arm() });
+    var stopPick = function(){ if (picking) { removeEventListener('pointerdown', picking, true); picking = null; document.documentElement.style.cursor = '' } };
+    addEventListener('message', function(ev){
+      var d = ev.data || {};
+      if (typeof d.kbInView === 'boolean') { inView = d.kbInView; if (inView) arm(); else clearTimeout(timer) }
+      if (d.kbPick === false) { stopPick(); if (d.clear) { var r0 = document.getElementById('kbRing'); if (r0) r0.remove() } }
+      if (d.kbPick !== true) return;
+      stopPick(); document.documentElement.style.cursor = 'crosshair';
+      picking = function(e){
+        stopPick(); e.preventDefault(); e.stopPropagation();
+        var sw = function(c){ c.preventDefault(); c.stopPropagation() }; addEventListener('click', sw, {capture:true, once:true}); setTimeout(function(){ removeEventListener('click', sw, true) }, 700);   // the tap points; it does not press what is under it
+        var t = document.elementFromPoint(e.clientX, e.clientY) || document.body, W = Math.max(1, document.documentElement.scrollWidth), H = Math.max(1, document.documentElement.scrollHeight);
+        var ring = document.getElementById('kbRing'); if (!ring) { ring = document.createElement('div'); ring.id = 'kbRing'; document.body.appendChild(ring) }
+        ring.style.cssText = 'position:absolute;left:' + (e.pageX - 18) + 'px;top:' + (e.pageY - 18) + 'px;width:36px;height:36px;border:3px solid #e03131;border-radius:50%;pointer-events:none;z-index:9';
+        report({kbPicked:{x:Math.round(e.pageX / W * 100), y:Math.round(e.pageY / H * 100), tag:String(t.tagName || '').toLowerCase(), text:String(t.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80)}});
+      };
+      addEventListener('pointerdown', picking, true);
+    });
+  }
+  function kbKit(){
+    var NS = 'http://www.w3.org/2000/svg', cs = getComputedStyle(document.documentElement), v = function(n){ return cs.getPropertyValue(n).trim() };
+    var DEF = ['#4c78a8', '#f58518', '#54a24b', '#e45756', '#72b7b2', '#b279a2', '#ff9da6', '#9d755d'];
+    var P = {ink:v('--ink') || '#222', bg:v('--bg') || '#fff', acc:v('--acc') || '#2b6cb0', line:v('--line') || '#ccc', soft:v('--soft') || '#f3f3f3', card:v('--card') || '#fff', mute:v('--mute') || '#777', bad:v('--bad') || '#c2703a', good:v('--good') || '#2f9e44', c:[1, 2, 3, 4, 5, 6, 7, 8].map(function(i){ return v('--c' + i) || DEF[i - 1] })};
+    var SVGT = /^(svg|g|path|line|polyline|polygon|rect|circle|ellipse|text|tspan|textPath|defs|marker|linearGradient|radialGradient|stop|clipPath|mask|pattern|title|desc|use|symbol|image|foreignObject)$/;
+    function root(){ var r = document.getElementById('kbViz'); if (!r) { r = document.createElement('div'); r.id = 'kbViz'; document.body.insertBefore(r, document.body.firstChild) } return r }
+    function add(tag, at, parent){
+      var e = SVGT.test(tag) ? document.createElementNS(NS, tag) : document.createElement(tag);
+      for (var k in at || {}) { if (k === 'text') e.textContent = at[k]; else if (at[k] != null && at[k] !== '') e.setAttribute(k, at[k]) }
+      if (parent) parent.appendChild(e); return e;
+    }
+    var nA = 0;
+    function svg(w, h, o){ o = o || {}; var s = add('svg', {viewBox:'0 0 ' + w + ' ' + h, role:'img', 'aria-label':o.label || 'diagram', 'font-family':'system-ui,-apple-system,sans-serif', 'font-size':o.fs || 13}, o.parent || root()); s.style.cssText = 'width:100%;height:auto;display:block;max-height:' + (o.maxH || 520) + 'px;touch-action:manipulation'; return s }
+    function line(s, x1, y1, x2, y2, o){ o = o || {}; return add('line', {x1:x1, y1:y1, x2:x2, y2:y2, stroke:o.c || P.ink, 'stroke-width':o.w || 1.5, 'stroke-dasharray':o.dash, 'stroke-linecap':'round', opacity:o.a}, s) }
+    function arrow(s, x1, y1, x2, y2, o){ o = o || {}; var c = o.c || P.ink, id = 'kbA' + (++nA), d = add('defs', {}, s), m = add('marker', {id:id, viewBox:'0 0 10 10', refX:9, refY:5, markerWidth:7, markerHeight:7, orient:'auto-start-reverse'}, d); add('path', {d:'M0 0L10 5L0 10z', fill:c}, m); var l = line(s, x1, y1, x2, y2, o); l.setAttribute('marker-end', 'url(#' + id + ')'); return l }
+    function rect(s, x, y, w, h, o){ o = o || {}; return add('rect', {x:x, y:y, width:w, height:h, rx:o.r == null ? 4 : o.r, fill:o.fill || 'none', stroke:o.c || P.ink, 'stroke-width':o.w == null ? 1.2 : o.w, opacity:o.a}, s) }
+    function circle(s, x, y, r, o){ o = o || {}; return add('circle', {cx:x, cy:y, r:r, fill:o.fill || 'none', stroke:o.c || P.ink, 'stroke-width':o.w == null ? 1.2 : o.w, opacity:o.a}, s) }
+    function text(s, x, y, t, o){ o = o || {}; return add('text', {x:x, y:y, fill:o.c || P.ink, 'font-size':o.fs || 13, 'text-anchor':o.al || 'start', 'dominant-baseline':o.base || 'middle', 'font-weight':o.bold ? 600 : null, 'font-family':o.mono ? 'ui-monospace,Menlo,monospace' : null, text:String(t)}, s) }
+    function path(s, d, o){ o = o || {}; return add('path', {d:d, fill:o.fill || 'none', stroke:o.c || P.ink, 'stroke-width':o.w || 1.5, opacity:o.a}, s) }
+    // a grid of cells (a matrix, a tensor slice, attention weights): values, a colour from a function of the value, labels
+    function matrix(s, x, y, rows, cols, o){
+      o = o || {}; var c2 = o.cell || 26, out = [];
+      for (var i = 0; i < rows; i++) { out.push([]); for (var j = 0; j < cols; j++) {
+        var val = o.values ? (o.values[i] || [])[j] : null, fill = o.color ? o.color(val, i, j) : P.soft;
+        var r2 = rect(s, x + j * c2, y + i * c2, c2, c2, {fill:fill, c:P.line, r:0, w:1});
+        var t2 = val != null && o.show !== false ? text(s, x + j * c2 + c2 / 2, y + i * c2 + c2 / 2, typeof val === 'number' ? val.toFixed(o.dp == null ? 1 : o.dp) : val, {al:'middle', fs:o.fs || 11, mono:true}) : null;
+        out[i].push({rect:r2, text:t2}) } }
+      if (o.label) text(s, x + cols * c2 / 2, y - 10, o.label, {al:'middle', bold:true});
+      (o.rowLabels || []).forEach(function(l, i){ text(s, x - 6, y + i * c2 + c2 / 2, l, {al:'end', fs:11, c:P.mute}) });
+      (o.colLabels || []).forEach(function(l, j){ text(s, x + j * c2 + c2 / 2, y + rows * c2 + 12, l, {al:'middle', fs:11, c:P.mute}) });
+      return out;
+    }
+    function heat(val, lo, hi, c0, c1){ var t = Math.max(0, Math.min(1, (val - lo) / ((hi - lo) || 1))); return 'color-mix(in srgb,' + (c1 || P.acc) + ' ' + Math.round(t * 100) + '%,' + (c0 || P.card) + ')' }
+    // axes in a box, then curves or points on them
+    function plot(s, o){
+      o = o || {}; var X = o.x || [0, 1], Y = o.y || [0, 1], bx = o.left || 44, by = o.top || 10, w = o.w || 300, h = o.h || 180;
+      var sx = function(q){ return bx + (q - X[0]) / (X[1] - X[0]) * w }, sy = function(q){ return by + h - (q - Y[0]) / (Y[1] - Y[0]) * h };
+      line(s, bx, by + h, bx + w, by + h, {c:P.mute, w:1}); line(s, bx, by, bx, by + h, {c:P.mute, w:1});
+      if (o.xlabel) text(s, bx + w / 2, by + h + 22, o.xlabel, {al:'middle', c:P.mute, fs:12});
+      if (o.ylabel) text(s, bx - 30, by + h / 2, o.ylabel, {al:'middle', c:P.mute, fs:12});
+      var g = add('g', {}, s);
+      return {sx:sx, sy:sy, g:g,
+        curve:function(f, oo){ oo = oo || {}; var n = oo.n || 120, d = '', pen = false; for (var i = 0; i <= n; i++) { var xv = X[0] + (X[1] - X[0]) * i / n, yv = f(xv); if (!isFinite(yv)) { pen = false; continue } d += (pen ? 'L' : 'M') + sx(xv).toFixed(1) + ' ' + sy(Math.max(Y[0], Math.min(Y[1], yv))).toFixed(1); pen = true } return path(g, d, {c:oo.c || P.acc, w:oo.w || 2}) },
+        points:function(pts, oo){ oo = oo || {}; return pts.map(function(q){ return circle(g, sx(q[0]), sy(q[1]), oo.r || 3, {fill:oo.c || P.acc, c:'none'}) }) },
+        clear:function(){ while (g.firstChild) g.removeChild(g.firstChild) }};
+    }
+    // bars from a zero line (below it for negative values)
+    function bars(s, vals, o){ o = o || {}; var bx = o.left || 10, by = o.top || 10, w = o.w || 300, h = o.h || 160, bw = w / vals.length;
+      var hi = o.max != null ? o.max : Math.max.apply(null, [0].concat(vals)), lo = o.min != null ? Math.max(0, -o.min) : Math.max.apply(null, [0].concat(vals.map(function(q){ return -q }))), tot = (hi + lo) || 1, y0 = by + h * hi / tot;
+      if (lo > 0) line(s, bx, y0, bx + w, y0, {c:P.mute, w:1});
+      return vals.map(function(q, i){ var bh = Math.abs(q) / tot * h, r2 = rect(s, bx + i * bw + 2, q >= 0 ? y0 - bh : y0, bw - 4, bh, {fill:o.color ? o.color(q, i) : P.c[i % 8], c:'none', r:2}); if (o.labels) text(s, bx + i * bw + bw / 2, by + h + 12, o.labels[i], {al:'middle', fs:11, c:P.mute}); return r2 }) }
+    // controls under the picture, touch-sized
+    function controls(){ var c = document.getElementById('kbCtl'); if (!c) { c = add('div', {id:'kbCtl'}, document.body); c.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:8px 2px;font:13px system-ui,sans-serif;color:' + P.ink } return c }
+    var stepper = null; function stopAuto(){ if (stepper) stepper.stop() }
+    function slider(o){
+      o = o || {}; var w = add('label', {}, controls()); w.style.cssText = 'display:flex;align-items:center;gap:8px;min-height:44px';
+      add('span', {text:o.label || ''}, w); var i = add('input', {type:'range', min:o.min == null ? 0 : o.min, max:o.max == null ? 1 : o.max, step:o.step || 'any', value:o.value == null ? 0 : o.value, 'aria-label':o.label || 'value'}, w);
+      i.style.cssText = 'width:' + (o.width || 160) + 'px;min-height:32px;accent-color:' + P.acc; var out = add('output', {}, w); out.style.cssText = 'min-width:3em;font-variant-numeric:tabular-nums;color:' + P.mute;
+      var sv = String(+o.step), dp = o.dp != null ? o.dp : !o.step || o.step === 'any' ? 2 : /e-(\d+)/.test(sv) ? +RegExp.$1 + (sv.split('e')[0].split('.')[1] || '').length : (sv.split('.')[1] || '').length;   // as many decimals as the step has
+      var show = function(){ out.textContent = o.fmt ? o.fmt(+i.value) : (+i.value).toFixed(dp) }; show();
+      i.addEventListener('input', function(){ show(); stopAuto(); if (o.onInput) o.onInput(+i.value) }); return i;
+    }
+    function button(label, f){ var b = add('button', {type:'button', text:label}, controls()); b.style.cssText = 'min-height:40px;min-width:40px;padding:4px 14px;border:1px solid ' + P.line + ';border-radius:99px;background:' + P.soft + ';color:' + P.ink + ';font:inherit;cursor:pointer'; b.addEventListener('click', function(){ stopAuto(); f() }); return b }
+    // steps, the page's protocol: play once through while in view, the step list beside the frame drives it, every step is reported
+    function steps(o){
+      var n = o.n || (o.labels || []).length || 1, k = 0, timer = 0, auto = o.autoplay !== false, seen = false;
+      var go = function(i, user){ k = ((i % n) + n) % n; try { o.draw(k) } catch(e) { setTimeout(function(){ throw e }) } try { parent.postMessage({kbVisStep:k}, '*') } catch(e) {} if (user) stop() };
+      var tick = function(){ clearTimeout(timer); if (!auto || !seen || k >= n - 1) return; timer = setTimeout(function(){ go(k + 1); tick() }, o.ms || 1800) };
+      var stop = function(){ auto = false; clearTimeout(timer) };
+      addEventListener('message', function(ev){ var d = ev.data || {}; if (typeof d.kbStep === 'number') { if (d.kbStep >= n) n = d.kbStep + 1; go(d.kbStep, true) } if (typeof d.kbInView === 'boolean') { seen = d.kbInView; tick() } });
+      if (o.controls !== false) { button('‹', function(){ go(k - 1, true) }); button('›', function(){ go(k + 1, true) }) }
+      stepper = {go:go, stop:stop, get k(){ return k }}; go(0); return stepper;
+    }
+    // an animation that runs only while the visual is in view (t: seconds it has been seen, carried over a pause)
+    function loop(f){ var on = false, el = 0, last = 0, raf = 0, step = function(t){ if (!on) return; el += Math.max(0, Math.min(100, t - last)) / 1000; last = t; try { f(el) } catch(e) { on = false; throw e } raf = requestAnimationFrame(step) };
+      addEventListener('message', function(ev){ var d = ev.data || {}; if (typeof d.kbInView !== 'boolean' || d.kbInView === on) return; on = d.kbInView; cancelAnimationFrame(raf); if (on) { last = performance.now(); raf = requestAnimationFrame(step) } }) }
+    function ready(){ window.__kbReady = true; try { parent.postMessage({kbVisReady:true}, '*') } catch(e) {} }
+    window.kit = {P:P, root:root, add:add, svg:svg, line:line, arrow:arrow, rect:rect, circle:circle, text:text, path:path, matrix:matrix, heat:heat, plot:plot, bars:bars, slider:slider, button:button, controls:controls, steps:steps, loop:loop, lerp:function(a, b, t){ return a + (b - a) * t }, ease:function(t){ return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2 }, ready:ready};
+  }
+  const FRAME_JS = '<script>(' + kbGuard.toString() + ')()<\/script><script>(' + kbKit.toString() + ')()<\/script>';
+  // ---- a visual that fails (an error, or nothing drawn) is repaired by Claude out of sight, at most twice per version; if it still
+  // fails, that version is dropped and the one before shown, or, for a first version, the reader is told and can try again ----
+  const visState = new Map(), fixTries = new Map(), lastErr = new Map(), picks = new Map(), drewOk = new Set(), repairing = new Map();   // version key -> the repair job working on it
+  const repairMoot = j => { const y = edits.find(z => z.id === j.refineId); return !y || curRev(y).rid !== j.repairRid };
+  const curRev = x => { normEdit(x); return x.revs[x.cur] || {} };
+  const vkey = x => { const r = curRev(x); return x.id + ':' + (r.rid || '') + ':' + (r.fx || 0) };   // one state per version and repair
+  function visGood(id){ const x = edits.find(y => y.id === id); if (!x || x.kind !== 'visual') return; const k = vkey(x); if (visState.get(k) !== 'bad') { visState.set(k, 'ok'); drewOk.add(rk(x, curRev(x))); troubleOff(x) } }
+  function visProblem(id, msg){
+    const x = edits.find(y => y.id === id); if (!x || x.kind !== 'visual') return; const k = vkey(x), r = curRev(x);
+    if (visState.has(k)) return;   // one verdict per version: an error after a good drawing (a later tick, a handler) is left alone
+    visState.set(k, 'bad'); lastErr.set(x.id, msg);
+    const tries = fixTries.get(rk(x, r)) || 0, fresh = madeHere.has(rk(x, r)) && !drewOk.has(rk(x, r));
+    if (fresh && tries < 2 && store.get('key')) { fixTries.set(rk(x, r), tries + 1); trouble(x, 'This visual hit a problem; fixing it (' + (tries + 1) + ' of 2)…', false); repairVisual(x, msg); return }
+    if (fresh && x.revs.length > 1) { const i = x.revs.indexOf(r); x.revs.splice(i, 1); const back = r.fix ? x.revs.findIndex(v => v.rid === r.from) : -1; x.cur = back >= 0 ? back : Math.max(0, i - 1); normEdit(x); renderEdits(); saveBook(); refreshOv(); if (chgId === x.id && !chg.hidden) openChg(x); toast(r.fix ? 'The fix did not work, so it was dropped; back to your version.' : 'That version of the visual did not work, so it was dropped; showing ' + (i ? 'the one before' : 'the next one') + '.', 7000); return }
+    trouble(x, 'This visual has a problem: ' + msg, true);
+  }
+  function trouble(x, text, act){
+    const box = document.querySelector('.kb-vis[data-ed="' + x.id + '"]'); if (!box) return;
+    let t = box.querySelector('.kb-vtr'); if (!t) { t = el('div', {class:'kb-vtr', role:'status'}); box.appendChild(t) }
+    t.innerHTML = '<span>' + esc(text.slice(0, 260)) + '</span>' + (act ? '<button type="button" data-ev="retry">Try to fix it</button><button type="button" data-ev="discard">Remove</button>' : '');
+  }
+  function troubleOff(x){ const t = document.querySelector('.kb-vis[data-ed="' + x.id + '"] .kb-vtr'); if (t) t.remove() }
+  // one quiet job (after the reply being written, if any); when it ends without changing the version, the next try or the trouble line
+  function repairVisual(x, msg){
+    const e = edits.includes(x) && anchorOf(x); if (!e || !store.get('key')) { trouble(x, 'This visual has a problem: ' + msg, true); return }
+    const r = curRev(x), rid = r.rid, fx = r.fx || 0;
+    const key = rk(x, r);
+    const job = {kind:'page', typed:'Fix this visual: ' + msg, refine:x, refineId:x.id, repair:msg, repairRid:rid, quiet:true, model:'claude-sonnet-5-5', follow:null, thread:[], hl:null, marks:[], anchorEl:e, box:null, near:'', scr:{blocks:[], note:'', img:null, k:1},
+      after(){ if (repairing.get(key) === job) repairing.delete(key); const y = edits.find(z => z.id === x.id); if (!y) return; const r2 = curRev(y); if (r2.rid !== rid || (r2.fx || 0) !== fx) return;   // repaired (its frame reports again) or the reader moved on
+        if (job.err) { visState.set(vkey(y), 'bad'); fixTries.set(key, 2); trouble(y, 'Could not reach Claude to fix this visual (' + String(job.err).slice(0, 120) + ').', true); return }   // no automatic retry: it would fail the same way
+        visState.delete(vkey(y)); visProblem(y.id, msg) }};
+    repairing.set(key, job);
+    if (PG.busy) PG.queued.push(job); else send(PG, job);   // a repair is not one of the reader's three waiting requests
+  }
+  // point at a part of a visual: its frame marks the next tap with a ring and says what is there; the next refinement is about that part
+  let pickingId = null;
+  const toFrame = (id, m) => { const f = visFrames.get(id); if (f) try { f.contentWindow.postMessage(m, '*') } catch(e) {} };
+  function askPick(x){ if (!visFrames.get(x.id)) return; endPick(x.id); pickingId = x.id; toFrame(x.id, {kbPick:true}); toast('Tap the part of the visual you mean.', 6000) }
+  // stop waiting for a tap; every other visual's pointed part (and its ring) is forgotten
+  function endPick(keep){ if (pickingId) toFrame(pickingId, {kbPick:false}); pickingId = null; for (const id of [...picks.keys()]) if (id !== keep) { toFrame(id, {kbPick:false, clear:true}); picks.delete(id) } }
+  function gotPick(id, d){ pickingId = null; const x = edits.find(y => y.id === id); if (!x) return; picks.set(id, {x:Math.max(0, Math.min(100, +d.x || 0)), y:Math.max(0, Math.min(100, +d.y || 0)), tag:String(d.tag || '').slice(0, 20), text:String(d.text || '').slice(0, 80)}); toast('', 0); openChg(x); const i = chg.querySelector('input'); if (i) { i.placeholder = 'What should change there?'; i.focus() } }
   // a visual as a whole document for its frame: the page's colours and font, and a script that reports the height
   function visDoc(x){
     const cs = getComputedStyle(document.body), rs = getComputedStyle(document.documentElement), v = n => (cs.getPropertyValue(n) || rs.getPropertyValue(n)).trim();
     const vars = ['--ink', '--bg', '--acc', '--line', '--soft', '--card', '--mute', '--bad', '--good', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--shadow'].map(n => n + ':' + (v(n) || (n === '--ink' ? cs.color : n === '--bg' ? cs.backgroundColor : '#888'))).join(';');
-    return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; form-action \'none\'; base-uri \'none\'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style>' + (uses3d(x) ? '<style>' + ((document.getElementById('kb-split') || {}).textContent || '') + '</style><script>' + S3SRC + '<\/script>' : '') + '<\/he' + 'ad><bo' + 'dy>' + x.html +
+    return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; form-action \'none\'; base-uri \'none\'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style>' + FRAME_JS + (uses3d(x) ? '<style>' + ((document.getElementById('kb-split') || {}).textContent || '') + '</style><script>' + S3SRC + '<\/script>' : '') + '<\/he' + 'ad><bo' + 'dy>' + x.html +
       '<script>(function(){var id=' + JSON.stringify(x.id) + ',f=function(){parent.postMessage({kbVis:id,h:Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
   }
   // messages from a visual's frame (checked to come from that frame): its height, and the step it shows (marked in its step list)
   window.addEventListener('message', e => {
     const d = e.data; if (!d || typeof d !== 'object') return;
     let id = d.kbVis, f = id && visFrames.get(id);
-    if (!f && typeof d.kbVisStep === 'number') for (const [k, g] of visFrames) if (g.contentWindow === e.source) { id = k; f = g }   // a step report names no id: known by its frame
+    if (!f) for (const [k, g] of visFrames) if (g.contentWindow === e.source) { id = k; f = g }   // a report that names no id is known by its frame
     if (!f || e.source !== f.contentWindow) return;
     if (d.h != null) { const cap = innerWidth >= 1100 ? Math.min(900, innerHeight - 140) : Math.round(innerHeight * 0.7); f.style.height = Math.min(cap, Math.max(80, +d.h || 0)) + 'px' }
+    if (d.kbVisHello) { visSeen.unobserve(f); visSeen.observe(f) }   // observing again reports whether it is in view, now that it can hear
+    if (d.kbVisErr || d.kbVisBlank) visProblem(id, d.kbVisErr ? String(d.kbVisErr).slice(0, 300) : 'it drew nothing');
+    if (d.kbVisOk || d.kbVisReady) visGood(id);
+    if (d.kbPicked && typeof d.kbPicked === 'object') gotPick(id, d.kbPicked);
     if (typeof d.kbVisStep === 'number') { const ol = document.querySelector('.kb-vsp[data-ed="' + id + '"] ol.sx'); if (ol) [...ol.children].forEach((li, k) => { li.classList.toggle('on', k === d.kbVisStep); li.classList.toggle('done', k < d.kbVisStep) }) }
   });
   // a visual whose frame starts or stops being in view is told, so an animation plays only while it can be seen
@@ -1303,10 +1495,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         if (!visPlaced(e, kept)) { const f0 = visFrames.get(x.id); if (f0) f0._moving = true; visAfter(e, kept); if (f0) { visFrames.set(x.id, f0); visSeen.observe(f0) } }
         return;
       }
+      const fixing = repairing.has(rk(x, curRev(x))); if (!fixing) visState.delete(vkey(x));   // a new frame is judged afresh (stepping back to a version that failed shows its trouble again)
       const box = el('div', {class:'kb-vis', 'data-ed':x.id}), head = el('div', {class:'kb-vish'}, visHead(x));
       const f = el('iframe', {sandbox:'allow-scripts', title:x.title, referrerpolicy:'no-referrer'}); f.srcdoc = visDoc(x); f.style.height = '240px';
       // a visual may not leave its frame: a second load means it navigated away, so it is replaced by a short notice
-      let loads = 0; f.addEventListener('load', () => { if (f._moving) { f._moving = false; return } if (++loads === 2) f.srcdoc = '<p style="font:14px system-ui;color:#888;padding:12px">This visual tried to open another address and was stopped.</p>' });
+      let loads = 0; f.addEventListener('load', () => { if (f._moving) { f._moving = false; return } if (++loads === 2) { f.srcdoc = '<p style="font:14px system-ui;color:#888;padding:12px">This visual tried to open another address and was stopped.</p>'; if (!repairing.has(rk(x, curRev(x)))) { visState.delete(vkey(x)); visProblem(x.id, 'it tried to open another address') } } });
       box.append(head, f); visFrames.set(x.id, f); visSeen.observe(f);
       // with an explanation: a split section like the page's own (visual right, explanation and steps left); without one, a full-width card
       let node = box;
@@ -1319,10 +1512,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         ex.appendChild(el('small', null, 'Claude\'s visual' + (x.ask ? ' · you asked: ' + esc(String(x.ask).slice(0, 140)) : '')));
         side.appendChild(box); R.appendChild(side); L.appendChild(ex); node.append(R, L);
       }
-      node.dataset.sig = sig; visAfter(e, node);
+      node.dataset.sig = sig; visAfter(e, node); if (fixing) trouble(x, 'Fixing this visual…', false);
     }
   };
-  const visSig = x => [x.cur, (x.revs[x.cur] || {}).t || 0, (x.revs || []).length].join('.');
+  const visSig = x => { const r = curRev(x); return [x.cur, r.rid || '', r.fx || 0, x.revs.length].join('.') };
   const visHead = x => { const n = x.revs.length; return '<b>' + esc(x.title) + '</b><span class="kb-sp"></span>' + (n > 1 ? '<button type="button" data-ev="prev" aria-label="Previous version">\u2039</button><small>v' + (x.cur + 1) + '/' + n + '</small><button type="button" data-ev="next" aria-label="Next version">\u203A</button>' : '') + '<small>' + (x.st === 'kept' ? 'kept' : 'Claude\'s visual') + '</small><button type="button" data-ev="change" title="Refine it, compare versions, keep or remove">Change</button>' + (x.st !== 'kept' ? '<button type="button" data-ev="keep" title="Keep it">Keep</button>' : '') + '<button type="button" data-ev="discard" title="Remove it (you can undo)">\u2715</button>' };
   // is a visual's node where its block wants it (after the block's host, among the visuals already there)?
   function visPlaced(e, node){ let n = visHost(e).nextElementSibling; while (n && n.matches(VIS_SKIP)) { if (n === node) return true; n = n.nextElementSibling } return false }
@@ -1344,6 +1537,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (t.classList.contains('kb-edtag')) { if (chgId === x.id && !chg.hidden) closeChg(); else openChg(x, t); return }
     const a = t.dataset.ev || t.dataset.hs;
     if (a === 'change') { openChg(x, t); return }
+    if (a === 'retry') { fixTries.set(rk(x, curRev(x)), 2); visState.delete(vkey(x)); trouble(x, 'Fixing this visual…', false); repairVisual(x, lastErr.get(x.id) || 'it did not work'); return }   // one tap, one try
     if (a === 'prev' || a === 'next') { stepRev(x, a === 'prev' ? -1 : 1); return }
     if (a === 'discard' || a === 'unhide' || a === 'unmove') { removeEdits([x], a === 'unhide' ? 'Shown again' : a === 'unmove' ? 'Put back' : 'Removed'); return }
     if (a === 'keep') x.st = 'kept'; else if (a === 'show') x.show = 'edit';
@@ -1370,14 +1564,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function openChg(x, near){
     normEdit(x); const was = chg.hidden ? null : (document.activeElement && chg.contains(document.activeElement) ? (document.activeElement.tagName === 'INPUT' ? 'input' : document.activeElement.dataset.c || document.activeElement.dataset.rf) : null);
     const oldIn = !chg.hidden && chgId === x.id && chg.querySelector('input'), typedV = oldIn ? oldIn.value : '', typedP = oldIn ? oldIn.selectionStart : 0;
-    if (chgId !== x.id || chg.hidden) chgBack = document.activeElement;
+    if (chgId !== x.id || chg.hidden) { chgBack = document.activeElement; endPick(x.id) }
     chgId = x.id; chgNear = near && near.isConnected ? near : chgNear && chgNear.isConnected && chgNear.closest('[data-ed]') && chgNear.closest('[data-ed]').dataset.ed === x.id ? chgNear : chgAnchor(x);
     const n = x.revs ? x.revs.length : 0, grp = x.g ? edits.filter(y => y.g === x.g).length : 1, R = x.kind === 'visual' ? REFINE.visual : x.kind === 'rewrite' || x.kind === 'insert' ? REFINE.text : null, df = diffOn.get(x.id);
     const KIND = {rewrite:'Rewritten by Claude', insert:'Added by Claude', visual:'Claude\'s visual', hide:'Hidden', move:'Moved'}[x.kind] || 'Change';
     const ask = (x.revs && x.revs[x.cur] && x.revs[x.cur].ask) || x.ask;
     chg.innerHTML = '<div class="kb-chh"><b>' + KIND + '</b>' + (n > 1 ? '<button type="button" data-c="prev" aria-label="Previous version">\u2039</button><span>version ' + (x.cur + 1) + ' of ' + n + '</span><button type="button" data-c="next" aria-label="Next version">\u203A</button>' : '') + '<span class="kb-sp"></span><button type="button" data-c="close" aria-label="Close">\u2715</button></div>'
       + (x.kind === 'rewrite' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show Claude\'s version' : 'Show the original') + '</button><button type="button" data-c="diff" aria-pressed="' + (df === 'orig') + '">What changed</button>' + (x.cur > 0 ? '<button type="button" data-c="diffprev" aria-pressed="' + (df === 'prev') + '">Since the version before</button>' : '') + '</div>'
-        : x.kind === 'insert' || x.kind === 'visual' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show it' : 'Hide it for now') + '</button></div>' : '')
+        : x.kind === 'insert' || x.kind === 'visual' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show it' : 'Hide it for now') + '</button>' + (x.kind === 'visual' && x.show !== 'orig' ? '<button type="button" data-c="pick" title="Tap the part of the visual you want changed">Point at a part</button>' : '') + '</div>' + (picks.has(x.id) ? '<small>Pointing at: ' + esc(picks.get(x.id).text || picks.get(x.id).tag || 'a spot') + ' (' + picks.get(x.id).x + '%, ' + picks.get(x.id).y + '%)</small>' : '') : '')
       + (R ? '<div class="kb-chips">' + R.map((r, k) => '<button type="button" data-rf="' + k + '" title="' + esc(r[1]) + '">' + esc(r[0]) + '</button>').join('') + '</div><div class="kb-pr"><input type="text" placeholder="Or say how to change it…" enterkeyhint="send" aria-label="How to change it"><button type="button" class="kb-go" data-c="go">Go</button></div>' : '')
       + '<div class="kb-chr">' + (x.st !== 'kept' ? '<button type="button" class="kb-go" data-c="keep" title="Mark it as reviewed and worth keeping: kept changes are the ones to fold into the page itself later">Keep</button>' : '<button type="button" data-c="unkeep" title="Mark it as not reviewed again">Kept \u2713 \u00B7 undo</button>') + '<button type="button" data-c="discard">' + (x.kind === 'hide' ? 'Show it again' : x.kind === 'move' ? 'Put it back' : 'Remove') + '</button>' + (grp > 1 ? '<button type="button" data-c="group">Undo the whole request (' + grp + ')</button>' : '') + '</div>'
       + (ask ? '<small>You asked: ' + esc(String(ask).slice(0, 160)) + '</small>' : '') + (x.st !== 'kept' && x.by !== 'you' ? '<small>Changes stay until you remove them. Keep marks one as reviewed and worth folding into the page.</small>' : '');
@@ -1385,7 +1579,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const inp2 = chg.querySelector('input'); if (inp2 && typedV) { inp2.value = typedV; try { inp2.setSelectionRange(typedP, typedP) } catch(e) {} }
     const f = was === 'input' ? inp2 : was && (chg.querySelector('[data-c="' + was + '"]') || chg.querySelector('[data-rf="' + was + '"]')); (f || chg.querySelector('button')).focus({preventScroll:true});
   }
-  function closeChg(){ if (chg.hidden) { chgId = null; return } chg.hidden = true; chgId = null; if (chgBack && chgBack.isConnected && chgBack.focus) try { chgBack.focus({preventScroll:true}) } catch(e) {} chgBack = null }
+  function closeChg(){ if (pickingId) { toFrame(pickingId, {kbPick:false}); pickingId = null } if (chg.hidden) { chgId = null; return } chg.hidden = true; chgId = null; if (chgBack && chgBack.isConnected && chgBack.focus) try { chgBack.focus({preventScroll:true}) } catch(e) {} chgBack = null }
   chg.addEventListener('click', e => {
     const x = chgX0(); if (!x) { closeChg(); return } const b = e.target.closest('button'); if (!b) return; const inp = chg.querySelector('input');
     if (b.dataset.rf != null) { const R = x.kind === 'visual' ? REFINE.visual : REFINE.text; refineEdit(x, R[+b.dataset.rf][1]); return }
@@ -1398,6 +1592,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (c === 'discard') removeEdits([x], x.kind === 'hide' ? 'Shown again' : x.kind === 'move' ? 'Put back' : 'Removed');
     else if (c === 'group') removeEdits(edits.filter(y => y.g === x.g), 'The whole request was undone');
     else if (c === 'go' && inp && inp.value.trim()) refineEdit(x, inp.value.trim());
+    else if (c === 'pick') askPick(x);
   });
   chg.addEventListener('keydown', e => { const x = chgX0(); if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.value.trim() && x) { e.preventDefault(); refineEdit(x, e.target.value.trim()) } });
   document.addEventListener('pointerdown', e => { if (!chg.hidden && !chg.contains(e.target) && !(e.target.closest && e.target.closest('.kb-edtag,.kb-vis [data-ev]'))) closeChg() }, true);
@@ -1408,7 +1603,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const node = editNode(x) || e, n = x.nid ? notes.find(m => m.id === x.nid && noteEl.get(m)) : null, ms = (x.made || []).map(id => marks.find(m => m.id === id)).filter(Boolean), r = node.getBoundingClientRect();
     PG.out.status('Working on your change…');
     if (origView) { origView = false; renderEdits() }
-    const job = {kind:'page', typed:q, refine:x, refineId:x.id, gid:x.g, follow:n || null, thread:n ? turnsOf(n).slice() : [], hl:null, marks:ms, anchorEl:e, box:{x0:r.left, y0:r.top, x1:r.right, y1:r.bottom}, near:normT(origText(e)).slice(0, 700), scr:await screenBlocks(false, ms, null)};
+    const pick = picks.get(x.id); picks.delete(x.id); if (pick) toFrame(x.id, {kbPick:false, clear:true});
+    const job = {kind:'page', typed:q, refine:x, refineId:x.id, pick, gid:x.g, follow:n || null, thread:n ? turnsOf(n).slice() : [], hl:null, marks:ms, anchorEl:e, box:{x0:r.left, y0:r.top, x1:r.right, y1:r.bottom}, near:normT(origText(e)).slice(0, 700), scr:await screenBlocks(false, ms, null)};
     if (PG.busy) { if (!enqueue(PG, job)) return; PG.out.status('Will do it after the reply being written (' + PG.queued.length + ' waiting)…'); return }
     send(PG, job);
   }
@@ -2074,7 +2270,21 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return h;
   }
   async function send(S, job){
-    S.busy = true; S.cur = job; let reply = null, rawNow = ''; job.gid = job.gid || newId();
+    try { await send0(S, job) } catch(e) {   // only what fails before send0's own try (building the request) arrives here
+      if (S.cur !== job) return; S.busy = false; S.cur = null; job.err = String(e.message || e); if (!job.quiet) toast('Could not ask Claude: ' + job.err, 9000);
+      nextJob(S);
+      if (job.after) setTimeout(() => { try { job.after() } catch(e2) {} });
+    }
+  }
+  // the next waiting job; a repair the reader made pointless costs no call (its after() returns at once: its change is gone or on another version)
+  function nextJob(S){
+    while (S.queued.length && S.queued[0].repairRid && repairMoot(S.queued[0])) { const j = S.queued.shift(); try { j.after() } catch(e) {} }
+    if (S.queued.length) send(S, S.queued.shift());
+  }
+  async function send0(S, job){
+    S.busy = true; S.cur = job; let reply = null, rawNow = '';
+    if (job.refineId) { const y = edits.find(z => z.id === job.refineId); if (y) job.refine = y }   // the change as it is now (a sync may have replaced it while this waited)
+    job.gid = job.gid || newId();
     const content = [];
     if (job.kind === 'note') {
       job.slots = findSlots(job.pg, job.A);
@@ -2127,17 +2337,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     };
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
-      S.out.status('Reading…');
-      let msgs = noteHistory().concat([{role:'user', content}]), before = '', r, cost = 0;
+      const say = job.quiet ? () => {} : t => S.out.status(t); say('Reading…');
+      let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
         const big = !!job.refine || ASKED_CHANGE.test(job.typed || '');
-        r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(before + raw, end) }, undefined,
-          name => S.out.status(name === 'add_visual' ? 'Building a visual for the page…' : name === 'rewrite_block' ? 'Rewriting that part of the page…' : name === 'web_search' ? 'Searching the web…' : name === 'web_fetch' ? 'Reading a web page…' : 'Looking further…'));
+        r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) say('Writing…'); feed(before + raw, end) }, undefined,
+          name => say(name === 'add_visual' ? 'Building a visual for the page…' : name === 'rewrite_block' ? 'Rewriting that part of the page…' : name === 'web_search' ? 'Searching the web…' : name === 'web_fetch' ? 'Reading a web page…' : name === 'patch_visual' ? 'Changing the visual…' : 'Looking further…'), job.model);
         cost += r.cents; const uses = r.content.filter(b => b.type === 'tool_use');
         if (r.stop === 'pause_turn' && turn < 5) { before += r.raw; msgs = msgs.concat([{role:'assistant', content:r.content}]); continue }   // the server's own loop paused: resume it
         if (r.stop !== 'tool_use' || !uses.length || turn >= 5) break;
         before += r.raw; msgs = msgs.concat([{role:'assistant', content:r.content}]);
-        const results = []; for (const u of uses) { S.out.status(u.name === 'search_kb' ? 'Searching the knowledge base for "' + (u.input.query || '') + '"…' : 'Reading ' + kbTitle(u.input.path) + '…'); results.push({type:'tool_result', tool_use_id:u.id, content:await runTool(u, job)}) }
+        const results = []; for (const u of uses) { say(u.name === 'search_kb' ? 'Searching the knowledge base for "' + (u.input.query || '') + '"…' : 'Reading ' + kbTitle(u.input.path) + '…'); results.push({type:'tool_result', tool_use_id:u.id, content:await runTool(u, job)}) }
         msgs = msgs.concat([{role:'user', content:results}]);
       }
       r = Object.assign({}, r, {raw:before + r.raw, cents:cost});
@@ -2145,17 +2355,18 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       await drained();
       if (!text) { if (S.out.empty) S.out.empty(job, reply); else target().innerHTML = '<span class="kb-err">' + (r.stop === 'refusal' ? 'Claude declined to answer this one.' : 'No reply.') + '</span>' }
       else if (S.out.done) S.out.done(job, text, r.raw);
-      S.out.status(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
+      say(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
       const img = job.kind === 'page' ? (job.scr.img ? await thumb(job.scr.img, job.box, job.scr.k) : null) : (job.img ? await thumb(job.img) : null);
       if (job.kind === 'note' && m2 && m2[1].trim() && book[job.pg]) { (book[job.pg].reads = book[job.pg].reads || []).push({t:Date.now(), text:m2[1].trim(), box:job.A}); saveBook() }
-      save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
+      if (!job.quiet) save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
     } catch(e) {
       await drained();
       const msg = String(e.message || e);
-      if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
+      job.err = msg; if (job.quiet) {} else if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
     } finally {
-      S.busy = false; S.cur = null; if (S === PG && job.gid) tidyOrphan(job);
-      if (S.queued.length) send(S, S.queued.shift());
+      S.busy = false; S.cur = null; if (S === PG && job.gid) try { tidyOrphan(job) } catch(e) {}
+      nextJob(S);
+      if (job.after) setTimeout(() => { try { job.after() } catch(e) {} });   // once the next job has started, so a further repair waits its turn
     }
   }
 
@@ -2564,6 +2775,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // it), below any open note it would cover, and pinned to the element the first mark is pinned to. A follow-up adds a turn.
   const PG = Session({kind:'page', status:s => toast(s, /¢/.test(s) ? 6000 : 0), typed:() => '',
     place(job){
+      if (job.quiet) { job.note = null; return el('div') }   // a repair: nothing to show
       if (job.follow && !noteEl.get(job.follow)) job.follow = null;   // deleted while it waited
       if (job.follow) {
         const n = job.follow, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
@@ -2585,8 +2797,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
     },
-    follow(job){ const nb = job.note.e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight },
-    done(job, text){ if (job.nudge && /^\s*NONE\.?\s*$/i.test(text)) { this.empty(job); toast('Nothing to add on "' + job.nudge.name + '"', 4000); return } job.note.t.a = text; linkNote(job); saveBook() },
+    follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight },
+    done(job, text){ if (job.quiet) return; if (job.nudge && /^\s*NONE\.?\s*$/i.test(text)) { this.empty(job); toast('Nothing to add on "' + job.nudge.name + '"', 4000); return } job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ const J = job.note; if (J && !J.d.querySelector('.kb-na').textContent.trim()) this.empty(job); else if (J) { J.t.a = J.d.querySelector('.kb-na').textContent; saveBook() } toast(msg, 9000) }});
 
