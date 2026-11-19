@@ -522,9 +522,11 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 // On a page that has it, it replaces the Ask Claude button (kb_ask.js stays on the page but its button is hidden).
 // Window: floats over the page (drag it by its title bar, resize it from the corner; the place and size are remembered) or fills
 //   the screen. Notebook and Chat share it, with the same context and the same key.
-// Notebook: write with Apple Pencil, pen, finger or mouse, or type; 3 s after the last stroke or key press the ink is cropped into
-//   an image and sent. The reader's ink fades; the reply writes itself in a handwriting face (with a small pen sketch when a picture
-//   helps) and fades when the pen comes down again. Every exchange is kept in this browser (IndexedDB, the Pages view).
+// Notebook: ruled pages one under another, kept in this browser (IndexedDB): write with Apple Pencil, pen, finger or mouse (two fingers
+//   scroll), or type; 3 s after the last stroke or key press Claude gets the new ink close up and the whole notebook page with the free
+//   spots on it lettered, picks one (or the next blank page) and the reply writes itself there in a handwriting face (with a small pen
+//   sketch when a picture helps, and an arrow to an earlier mark when that makes the link clear). Nothing fades: the notebook keeps
+//   the whole conversation; Undo and the Eraser remove things. There is always a blank page at the end. History lists every exchange.
 // Chat: plain questions and answers, as in Ask Claude.
 // Draw on the page: a clear sheet over the whole screen; circle, underline, annotate or sketch in red with pen, finger or mouse;
 //   3 s after the last stroke Claude gets the screen with the ink on it, the ink fades, and the reply writes itself in a card beside the marks.
@@ -580,9 +582,19 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 #kbBuddy .kb-grip{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;touch-action:none;z-index:2;background:linear-gradient(135deg,transparent 0 50%,var(--line) 50% 56%,transparent 56% 66%,var(--line) 66% 72%,transparent 72% 82%,var(--line) 82% 88%,transparent 88%)}
 #kbBuddy.kb-full .kb-grip{display:none}
 #kbBuddy .kb-view{flex:1;min-height:0;display:flex;flex-direction:column}
-#kbBuddy .kd-paper{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--card,var(--bg));background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 35px,color-mix(in srgb,var(--line) 70%,transparent) 35px,color-mix(in srgb,var(--line) 70%,transparent) 36px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-#kbBuddy canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.4s ease}
-#kbBuddy .kd-reply{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;padding:6px 22px;font-family:${HAND};font-size:27px;line-height:36px;color:var(--acc);pointer-events:none;transition:opacity 1.2s ease;white-space:pre-wrap;overflow-wrap:anywhere}
+#kbBuddy .kd-paper{position:relative;flex:1;min-height:0;background:var(--soft);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#kbBuddy .kd-scr{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:10px 0 44px}
+#kbBuddy .kd-book{display:flex;flex-direction:column;align-items:center;gap:14px}
+#kbBuddy .kd-pg{position:relative;flex:none;overflow:hidden;border-radius:3px;background:var(--card,var(--bg));box-shadow:0 1px 5px rgba(0,0,0,.16)}
+#kbBuddy .kd-pgi{position:absolute;left:0;top:0;width:800px;height:1130px;transform-origin:0 0;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 39px,color-mix(in srgb,var(--line) 70%,transparent) 39px,color-mix(in srgb,var(--line) 70%,transparent) 40px)}
+#kbBuddy .kd-pg canvas{position:absolute;left:0;top:0;width:800px;height:1130px;touch-action:none;cursor:crosshair}
+#kbBuddy.kd-erasing .kd-pg canvas{cursor:cell}
+#kbBuddy .kd-its{position:absolute;inset:0;pointer-events:none}
+#kbBuddy .kd-it{position:absolute;white-space:pre-wrap;overflow-wrap:anywhere}
+#kbBuddy .kd-reply{font-family:${HAND};font-size:30px;line-height:40px;color:var(--acc)}
+#kbBuddy .kd-typed{font-size:22px;line-height:40px}
+#kbBuddy svg.kd-arrow{left:0;top:0;width:800px;height:1130px;color:var(--acc);overflow:visible}
+#kbBuddy .kd-no{position:absolute;right:16px;bottom:8px;font-size:15px;color:var(--mute)}
 .kb-ink span{display:inline;animation:kbInk .5s ease-out both}
 .kb-fade{opacity:0!important}
 .kb-sk{display:block;margin:4px 0 8px}
@@ -640,11 +652,11 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   const btn = el('button', {id:'kbBuddyBtn', type:'button', 'aria-haspopup':'menu', title:'AI buddy: a notebook to think in by hand, or a chat with Claude'}, 'AI buddy');
   const menu = el('div', {id:'kbBuddyMenu', role:'menu', hidden:''}, '<button type="button" role="menuitem" data-m="notebook">Notebook<small>write or type; Claude reads after a pause</small></button><button type="button" role="menuitem" data-m="chat">Chat<small>ask Claude about this page</small></button><button type="button" role="menuitem" data-m="draw">Draw on the page<small>circle, underline, annotate; Claude answers beside it</small></button>');
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'AI buddy', hidden:''});
-  P.innerHTML = `<div class="kb-h"><div class="kb-tabs"><button type="button" data-a="notebook" aria-pressed="true">Notebook</button><button type="button" data-a="chat" aria-pressed="false">Chat</button></div><span class="kb-sp"></span><button type="button" data-a="draw" title="Draw on the page itself: circle or annotate something and Claude answers beside it">&#x270E; Page</button><button type="button" data-a="pages" title="Earlier pages of this notebook">Pages</button><button type="button" data-a="new" title="Start a new chat">New</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
+  P.innerHTML = `<div class="kb-h"><div class="kb-tabs"><button type="button" data-a="notebook" aria-pressed="true">Notebook</button><button type="button" data-a="chat" aria-pressed="false">Chat</button></div><span class="kb-sp"></span><button type="button" data-a="draw" title="Draw on the page itself: circle or annotate something and Claude answers beside it">&#x270E; Page</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and drawing on the page">History</button><button type="button" data-a="new" title="Start a new chat">New</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
 <div class="kb-hl" hidden><span>Your highlight:</span><q></q><button type="button" data-a="unhl" title="Do not send this highlight" aria-label="Do not send this highlight">&#x2715;</button></div>
-<div class="kb-view" data-v="notebook"><div class="kd-paper"><canvas aria-label="Writing area: write with a pen, finger or the mouse"></canvas><div class="kd-reply kb-ink" aria-live="polite"><div class="kb-r"></div></div><div class="kd-st"></div></div>
+<div class="kb-view" data-v="notebook"><div class="kd-paper"><div class="kd-scr"><div class="kd-book"></div></div><div class="kd-st" aria-live="polite"></div></div>
 <div class="kb-f"><textarea rows="2" placeholder="Write on the page above, or type here. Claude reads it about 3 seconds after you stop."></textarea>
-<div class="kb-row"><button type="button" data-a="undo" title="Remove the last stroke">Undo</button><button type="button" data-a="clear" title="Clear what you have not sent yet">Clear</button><span class="kb-meta"></span><button type="button" class="kb-go" data-a="send" title="Send now instead of waiting">Send now</button></div></div></div>
+<div class="kb-row"><button type="button" data-a="undo" title="Remove your last stroke">Undo</button><button type="button" data-a="erase" aria-pressed="false" title="Eraser: touch a stroke, or one of Claude's notes, to remove it">Eraser</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><span class="kb-meta"></span><button type="button" class="kb-go" data-a="send" title="Send now instead of waiting">Send now</button></div></div></div>
 <div class="kb-view" data-v="chat" hidden><div class="kb-scroll kc-msgs" aria-live="polite"></div>
 <div class="kb-f"><textarea rows="2" placeholder="Ask about anything on this page. Enter sends, Shift+Enter adds a line."></textarea>
 <div class="kb-row"><span class="kb-meta"></span><button type="button" class="kb-go" data-a="ask">Ask</button></div></div></div>
@@ -655,10 +667,9 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
   const $ = s => P.querySelector(s);
   const head = $('.kb-h'), grip = $('.kb-grip'), hlBox = $('.kb-hl');
   const nbView = $('[data-v=notebook]'), chView = $('[data-v=chat]'), pgView = $('[data-v=pages]'), stView = $('[data-v=set]');
-  const paper = $('.kd-paper'), cv = $('canvas'), reply = $('.kd-reply .kb-r'), stat = $('.kd-st'), ta = nbView.querySelector('textarea');
+  const stat = $('.kd-st'), ta = nbView.querySelector('textarea'), scr = $('.kd-scr'), book$ = $('.kd-book');
   const msgs = $('.kc-msgs'), cta = chView.querySelector('textarea'), askBtn = $('[data-a=ask]'), cmeta = chView.querySelector('.kb-meta');
   const log = $('.kd-log'), setv = $('.kb-set');
-  const ctx2 = cv.getContext('2d', {desynchronized:true}) || cv.getContext('2d');   // low-latency canvas where the browser offers it
 
   // ---- window: floating (dragged by the title bar, resized from the corner, remembered) or full screen ----
   let geom = null; try { geom = JSON.parse(mine.get('geom') || 'null') } catch(e) {}
@@ -700,7 +711,7 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
     $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set');
     if (v === 'pages') renderLog();
     if (v === 'set') renderSet();
-    if (v === 'notebook') requestAnimationFrame(size);
+    if (v === 'notebook') requestAnimationFrame(layoutBook);
     if (v === 'chat') { hint(); cta.focus() }
     showHl();
   }
@@ -952,13 +963,15 @@ code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100
 - Write maths in plain text with Unicode (softmax(QKᵀ/√d), ×, ², ᵀ), never LaTeX. Do not use em dashes.
 - When a picture says it better than words (a shape, a matrix, an arrow diagram, a curve, a tensor's dimensions), you may draw one small sketch: <svg viewBox="0 0 W H">...</svg> with W at most 600, using only g, path, line, polyline, polygon, rect, circle, ellipse and text (and a marker in defs for arrowheads); it is drawn in pen, so no colours, styles, images or scripts; labels of a few words; at most about 40 shapes. Always write a sentence with it, and do not sketch when words are enough.`;
   const SYS_NOTE = `You are a thinking partner in the reader's notebook. ${COMMON}
-The reader writes to you by hand (you get an image of their ink) or by keyboard, then pauses; you answer on the same paper. Your job is to think with them, not to lecture or test them. They read to understand deeply, not to memorise: never quiz them.
-- Take up exactly what they wrote: build on the idea, sharpen it, connect it to the page or to what is on their screen, or point out gently where it goes wrong and why.
+The reader writes to you by hand or by keyboard in a notebook of ruled pages, then pauses; you answer on the same paper, in handwriting. The notebook keeps everything: their ink, their typed notes and your replies stay where they are, page after page, so they can read the conversation back. Your job is to think with them, not to lecture or test them. They read to understand deeply, not to memorise: never quiz them.
+- Take up exactly what they wrote: build on the idea, sharpen it, connect it to the page, to what is on their screen or to what is already in the notebook, or point out gently where it goes wrong and why.
 - At most one question back, and only when it would genuinely move their thinking forward. Often no question is better.
 - Short: usually 1 to 4 sentences, plain words, like a note written in the margin. No lists, headings, bold or code fences.
 - If their handwriting is unclear, say what you read and ask if that is right.
-- Sometimes they draw on the page itself instead of the notebook: circles, arrows, underlines, notes in the margin, a sketch for you to finish. Their ink is then the red marks on the screen image; answer about exactly what they marked, and keep in mind your reply appears in a small card beside their marks.
-Output format, always: first <read>exactly what they wrote, transcribed (handwriting and typed text; describe any sketch or mark of theirs, and what it points at, in a few words in brackets)</read>, then your reply as plain text after it.`;
+- Where to write: you get an image of the notebook page with free spots outlined in green and lettered, and a list of them with the room each has; N is the top of the next blank page. Choose like a person sharing a notebook: right below or beside what they just wrote, so the reply reads as an answer to it; a spot beside it for a short remark; another free stretch of the page when that keeps it close; N when the page is crowded, or the reply is long or has a sketch. Keep the reply within the room of the spot you choose.
+- If your reply is about one particular mark on the notebook page other than what they just wrote (something earlier on the page, a part of a drawing, one of your earlier notes), you may add <point>x,y</point> right after </read>: the coordinates of that mark in the notebook image, read off its ruler; an arrow is drawn from your reply to it. Use it rarely, only when the link would otherwise be unclear.
+- Sometimes they draw on the page itself instead of the notebook: circles, arrows, underlines, notes in the margin, a sketch for you to finish. Their ink is then the red marks on the screen image; answer about exactly what they marked, and keep in mind your reply appears in a small card beside their marks. There is no <at> or <point> then.
+Output format, always: in the notebook first <at>the letter of the spot you choose</at>; then <read>exactly what they wrote, transcribed (handwriting and typed text; describe any sketch or mark of theirs, and what it points at, in a few words in brackets)</read>; then, in the notebook and only if needed, <point>x,y</point>; then your reply as plain text.`;
   const SYS_CHAT = `You answer the reader's questions in a chat panel. ${COMMON}
 - Answer from the page first and say where on the page the answer is (tab and section) when that helps. When the answer needs knowledge the page does not contain, start that paragraph with "Beyond this page:".
 - If the question rests on a misreading of the page, say so gently and correct it.
@@ -999,13 +1012,20 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');
   let entries = [];
   const db = new Promise(res => {
-    try { const r = indexedDB.open('kbDiary', 1); r.onupgradeneeded = () => r.result.createObjectStore('entries', {keyPath:'id', autoIncrement:true}).createIndex('page', 'page'); r.onsuccess = () => res(r.result); r.onerror = () => res(null) } catch(e) { res(null) }
+    try {
+      const r = indexedDB.open('kbDiary', 2);
+      r.onupgradeneeded = () => { const d = r.result;
+        if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', {keyPath:'id', autoIncrement:true}).createIndex('page', 'page');
+        if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', {keyPath:'page'}) };
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+    } catch(e) { res(null) }
   });
-  const tx = async (m, f) => { const d = await db; if (!d) return null; return new Promise(res => { try { const t = d.transaction('entries', m), s = t.objectStore('entries'); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
+  const tx = async (m, f, name) => { const d = await db; if (!d) return null; name = name || 'entries'; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
   tx('readonly', s => s.index('page').getAll(PAGE_ID)).then(r => { if (r) entries = r.sort((a, b) => a.t - b.t) });
   const save = e => { entries.push(e); tx('readwrite', s => s.add(e)).then(id => { if (id != null) e.id = id }) };
 
-  // ---- ink on a canvas: strokes of [x, y, pressure] points, in the canvas's coordinates (page coordinates for the page overlay) ----
+  // ---- ink on a canvas: strokes of [x, y, pressure] points in the ink's own units (page coordinates for the page overlay, paper
+  // units for a notebook page, whose canvas is drawn at lw units wide and scaled on screen) ----
   function seg(c, a, b, w){ c.lineWidth = w * (0.45 + 0.85 * ((a[2] + b[2]) / 2)); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke() }
   function drawStroke(c, s, w){
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -1014,38 +1034,43 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
   }
   function Ink(cv, opt){
     const g = cv.getContext('2d', {desynchronized:true}) || cv.getContext('2d');   // low-latency canvas where the browser offers it
-    const o = {cv, strokes:[], cur:null, dpr:1}, off = () => opt.off ? opt.off() : [0, 0];
+    const o = {cv, strokes:[], cur:null, dpr:1, k:1}, off = () => opt.off ? opt.off() : [0, 0];
     const setT = () => { const [ox, oy] = off(); g.setTransform(o.dpr, 0, 0, o.dpr, -ox * o.dpr, -oy * o.dpr); g.strokeStyle = g.fillStyle = opt.color() };
     o.redraw = () => { g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); setT(); for (const s of o.strokes) drawStroke(g, s, opt.w) };
-    o.size = () => { const r = cv.getBoundingClientRect(); if (r.width < 2) return; o.dpr = window.devicePixelRatio || 1; cv.width = Math.max(1, Math.round(r.width * o.dpr)); cv.height = Math.max(1, Math.round(r.height * o.dpr)); o.redraw() };
+    o.size = () => { const r = cv.getBoundingClientRect(); if (r.width < 2) return; const d = window.devicePixelRatio || 1; o.k = opt.lw ? r.width / opt.lw : 1; o.dpr = d * o.k; cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d)); o.redraw() };
+    o.busy = () => !!o.cur;
+    // drop the stroke being drawn (a second finger came down: the reader is scrolling, not writing)
+    o.cancel = () => { const c = o.cur; if (!c) return; o.cur = null; if (c.p) { const i = o.strokes.indexOf(c.p); if (i >= 0) o.strokes.splice(i, 1); if (opt.cancelled) opt.cancelled(c.p) } o.redraw() };
     new ResizeObserver(o.size).observe(cv);
     // iPadOS Scribble (handwriting into text fields) watches Pencil touches and holds back a stroke that starts soon after the last one
     // (WebKit bug 217430); cancelling the touch events on the canvas keeps every touch for the drawing (the fix Excalidraw shipped, #4705)
     for (const t of ['touchstart', 'touchmove', 'touchend']) cv.addEventListener(t, e => { if (e.cancelable) e.preventDefault() }, {passive:false});
     let penUp = 0;
-    const pt = (e, r) => { const [ox, oy] = off(); return [e.clientX - r.left + ox, e.clientY - r.top + oy, e.pointerType === 'pen' ? (e.pressure || 0.05) : 0.5] };
+    const pt = (e, r) => { const [ox, oy] = off(); return [(e.clientX - r.left) / o.k + ox, (e.clientY - r.top) / o.k + oy, e.pointerType === 'pen' ? (e.pressure || 0.05) : 0.5] };
     cv.addEventListener('pointerdown', e => {
-      if (o.cur || e.button > 0) return;   // one stroke at a time: a second finger or the palm during a stroke does not draw
+      if (o.cur || e.button > 0 || (opt.block && opt.block())) return;   // one stroke at a time: a second finger or the palm during a stroke does not draw
       // fingers draw too; only a large contact (a resting palm) or a touch while the pen was just writing is ignored
       if (e.pointerType === 'touch' && (Math.max(e.width || 0, e.height || 0) > 44 || performance.now() - penUp < 400)) return;
-      e.preventDefault(); cv.setPointerCapture(e.pointerId); opt.down();
-      const r = cv.getBoundingClientRect(); o.cur = {id:e.pointerId, r, p:[pt(e, r)]}; o.strokes.push(o.cur.p); setT(); drawStroke(g, o.cur.p, opt.w);
+      e.preventDefault(); cv.setPointerCapture(e.pointerId);
+      const r = cv.getBoundingClientRect();
+      if (opt.eraser && opt.eraser()) { o.cur = {id:e.pointerId, r, er:true}; opt.erase(pt(e, r)); return }
+      opt.down(); o.cur = {id:e.pointerId, r, p:[pt(e, r)]}; o.strokes.push(o.cur.p); if (opt.start) opt.start(o.cur.p); setT(); drawStroke(g, o.cur.p, opt.w);
     });
     cv.addEventListener('pointermove', e => {
       if (!o.cur || e.pointerId !== o.cur.id) return; e.preventDefault();
+      if (o.cur.er) { opt.erase(pt(e, o.cur.r)); return }
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const x of (evs.length ? evs : [e])) { const p = pt(x, o.cur.r), q = o.cur.p[o.cur.p.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.6) continue; o.cur.p.push(p); seg(g, q, p, opt.w) }
     });
-    const up = e => { if (!o.cur || e.pointerId !== o.cur.id) return; if (e.pointerType === 'pen') penUp = performance.now(); o.cur = null; opt.up() };
+    const up = e => { if (!o.cur || e.pointerId !== o.cur.id) return; if (e.pointerType === 'pen') penUp = performance.now(); const er = o.cur.er; o.cur = null; if (er) { if (opt.erased) opt.erased() } else opt.up() };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     return o;
   }
 
-  // the committed notebook ink as a PNG: cropped to the strokes, black on white, longest side at most 1280 px
+  // the reader's new ink as a PNG: cropped to the strokes, black on white, longest side at most 1280 px
   function snapshot(ss){
     if (!ss.length) return null;
-    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for (const s of ss) for (const p of s) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) }
+    let {x0, y0, x1, y1} = bbox(ss);
     const pad = 16; x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
     const w = x1 - x0, h = y1 - y0, k = Math.min(2, 1280 / Math.max(w, h));
     const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
@@ -1055,63 +1080,272 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
     return c.toDataURL('image/png');
   }
   const bbox = ss => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const s of ss) for (const p of s) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) } return {x0, y0, x1, y1} };
-  // a small JPEG for the Pages view: the whole image, or the part around a box (screen coordinates, image scale k)
+  // a small JPEG for the History view: the whole image, or the part around a box (screen coordinates, image scale k)
   function thumb(src, box, k){ return new Promise(res => { const i = new Image(); i.onload = () => {
     let sx = 0, sy = 0, sw = i.width, sh = i.height;
     if (box) { const pad = 160; sx = Math.max(0, (box.x0 - pad) * k); sy = Math.max(0, (box.y0 - pad) * k); sw = Math.min(i.width - sx, (box.x1 - box.x0 + 2 * pad) * k); sh = Math.min(i.height - sy, (box.y1 - box.y0 + 2 * pad) * k) }
     const s = Math.min(1, 480 / sw, 220 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * s)); c.height = Math.max(1, Math.round(sh * s));
     const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, sx, sy, sw, sh, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)) }; i.onerror = () => res(null); i.src = src }) }
 
-  // ---- a writing session: the notebook paper, or the page itself in draw mode. Ink and typing collect; 3 s after the last stroke
-  // or key press it is committed: sent with the screen, the ink fades, and the reply writes itself where the session shows it ----
-  function Session(out){ const S = {out, timer:0, stale:false, busy:false, queued:null}; return S }
-  function arm(S){ clearTimeout(S.timer); if (!S.ink.strokes.length && !S.out.typed()) return; S.out.status('Reading in 3 s…'); S.timer = setTimeout(() => commit(S), PAUSE) }
+  // ---- the notebook: fixed-size pages one under another, kept in this browser (IndexedDB 'books'). Everything stays on the paper:
+  // the reader's ink, their typed notes, Claude's replies and its arrows. Coordinates are paper units: a page is 800 x 1130, ruled
+  // every 40; it is scaled to the window's width. There is always one blank page at the end. ----
+  const PW = 800, PH = 1130, LH = 40, MX = 36, TOP = 42, BOT = 1096;
+  let book = [], pgs = [], scale = 1, inkColor = '#222', erasing = false, gest = null, gestEnd = 0, loaded = false, jumped = false;
+  const pend = [], undoStack = [], elOf = new Map();   // strokes Claude has not read yet, and every stroke for Undo ({pg, s}); item -> element
+  const drop = (a, s) => { const k = a.findIndex(x => x === s || (x && x.s === s)); if (k >= 0) a.splice(k, 1) };
+  const r1 = v => Math.round(v * 10) / 10;
+  let saveT = 0;
+  const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => tx('readwrite', s => s.put({page:PAGE_ID, t:Date.now(), pages:book.map(p => ({ink:p.ink.map(s => s.map(q => [r1(q[0]), r1(q[1]), Math.round(q[2] * 100) / 100])), items:p.items}))}), 'books'), 400) };
+  const blank = p => !p.ink.length && !p.items.length;
+
+  function mountPage(i){
+    const data = book[i], outer = el('div', {class:'kd-pg'}), inner = el('div', {class:'kd-pgi'}), items = el('div', {class:'kd-its'});
+    const c = el('canvas', {'aria-label':'Notebook page ' + (i + 1) + ': write with a pen, a finger or the mouse; scroll with two fingers'});
+    inner.append(c, items, el('span', {class:'kd-no'}, String(i + 1))); outer.appendChild(inner); book$.appendChild(outer);
+    const ink = Ink(c, {w:2.6, lw:PW, color:() => inkColor,
+      block:() => !!gest || performance.now() < gestEnd || pgs.some(p => p.ink.busy()),
+      eraser:() => erasing, erase:p => eraseAt(i, p), erased:() => { saveBook(); renderOn() },
+      down:() => { clearTimeout(NB.timer); stat.textContent = '' }, start:s => { pend.push({pg:i, s}); undoStack.push({pg:i, s}) },
+      cancelled:s => { drop(pend, s); drop(undoStack, s) }, up:() => { saveBook(); grow(); arm(NB) }});
+    ink.strokes = data.ink;
+    const pg = {data, outer, inner, ink, items}; pgs[i] = pg;
+    for (const it of data.items) items.appendChild(itemEl(it));
+    sizePage(pg); return pg;
+  }
+  function addPage(){ book.push({ink:[], items:[]}); mountPage(book.length - 1); return book.length - 1 }
+  function grow(){ if (!book.length || !blank(book[book.length - 1])) addPage() }   // keep one blank page at the end
+  function sizePage(p){ Object.assign(p.outer.style, {width:PW * scale + 'px', height:PH * scale + 'px'}); p.inner.style.transform = 'scale(' + scale + ')'; p.ink.size() }
+  let layT = 0;
+  function layoutBook(){
+    inkColor = getComputedStyle(P).color || '#222';
+    const w = scr.clientWidth; if (w < 50) return;
+    scale = Math.min(1.15, (w - 20) / PW); for (const p of pgs) sizePage(p);
+    if (loaded && !jumped) { jumped = true; jumpLatest() }
+  }
+  new ResizeObserver(() => { cancelAnimationFrame(layT); layT = requestAnimationFrame(() => { if (!nbView.hidden) layoutBook() }) }).observe(scr);
+  tx('readonly', s => s.get(PAGE_ID), 'books').then(r => {
+    book = r && Array.isArray(r.pages) ? r.pages.filter(p => p && Array.isArray(p.ink) && Array.isArray(p.items)) : [];
+    book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!nbView.hidden) layoutBook();
+  });
+
+  // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
+  function styleItem(e, it){ if (it.kind === 'reply' && it.fs && it.fs !== 1) { e.style.fontSize = 30 * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
+  const arrowD = a => {
+    const dx = a.x2 - a.x1, dy = a.y2 - a.y1, cx = (a.x1 + a.x2) / 2 - dy * 0.15, cy = (a.y1 + a.y2) / 2 + dx * 0.15;
+    const hx = a.x2 - cx, hy = a.y2 - cy, hl = Math.hypot(hx, hy) || 1, ux = hx / hl, uy = hy / hl, h = 15, f = v => Math.round(v);
+    return `M${f(a.x1)} ${f(a.y1)} Q${f(cx)} ${f(cy)} ${f(a.x2)} ${f(a.y2)} M${f(a.x2 - h * ux - h * 0.55 * uy)} ${f(a.y2 - h * uy + h * 0.55 * ux)} L${f(a.x2)} ${f(a.y2)} L${f(a.x2 - h * ux + h * 0.55 * uy)} ${f(a.y2 - h * uy - h * 0.55 * ux)}`;
+  };
+  function itemEl(it){
+    let e;
+    if (it.kind === 'arrow') {
+      e = document.createElementNS(NS, 'svg'); e.setAttribute('class', 'kd-it kd-arrow'); e.setAttribute('viewBox', `0 0 ${PW} ${PH}`); e.setAttribute('aria-hidden', 'true');
+      const p = document.createElementNS(NS, 'path'); p.setAttribute('d', arrowD(it)); p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'currentColor'); p.setAttribute('stroke-width', '2.6'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round'); e.appendChild(p);
+    } else {
+      e = el('div', {class:'kd-it kb-ink kd-' + it.kind}); Object.assign(e.style, {left:it.x + 'px', top:it.y + 'px', width:it.w + 'px'}); styleItem(e, it);
+      if (it.kind === 'typed') e.textContent = it.text;
+      else for (const x of replyPieces(it.text || '')) { if (typeof x === 'string') e.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) e.appendChild(b) } }
+    }
+    elOf.set(it, e); return e;
+  }
+  function addItem(i, it){ book[i].items.push(it); const e = itemEl(it); pgs[i].items.appendChild(e); return e }
+  function removeItem(i, it){ drop(book[i].items, it); const e = elOf.get(it); if (e) e.remove(); elOf.delete(it) }
+
+  // ---- the eraser: a whole stroke, a typed note, a reply or an arrow at a time ----
+  const dseg = (p, a, b) => { const vx = b[0] - a[0], vy = b[1] - a[1], L = vx * vx + vy * vy; let t = L ? ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy) };
+  const nearStroke = (s, p, r) => s.length === 1 ? Math.hypot(p[0] - s[0][0], p[1] - s[0][1]) < r : s.some((q, j) => j > 0 && dseg(p, s[j - 1], q) < r);
+  function eraseAt(i, p){
+    const d = book[i]; let hit = false;
+    for (let k = d.ink.length - 1; k >= 0; k--) { const s = d.ink[k]; if (nearStroke(s, p, 12)) { d.ink.splice(k, 1); drop(pend, s); drop(undoStack, s); hit = true } }
+    for (const it of d.items.slice()) {
+      const on = it.kind === 'arrow' ? dseg(p, [it.x1, it.y1], [it.x2, it.y2]) < 12 : p[0] >= it.x && p[0] <= it.x + it.w && p[1] >= it.y && p[1] <= it.y + (it.h || LH);
+      if (on) { removeItem(i, it); hit = true }
+    }
+    if (hit) pgs[i].ink.redraw();
+  }
+  function renderOn(){ if (!pend.length && !ta.value.trim()) { clearTimeout(NB.timer); stat.textContent = '' } }
+
+  // ---- two fingers scroll the notebook (one finger, the pen and the mouse write); a fling keeps it moving for a moment ----
+  const midY = e => { let y = 0; for (const t of e.touches) y += t.clientY; return y / e.touches.length };
+  let fling = 0;
+  scr.addEventListener('touchstart', e => {
+    if (e.touches.length < 2) return; cancelAnimationFrame(fling);
+    for (const p of pgs) p.ink.cancel();
+    const y = midY(e); gest = {y, ly:y, top:scr.scrollTop, t:performance.now(), v:0};
+  }, {passive:false});
+  scr.addEventListener('touchmove', e => {
+    if (!gest || e.touches.length < 2) return; if (e.cancelable) e.preventDefault();
+    const y = midY(e), now = performance.now(), dt = Math.max(8, now - gest.t);
+    gest.v = 0.7 * ((y - gest.ly) / dt) + 0.3 * gest.v; gest.t = now; gest.ly = y; scr.scrollTop = gest.top - (y - gest.y);
+  }, {passive:false});
+  const endGest = e => {
+    if (!gest || e.touches.length >= 2) return;
+    let v = performance.now() - gest.t < 80 ? Math.max(-50, Math.min(50, gest.v * 16)) : 0; gest = null; gestEnd = performance.now() + 350;
+    const step = () => { if (Math.abs(v) < 0.4) return; scr.scrollTop -= v; v *= 0.94; fling = requestAnimationFrame(step) }; fling = requestAnimationFrame(step);
+  };
+  scr.addEventListener('touchend', endGest); scr.addEventListener('touchcancel', endGest);
+
+  // ---- where things are on a page and where there is room ----
+  function obstacles(i, skip){
+    const d = book[i], o = [];
+    for (const s of d.ink) { const b = bbox([s]); o.push([b.x0 - 8, b.y0 - 8, b.x1 + 8, b.y1 + 8]) }
+    for (const it of d.items) if (it !== skip && it.kind !== 'arrow') o.push([it.x - 6, it.y - 4, it.x + it.w + 6, it.y + (it.h || LH) + 4]);
+    return o;
+  }
+  const clearOf = (o, x0, y0, x1, y1) => !o.some(r => r[0] < x1 && r[2] > x0 && r[1] < y1 && r[3] > y0);
+  const rowAt = v => Math.max(TOP, Math.floor((v - 2) / LH) * LH + 2), rowBelow = v => Math.max(TOP, Math.ceil((v - 2) / LH) * LH + 2);
+  const freeDown = (o, x0, x1, y) => { let h = 0; while (y + h + LH <= BOT && clearOf(o, x0, y + h, x1, y + h + LH)) h += LH; return h };
+  const lastBottom = i => obstacles(i).reduce((m, r) => Math.max(m, r[3]), 0);
+  function nextBlank(i){ for (let k = i + 1; k < book.length; k++) if (blank(book[k])) return k; return addPage() }
+  // the free spots offered to Claude for a reply to what is in box A on page i: just below it, beside it, the biggest other free
+  // stretch of the page, and the top of the next blank page (N)
+  function findSlots(i, A){
+    const o = obstacles(i), out = [], L = MX, R = PW - MX;
+    // slots are alternatives (only one is used), so they may touch; one that mostly repeats an earlier one is left out
+    const ov = (q, x0, x1, y, h) => Math.max(0, Math.min(q.x + q.w, x1) - Math.max(q.x, x0)) * Math.max(0, Math.min(q.y + q.h, y + h) - Math.max(q.y, y));
+    const add = (where, x0, x1, y, h) => { if (h >= 2 * LH && x1 - x0 >= 220 && !out.some(q => ov(q, x0, x1, y, h) > 0.5 * Math.min(q.w * q.h, (x1 - x0) * h))) out.push({pg:i, where, x:x0, y, w:x1 - x0, h}) };
+    if (A) {
+      // beside it: the room to its right or left, down to a line below it
+      const yr = rowAt(A.y0), xr = Math.ceil(A.x1 + 24), xl = Math.floor(A.x0 - 24), hb = Math.max(2 * LH, rowBelow(A.y1 + 6) - yr + LH);
+      if (R - xr >= 220) add('beside it, to the right', xr, R, yr, Math.min(hb, freeDown(o, xr, R, yr)));
+      if (xl - L >= 220) add('beside it, to the left', L, xl, yr, Math.min(hb, freeDown(o, L, xl, yr)));
+      for (let y = rowBelow(A.y1 + 6); y + 2 * LH <= BOT; y += LH) { const h = freeDown(o, L, R, y); if (h >= 2 * LH) { add(y - A.y1 < 3 * LH ? 'just below what they wrote' : 'further down, below what they wrote', L, R, y, Math.min(h, 10 * LH)); break } }
+    }
+    let best = null; for (let y = TOP; y + 2 * LH <= BOT;) { const h = freeDown(o, L, R, y); if (h >= 2 * LH && (!best || h > best.h)) best = {y, h}; y += Math.max(LH, h) }
+    if (best) add(A ? 'elsewhere on this page' : 'on this page', L, R, best.y, best.h);
+    out.forEach((q, k) => q.key = 'ABCDEFG'[k]);
+    out.push({pg:-1, key:'N', where:'the top of the next blank page', x:L, y:TOP, w:R - L, h:BOT - TOP});
+    return out;
+  }
+  const room = q => q.key === 'N' ? 'room for a long reply or a sketch' : 'room for about ' + Math.max(3, Math.round(q.h / LH * q.w / 13 / 6)) + ' words' + (q.h >= 6 * LH && q.w >= 400 ? ' or a small sketch' : '');
+  function pageInView(){
+    const v = scr.getBoundingClientRect(); let best = 0, bi = 0;
+    pgs.forEach((p, i) => { const r = p.outer.getBoundingClientRect(), s = Math.min(r.bottom, v.bottom) - Math.max(r.top, v.top); if (s > best) { best = s; bi = i } });
+    return bi;
+  }
+  function see(i, y0, y1){   // scroll so paper rows y0..y1 of page i are in view, if they are not
+    const p = pgs[i]; if (!p) return; const top = p.outer.offsetTop + y0 * scale, bot = p.outer.offsetTop + (y1 == null ? y0 + 3 * LH : y1) * scale;
+    if (top < scr.scrollTop + 10 || bot > scr.scrollTop + scr.clientHeight - 30) scr.scrollTo({top:Math.max(0, Math.min(top - 40, bot - scr.clientHeight + 60)), behavior:'smooth'});
+  }
+  function jumpLatest(){
+    for (let i = book.length - 1; i >= 0; i--) if (!blank(book[i])) { const b = lastBottom(i); scr.scrollTop = Math.max(0, pgs[i].outer.offsetTop + b * scale - scr.clientHeight * 0.6); return }
+  }
+
+  // ---- the page Claude sees: the notebook page drawn at 800 x 1130 with a coordinate ruler, the reader's earlier ink in black and
+  // the new ink in blue, Claude's replies in brown (word by word where the page lays them out), the free spots in green ----
+  async function pageImage(i, slots, fresh){
+    const c = document.createElement('canvas'); c.width = PW; c.height = PH; const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, PW, PH); g.strokeStyle = '#e1e5ec'; g.lineWidth = 1;
+    for (let y = LH; y < PH; y += LH) { g.beginPath(); g.moveTo(0, y - 0.5); g.lineTo(PW, y - 0.5); g.stroke() }
+    g.fillStyle = '#8a8f98'; g.font = '11px sans-serif';
+    for (let x = 100; x < PW; x += 100) { g.fillText(String(x), x - 9, 11); g.fillRect(x, 13, 1, 5) }
+    for (let y = 100; y < PH; y += 100) { g.fillText(String(y), 2, y + 4) }
+    const d = book[i], fr = new Set(fresh || []);
+    for (const s of d.ink) { g.strokeStyle = g.fillStyle = fr.has(s) ? '#1453c8' : '#222'; drawStroke(g, s, 2.6) }
+    const base = pgs[i].inner.getBoundingClientRect(), k = base.width / PW, rg = document.createRange();
+    for (const it of d.items) {
+      const e = elOf.get(it); if (!e) continue; const col = it.kind === 'typed' ? '#222' : '#a0522d';
+      if (it.kind === 'arrow') { g.strokeStyle = col; g.lineWidth = 2.6; g.lineCap = 'round'; g.stroke(new Path2D(arrowD(it))); continue }
+      const tw = document.createTreeWalker(e, NodeFilter.SHOW_TEXT, {acceptNode: t => t.parentElement.closest('svg') ? 2 : 1});
+      for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+        const cs = getComputedStyle(t.parentElement); g.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; g.fillStyle = col;
+        const re = /\S+/g; let m;
+        while ((m = re.exec(t.nodeValue))) { rg.setStart(t, m.index); rg.setEnd(t, m.index + m[0].length); const q = rg.getBoundingClientRect(); if (!q.width) continue; g.fillText(m[0], (q.left - base.left) / k, (q.bottom - base.top) / k - q.height / k * 0.24, q.width / k + 2) }
+      }
+      for (const sv of e.querySelectorAll('svg')) {
+        const r = sv.getBoundingClientRect(); if (r.width < 4) continue;
+        const w = r.width / k, h = r.height / k, im = await svgImage(sv, {width:w, height:h}); if (!im) continue;
+        const t = document.createElement('canvas'); t.width = Math.ceil(w); t.height = Math.ceil(h); const tg = t.getContext('2d');   // in brown, like the rest of the reply
+        tg.drawImage(im, 0, 0, w, h); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, t.width, t.height);
+        g.drawImage(t, (r.left - base.left) / k, (r.top - base.top) / k);
+      }
+    }
+    g.setLineDash([9, 6]); g.lineWidth = 2.5; g.strokeStyle = '#0a8f3c';
+    for (const q of slots) if (q.pg === i) {
+      g.strokeRect(q.x + 2, q.y + 2, q.w - 4, q.h - 4); g.setLineDash([]); g.fillStyle = '#0a8f3c';
+      g.beginPath(); g.arc(q.x + 20, q.y + 20, 15, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = 'bold 19px sans-serif'; g.textAlign = 'center'; g.fillText(q.key, q.x + 20, q.y + 27); g.textAlign = 'start'; g.setLineDash([9, 6]);
+    }
+    return c.toDataURL('image/png');
+  }
+
+  // ---- a writing session: the notebook, or the page itself in draw mode. Ink and typing collect; 3 s after the last stroke or key
+  // press they are sent with the screen and the reply writes itself: in the notebook at the spot Claude picks, on the page in a card ----
+  function Session(out){ return {out, timer:0, stale:false, busy:false, queued:null} }
+  function arm(S){ clearTimeout(S.timer); if (!(S === NB ? pend.length : S.ink.strokes.length) && !S.out.typed()) return; S.out.status('Reading in 3 s…'); S.timer = setTimeout(() => commit(S), PAUSE) }
   function fadeReply(S){ const r = S.out.reply; if (r.textContent.trim() || r.querySelector('svg')) { r.parentElement.classList.add('kb-fade'); setTimeout(() => { if (r.parentElement.classList.contains('kb-fade')) { r.innerHTML = ''; r.parentElement.classList.remove('kb-fade'); if (S.out.faded) S.out.faded() } }, 1200) } }
-  function unfade(S){ if (S.stale) { S.stale = false; S.ink.cv.classList.remove('kb-fade'); S.ink.redraw() } }   // writing again: drop the fading ink at once
+  function unfade(S){ if (S.stale) { S.stale = false; S.ink.cv.classList.remove('kb-fade'); S.ink.redraw() } }   // drawing again on the page: drop the fading ink at once
   const onDown = S => () => { clearTimeout(S.timer); fadeReply(S); unfade(S); S.out.status('') };
+  const needKey = S => { if (store.get('key')) return false; S.out.status('Add your Claude API key in AI buddy, Settings.'); if (S === NB) { sub = 'set'; show() } return true };
   async function commit(S){
     clearTimeout(S.timer);
-    const typed = S.out.typed(); if (!S.ink.strokes.length && !typed) return;
-    if (!store.get('key')) { S.out.status('Add your Claude API key in AI buddy, Settings.'); if (S.out.kind === 'note') { sub = 'set'; show() } return }
-    const ss = S.ink.strokes, used = hl, job = {kind:S.out.kind, typed, hl:used};
-    // the sent ink fades; typed text leaves the box at once so new typing starts clean
-    S.ink.strokes = []; S.out.clearTyped(); S.stale = true; S.ink.cv.classList.add('kb-fade'); hl = null; showHl();
+    if (S === NB) return commitNote();
+    if (!S.ink.strokes.length || needKey(S)) return;
+    const ss = S.ink.strokes, used = hl, job = {kind:'page', typed:'', hl:used};
+    // the ink on the page fades once sent; the reply stays in its card
+    S.ink.strokes = []; S.stale = true; S.ink.cv.classList.add('kb-fade'); hl = null; showHl();
     setTimeout(() => { if (S.stale) { S.stale = false; S.ink.redraw(); S.ink.cv.classList.remove('kb-fade') } }, 1400);
     S.out.status('Looking…');
-    if (job.kind === 'note') { job.img = snapshot(ss); job.scr = await screenBlocks(P.classList.contains('kb-full'), null, used) }
-    else { job.ink = ss.map(s => s.map(p => [p[0] - scrollX, p[1] - scrollY, p[2]])); job.box = bbox(job.ink); job.scr = await screenBlocks(false, job.ink, used) }
+    job.ink = ss.map(s => s.map(p => [p[0] - scrollX, p[1] - scrollY, p[2]])); job.box = bbox(job.ink); job.scr = await screenBlocks(false, job.ink, used);
     if (S.busy) { S.queued = job; S.out.status('Will read after this reply…'); return }
     send(S, job);
   }
+  // the notebook: the new strokes (on the page where the last one is) and any typed text, which is written onto the paper below them
+  async function commitNote(){
+    const typed = ta.value.trim(); if (!pend.length && !typed) return;
+    if (needKey(NB)) return;
+    const got = pend.splice(0), pg = got.length ? got[got.length - 1].pg : pageInView(), ss = got.filter(x => x.pg === pg).map(x => x.s);
+    let A = ss.length ? bbox(ss) : null, at = pg;
+    if (typed) {
+      ta.value = '';
+      const lines = typed.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length * 11 / (PW - 2 * MX))), 0), h = lines * LH, o = obstacles(pg);
+      let y = rowBelow((A ? A.y1 : lastBottom(pg)) + 6);
+      while (y + h <= BOT && !clearOf(o, MX, y, PW - MX, y + h)) y += LH;
+      if (y + h > BOT) { at = nextBlank(pg); y = TOP }
+      const it = {kind:'typed', x:MX, y, w:PW - 2 * MX, text:typed, t:Date.now()}, e = addItem(at, it); it.h = e.offsetHeight || h;
+      const tb = {x0:MX, y0:y, x1:PW - MX, y1:y + it.h};
+      if (at !== pg) A = tb; else A = A ? {x0:Math.min(A.x0, tb.x0), y0:Math.min(A.y0, tb.y0), x1:Math.max(A.x1, tb.x1), y1:Math.max(A.y1, tb.y1)} : tb;
+      grow(); saveBook();
+    }
+    const used = hl; hl = null; showHl();
+    stat.textContent = 'Looking…';
+    const job = {kind:'note', typed, hl:used, pg:at, A, fresh:at === pg ? ss : [], img:snapshot(ss), scr:await screenBlocks(P.classList.contains('kb-full'), null, used)};
+    if (NB.busy) { NB.queued = job; stat.textContent = 'Will read after this reply…'; return }
+    send(NB, job);
+  }
   function noteHistory(){
     const h = [];
-    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(an earlier page of the notebook; they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:e.reply || '…'});
+    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:e.reply || '…'});
     return h;
   }
   async function send(S, job){
-    S.busy = true; const reply = S.out.reply; reply.parentElement.classList.remove('kb-fade'); reply.innerHTML = '';
-    if (S.out.start) S.out.start(job);
+    S.busy = true; let reply = null, rawNow = '';
     const content = [];
-    if (job.img) content.push({type:'text', text:'Their handwriting:'}, {type:'image', source:{type:'base64', media_type:'image/png', data:job.img.split(',')[1]}});
+    if (job.kind === 'note') {
+      job.slots = findSlots(job.pg, job.A);
+      try { job.nb = await pageImage(job.pg, job.slots, job.fresh) } catch(e) { job.nb = null }
+      if (job.img) content.push({type:'text', text:'What they just wrote, close up:'}, {type:'image', source:{type:'base64', media_type:'image/png', data:job.img.split(',')[1]}});
+      if (job.nb) content.push({type:'text', text:'Their notebook, page ' + (job.pg + 1) + ', as it is now (800 x 1130; the ruler on the edges gives coordinates): their earlier ink in black, what they just wrote in blue, typed notes in black print, your earlier replies and arrows in brown, and the free spots for your reply outlined in green and lettered.'}, {type:'image', source:{type:'base64', media_type:'image/png', data:job.nb.split(',')[1]}});
+    }
     content.push(...job.scr.blocks);
     content.push({type:'text', text:job.kind === 'page'
-      ? 'They drew on the page itself, over what is on their screen: their ink is the red marks in the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. Read what they wrote or marked (a circle, an arrow, an underline, a note in the margin, a sketch) and answer about exactly that.'
-      : (job.img ? 'Their handwriting is in the first image.' : 'They wrote nothing by hand this time.') + (job.typed ? '\nTyped:\n' + job.typed : '')});
+      ? 'They drew on the page itself, over what is on their screen: their ink is the red marks in the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. Read what they wrote or marked (a circle, an arrow, an underline, a note in the margin, a sketch) and answer about exactly that. No <at> or <point> here.'
+      : (job.img ? 'What they wrote by hand is in blue on the notebook page and close up in the first image.' : 'They wrote nothing by hand this time.') + (job.typed ? '\nThey typed this (it is now written on the page):\n' + job.typed : '') +
+        '\nFree spots for your reply:\n' + job.slots.map(q => q.key + ': ' + q.where + ', ' + room(q)).join('\n') + '\nStart with <at>letter</at>.'});
     let shown = 0, queue = [], drip = 0, hold = 0, stopped = false;
-    const replyPart = raw => { const i = raw.indexOf('</read>'); if (i >= 0) return raw.slice(i + 7).replace(/^\s+/, ''); return /^\s*<read/.test(raw) || raw.length < 6 ? '' : raw };
-    const box = reply.parentElement;
+    const replyPart = raw => { const i = raw.indexOf('</read>'); const r = i >= 0 ? raw.slice(i + 7) : (/^\s*<(read|at)/.test(raw) || raw.length < 6 ? '' : raw); return r.replace(/<point>[\s\S]*?<\/point>/g, '').replace(/<at>[\s\S]*?<\/at>/g, '').replace(/^\s+/, '') };
+    const target = () => reply || (reply = S.out.place(job, (rawNow.match(/<at>\s*([A-Z])\s*<\/at>/i) || [])[1]));
     const pump = () => { if (drip) return; drip = setInterval(() => {
       if (performance.now() < hold) return;
       if (!queue.length) { clearInterval(drip); drip = 0; return }
-      const w = queue.shift();
-      if (typeof w === 'string') reply.appendChild(el('span', null, esc(w)));
-      else { const b = sketch(w.svg); if (b) { reply.appendChild(b); hold = performance.now() + inkIn(b) } }
-      box.scrollTop = box.scrollHeight;
+      const w = queue.shift(), R = target();
+      if (typeof w === 'string') R.appendChild(el('span', null, esc(w)));
+      else { const b = sketch(w.svg); if (b) { R.appendChild(b); hold = performance.now() + inkIn(b) } }
+      S.out.follow(job);
     }, 70) };
     const words = t => queue.push(...(t.match(/\S+\s*|\s+/g) || []));
     // newly streamed reply text goes into the queue: whole words, and each sketch only once its </svg> has arrived
     const feed = (raw, end) => {
-      if (end) stopped = true;
+      rawNow = raw; if (end) stopped = true;
       const r = replyPart(raw), lo = r.toLowerCase();
       while (r.length > shown) {
         const a = lo.indexOf('<svg', shown);
@@ -1127,28 +1361,65 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
         if (a < 0) return;
       }
     };
+    const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
       S.out.status('Reading…');
       const r = await stream(SYS_NOTE, noteHistory().concat([{role:'user', content}]), 'low', 4000, (raw, end) => { if (!end) S.out.status('Writing…'); feed(raw, end) });
       const m2 = r.raw.match(/<read>([\s\S]*?)<\/read>/), text = replyPart(r.raw).trim();
-      if (r.stop === 'refusal' && !text) reply.innerHTML = '<span class="kb-err">Claude declined to answer this one.</span>';
-      S.out.status(costLine(r));
+      await drained();
+      if (!text) { if (S.out.empty) S.out.empty(job, reply); else target().innerHTML = '<span class="kb-err">' + (r.stop === 'refusal' ? 'Claude declined to answer this one.' : 'No reply.') + '</span>' }
+      else if (S.out.done) S.out.done(job, text, r.raw);
+      S.out.status(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
       const img = job.kind === 'page' ? (job.scr.img ? await thumb(job.scr.img, job.box, job.scr.k) : null) : (job.img ? await thumb(job.img) : null);
-      save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
+      save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
     } catch(e) {
-      reply.innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(String(e.message || e)) + '</span>'; S.out.status('');
+      await drained();
+      const msg = String(e.message || e);
+      if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
     } finally {
       S.busy = false;
       if (S.queued) { const j = S.queued; S.queued = null; send(S, j) }
     }
   }
 
-  // the notebook paper
-  let inkColor = '#222';
-  const NB = Session({kind:'note', reply, status:s => { stat.textContent = s }, typed:() => ta.value.trim(), clearTyped:() => { ta.value = '' }});
-  NB.ink = Ink(cv, {w:2.6, color:() => inkColor, down:onDown(NB), up:() => arm(NB)});
-  const size = () => { inkColor = getComputedStyle(P).color || '#222'; NB.ink.size() };
-  ta.addEventListener('input', () => { fadeReply(NB); unfade(NB); arm(NB) });
+  // the notebook's side of a reply: placed at the spot Claude chose; written smaller when it outgrows the spot, moved to the next blank
+  // page if it still does not fit; an arrow from it to the point it names
+  const NB = Session({kind:'note', status:s => { stat.textContent = s }, typed:() => ta.value.trim(),
+    place(job, key){
+      const q = job.slots.find(s => s.key === (key || '').toUpperCase()) || job.slots[0], pg = q.pg < 0 ? nextBlank(job.pg) : q.pg;
+      const it = {kind:'reply', x:q.x, y:q.y, w:q.w, text:'', t:Date.now()}, e = addItem(pg, it);
+      job.at = {pg, it, e, q}; grow(); see(pg, q.y); return e;
+    },
+    follow(job){
+      const {it, e, q, pg} = job.at;
+      while (e.offsetHeight > q.h && (it.fs || 1) > 0.72) { it.fs = Math.round(((it.fs || 1) - 0.04) * 100) / 100; styleItem(e, it) }
+      see(pg, it.y + e.offsetHeight - 2 * LH, it.y + e.offsetHeight);
+    },
+    done(job, text, raw){
+      const a = job.at; if (!a) return; const {it, e} = a; it.text = text; it.h = e.offsetHeight;
+      if (it.y + it.h > BOT + 24 || !clearOf(obstacles(a.pg, it), it.x, it.y, it.x + it.w, it.y + it.h)) {   // still does not fit: a fresh page
+        removeItem(a.pg, it); a.pg = nextBlank(a.pg); Object.assign(it, {x:MX, y:TOP, w:PW - 2 * MX, fs:1}); delete it.fs;
+        a.e = addItem(a.pg, it); it.h = a.e.offsetHeight; grow(); see(a.pg, TOP);
+      } else {
+        const m = raw.match(/<point>\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*<\/point>/);
+        if (m && a.pg === job.pg) arrowTo(a, +m[1], +m[2]);
+      }
+      saveBook();
+    },
+    empty(job, reply){ if (job.at) removeItem(job.at.pg, job.at.it) },
+    fail(job, reply, msg){ if (job.at && !job.at.e.textContent.trim()) removeItem(job.at.pg, job.at.it); else if (job.at) { job.at.it.text = job.at.e.textContent; job.at.it.h = job.at.e.offsetHeight; saveBook() } stat.innerHTML = '<span class="kb-err">' + esc(msg) + '</span>' }});
+  // an arrow from the reply's text (the nearest point of the box its words fill) to a point on the page
+  function arrowTo(a, tx, ty){
+    if (!(tx >= 0 && ty >= 0 && tx <= PW && ty <= PH)) return;
+    const base = pgs[a.pg].inner.getBoundingClientRect(), k = base.width / PW, rg = document.createRange(); rg.selectNodeContents(a.e);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const q of rg.getClientRects()) { if (!q.width) continue; x0 = Math.min(x0, (q.left - base.left) / k); y0 = Math.min(y0, (q.top - base.top) / k); x1 = Math.max(x1, (q.right - base.left) / k); y1 = Math.max(y1, (q.bottom - base.top) / k) }
+    if (x0 > x1) return;
+    const sx = Math.max(x0, Math.min(tx, x1)), sy = Math.max(y0, Math.min(ty, y1)), L = Math.hypot(tx - sx, ty - sy); if (L < 36) return;
+    const ux = (tx - sx) / L, uy = (ty - sy) / L, it = {kind:'arrow', x1:sx + ux * 8, y1:sy + uy * 8, x2:tx - ux * 10, y2:ty - uy * 10, t:Date.now()};
+    inkIn(addItem(a.pg, it));
+  }
+  ta.addEventListener('input', () => arm(NB));
   ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(NB) } });
 
   // the page itself: draw mode puts a clear sheet over the whole screen; the ink scrolls with the page and is red, so it stands out
@@ -1158,13 +1429,15 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
   const card = el('div', {id:'kbBuddyCard', hidden:''}, '<div class="kb-ink kb-cr"></div>');
   document.body.append(ov, bar, card);
   const cardReply = card.querySelector('.kb-cr'), barSt = bar.querySelector('.kb-st');
-  const PG = Session({kind:'page', reply:cardReply, status:s => { barSt.textContent = s }, typed:() => '', clearTyped:() => {}, faded:() => { card.hidden = true },
-    start:job => {   // the card goes beside the marks: right, left, below or above, whichever has room; it scrolls with the page
+  const PG = Session({kind:'page', reply:cardReply, status:s => { barSt.textContent = s }, typed:() => '', faded:() => { card.hidden = true },
+    follow:() => { card.scrollTop = card.scrollHeight },
+    place:job => {   // the card goes beside the marks: right, left, below or above, whichever has room; it scrolls with the page
       const b = job.box, W = innerWidth, H = innerHeight, w = Math.min(380, W * 0.9); let x, y;
       if (b.x1 + 16 + w < W - 8) { x = b.x1 + 16; y = b.y0 } else if (b.x0 - 16 - w > 8) { x = b.x0 - 16 - w; y = b.y0 }
       else { x = Math.max(8, Math.min(b.x0, W - w - 8)); y = b.y1 + 12 < H - 160 ? b.y1 + 12 : Math.max(60, b.y0 - 220) }
       y = Math.max(56, Math.min(y, H - 160));
       Object.assign(card.style, {left:(x + scrollX) + 'px', top:(y + scrollY) + 'px', width:w + 'px'}); card.hidden = false;
+      card.classList.remove('kb-fade'); cardReply.innerHTML = ''; return cardReply;
     }});
   PG.ink = Ink(ov, {w:3, color:() => '#e03131', off:() => [scrollX, scrollY], down:onDown(PG), up:() => arm(PG)});
   window.addEventListener('scroll', () => { if (!ov.hidden) PG.ink.redraw() }, {passive:true});
@@ -1186,12 +1459,14 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
   });
 
   function renderLog(){
-    if (!entries.length) { log.innerHTML = '<p class="kb-hint">No pages yet. What you write in the notebook and what Claude answers are kept here, in this browser only.</p>'; return }
-    log.innerHTML = '<div class="kb-row" style="margin:0 0 6px"><span class="kb-meta">' + entries.length + ' page' + (entries.length > 1 ? 's' : '') + ' on this page of the knowledge base, kept in this browser.</span><button type="button" data-a="wipe">Delete all</button></div>' +
-      entries.slice().reverse().map(e => '<div class="kd-e"><time>' + esc(new Date(e.t).toLocaleString()) + (e.where ? ' · ' + esc(e.where) : '') + '</time>' + (e.img ? '<img alt="Your handwriting" src="' + e.img + '">' : '') +
+    const used = book.filter(p => !blank(p)).length, wipe = '<button type="button" data-a="wipe">Delete all</button>';
+    if (!entries.length) { log.innerHTML = '<p class="kb-hint">Nothing yet. Every exchange in the notebook and on the page is listed here, kept in this browser only.</p>' + (used ? '<div class="kb-row"><span class="kb-meta">The notebook has ' + used + ' written page' + (used > 1 ? 's' : '') + '.</span>' + wipe + '</div>' : ''); return }
+    log.innerHTML = '<div class="kb-row" style="margin:0 0 6px"><span class="kb-meta">' + entries.length + ' exchange' + (entries.length > 1 ? 's' : '') + ' on this page of the knowledge base, kept in this browser.</span>' + wipe + '</div>' +
+      entries.slice().reverse().map(e => '<div class="kd-e"><time>' + esc(new Date(e.t).toLocaleString()) + (e.nbPage ? ' · notebook page ' + e.nbPage : e.kind === 'page' ? ' · drawn on the page' : '') + (e.where ? ' · ' + esc(e.where) : '') + '</time>' + (e.img ? '<img alt="Your handwriting" src="' + e.img + '">' : '') +
         '<div class="kd-me">' + esc(e.read || e.typed || '') + '</div><div class="kd-cl" data-i="' + entries.indexOf(e) + '"></div></div>').join('');
     for (const c of log.querySelectorAll('.kd-cl')) for (const x of replyPieces(entries[+c.dataset.i].reply || '')) { if (typeof x === 'string') c.appendChild(document.createTextNode(x)); else { const b = sketch(x.svg); if (b) c.appendChild(b) } }
   }
+
 
   // ================= Chat =================
   const inline = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
@@ -1288,11 +1563,16 @@ Output format, always: first <read>exactly what they wrote, transcribed (handwri
     else if (act === 'unhl') { hl = null; showHl() }
     else if (act === 'new') { if (chatBusy) chatBusy.abort(); chat = []; msgs.innerHTML = ''; cmeta.textContent = ''; hint() }
     else if (act === 'ask') ask();
-    else if (act === 'undo') { NB.ink.strokes.pop(); NB.ink.redraw(); NB.ink.strokes.length || ta.value.trim() ? arm(NB) : (clearTimeout(NB.timer), stat.textContent = '') }
-    else if (act === 'clear') { NB.ink.strokes = []; ta.value = ''; NB.ink.redraw(); clearTimeout(NB.timer); stat.textContent = '' }
+    else if (act === 'undo') { const u = undoStack.pop(); if (u && book[u.pg]) { drop(book[u.pg].ink, u.s); drop(pend, u.s); pgs[u.pg].ink.redraw(); saveBook() } pend.length || ta.value.trim() ? arm(NB) : renderOn() }
+    else if (act === 'erase') { erasing = !erasing; a.setAttribute('aria-pressed', String(erasing)); a.classList.toggle('kb-on', erasing); P.classList.toggle('kd-erasing', erasing) }
+    else if (act === 'end') { grow(); const p = pgs[pgs.length - 1]; scr.scrollTo({top:p.outer.offsetTop - 10, behavior:'smooth'}) }
     else if (act === 'send') commit(NB);
     else if (act === 'draw') enterDraw();
-    else if (act === 'wipe') { if (!confirm('Delete every notebook page for this page of the knowledge base? This cannot be undone.')) return; for (const x of entries) if (x.id != null) await tx('readwrite', s => s.delete(x.id)); entries = []; renderLog() }
+    else if (act === 'wipe') {
+      if (!confirm('Delete the whole notebook and its history for this page of the knowledge base? This cannot be undone.')) return;
+      for (const x of entries) if (x.id != null) await tx('readwrite', s => s.delete(x.id)); entries = []; renderLog();
+      book = []; pgs = []; book$.innerHTML = ''; pend.length = 0; undoStack.length = 0; grow(); saveBook();
+    }
   });
 }
 })();
