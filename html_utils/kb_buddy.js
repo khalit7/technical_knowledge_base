@@ -63,7 +63,8 @@
   };
   const mem = {};
   let preparing = 0;   // questions placed in their note and being captured, not sent yet: a sync waits for them
-  const mgSpot = new Map(), dotSpot = new Map(); let spotW = innerWidth; addEventListener('resize', () => { if (innerWidth === spotW) return; spotW = innerWidth; mgSpot.clear(); dotSpot.clear() });   // Safari's bars collapsing on scroll is not a new layout   // where an open note shows in the margin, relative to its passage
+  const mgSpot = new Map(), dotSpot = new Map(); let spotW = innerWidth; addEventListener('resize', () => { if (innerWidth === spotW) return; spotW = innerWidth; mgSpot.clear(); dotSpot.clear();
+    for (const [n, e] of noteEl) { e.style.width = Math.min(n.w || 340, innerWidth - 16) + 'px'; const b = e.querySelector('.kb-nb'); if (n.bh && b) b.style.height = Math.min(n.bh, Math.round(innerHeight * 0.75)) + 'px' } });   // turned or resized: sized notes fit again   // Safari's bars collapsing on scroll is not a new layout   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
   const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
@@ -239,10 +240,10 @@ html.kb-pen body,html.kb-pen body *{cursor:crosshair}
 html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #kbBuddy button,html.kb-pen .kb-note .kb-nh{cursor:default}
 .kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}
 .kb-note.kb-folded .kb-rz,.kb-note.kb-max .kb-rz,html.kb-narrow .kb-note:not(.kb-active) .kb-rz{display:none}
-.kb-maxbg{position:fixed;inset:0;z-index:64;background:rgba(0,0,0,.3);touch-action:none}
-.kb-note.kb-max{position:fixed!important;left:max(12px,calc(50vw - 440px))!important;top:var(--kb-maxtop,calc(var(--kb-room,0px) + 12px))!important;width:min(880px,calc(100vw - 24px))!important;height:var(--kb-maxh,calc(100dvh - var(--kb-room,0px) - var(--kb-room-b,0px) - 24px));max-width:none;display:flex;flex-direction:column;z-index:65!important;visibility:visible!important}
+.kb-maxbg{position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,.3);touch-action:none}
+.kb-note.kb-max{position:fixed!important;left:max(12px,calc(50vw - 440px))!important;top:var(--kb-maxtop,calc(var(--kb-room,0px) + 12px))!important;width:min(880px,calc(100vw - 24px))!important;height:var(--kb-maxh,calc(100dvh - var(--kb-room,0px) - var(--kb-room-b,0px) - 24px));max-width:none;display:flex;flex-direction:column;z-index:1000001!important;visibility:visible!important}
 .kb-note.kb-max .kb-nh [data-n=max]{min-height:36px;padding:0 16px;border:1px solid var(--line);border-radius:9px;font:600 14px/1 system-ui,-apple-system,sans-serif;color:var(--ink)}
-.kb-note.kb-max .kb-nb{flex:1;height:auto!important;max-height:none!important;font-size:1.3em;padding:4px 28px 14px}.kb-note.kb-max .kb-nb svg{width:min(100%,680px)!important;height:auto!important;max-width:none!important}
+.kb-note.kb-max .kb-nb{overscroll-behavior:contain;flex:1;height:auto!important;max-height:none!important;font-size:1.3em;padding:4px 28px 14px}.kb-note.kb-max .kb-nb svg{width:min(100%,680px)!important;height:auto!important;max-width:none!important}
 .kb-note.kb-max .kb-nh{cursor:default;padding:8px 10px 2px 18px;font-size:13px}.kb-note.kb-max .kb-nf,.kb-note.kb-max .kb-vrow,.kb-note.kb-max .kb-chips{padding-left:18px;padding-right:18px}
 .kb-note{position:absolute;max-width:calc(100vw - 16px);background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--acc)}
 .kb-note[hidden]{display:none}
@@ -2954,13 +2955,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let noteZ = 1;
   function noteNode(n){
     const e = el('div', {class:'kb-note' + (n.fold || n.resolved ? ' kb-folded' : '') + (n.resolved ? ' kb-resolved' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="max" title="Full screen: the whole conversation, big (Esc or this button to go back)" aria-label="Full screen">&#x2922;</button><button type="button" data-n="resolve" title="Resolve: done with this; it shrinks to a tick on the page" aria-label="Resolve">&#x2713;</button><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + VROW + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
-    e.style.width = Math.min(n.w || 340, innerWidth - 16) + 'px'; const body = e.querySelector('.kb-nb'); if (n.bh) Object.assign(body.style, {height:Math.min(n.bh, Math.round(innerHeight * 0.6)) + 'px', maxHeight:'none'});   // a size made on a bigger screen fits this one
+    e.style.width = Math.min(n.w || 340, innerWidth - 16) + 'px'; const body = e.querySelector('.kb-nb'); if (n.bh) Object.assign(body.style, {height:Math.min(n.bh, Math.round(innerHeight * 0.75)) + 'px', maxHeight:'none'});   // a size made on a bigger screen fits this one
     // the corner handle: drag to make the note wider or taller (mouse, finger or Pencil); its size is kept
     const rz = el('div', {class:'kb-rz', title:'Drag to resize', 'aria-hidden':'true'}); e.appendChild(rz);
     rz.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || e.classList.contains('kb-max')) return; ev.preventDefault(); ev.stopPropagation(); rz.setPointerCapture(ev.pointerId); front(e);
       const sx = ev.clientX, sy = ev.clientY, w0 = e.offsetWidth, h0 = body.offsetHeight;
-      const mv = q => { const w = Math.max(240, Math.min(innerWidth - 16, w0 + q.clientX - sx)), h = Math.max(100, Math.min(innerHeight * 0.9, h0 + q.clientY - sy)); e.style.width = w + 'px'; Object.assign(body.style, {height:h + 'px', maxHeight:'none'}); n.w = Math.round(w); n.bh = Math.round(h) };
+      const mv = q => { const w = Math.max(240, Math.min(innerWidth - 16, w0 + q.clientX - sx)), h = Math.max(100, Math.min(innerHeight * 0.75, h0 + q.clientY - sy)); e.style.width = w + 'px'; Object.assign(body.style, {height:h + 'px', maxHeight:'none'}); n.w = Math.round(w); n.bh = Math.round(h) };
       const up = () => { rz.removeEventListener('pointermove', mv); rz.removeEventListener('pointerup', up); rz.removeEventListener('pointercancel', up); mgSpot.delete(n); saveBook(); schedule() };
       rz.addEventListener('pointermove', mv); rz.addEventListener('pointerup', up); rz.addEventListener('pointercancel', up);
     });
@@ -3354,7 +3355,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!confirm('Delete the whole notebook, your marks and Claude\'s notes on this page of the knowledge base, and their history? This cannot be undone.')) return;
       entries = []; renderLog();
       book = []; pgs = []; book$.innerHTML = ''; pend.length = 0; pendPage.length = 0; pendTyped.length = 0; ed = null; undoStack.length = 0; grow();
-      marks = []; notes = []; marksSvg.innerHTML = ''; notesBox.innerHTML = ''; markEl.clear(); noteEl.clear(); saveBook(); syncBar();
+      marks = []; notes = []; marksSvg.innerHTML = ''; notesBox.innerHTML = ''; notesBox.appendChild(maxBg); markEl.clear(); noteEl.clear(); saveBook(); syncBar();
     }
   });
   syncBar();
