@@ -120,7 +120,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbAskPop{position:fixed;z-index:66;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
 #kbAskPop[hidden]{display:none}
 #kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
-#kbBuddy.kb-setonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=marks],#kbBuddy.kb-setonly .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=find],#kbBuddy.kb-setonly .kb-h [data-a=set],#kbBuddy.kb-setonly .kb-h [data-a=zoom]{display:none}
+#kbBuddy.kb-setonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=marks],#kbBuddy.kb-setonly .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=find],#kbBuddy.kb-setonly .kb-h [data-a=set],#kbBuddy.kb-setonly .kb-h [data-a=zoom],#kbBuddy.kb-setonly .kb-h [data-a=full]{display:none}
 .kb-chips{display:flex;flex-wrap:wrap;gap:4px}
 .kb-vrow{display:flex;gap:6px;padding:0 8px 8px}.kb-vrow button{flex:1;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card,var(--bg));color:var(--ink);font:600 12.5px/1.4 system-ui,-apple-system,sans-serif;cursor:pointer}.kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}
 #kbAskPop .kb-vrow{padding:6px 0 0}#kbAskPop .kb-vrow button{background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:12.5px;padding:4px 8px;border-radius:8px}#kbAskPop .kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
@@ -237,9 +237,11 @@ html.kb-narrow .kb-note:not(.kb-active) .kb-dot{display:flex;align-items:center;
 #kbNotes{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:58}
 html.kb-pen body,html.kb-pen body *{cursor:crosshair}
 html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #kbBuddy button,html.kb-pen .kb-note .kb-nh{cursor:default}
-.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:22px;height:22px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 55%,var(--line) 55%,var(--line) 62%,transparent 62%,transparent 72%,var(--line) 72%,var(--line) 79%,transparent 79%);border-bottom-right-radius:12px}
+.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}
 .kb-note.kb-folded .kb-rz,.kb-note.kb-max .kb-rz,html.kb-narrow .kb-note:not(.kb-active) .kb-rz{display:none}
-.kb-note.kb-max{position:fixed!important;left:max(16px,calc(50vw - 440px))!important;top:calc(var(--kb-room,0px) + 12px)!important;width:min(880px,calc(100vw - 32px))!important;height:calc(100vh - var(--kb-room,0px) - var(--kb-room-b,0px) - 24px);max-width:none;display:flex;flex-direction:column;z-index:65!important;visibility:visible!important;box-shadow:0 0 0 100vmax rgba(0,0,0,.28),var(--shadow,0 6px 24px rgba(0,0,0,.2))}
+.kb-maxbg{position:fixed;inset:0;z-index:64;background:rgba(0,0,0,.3);touch-action:none}
+.kb-note.kb-max{position:fixed!important;left:max(12px,calc(50vw - 440px))!important;top:var(--kb-maxtop,calc(var(--kb-room,0px) + 12px))!important;width:min(880px,calc(100vw - 24px))!important;height:var(--kb-maxh,calc(100dvh - var(--kb-room,0px) - var(--kb-room-b,0px) - 24px));max-width:none;display:flex;flex-direction:column;z-index:65!important;visibility:visible!important}
+.kb-note.kb-max .kb-nh [data-n=max]{min-height:36px;padding:0 16px;border:1px solid var(--line);border-radius:9px;font:600 14px/1 system-ui,-apple-system,sans-serif;color:var(--ink)}
 .kb-note.kb-max .kb-nb{flex:1;height:auto!important;max-height:none!important;font-size:1.3em;padding:4px 28px 14px}.kb-note.kb-max .kb-nb svg{width:min(100%,680px)!important;height:auto!important;max-width:none!important}
 .kb-note.kb-max .kb-nh{cursor:default;padding:8px 10px 2px 18px;font-size:13px}.kb-note.kb-max .kb-nf,.kb-note.kb-max .kb-vrow,.kb-note.kb-max .kb-chips{padding-left:18px;padding-right:18px}
 .kb-note{position:absolute;max-width:calc(100vw - 16px);background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--acc)}
@@ -454,7 +456,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- views of the window: the notebook, History, Settings ----
   let sub = null;   // null, 'pages' or 'set'
   function show(){
-    const v = sub || 'notebook';
+    const v = sub || 'notebook'; if (NB_OFF && v !== 'set') { close(); return }   // the notebook and its views are off: only Settings opens
     P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', pages:'History', set:'Settings', find:'Notebook pages', marks:'Marks and notes on this page'}[v] || 'Notebook';
     nbView.hidden = v !== 'notebook'; pgView.hidden = v !== 'pages'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find'; ovView.hidden = v !== 'marks';
     $('[data-a=marks]').classList.toggle('kb-on', sub === 'marks'); if (v === 'marks') renderOverview();
@@ -467,7 +469,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   let lastFocus = null;
   function open(view){
-    if (P.hidden) lastFocus = document.activeElement;
+    exitMax(); if (P.hidden) lastFocus = document.activeElement;
     P.hidden = false; setFull(mine.get('full') !== '0');
     sub = !store.get('key') || NB_OFF ? 'set' : (view || null); P.classList.toggle('kb-setonly', NB_OFF); show();
   }
@@ -477,7 +479,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
+  let tool = (NB_OFF ? /^(hand|pen|hl)$/ : /^(hand|pen|hl|text)$/).test(mine.get('tool')) ? mine.get('tool') : 'hand',   // the Text tool is the notebook's: off with it
+      color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
   const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off', webOn = () => mine.get('web') !== 'off';
@@ -634,6 +637,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   // go to a cited block: its tab opened, scrolled to the middle of the screen, outlined for a moment
   function jumpBlock(i){
+    exitMax();
     const B = docBlocks(); let e = null; for (let k = i; k < B.els.length && !e; k++) e = B.els[k]; if (!e) return;
     if (!P.hidden && P.classList.contains('kb-full')) close();
     const tab = e.closest('.tab'); if (tab && !tab.getClientRects().length) { const t = document.querySelector('[role=tab][data-t="' + tab.id + '"]'); if (t) t.click() }
@@ -2701,7 +2705,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       for (const n of notes) { const e = noteEl.get(n); if (n === activeNote || !e || e.hidden) continue; const x = parseFloat(e.style.left) || 0; let y = parseFloat(e.style.top) || 0;
         for (let k = 0; k < 20 && placed.some(q => Math.abs(q.x - x) < 34 && Math.abs(q.y - y) < 34); k++) y += 36; e.style.top = y + 'px'; placed.push({x, y}) } }
     for (const x of open) {   // not moved by hand: shown in the empty margin beside its passage when there is one, so it covers nothing
-      if (x.n.dragged) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
+      if (x.n.dragged || x.e.classList.contains('kb-max')) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
       const ae = anchorEl(x.n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null, bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}); if (!bx) continue;
       const f = frameOf(x.n); if (!f) continue;
       if (!mgSpot.has(x.n)) { const mg = findMargin(bx, ar ? ar.right : bx.x1, x.w, x.h); if (mg !== undefined) mgSpot.set(x.n, mg ? {dx:mg.x - f.x, dy:mg.y - f.y} : null) }   // found once, then it scrolls with its passage
@@ -2949,8 +2953,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   let noteZ = 1;
   function noteNode(n){
-    const e = el('div', {class:'kb-note' + (n.fold || n.resolved ? ' kb-folded' : '') + (n.resolved ? ' kb-resolved' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="max" title="Full screen: the whole conversation, big (Esc or this button to go back)" aria-label="Full screen">&#x2922;</button><button type="button" data-n="resolve" title="Resolve: done with this; it shrinks to a tick on the page and stays in the overview" aria-label="Resolve">&#x2713;</button><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + VROW + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
-    e.style.width = (n.w || 340) + 'px'; const body = e.querySelector('.kb-nb'); if (n.bh) Object.assign(body.style, {height:n.bh + 'px', maxHeight:'none'});
+    const e = el('div', {class:'kb-note' + (n.fold || n.resolved ? ' kb-folded' : '') + (n.resolved ? ' kb-resolved' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="max" title="Full screen: the whole conversation, big (Esc or this button to go back)" aria-label="Full screen">&#x2922;</button><button type="button" data-n="resolve" title="Resolve: done with this; it shrinks to a tick on the page" aria-label="Resolve">&#x2713;</button><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + VROW + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
+    e.style.width = Math.min(n.w || 340, innerWidth - 16) + 'px'; const body = e.querySelector('.kb-nb'); if (n.bh) Object.assign(body.style, {height:Math.min(n.bh, Math.round(innerHeight * 0.6)) + 'px', maxHeight:'none'});   // a size made on a bigger screen fits this one
     // the corner handle: drag to make the note wider or taller (mouse, finger or Pencil); its size is kept
     const rz = el('div', {class:'kb-rz', title:'Drag to resize', 'aria-hidden':'true'}); e.appendChild(rz);
     rz.addEventListener('pointerdown', ev => {
@@ -2966,6 +2970,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (a === 'max') { maxNote(n, !e.classList.contains('kb-max')); return }
       if (a === 'open' && !n.fold && !n.resolved) { activate(n); schedule(); return }
       if (a === 'fold' && !n.fold) { deactivate(); return }   // folding the open note just closes it to its dot
+      if (a === 'fold' || a === 'resolve' || a === 'del') exitMax();
       if (a === 'fold' || a === 'open') { n.fold = a === 'fold'; if (a === 'open') n.resolved = false; e.classList.toggle('kb-folded', n.fold); e.classList.toggle('kb-resolved', !!n.resolved); if (!n.fold) activate(n); saveBook(); schedule() }
       else if (a === 'resolve') { n.resolved = true; n.fold = true; e.classList.add('kb-folded', 'kb-resolved'); saveBook(); schedule() }
       else if (a === 'del') {   // the note goes with the marks only it was about (its highlight, its loop); Undo brings them back
@@ -3010,19 +3015,28 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const front = e => { e.style.zIndex = String(++noteZ) };
   // the note being read: on top, and on a narrow screen the only one open (the others show as numbered dots)
   let activeNote = null;
-  function activate(n){ activeNote = n; mgSpot.delete(n); for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
+  function activate(n){ for (const [m, x] of noteEl) if (m !== n && x.classList.contains('kb-max')) maxNote(m, false); activeNote = n; mgSpot.delete(n); for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
   // full screen: the note over the page, centred under the toolbar, for a long conversation; Esc, the button or a tap outside goes back
+  // a real backdrop behind a full-screen note: it dims the page and takes every tap, stroke and scroll meant for the page (a tap closes)
+  const maxBg = el('div', {class:'kb-maxbg', hidden:''}); notesBox.appendChild(maxBg);
+  for (const t of ['pointerdown', 'click']) maxBg.addEventListener(t, ev => { ev.preventDefault(); ev.stopPropagation(); if (t === 'click') exitMax() });
+  for (const t of ['wheel', 'touchmove']) maxBg.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});
+  const fitMax = () => { const m = [...noteEl.values()].find(x => x.classList.contains('kb-max')); if (!m) return; const vv = window.visualViewport, room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0, roomB = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room-b')) || 0;
+    const top = (vv ? vv.offsetTop : 0) + room + 12; m.style.setProperty('--kb-maxtop', top + 'px'); m.style.setProperty('--kb-maxh', Math.max(200, (vv ? vv.height : innerHeight) - room - roomB - 24) + 'px') };   // the on-screen keyboard shrinks it, so the input stays in view
+  if (window.visualViewport) { visualViewport.addEventListener('resize', fitMax); visualViewport.addEventListener('scroll', fitMax) }
   function maxNote(n, on){
-    const e = noteEl.get(n); if (!e) return; if (on) { for (const [m, x] of noteEl) if (m !== n) x.classList.remove('kb-max'); activate(n) }
-    e.classList.toggle('kb-max', on); const b = e.querySelector('[data-n=max]'); if (b) { b.innerHTML = on ? '&#x2921;' : '&#x2922;'; b.title = on ? 'Back to the note beside the page' : 'Full screen: the whole conversation, big (Esc or this button to go back)' }
-    const nb = e.querySelector('.kb-nb'); if (on) { nb.scrollTop = nb.scrollHeight; const inp = e.querySelector('.kb-nf input'); if (inp && innerWidth > 800) inp.focus({preventScroll:true}) }
+    const e = noteEl.get(n); if (!e) return; if (on) { for (const [m, x] of noteEl) if (m !== n && x.classList.contains('kb-max')) maxNote(m, false); activate(n) }
+    e.classList.toggle('kb-max', on); maxBg.hidden = !on; document.documentElement.classList.toggle('kb-maxed', on);
+    const b = e.querySelector('[data-n=max]'); if (b) { b.innerHTML = on ? 'Done' : '&#x2922;'; b.title = on ? 'Back to the note beside the page' : 'Full screen: the whole conversation, big'; b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen') }
+    const nb = e.querySelector('.kb-nb'); if (on) { fitMax(); nb.scrollTop = nb.scrollHeight; const inp = e.querySelector('.kb-nf input'); if (inp && matchMedia('(pointer:fine)').matches) inp.focus({preventScroll:true}) }   // no keyboard popping up on the iPad
+    else { mgSpot.delete(n); try { if (e.contains(document.activeElement)) document.activeElement.blur() } catch(err) {} }
     schedule();
   }
+  function exitMax(){ const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) maxNote(m[0], false) }
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) { ev.stopPropagation(); maxNote(m[0], false) } } }, true);
-  function deactivate(){ if (!activeNote) return; { const x = noteEl.get(activeNote); if (x && x.classList.contains('kb-max')) x.classList.remove('kb-max') } activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
+  function deactivate(){ if (!activeNote) return; exitMax(); activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
-  document.addEventListener('click', ev => { const t = ev.target; { const mx = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (mx && t instanceof Element && !t.closest('.kb-note') && !t.closest(OURS)) { ev.preventDefault(); ev.stopPropagation(); maxNote(mx[0], false); return } }   // a tap on the dimmed page leaves full screen
-    if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS) || t.closest('input,button,select,textarea,a,label,summary,[role=tab],[role=button],figure,svg,canvas,iframe,' + FIGCOL + ',.lab') || (PG.cur && PG.cur.note && PG.cur.note.n === activeNote)) return; deactivate() }, true);   // the page's own controls and figures leave it open
+  document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS) || t.closest('input,button,select,textarea,a,label,summary,[role=tab],[role=button],figure,svg,canvas,iframe,' + FIGCOL + ',.lab') || (PG.cur && PG.cur.note && PG.cur.note.n === activeNote)) return; deactivate() }, true);   // the page's own controls and figures leave it open
   // light up a note's marks for a moment (tapping or pointing at the note)
   let lightT = 0;
   function lightMarks(n, dur){
@@ -3137,7 +3151,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     },
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
-    done(job, text){ if (job.quiet) return; job.note.t.a = text; linkNote(job); saveBook() },
+    done(job, text){ if (job.quiet) return; if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
+      job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
       if (!job.note && job.typed && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
