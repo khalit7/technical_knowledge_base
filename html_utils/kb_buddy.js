@@ -249,7 +249,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbOvw .kb-ovc{display:flex;flex-direction:column;text-align:left;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--card,var(--bg));color:var(--ink);font:inherit;cursor:pointer;overflow:hidden}
 #kbOvw .kb-ovc:hover{border-color:var(--acc);box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.12))}
 #kbOvw .kb-ovp{position:relative;display:flex;align-items:center;justify-content:center;height:170px;background:var(--soft);border-bottom:1px solid var(--line);overflow:hidden}
-#kbOvw .kb-ovp img{width:100%;height:100%;object-fit:cover;object-position:center}
+#kbOvw .kb-ovp img{width:100%;height:100%;object-fit:contain;object-position:center;background:var(--card,#fff)}
 #kbOvw .kb-ovp i{position:absolute;left:8px;top:8px;min-width:24px;height:24px;border-radius:50% 50% 50% 4px;background:var(--acc);color:var(--card,#fff);font:700 12.5px/24px system-ui,sans-serif;text-align:center;font-style:normal}
 #kbOvw .kb-ovq{padding:14px 16px;font-size:13px;color:var(--ink);background:color-mix(in srgb,#f5c400 22%,transparent);max-height:100%;overflow:hidden}
 #kbOvw .kb-ovt{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}#kbOvw .kb-ovt small{color:var(--mute);font-size:12px}#kbOvw .kb-ovt>span{color:var(--mute);font-size:13px}
@@ -3059,7 +3059,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // margin round it. A tap opens that conversation full screen, with Show on page to go there. The pictures are part of the notes, so they
   // sync. A note made before pictures existed gets one quietly the next time its passage is fully on screen ----
   function shotCrop(src, box, k){ return new Promise(res => { const i = new Image(); i.onload = () => {
-    const pad = 70, sx = Math.max(0, (box.x0 - pad) * k), sy = Math.max(0, (box.y0 - pad) * k), sw = Math.min(i.width - sx, (box.x1 - box.x0 + 2 * pad) * k), sh = Math.min(i.height - sy, (box.y1 - box.y0 + 2 * pad) * k);
+    // the mark with a margin round it, and never smaller than a readable piece of the page round it (a short word gets its paragraph)
+    const pad = 70, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2, w = Math.max(box.x1 - box.x0 + 2 * pad, 460), h = Math.max(box.y1 - box.y0 + 2 * pad, 220);
+    const sx = Math.max(0, (cx - w / 2) * k), sy = Math.max(0, (cy - h / 2) * k), sw = Math.min(i.width - sx, w * k), sh = Math.min(i.height - sy, h * k);
     if (sw < 4 || sh < 4) { res(null); return }
     const sc = Math.min(1, 560 / sw, 340 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
     const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, sx, sy, sw, sh, 0, 0, c.width, c.height);
@@ -3068,10 +3070,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let shotBusy = false;
   setInterval(async () => {   // pictures for older notes, one at a time, only when the passage is fully on screen and nothing covers it
     if (shotBusy || document.hidden || live || activeNote || !ovw.hidden || PG.busy) return;
-    const n = notes.find(x => !x.shot && frameOf(x)); if (!n) return; const b = regionOf(n); if (!b) return;
-    if (b.y0 < clipLine() + 4 || b.y1 > innerHeight - 4 || b.x1 - b.x0 < 4 || b.y1 - b.y0 < 4 || b.y1 - b.y0 > innerHeight * 0.8) return;
-    shotBusy = true; try { const sh = await screenImage(null, []); if (sh.img && !n.shot) { const u = await shotCrop(sh.img, b, sh.k); if (u) { n.shot = u; saveBook() } } } catch(e) {} shotBusy = false;
-  }, 3000);
+    const top = clipLine() + 4, due = notes.map(n => [n, !n.shot && frameOf(n) && regionOf(n)]).filter(([, b]) => b && b.y0 >= top && b.y1 <= innerHeight - 4 && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4 && b.y1 - b.y0 <= innerHeight * 0.8);
+    if (!due.length) return;
+    shotBusy = true; try { const sh = await screenImage(null, []); if (sh.img) { let got = 0; for (const [n, b] of due) { if (n.shot) continue; const u = await shotCrop(sh.img, b, sh.k); if (u) { n.shot = u; got++ } } if (got) saveBook() } } catch(e) {} shotBusy = false;   // one capture serves every note on screen
+  }, 2000);
   const ovw = el('div', {id:'kbOvw', hidden:'', role:'dialog', 'aria-label':'Every conversation on this page'}); document.body.appendChild(ovw);
   function toggleOvw(){ if (ovw.hidden) openOvw(); else closeOvw() }
   function closeOvw(){ ovw.hidden = true; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'false') }
