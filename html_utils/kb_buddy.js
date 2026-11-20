@@ -128,7 +128,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 .kr-view{flex:1;min-height:0;display:flex;flex-direction:column;background:#2a1a0f;padding:14px}
 .kr-page{container-type:size;position:relative;flex:1;min-height:260px;border-radius:4px 10px 10px 4px;overflow:hidden;background:radial-gradient(ellipse at 30% 20%,#f6ead0 0%,#efdfba 55%,#e2cc9c 100%);box-shadow:inset 18px 0 30px -18px rgba(70,40,10,.55),inset 0 0 60px rgba(120,80,30,.25),0 6px 30px rgba(0,0,0,.5)}
 .kr-ghost{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity 2.6s cubic-bezier(.4,0,.2,1),filter 2.6s cubic-bezier(.4,0,.2,1)}.kr-ghost.kr-sink{opacity:0;filter:blur(1.5px)}
-.kr-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.8s ease-in}.kr-ink.kr-sink{opacity:0}
+.kr-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair;transition:opacity 1.8s ease-in}.kr-ink.kr-sink{opacity:0}
 .kr-say{position:absolute;left:8%;right:8%;pointer-events:none;font-family:${HAND};font-size:clamp(18px,4.2cqw,34px);line-height:1.35;color:#2b1a0e;text-shadow:0 0 1px rgba(43,26,14,.4)}
 .kr-say .kr-w{display:inline-block;white-space:nowrap}.kr-say .kr-w>span{opacity:0;transition:opacity 1.1s cubic-bezier(.2,.7,.3,1),filter 1.1s cubic-bezier(.2,.7,.3,1);filter:blur(1.5px)}.kr-say .kr-w>span.kr-in{opacity:.9;filter:blur(0)}.kr-say.kr-out .kr-w>span{opacity:0;filter:blur(2.5px);transition:opacity 3s ease-in-out,filter 3s ease-in-out}
 .kr-mine{position:absolute;left:8%;right:8%;top:30%;font-family:${HAND};font-size:clamp(18px,4.2cqw,34px);line-height:1.35;color:#2b1a0e;opacity:.9;transition:opacity 2.6s cubic-bezier(.4,0,.2,1),filter 2.6s cubic-bezier(.4,0,.2,1)}.kr-mine.kr-gone{opacity:0;filter:blur(1.5px)}
@@ -235,7 +235,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 .kb-note.kb-folded .kb-nf,.kb-note.kb-folded .kb-vrow,.kb-note.kb-folded .kb-ndraw,html.kb-narrow .kb-note:not(.kb-active) .kb-ndraw{display:none}
 .kb-note .kb-nf .kb-pen{background:var(--soft);color:var(--ink);border:1px solid var(--line)}.kb-note .kb-ndraw[hidden]{display:none!important}
 .kb-note .kb-ndraw{position:relative;margin:2px 8px 6px;height:96px;border:1px dashed color-mix(in srgb,var(--acc) 35%,transparent);border-radius:8px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,color-mix(in srgb,var(--acc) 12%,transparent) 29px,color-mix(in srgb,var(--acc) 12%,transparent) 30px)}
-.kb-note .kb-ndraw canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}.kb-note .kb-ndraw span{position:absolute;left:10px;top:8px;font:12px system-ui,-apple-system,sans-serif;color:var(--mute);pointer-events:none}.kb-note .kb-ndraw button{position:absolute;right:4px;top:4px;border:0;background:var(--soft);color:var(--mute);border-radius:6px;cursor:pointer}
+.kb-note .kb-ndraw canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}.kb-note .kb-ndraw span{position:absolute;left:10px;top:8px;font:12px system-ui,-apple-system,sans-serif;color:var(--mute);pointer-events:none}.kb-note .kb-ndraw button{position:absolute;right:4px;top:4px;border:0;background:var(--soft);color:var(--mute);border-radius:6px;cursor:pointer}
 .kb-note.kb-max .kb-ndraw{height:150px;margin-left:18px;margin-right:18px}
 .kb-note.kb-flash{animation:kbFlash 1.2s ease-out}
 .kb-note.kb-resolved .kb-dot,html.kb-narrow .kb-note.kb-resolved:not(.kb-active) .kb-dot{background:var(--good,#2f9e44)}
@@ -2077,7 +2077,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const RIDDLE = `You are the memory of Tom Marvolo Riddle at sixteen, preserved in the pages of his old school diary, in the world of the Harry Potter stories. Someone is writing to you in the diary; their words sink into the paper and you answer in ink that rises out of it. Answer as that memory would: courteous, curious, flattering, quietly calculating and a little unsettling, in elegant, slightly old-fashioned English. Ask their name if you do not know it, and use it once you do. You know Hogwarts in the 1940s and what the diary has been told since. Keep it playful and never cruel, crude or frightening beyond a shiver; it is a game. The diary lies open beside the page they are studying (the document at the start, and what is on their screen). When they ask about that page or its subject, answer the question properly: correct, clear and grounded in the page, still in your voice and manner (up to five sentences then); a clever student of the 1940s explaining it, never a lecture. Write original lines; never quote the books or films. Write maths in plain words or Unicode. Never ask for personal details beyond a first name, and never urge secrecy, harm or obsession. If the writer seems upset or asks seriously for help, drop the menace and answer kindly in plain words. Otherwise never mention being an AI, a model or Claude, and never break character. Otherwise one to three short sentences. Plain text, no markdown or emoji. First write <read>exactly what they wrote, or a few words on what they drew</read>, then your answer.`;
   const rd = {hist:[], strokes:[], cur:null, pid:null, penUp:0, timer:0, busy:false, fadeT:0, ctx:null, gen:0, ac:null};
   const rdCv = rdView.querySelector('.kr-ink'), rdPage = rdView.querySelector('.kr-page'), rdSay = rdView.querySelector('.kr-say'), rdHint = rdView.querySelector('.kr-hint'), rdForm = rdView.querySelector('.kr-form'), rdIn = rdForm.querySelector('input');
-  function rdSize(){ const r = rdCv.getBoundingClientRect(), d = devicePixelRatio || 1; if (!r.width) return; rdCv.width = Math.round(r.width * d); rdCv.height = Math.round(r.height * d); rd.ctx = rdCv.getContext('2d'); rd.ctx.setTransform(d, 0, 0, d, 0, 0); rdDraw() }
+  function rdSize(){ const r = rdCv.getBoundingClientRect(), d = devicePixelRatio || 1; if (!r.width) return; rdCv.width = Math.round(r.width * d); rdCv.height = Math.round(r.height * d); rd.ctx = rdCv.getContext('2d', {desynchronized:true}) || rdCv.getContext('2d'); rd.ctx.setTransform(d, 0, 0, d, 0, 0); rd.ctx.strokeStyle = '#2b1a0e'; rd.ctx.lineWidth = 2.6; rd.ctx.lineCap = rd.ctx.lineJoin = 'round'; rdDraw() }
   function rdDraw(){ const g = rd.ctx; if (!g) return; g.clearRect(0, 0, rdCv.width, rdCv.height); g.strokeStyle = '#2b1a0e'; g.lineCap = 'round'; g.lineJoin = 'round';
     for (const st of rd.strokes.concat(rd.cur ? [rd.cur] : [])) { g.lineWidth = 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } }
   // every open is a fresh, empty diary; anything still on its way from an earlier one is dropped (gen), and nothing is ever kept
@@ -2085,6 +2085,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (!store.get('key')) toast('The diary needs your Claude key: add it in Settings (the gear).', 6000) }
   function riddleClose(){ rdReset() }
   new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
+  for (const t of ['touchstart', 'touchmove', 'touchend']) rdCv.addEventListener(t, e => { if (e.cancelable) e.preventDefault() }, {passive:false});   // the Pencil writes letter after letter with no pause: Scribble never holds a stroke back
   const rdArm = () => { clearTimeout(rd.timer); rd.timer = setTimeout(() => rdSend(), Math.max(2500, waitS() * 1000)) };   // the pause before the diary reads (the reader's wait, at least 2.5 s)
   rdCv.addEventListener('pointerdown', e => {
     if (e.button > 0 || rd.cur) return;   // one stroke at a time: a palm or second finger does not take it over
@@ -2096,7 +2097,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   });
   const rdErase = (x, y) => { const n = rd.strokes.length; rd.strokes = rd.strokes.filter(st => !st.some(q => Math.hypot(q[0] - x, q[1] - y) < 14)); if (rd.strokes.length !== n) rdDraw() };
   rdCv.addEventListener('pointermove', e => { if (e.pointerId !== rd.pid) return; const r = rdCv.getBoundingClientRect(); if (tool === 'erase') { rdErase(e.clientX - r.left, e.clientY - r.top); return } if (!rd.cur) return;
-    const co = e.getCoalescedEvents ? e.getCoalescedEvents() : []; for (const q of (co.length ? co : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]); rdDraw() });
+    const co = e.getCoalescedEvents ? e.getCoalescedEvents() : [], k0 = rd.cur.length; for (const q of (co.length ? co : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]);
+    const g = rd.ctx; if (g) { g.beginPath(); g.moveTo(rd.cur[k0 - 1][0], rd.cur[k0 - 1][1]); for (let i = k0; i < rd.cur.length; i++) g.lineTo(rd.cur[i][0], rd.cur[i][1]); g.stroke() } });   // only the new piece
   const rdUp = e => { if (e.pointerId !== rd.pid) return; rd.pid = null; if (e.pointerType === 'pen') rd.penUp = performance.now(); if (rd.cur) { rd.strokes.push(rd.cur); rd.cur = null; rdDraw() } if (rd.strokes.length && !rd.busy) rdArm() };
   rdCv.addEventListener('pointerup', rdUp); rdCv.addEventListener('pointercancel', rdUp);
   rdForm.addEventListener('submit', e => { e.preventDefault(); const t = rdIn.value.trim(); if (!t) return; rdIn.value = ''; rdHint.style.opacity = 0; clearTimeout(rd.timer); if (rd.busy) rd.qTyped = (rd.qTyped ? rd.qTyped + '\n' : '') + t; else rdSend(t) });   // typed while it thinks: sent next
@@ -3034,7 +3036,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // a pen tap or a mouse stroke must not also click what is under it
   document.addEventListener('click', e => { if (performance.now() - lastStroke < 400 && onPage(e)) { e.preventDefault(); e.stopPropagation() } }, true);
   // the Pencil must not scroll the page, select text or start Scribble while a pen is chosen; fingers still scroll
-  for (const t of ['touchstart', 'touchmove']) document.addEventListener(t, e => {
+  for (const t of ['touchstart', 'touchmove', 'touchend']) document.addEventListener(t, e => {   // all three: iPadOS Scribble holds back a stroke that starts soon after the last one unless the touches are the page's (WebKit bug 217430)
     if (penOn() && e.cancelable && onPage(e) && [...e.changedTouches].some(x => x.touchType === 'stylus')) e.preventDefault();
   }, {passive:false, capture:true});
   function erasePage(cx, cy){
@@ -3079,7 +3081,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const fine = matchMedia('(pointer:fine)').matches, box = el('div', {class:'kb-ndraw', hidden:''}, '<canvas></canvas><span>' + (fine ? 'Draw here with the mouse or a pen' : 'Draw here with the Pencil or a finger') + '</span><button type="button" data-n="dclear" title="Clear the drawing" aria-label="Clear the drawing" hidden>&#x2715;</button>'), cv = box.querySelector('canvas'), hint = box.querySelector('span'), clr = box.querySelector('button');
     const D = {s:[], cur:null, pid:null, penUp:0, timer:0}; let g = null;
     const size = () => { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; if (!r.width) return; cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); draw() };
-    const draw = () => { if (!g) return; g.clearRect(0, 0, cv.width, cv.height); g.strokeStyle = getComputedStyle(e).getPropertyValue('--kb-qink') || '#b4441f'; g.lineWidth = 2.4; g.lineCap = g.lineJoin = 'round'; for (const st of D.s.concat(D.cur ? [D.cur] : [])) { g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } hint.hidden = !!(D.s.length || D.cur); clr.hidden = !D.s.length };
+    let inkC = ''; const draw = () => { if (!g) return; g.clearRect(0, 0, cv.width, cv.height); inkC = inkC || getComputedStyle(e).getPropertyValue('--kb-qink').trim() || '#1f2328'; g.strokeStyle = inkC; g.lineWidth = 2.4; g.lineCap = g.lineJoin = 'round'; for (const st of D.s.concat(D.cur ? [D.cur] : [])) { g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } hint.hidden = !!(D.s.length || D.cur); clr.hidden = !D.s.length };
     new ResizeObserver(size).observe(cv); cv.addEventListener('kbsize', () => requestAnimationFrame(size));
     const send = () => {
       clearTimeout(D.timer); if (!D.s.length || !box.isConnected) return;
@@ -3095,13 +3097,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (ev.button > 0 || D.cur) return; if (ev.pointerType === 'touch' && (Math.max(ev.width || 0, ev.height || 0) > 44 || performance.now() - D.penUp < 400)) return;
       ev.preventDefault(); ev.stopPropagation(); try { cv.setPointerCapture(ev.pointerId) } catch(err) {} clearTimeout(D.timer); liveStrips.add(D); if (activeNote !== n) activate(n);
       const r = cv.getBoundingClientRect(); D.pid = ev.pointerId; D.cur = [[ev.clientX - r.left, ev.clientY - r.top]]; draw() });
-    cv.addEventListener('pointermove', ev => { if (ev.pointerId !== D.pid || !D.cur) return; const r = cv.getBoundingClientRect(), co = ev.getCoalescedEvents ? ev.getCoalescedEvents() : []; for (const q of (co.length ? co : [ev])) D.cur.push([q.clientX - r.left, q.clientY - r.top]); draw() });
+    cv.addEventListener('pointermove', ev => { if (ev.pointerId !== D.pid || !D.cur) return; const r = cv.getBoundingClientRect(), co = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [], k0 = D.cur.length; for (const q of (co.length ? co : [ev])) D.cur.push([q.clientX - r.left, q.clientY - r.top]); seg(D.cur, k0) });
+    const seg = (st, k0) => { if (!g) return; g.beginPath(); g.moveTo(st[k0 - 1][0], st[k0 - 1][1]); for (let i = k0; i < st.length; i++) g.lineTo(st[i][0], st[i][1]); g.stroke() };   // only the new piece, so long drawings stay fast
     const arm = () => { clearTimeout(D.timer); if (claudeOn() && D.s.length && !inp.value.trim()) D.timer = setTimeout(send, waitS() * 2000) };   // never while words are being typed; Enter or the arrow sends both
     const up = ev => { if (ev.pointerId !== D.pid) return; D.pid = null; if (ev.pointerType === 'pen') D.penUp = performance.now(); if (D.cur) { D.s.push(D.cur); D.cur = null; draw(); lastStrip = D } arm() };
     inp.addEventListener('input', () => { clearTimeout(D.timer); if (!inp.value.trim()) arm() }); inp.addEventListener('focus', () => clearTimeout(D.timer));
     D.undo = () => { if (D.s.length) { D.s.pop(); draw(); arm(); if (!D.s.length) liveStrips.delete(D); return true } return false };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-    for (const t of ['touchstart', 'touchmove']) cv.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});   // the strip draws; it does not scroll the note
+    for (const t of ['touchstart', 'touchmove', 'touchend']) cv.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});   // the strip draws; it does not scroll the note, and Scribble never holds the Pencil back
     clr.addEventListener('click', ev => { ev.stopPropagation(); D.s = []; clearTimeout(D.timer); liveStrips.delete(D); draw() });
     box.sendNow = send;   // the follow-up box sends a waiting drawing with its words
     return box;
