@@ -121,8 +121,17 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbAskPop{position:fixed;z-index:66;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
 #kbAskPop[hidden]{display:none}
 #kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
-#kbBuddy.kb-setonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=marks],#kbBuddy.kb-setonly .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=find],#kbBuddy.kb-setonly .kb-h [data-a=set],#kbBuddy.kb-setonly .kb-h [data-a=zoom],#kbBuddy.kb-setonly .kb-h [data-a=full]{display:none}
+#kbBuddy .kb-h [data-a=marks],#kbBuddy .kb-h [data-a=find],#kbBuddy .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=riddle],#kbBuddy.kb-setonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=marks],#kbBuddy.kb-setonly .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=find],#kbBuddy.kb-setonly .kb-h [data-a=set],#kbBuddy.kb-setonly .kb-h [data-a=zoom],#kbBuddy.kb-setonly .kb-h [data-a=full]{display:none}
 .kb-chips{display:flex;flex-wrap:wrap;gap:4px}
+#kbBuddy .kb-h [data-a=riddle][aria-pressed=true]{background:#3b2414;color:#f1e3bf;border-color:#3b2414}
+#kbBuddy.kr-on .kb-h{background:#2a1a0f;color:#e9d9b0}#kbBuddy.kr-on .kb-h b{color:#e9d9b0;font-family:Georgia,serif;letter-spacing:.02em}
+.kr-view{flex:1;min-height:0;display:flex;flex-direction:column;background:#2a1a0f;padding:14px}
+.kr-page{position:relative;flex:1;min-height:260px;border-radius:4px 10px 10px 4px;overflow:hidden;background:radial-gradient(ellipse at 30% 20%,#f6ead0 0%,#efdfba 55%,#e2cc9c 100%);box-shadow:inset 18px 0 30px -18px rgba(70,40,10,.55),inset 0 0 60px rgba(120,80,30,.25),0 6px 30px rgba(0,0,0,.5)}
+.kr-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.8s ease-in}.kr-ink.kr-sink{opacity:0}
+.kr-say{position:absolute;left:8%;right:8%;pointer-events:none;font-family:${HAND};font-size:clamp(22px,3.2vw,34px);line-height:1.35;color:#2b1a0e;text-shadow:0 0 1px rgba(43,26,14,.4)}
+.kr-say span{opacity:0;transition:opacity .9s ease-out,filter .9s ease-out;filter:blur(2px)}.kr-say span.kr-in{opacity:.92;filter:blur(0)}.kr-say.kr-out span{opacity:0;filter:blur(3px);transition:opacity 2.4s ease-in,filter 2.4s ease-in}
+.kr-hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;font:italic 14px Georgia,serif;color:rgba(60,35,15,.45);pointer-events:none;transition:opacity .6s}
+.kr-form{margin-top:10px}.kr-form input{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid #6b4a2b;background:#3a2516;color:#f1e3bf;font:italic 16px Georgia,serif}.kr-form input::placeholder{color:#b89c72}
 .kb-vrow{display:flex;gap:6px;padding:0 8px 8px}.kb-vrow button{flex:1;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card,var(--bg));color:var(--ink);font:600 12.5px/1.4 system-ui,-apple-system,sans-serif;cursor:pointer}.kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}
 #kbAskPop .kb-vrow{padding:6px 0 0}#kbAskPop .kb-vrow button{background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:12.5px;padding:4px 8px;border-radius:8px}#kbAskPop .kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
 .kb-note:has(.kb-where)>.kb-vrow,.kb-chipsbox:has(.kb-where)>.kb-vrow,.kb-selbar:has(.kb-where)>.kb-vrow{display:none}
@@ -410,13 +419,14 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let barRO = 0; try { new ResizeObserver(() => { cancelAnimationFrame(barRO); barRO = requestAnimationFrame(() => { if (!bar.classList.contains('kb-drag')) placeBar() }) }).observe(bar) } catch(e) {}
   // the notebook (and its Text tool) is off for now: Khalid is rethinking it (2026-11-20; the overview came back as the conversation overview). Its data stays saved
   // and syncs; the panel still opens for Settings. Set to false to bring them back as they were.
-  const NB_OFF = true;
+  const NB_OFF = false;   // the notebook is back (2026-11-20); its old Marks, Pages and History views stay off
   if (NB_OFF) for (const q of ['[data-b=notebook]', '[data-t=text]']) { const b = bar.querySelector(q); if (b) b.hidden = true }
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
-  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="marks" title="Overview: every mark, highlight and note on this page; tap one to go there">Marks</button><button type="button" data-a="find" title="All pages at a glance, and search what you and Claude wrote">Pages</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
+  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="marks" title="Overview: every mark, highlight and note on this page; tap one to go there">Marks</button><button type="button" data-a="find" title="All pages at a glance, and search what you and Claude wrote">Pages</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="riddle" aria-pressed="false" title="Tom Riddle's diary: a fun mode with an empty diary; what you write sinks into the page and his reply rises out of it; nothing is kept">Tom Riddle</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
 <div class="kb-hl" hidden><span>Your highlight:</span><q></q><button type="button" data-a="unhl" title="Do not send this highlight" aria-label="Do not send this highlight">&#x2715;</button></div>
 <div class="kb-view" data-v="notebook"><div class="kd-paper"><div class="kd-scr"><div class="kd-book"></div></div><div class="kd-st" aria-live="polite"></div></div></div>
+<div class="kb-view kr-view" data-v="riddle" hidden><div class="kr-page"><canvas class="kr-ink"></canvas><div class="kr-say" aria-live="polite"></div><div class="kr-hint">Write in the diary with your pen, finger or mouse, or type below.</div></div><form class="kr-form"><input type="text" placeholder="Or type to the diary…" enterkeyhint="send" aria-label="Write to the diary"></form></div>
 <div class="kb-view" data-v="pages" hidden><div class="kb-scroll kd-log"></div></div>
 <div class="kb-view" data-v="marks" hidden><div class="kd-fbar kd-ovf"></div><div class="kb-scroll kd-ov"></div></div>
 <div class="kb-view" data-v="find" hidden><div class="kd-fbar"><input type="search" placeholder="Search your notebook: your writing, your notes and Claude's replies" aria-label="Search the notebook"></div><div class="kb-scroll kd-find"></div></div>
@@ -425,7 +435,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   document.body.append(bar, toastEl, P);
   const $ = s => P.querySelector(s);
   const head = $('.kb-h'), grip = $('.kb-grip'), hlBox = $('.kb-hl');
-  const nbView = $('[data-v=notebook]'), pgView = $('[data-v=pages]'), stView = $('[data-v=set]');
+  const nbView = $('[data-v=notebook]'), pgView = $('[data-v=pages]'), stView = $('[data-v=set]'), rdView = $('[data-v=riddle]');
   const stat = $('.kd-st'), scr = $('.kd-scr'), book$ = $('.kd-book');
   const ovView = $('[data-v=marks]'), ovList = $('.kd-ov'), ovBar = $('.kd-ovf');
   const log = $('.kd-log'), setv = $('.kb-set'), fdView = $('[data-v=find]'), fdList = $('.kd-find'), fdIn = fdView.querySelector('input');
@@ -474,8 +484,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let sub = null;   // null, 'pages' or 'set'
   function show(){
     const v = sub || 'notebook'; if (NB_OFF && v !== 'set') { close(); return }   // the notebook and its views are off: only Settings opens
-    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', pages:'History', set:'Settings', find:'Notebook pages', marks:'Marks and notes on this page'}[v] || 'Notebook';
-    nbView.hidden = v !== 'notebook'; pgView.hidden = v !== 'pages'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find'; ovView.hidden = v !== 'marks';
+    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', riddle:'Tom Riddle\u2019s diary', pages:'History', set:'Settings', find:'Notebook pages', marks:'Marks and notes on this page'}[v] || 'Notebook';
+    nbView.hidden = v !== 'notebook'; rdView.hidden = v !== 'riddle'; pgView.hidden = v !== 'pages'; $('[data-a=riddle]').setAttribute('aria-pressed', String(v === 'riddle')); P.classList.toggle('kr-on', v === 'riddle'); $('[data-a=end]').hidden = v === 'riddle'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find'; ovView.hidden = v !== 'marks';
     $('[data-a=marks]').classList.toggle('kb-on', sub === 'marks'); if (v === 'marks') renderOverview();
     $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set'); $('[data-a=find]').classList.toggle('kb-on', sub === 'find');
     if (v === 'find') renderFind();
@@ -488,9 +498,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function open(view){
     exitMax(); closeOvw(); if (P.hidden) lastFocus = document.activeElement;
     P.hidden = false; setFull(mine.get('full') !== '0');
-    sub = !store.get('key') || NB_OFF ? 'set' : (view || null); P.classList.toggle('kb-setonly', NB_OFF); show();
+    sub = !store.get('key') || NB_OFF ? 'set' : (view || null);   // a plain open is the normal notebook
+    P.classList.toggle('kb-setonly', NB_OFF); show();
   }
-  function close(){ P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
+  function close(){ if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!chg.hidden || !blkPop.hidden) { closeChg(); closeBlk() } else if (sel || psel) { clearSel(); clearPsel() } else if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
 
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
@@ -2049,6 +2060,53 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const s = Math.min(1, 480 / sw, 220 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * s)); c.height = Math.max(1, Math.round(sh * s));
     const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, sx, sy, sw, sh, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)) }; i.onerror = () => res(null); i.src = src }) }
 
+  // ---- Tom Riddle's diary: a fun mode of the notebook, an empty page that is never kept or synced. What is written sinks into the paper,
+  // and the diary's answer rises out of it in faded ink, then sinks too. Claude speaks as the diary's sixteen-year-old memory ----
+  const RIDDLE = `You are the memory of Tom Marvolo Riddle at sixteen, preserved in the pages of his old school diary, in the world of the Harry Potter stories. Someone is writing to you in the diary; their words sink into the paper and you answer in ink that rises out of it. Answer as that memory would: courteous, curious, flattering, quietly calculating and a little unsettling, in elegant, slightly old-fashioned English. Ask their name if you do not know it, and use it once you do. You know Hogwarts in the 1940s and what the diary has been told since. Keep it playful and never cruel, crude or frightening beyond a shiver; it is a game. Write original lines; never quote the books or films. Never mention being an AI, a model or Claude, and never break character. One to three short sentences, plain text, no markdown or emoji. First write <read>exactly what they wrote, or a few words on what they drew</read>, then your answer.`;
+  const rd = {hist:[], strokes:[], cur:null, timer:0, busy:false, fadeT:0, ctx:null};
+  const rdCv = rdView.querySelector('.kr-ink'), rdSay = rdView.querySelector('.kr-say'), rdHint = rdView.querySelector('.kr-hint'), rdForm = rdView.querySelector('.kr-form'), rdIn = rdForm.querySelector('input');
+  function rdSize(){ const r = rdCv.getBoundingClientRect(), d = devicePixelRatio || 1; if (!r.width) return; rdCv.width = Math.round(r.width * d); rdCv.height = Math.round(r.height * d); rd.ctx = rdCv.getContext('2d'); rd.ctx.setTransform(d, 0, 0, d, 0, 0); rdDraw() }
+  function rdDraw(){ const g = rd.ctx; if (!g) return; g.clearRect(0, 0, rdCv.width, rdCv.height); g.strokeStyle = '#2b1a0e'; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const st of rd.strokes.concat(rd.cur ? [rd.cur] : [])) { g.lineWidth = 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } }
+  function riddleOpen(){ rd.hist = []; rd.strokes = []; rd.cur = null; rdSay.innerHTML = ''; rdHint.style.opacity = 1; rdCv.classList.remove('kr-sink'); requestAnimationFrame(rdSize) }   // always an empty diary
+  function riddleClose(){ clearTimeout(rd.timer); clearTimeout(rd.fadeT); rd.hist = []; rd.strokes = []; rd.cur = null; rdSay.innerHTML = '' }
+  new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
+  rdCv.addEventListener('pointerdown', e => {
+    if (rd.busy || e.button > 0) return; e.preventDefault(); rdCv.setPointerCapture(e.pointerId); clearTimeout(rd.timer); rdHint.style.opacity = 0;
+    if (rdSay.textContent) { rdSay.classList.add('kr-out'); clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2400) }   // writing again: the last answer sinks
+    const r = rdCv.getBoundingClientRect(); rd.cur = [[e.clientX - r.left, e.clientY - r.top]]; rdDraw();
+  });
+  rdCv.addEventListener('pointermove', e => { if (!rd.cur) return; const r = rdCv.getBoundingClientRect(); for (const q of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]); rdDraw() });
+  const rdUp = () => { if (!rd.cur) return; rd.strokes.push(rd.cur); rd.cur = null; rdDraw(); clearTimeout(rd.timer); rd.timer = setTimeout(rdSend, 2200) };
+  rdCv.addEventListener('pointerup', rdUp); rdCv.addEventListener('pointercancel', rdUp);
+  rdForm.addEventListener('submit', e => { e.preventDefault(); const t = rdIn.value.trim(); if (!t || rd.busy) return; rdIn.value = ''; rdHint.style.opacity = 0; rdSend(t) });
+  async function rdSend(typed){
+    if (rd.busy || needKey(NB)) return; const hasInk = rd.strokes.length; if (!hasInk && !typed) return; rd.busy = true;
+    let box = null; if (hasInk) { const xs = rd.strokes.flat(); box = {x0:Math.min(...xs.map(q => q[0])), y0:Math.min(...xs.map(q => q[1])), x1:Math.max(...xs.map(q => q[0])), y1:Math.max(...xs.map(q => q[1]))} }
+    const content = [];
+    if (hasInk) { const c = document.createElement('canvas'), pad = 20, w = box.x1 - box.x0 + 2 * pad, h = box.y1 - box.y0 + 2 * pad, k = Math.min(1, 1000 / Math.max(w, h)); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k)); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.translate(pad - box.x0, pad - box.y0); g.strokeStyle = '#000'; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 3; for (const st of rd.strokes) { g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke() }
+      content.push({type:'image', source:{type:'base64', media_type:'image/png', data:c.toDataURL('image/png').split(',')[1]}}, {type:'text', text:'What they just wrote in the diary, by hand.'}) }
+    else content.push({type:'text', text:'They wrote in the diary:\n' + typed});
+    // the writing sinks into the paper
+    rdCv.classList.add('kr-sink'); setTimeout(() => { rd.strokes = []; rdDraw(); rdCv.classList.remove('kr-sink') }, 1900);
+    try {
+      const res = await fetch(API, {method:'POST', headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:model(), max_tokens:2000, output_config:{effort:'low'}, system:RIDDLE, messages:rd.hist.slice(-12).concat([{role:'user', content}])})});
+      const j = await res.json(); if (!res.ok) throw new Error((j.error && j.error.message) || res.status);
+      const raw = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''), read = (raw.match(/<read>([\s\S]*?)<\/read>/) || [])[1] || typed || '', say = raw.replace(/<read>[\s\S]*?<\/read>/g, '').trim();
+      if (rdView.hidden) return;   // the diary was closed while it thought
+      rd.hist.push({role:'user', content:'(they wrote:) ' + read}, {role:'assistant', content:say || '…'});
+      await new Promise(r => setTimeout(r, 1200));
+      rdShow(say || '…', box);
+    } catch(err) { if (!rdView.hidden) rdShow('The ink will not take. (' + plainErr(err) + ')', box) } finally { rd.busy = false }
+  }
+  function rdShow(text, box){
+    const H = rdCv.getBoundingClientRect().height || 400, y = box ? Math.min(Math.max(16, box.y0 - 10), H * 0.55) : H * 0.3;
+    rdSay.classList.remove('kr-out'); rdSay.style.top = y + 'px'; rdSay.innerHTML = text.split(/(\s+)/).map(w => /^\s+$/.test(w) ? w : '<span>' + esc(w) + '</span>').join('');
+    [...rdSay.querySelectorAll('span')].forEach((sp, i) => setTimeout(() => sp.classList.add('kr-in'), 120 + i * 110));   // word by word, as if written from the other side
+    clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.classList.add('kr-out'); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2500) }, 9000 + text.length * 60);
+  }
+
   // ---- the notebook: fixed-size pages one under another, kept in this browser (IndexedDB 'books'). Everything stays on the paper:
   // the reader's ink, their typed notes, Claude's replies and its arrows. Coordinates are paper units: a page is 800 x 1130, ruled
   // every 40; it is scaled to the window's width. There is always one blank page at the end. ----
@@ -3418,6 +3476,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const act = a.dataset.a;
     if (act === 'close') close();
     else if (act === 'full') setFull(!P.classList.contains('kb-full'));
+    else if (act === 'riddle') { sub = sub === 'riddle' ? null : 'riddle'; show(); if (sub === 'riddle') riddleOpen(); else riddleClose() }
     else if (act === 'pages') { sub = sub === 'pages' ? null : 'pages'; show() }
     else if (act === 'marks') { sub = sub === 'marks' ? null : 'marks'; show() }
     else if (act === 'find') { sub = sub === 'find' ? null : 'find'; show(); if (sub === 'find') fdIn.focus() }
