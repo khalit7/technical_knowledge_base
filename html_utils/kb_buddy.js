@@ -8,8 +8,11 @@
 //   highlighter, eraser, lasso, Text (tap the notebook and type there; Enter sends), six colours, two widths, Undo, Claude on or off (on: Claude reads after a pause, 3 s unless Settings say otherwise; off: marks are just
 //   notes, Send asks), the Notebook, Settings.
 // On the page: with a pen chosen, the Apple Pencil and the mouse write (fingers still scroll and work the page). Marks stay, pinned to
-//   the element they were drawn on, so they follow reflow and tabs. Claude's replies are sticky notes right by them (fold, move,
-//   delete); a note is the thread about its marks: tap the marks to open it, ask a follow-up at its foot.
+//   the element they were drawn on, so they follow reflow and tabs; a highlight made from a selection is drawn from its words, so it
+//   stays on them at any screen width. Claude's replies are sticky notes by them, in the empty margin beside the passage when there is
+//   one; one note is open at a time and the others are numbered dots (a tap elsewhere closes it). Fold, move or delete a note (its
+//   highlight goes with it, with Undo); a note is the thread about its marks: tap the marks to open it, ask a follow-up at its foot.
+//   The toolbar gets its own band along the top or bottom, so it never covers the page's title, section bar or sticky figures.
 //   In Read, the page works as usual; selecting text opens a small Ask box: the passage is highlighted and the answer is a note beside it.
 // Notebook: ruled pages one under another, full screen (clear of the toolbar) or floating. Write with the Pencil, a finger or the
 //   mouse (two fingers scroll), or type; Claude gets the new ink close up and the whole notebook page with free spots lettered on
@@ -59,7 +62,7 @@
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
   };
   const mem = {};
-  const mgSpot = new Map(), dotSpot = new Map(); addEventListener('resize', () => { mgSpot.clear(); dotSpot.clear() });   // where an open note shows in the margin, relative to its passage
+  const mgSpot = new Map(), dotSpot = new Map(); let spotW = innerWidth; addEventListener('resize', () => { if (innerWidth === spotW) return; spotW = innerWidth; mgSpot.clear(); dotSpot.clear() });   // Safari's bars collapsing on scroll is not a new layout   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
   const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.nudge', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
@@ -80,8 +83,8 @@
 
   const css = `
 body{padding-top:var(--kb-room,0px)!important;padding-bottom:var(--kb-room-b,0px)!important}html{scroll-padding-top:calc(var(--kb-room,0px) + 56px)}
-body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room,0px);background:var(--bg,#fff);z-index:60;pointer-events:none;box-shadow:0 1px 0 var(--line,rgba(0,0,0,.08))}
-.nav{top:var(--kb-room,0px)!important}.stg,.s3stick{top:calc(50px + var(--kb-room,0px))!important}.s3side{top:calc(20px + var(--kb-room,0px))!important}.nm-nav,.dd-nav,.mx-nav{top:var(--kb-room,0px)!important}
+body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room,0px);background:var(--bg,#fff);z-index:60;pointer-events:none}html[style*="--kb-room: 0px"] body::before{display:none}
+.nav{top:var(--kb-room,0px)!important}.stg,.s3stick{top:calc(50px + var(--kb-room,0px))!important}@media (min-width:1100px){.s3side{top:calc(58px + var(--kb-room,0px))!important}}.nm-nav,.dd-nav,.mx-nav,.lb-tr{top:var(--kb-room,0px)!important}.sq-wrap{top:calc(50px + var(--kb-room,0px))!important}.nm-axis{top:calc(2px + var(--kb-room,0px))!important}
 #kbBar{position:fixed;z-index:70;display:flex;align-items:center;gap:3px;padding:4px 6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18));touch-action:none;-webkit-user-select:none;user-select:none;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 #kbBar{flex-wrap:wrap;justify-content:center}
 #kbBar.kb-v{flex-direction:column;padding:6px 4px;align-content:center}
@@ -94,7 +97,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar.kb-v .kb-grip2{width:32px;height:18px}
 #kbBar .kb-sep{width:1px;height:22px;background:var(--line);margin:0 3px;flex:none}
 #kbBar.kb-v .kb-sep{width:22px;height:1px;margin:3px 0}
-#kbBar .kb-sws{display:flex;gap:3px;align-items:center}#kbBar.kb-compact .kb-sws{position:relative}#kbBar.kb-compact .kb-sws:not(.kb-open) .kb-sw:not([aria-pressed=true]){display:none}#kbBar.kb-compact .kb-sws.kb-open{position:absolute;z-index:2;top:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:8px 10px;gap:8px;background:var(--card,var(--bg));border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18))}
+#kbBar .kb-sws{display:flex;gap:3px;align-items:center}#kbBar.kb-bottom.kb-compact .kb-sws.kb-open{top:auto;bottom:calc(100% + 6px)}#kbUndo,#kbOrig{margin-bottom:var(--kb-room-b,0px)}#kbBar.kb-compact .kb-sws{position:relative}#kbBar.kb-compact .kb-sws:not(.kb-open) .kb-sw:not([aria-pressed=true]){display:none}#kbBar.kb-compact .kb-sws.kb-open{position:absolute;z-index:2;top:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:8px 10px;gap:8px;background:var(--card,var(--bg));border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18))}
 #kbBar.kb-v .kb-sws{flex-direction:column}
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
@@ -435,7 +438,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let sub = null;   // null, 'pages' or 'set'
   function show(){
     const v = sub || 'notebook';
-    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', pages:'Notebook pages', set:'Settings', find:'History', marks:'Marks and notes on this page'}[v] || 'Notebook';
+    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', pages:'History', set:'Settings', find:'Notebook pages', marks:'Marks and notes on this page'}[v] || 'Notebook';
     nbView.hidden = v !== 'notebook'; pgView.hidden = v !== 'pages'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find'; ovView.hidden = v !== 'marks';
     $('[data-a=marks]').classList.toggle('kb-on', sub === 'marks'); if (v === 'marks') renderOverview();
     $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set'); $('[data-a=find]').classList.toggle('kb-on', sub === 'find');
@@ -480,7 +483,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function placeBar(){
     const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v); Object.assign(bar.style, {left:'0px', top:'0px', width:''});
     // too wide for one row (an iPad held upright): the colours fold into the current one, which opens the palette
-    bar.classList.remove('kb-compact'); if (!v && bar.offsetHeight > 62) bar.classList.add('kb-compact');
+    bar.classList.remove('kb-compact'); bar.classList.toggle('kb-bottom', dock.e === 'bottom'); if (!v && bar.offsetHeight > 62) bar.classList.add('kb-compact');
     const W = innerWidth, H = innerHeight, w = Math.ceil(bar.getBoundingClientRect().width) + 1, h = bar.offsetHeight, m = 8;   // rounded up: a fraction short and it wraps
     let x, y;
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
@@ -1461,7 +1464,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const cs = getComputedStyle(document.body), rs = getComputedStyle(document.documentElement), v = n => (cs.getPropertyValue(n) || rs.getPropertyValue(n)).trim();
     const vars = ['--ink', '--bg', '--acc', '--line', '--soft', '--card', '--mute', '--bad', '--good', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--shadow'].map(n => n + ':' + (v(n) || (n === '--ink' ? cs.color : n === '--bg' ? cs.backgroundColor : '#888'))).join(';');
     return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; form-action \'none\'; base-uri \'none\'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style>' + FRAME_JS + (uses3d(x) ? '<style>' + ((document.getElementById('kb-split') || {}).textContent || '') + '</style><script>' + S3SRC + '<\/script>' : '') + '<\/he' + 'ad><bo' + 'dy>' + x.html +
-      '<script>(function(){var id=' + JSON.stringify(x.id) + ',f=function(){parent.postMessage({kbVis:id,h:Math.ceil(Math.max(document.documentElement.getBoundingClientRect().height,document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0))},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
+      '<script>(function(){var id=' + JSON.stringify(x.id) + ',f=function(){parent.postMessage({kbVis:id,h:Math.ceil(Math.max(document.documentElement.getBoundingClientRect().height,document.body?document.body.scrollHeight:0))},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
   }
   // messages from a visual's frame (checked to come from that frame): its height, and the step it shows (marked in its step list)
   window.addEventListener('message', e => {
@@ -1668,7 +1671,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       + (ask ? '<small>You asked: ' + esc(String(ask).slice(0, 160)) + '</small>' : '') + (x.st !== 'kept' && x.by !== 'you' ? '<small>Changes stay until you remove them. Keep marks one as reviewed and worth folding into the page.</small>' : '');
     chg.hidden = false; posPop(chg, chgNear);
     const vb = x.kind === 'visual' && chgNear && chgNear.closest && chgNear.closest('.kb-vis');   // a visual's bar goes beside it when there is room, so it does not cover what is being changed
-    if (vb) { const r = vb.getBoundingClientRect(), w = chg.offsetWidth; if (r.right + 12 + w <= innerWidth - 8) { chg.style.left = (r.right + 12 + scrollX) + 'px'; chg.style.top = (Math.max(r.top, 64) + scrollY) + 'px' } }
+    if (vb) { const r = vb.getBoundingClientRect(), w = chg.offsetWidth, ty = Math.max(r.top, clipLine() + 8); if (r.right + 12 + w <= innerWidth - 8 && marginFree(r.right + 12, ty, w, Math.min(chg.offsetHeight || 220, 400))) { chg.style.left = (r.right + 12 + scrollX) + 'px'; chg.style.top = (ty + scrollY) + 'px' } }
     const inp2 = chg.querySelector('input'); if (inp2 && typedV) { inp2.value = typedV; try { inp2.setSelectionRange(typedP, typedP) } catch(e) {} }
     const f = was === 'input' ? inp2 : was && (chg.querySelector('[data-c="' + was + '"]') || chg.querySelector('[data-rf="' + was + '"]')); (f || chg.querySelector('button')).focus({preventScroll:true});
   }
@@ -1715,15 +1718,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const id of S.add || []) { const x = edits.find(y => y.id === id); if (x) drop(edits, x) }
     for (const x of S.edits || []) if (!edits.some(y => y.id === x.id)) edits.push(x);
     for (const m of S.marks || []) if (!marks.some(y => y.id === m.id)) marks.push(m);
-    for (const n of S.notes || []) if (!notes.some(y => y.id === n.id)) notes.push(n);
+    for (const n of S.notes || []) if (!notes.some(y => y.id === n.id)) { const at = S.at && S.at.get(n.id); if (at != null && at <= notes.length) notes.splice(at, 0, n); else notes.push(n) }   // back in its place, so the numbers stay
     for (const [id, st] of S.st || []) { const x = edits.find(y => y.id === id); if (x) x.st = st }
     renderEdits(); saveBook(); refreshOv();
   });
   const orphaned = new Map();   // group -> marks it made, for a request whose changes were removed while it was being written
   function tidyOrphan(job){
     const ids = orphaned.get(job.gid); if (!ids || edits.some(y => y.g === job.gid)) { orphaned.delete(job.gid); return } orphaned.delete(job.gid);
-    const n = job.newNote && job.note && job.note.n;
+    const n0 = job.newNote && job.note && job.note.n;
     const snap = [...undos].reverse().find(u => (u.edits || []).some(y => y.g === job.gid));   // so Undo brings them back with the change
+    const n = n0 && (snap || turnsOf(n0).length <= 1) ? n0 : null;   // no Undo left to bring back a conversation: it stays
     if (n) { drop(notes, n); const ne = noteEl.get(n); if (ne) ne.remove(); noteEl.delete(n); if (snap) snap.notes.push(n) }
     for (const id of ids) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); if (snap) snap.marks.push(m) } }
     saveBook();
@@ -2180,7 +2184,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     // the keyboard only comes up for a focus made while handling the tap itself, so focus on the pointer's release (and now, for a mouse)
     const go = () => { try { t.focus({preventScroll:true}); t.setSelectionRange(t.value.length, t.value.length) } catch(err) {} };
     if (e.pointerType === 'mouse') setTimeout(go, 0);   // and again on the release: a mouse click's own focus change can come after the first
-    { const up = () => { removeEventListener('pointerup', up, true); removeEventListener('touchend', up, true); setTimeout(go, 0) }; addEventListener('pointerup', up, true); addEventListener('touchend', up, true) }
+    { const up = () => { removeEventListener('pointerup', up, true); removeEventListener('touchend', up, true); go(); if (e.pointerType === 'mouse') setTimeout(go, 0) }; addEventListener('pointerup', up, true); addEventListener('touchend', up, true) }   // inside the gesture: iPadOS shows the keyboard only then
   }
   // close the open line: what was typed becomes a typed note (nothing typed: it just goes)
   function finishEd(){
@@ -2573,25 +2577,34 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // words when the text reflows (another screen width, the iPad turned); its stored strokes are the fallback when the words are gone ----
   const selG = document.createElementNS(NS, 'g'); selG.setAttribute('class', 'kb-selhl');
   const selRects = new Map(), selHid = new Set(), selBox = new Map(), selRange = new Map();
-  function findText(root, text){
+  const isSel = m => !!m && (m.sel === 1 || (m.h && !m.sh && m.c === '#f5c400' && m.p && m.p.length === 2));   // a stroke made from a selection (older ones by their shape), not the reader's own highlighter
+  function findText(root, text, nearY, inside){
     const want = String(text || '').replace(/\s+/g, ' ').trim(); if (want.length < 2) return null;
     const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: t => t.parentElement && t.parentElement.closest(OURS + ',' + KB_NODES + ',script,style') ? 2 : 1});
     let norm = '', map = [], sp = true;
     for (let t = tw.nextNode(); t; t = tw.nextNode()) { const v = t.nodeValue; for (let i = 0; i < v.length; i++) { const ws = /\s/.test(v[i]); if (ws) { if (sp) continue; norm += ' '; sp = true } else { norm += v[i]; sp = false } map.push([t, i]) } }
-    const k = norm.indexOf(want); if (k < 0) return null;
-    const r = document.createRange(), a = map[k], b = map[k + want.length - 1]; r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1); return r;
+    // every place the words occur (a short phrase can recur): the one nearest where the highlight was made, starting inside its block
+    let best = null, bd = Infinity;
+    for (let k = norm.indexOf(want); k >= 0; k = norm.indexOf(want, k + 1)) {
+      const a = map[k], b = map[k + want.length - 1]; if (inside && !inside.contains(a[0])) continue;
+      const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1);
+      const d = nearY == null ? 0 : Math.abs(r.getBoundingClientRect().top - nearY); if (d < bd) { bd = d; best = r } if (nearY == null) break;
+    }
+    return best;
   }
   function drawSel(o, over){
     selG.replaceChildren(); selRects.clear(); selHid.clear(); selBox.clear(); if (selG.parentNode !== marksSvg) marksSvg.insertBefore(selG, marksSvg.firstChild);
     for (const n of notes) {
       if (!n.hl || !n.marks || !n.marks.length) continue;
-      const ms = n.marks.map(id => marks.find(m => m.id === id)).filter(m => m && m.h); if (!ms.length || ms.some(m => over.has(m.id)) || !frameOf(ms[0])) continue;
+      const ms = n.marks.map(id => marks.find(m => m.id === id)).filter(isSel); if (!ms.length || ms.some(m => over.has(m.id)) || !frameOf(ms[0])) continue;
       let r = selRange.get(n); if (!r || !r.startContainer.isConnected || r.collapsed) {
-        const a = anchorOf(ms[0]); r = a && a !== pageRoot() ? findText(a, n.hl) || (a.parentElement && a.parentElement !== pageRoot() ? findText(a.parentElement, n.hl) : null) : null;
+        const a = anchorOf(ms[0]), f0 = frameOf(ms[0]), ny = f0 && ms[0].p[0] ? f0.y + ms[0].p[0][1] * f0.s - ms[0].w * f0.s / 2 : null;
+        r = a && a !== pageRoot() ? findText(a, n.hl, ny) || (a.parentElement && a.parentElement !== pageRoot() ? findText(a.parentElement, n.hl, ny, a) : null) : null;
         if (r) selRange.set(n, r); else { selRange.delete(n); continue } }
-      const lines = []; for (const q of r.getClientRects()) { if (q.width < 2) continue; const L = lines.find(l => Math.abs(l.t - q.top) < 4); if (L) { L.l = Math.min(L.l, q.left); L.r = Math.max(L.r, q.right); L.b = Math.max(L.b, q.bottom) } else lines.push({l:q.left, r:q.right, t:q.top, b:q.bottom}) }
+      const lines = [], sx = scrollX, sy = scrollY;   // in page coordinates, so a scroll does not leave them behind
+      for (const q of r.getClientRects()) { if (q.width < 2) continue; const L = lines.find(l => Math.abs(l.t - q.top - sy) < 4); if (L) { L.l = Math.min(L.l, q.left + sx); L.r = Math.max(L.r, q.right + sx); L.b = Math.max(L.b, q.bottom + sy) } else lines.push({l:q.left + sx, r:q.right + sx, t:q.top + sy, b:q.bottom + sy}) }
       if (!lines.length) continue;
-      for (const L of lines) { const e = document.createElementNS(NS, 'rect'); Object.entries({x:r1(L.l - o.left - 1), y:r1(L.t - o.top), width:r1(L.r - L.l + 2), height:r1(L.b - L.t), rx:3, fill:ms[0].c || '#f5c400', 'fill-opacity':0.35}).forEach(([k2, v]) => e.setAttribute(k2, v)); selG.appendChild(e) }
+      for (const L of lines) { const e = document.createElementNS(NS, 'rect'); Object.entries({x:r1(L.l - sx - o.left - 1), y:r1(L.t - sy - o.top), width:r1(L.r - L.l + 2), height:r1(L.b - L.t), rx:3, fill:ms[0].c || '#f5c400', 'fill-opacity':0.35}).forEach(([k2, v]) => e.setAttribute(k2, v)); selG.appendChild(e) }
       const bx = {x0:Math.min(...lines.map(L => L.l)), y0:lines[0].t, x1:Math.max(...lines.map(L => L.r)), y1:lines[lines.length - 1].b};
       selRects.set(n, lines); for (const m of ms) { selHid.add(m.id); selBox.set(m.id, bx) }
     }
@@ -2599,11 +2612,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function markNode(m){ const g = document.createElementNS(NS, 'path'); styleMark(g, m); g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(g); markEl.set(m, g); return g }
   // marks pass under the toolbar's band and under the page's sticky section bar, as the page's own text does
   let lastClip = null;
+  // the screen line below which the page shows: the toolbar's band and any section bar stuck under it
+  function clipLine(){
+    const room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0; let ct = room;
+    for (const nav of document.querySelectorAll('.nav,.nm-nav,.dd-nav,.mx-nav')) { const r = nav.getBoundingClientRect(); if (r.height && r.height < 120 && r.top <= room + 1 && r.bottom > ct) ct = r.bottom }
+    return ct;
+  }
   function clipMarks(){
-    const room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0, nav = document.querySelector('.nav'); let ct = room;
-    if (nav) { const r = nav.getBoundingClientRect(); if (r.top <= room + 1 && r.bottom > ct && r.height < 120) ct = r.bottom }
-    const y = Math.round(scrollY + ct); if (y === lastClip) return; lastClip = y;
-    marksSvg.style.clipPath = 'polygon(-10000px ' + y + 'px, 100000px ' + y + 'px, 100000px 10000000px, -10000px 10000000px)';
+    const y = Math.round(scrollY + clipLine()), ln = y - scrollY;
+    if (y !== lastClip) { lastClip = y; marksSvg.style.clipPath = 'polygon(-10000px ' + y + 'px, 100000px ' + y + 'px, 100000px 10000000px, -10000px 10000000px)' } for (const [n, e] of noteEl) e.style.visibility = n !== activeNote && !e.hidden && e.getBoundingClientRect().top < ln ? 'hidden' : '';   // dots pass under the bars; the open note stays whole
   }
   addEventListener('scroll', clipMarks, {passive:true});
   function placeMarks(){
@@ -2617,7 +2634,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       g.style.display = ''; g.setAttribute('transform', `translate(${(f.x - o.left).toFixed(1)} ${(f.y - o.top).toFixed(1)}) scale(${f.s.toFixed(4)})`);
     }
     const ob = notesBox.getBoundingClientRect(); for (const n of notes) placeNote(n, ob);
-    layoutNotes(o, ob);
+    layoutNotes(o, ob); clipMarks();
   }
   // open notes never cover each other: in order down the page, each is pushed below any earlier one it would overlap (only where it
   // shows; where it belongs is kept). A note shown away from its marks gets a thin line to them. Dots carry the note's number.
@@ -2634,16 +2651,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms), ae = anchorEl(n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null;
         const bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}), mg = bx && inV(ar || {left:bx.x0, top:bx.y0, right:bx.x1, bottom:bx.y1, width:1, height:1}) ? findMargin(bx, ar ? ar.right : bx.x1, 34, 34) : undefined;
         let sp2 = mg;
-        if (mg === null) { const lx = (ar ? ar.left : bx.x0) - 40, ly = Math.max(bx.y0, (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0) + 8); if (lx >= 4 && marginFree(lx, ly, 32, 32)) sp2 = {x:lx + 6, y:ly} }   // no room on the right (a figure beside the text): the left margin
+        if (mg === null) { const lx = Math.min(ar ? ar.left : bx.x0, pageRoot().getBoundingClientRect().left) - 38, ly = Math.max(bx.y0, clipLine() + 8); if (lx >= 4 && marginFree(lx, ly, 32, 32)) sp2 = {x:lx + 6, y:ly} }   // no room on the right (a figure beside the text): the left margin
         if (mg !== undefined) dotSpot.set(n, sp2 ? {dx:sp2.x - f.x - 6, dy:sp2.y - f.y} : null);
       }
       const sp = dotSpot.get(n); if (sp) { e.style.left = (f.x + sp.dx - ob.left) + 'px'; e.style.top = (f.y + sp.dy - ob.top) + 'px' }
     }
+    { const placed = [];   // two dots in one place: the later one steps down, so each can be tapped
+      for (const n of notes) { const e = noteEl.get(n); if (n === activeNote || !e || e.hidden) continue; const x = parseFloat(e.style.left) || 0; let y = parseFloat(e.style.top) || 0;
+        for (let k = 0; k < 20 && placed.some(q => Math.abs(q.x - x) < 34 && Math.abs(q.y - y) < 34); k++) y += 36; e.style.top = y + 'px'; placed.push({x, y}) } }
     for (const x of open) {   // not moved by hand: shown in the empty margin beside its passage when there is one, so it covers nothing
       if (x.n.dragged) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
       const ae = anchorEl(x.n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null, bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}); if (!bx) continue;
       const f = frameOf(x.n); if (!f) continue;
-      if (!mgSpot.has(x.n)) { const mg = findMargin(bx, ar ? ar.right : bx.x1, x.w, x.h); mgSpot.set(x.n, mg ? {dx:mg.x - f.x, dy:mg.y - f.y} : null) }   // found once, then it scrolls with its passage
+      if (!mgSpot.has(x.n)) { const mg = findMargin(bx, ar ? ar.right : bx.x1, x.w, x.h); if (mg !== undefined) mgSpot.set(x.n, mg ? {dx:mg.x - f.x, dy:mg.y - f.y} : null) }   // found once, then it scrolls with its passage
       const sp = mgSpot.get(x.n); if (sp) { x.left = f.x + sp.dx - ob.left; x.top = f.y + sp.dy - ob.top; x.e.style.left = x.left + 'px' }
     }
     for (const x of open) { for (const y of shown) if (x.left < y.left + y.w && x.left + x.w > y.left && x.top < y.top + y.h + 8) x.top = y.top + y.h + 8; x.e.style.top = x.top + 'px'; shown.push(x) }
@@ -2668,7 +2688,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the viewport box of some marks (null when none is in view), and the text of the element the first one is pinned to
   function viewBox(ms){
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for (const m of ms) { const sb = selBox.get(m.id); if (sb) { x0 = Math.min(x0, sb.x0); y0 = Math.min(y0, sb.y0); x1 = Math.max(x1, sb.x1); y1 = Math.max(y1, sb.y1); continue }
+    for (const m of ms) { const sb = selBox.get(m.id); if (sb) { x0 = Math.min(x0, sb.x0 - scrollX); y0 = Math.min(y0, sb.y0 - scrollY); x1 = Math.max(x1, sb.x1 - scrollX); y1 = Math.max(y1, sb.y1 - scrollY); continue }
       const f = frameOf(m); if (!f) continue; for (const q of m.p) { const x = f.x + q[0] * f.s, y = f.y + q[1] * f.s; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y) } }
     return x0 > x1 ? null : {x0, y0, x1, y1};
   }
@@ -2676,7 +2696,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the marks (and the open notes) drawn into the screen image; the new marks outlined
   function paintMarks(g, fresh){
     const def = getComputedStyle(document.body).color || '#222';
-    g.save(); for (const [n, ls] of selRects) { const ms0 = marks.find(m => m.id === n.marks[0]); g.fillStyle = (ms0 && ms0.c) || '#f5c400'; g.globalAlpha = 0.35; for (const L of ls) g.fillRect(L.l, L.t, L.r - L.l, L.b - L.t) } g.restore();
+    g.save(); for (const [n, ls] of selRects) { const ms0 = marks.find(m => m.id === n.marks[0]); g.fillStyle = (ms0 && ms0.c) || '#f5c400'; g.globalAlpha = 0.35; for (const L of ls) g.fillRect(L.l - scrollX, L.t - scrollY, L.r - L.l, L.b - L.t) } g.restore();
     for (const m of marks) { const f = frameOf(m); if (!f || selHid.has(m.id)) continue; g.save(); g.translate(f.x, f.y); g.scale(f.s, f.s); drawStroke(g, Object.assign({}, m, {w:markW(m), p:m.p.map(q => [q[0], q[1], 0.5])}), def); g.restore() }
     const rg = document.createRange();
     for (const [n, e] of noteEl) {
@@ -2830,7 +2850,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     // the selection's lines as highlighter strokes, one per line, pinned like any mark
     const o = marksSvg.getBoundingClientRect(), lines = [];
     for (const q of h.rects) { const L = lines.find(l => Math.abs(l.y - q.y) < 4 && Math.abs(l.h - q.h) < 6); if (L) { L.x0 = Math.min(L.x0, q.x); L.x1 = Math.max(L.x1, q.x + q.w) } else lines.push({x0:q.x, x1:q.x + q.w, y:q.y, h:q.h}) }
-    const ms = lines.map(l => { const y = l.y - scrollY - o.top + l.h / 2, hw = l.h * 0.9; const m = {p:[[r1(l.x0 - scrollX - o.left + hw / 2), r1(y), 0.5], [r1(l.x1 - scrollX - o.left - hw / 2), r1(y), 0.5]], c:'#f5c400', w:hw, h:true}; pin(m, o, null); return m });
+    const ms = lines.map(l => { const y = l.y - scrollY - o.top + l.h / 2, hw = l.h * 0.9; const m = {p:[[r1(l.x0 - scrollX - o.left + hw / 2), r1(y), 0.5], [r1(l.x1 - scrollX - o.left - hw / 2), r1(y), 0.5]], c:'#f5c400', w:hw, h:true, sel:1}; pin(m, o, null); return m });
     saveBook(); syncBar();
     PG.out.status('Looking…');
     const job = {kind:'page', typed:q, hl:h, marks:ms, made:ms.map(m => m.id), box:viewBox(ms), near:nearText(ms), scr:await screenBlocks(false, ms, h)};
@@ -2846,18 +2866,21 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }, {passive:false, capture:true});
   function erasePage(cx, cy){
     let hit = false;
-    for (const [n, ls] of [...selRects]) if (ls.some(L => cx >= L.l - 6 && cx <= L.r + 6 && cy >= L.t - 6 && cy <= L.b + 6)) { for (const id of n.marks) { const y = marks.find(z => z.id === id); if (y && y.h) removeMark(y) } selRects.delete(n); hit = true }
+    const px = cx + scrollX, py = cy + scrollY;
+    for (const [n, ls] of [...selRects]) if (ls.some(L => px >= L.l - 6 && px <= L.r + 6 && py >= L.t - 6 && py <= L.b + 6)) { for (const id of n.marks) { const y = marks.find(z => z.id === id); if (isSel(y)) removeMark(y) } selRects.delete(n); hit = true }
     for (const m of marks.slice()) { const f = frameOf(m); if (!f || !marks.includes(m) || selHid.has(m.id)) continue; if (nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (12 + markW(m) / 2) / f.s)) {
       // a highlight made from a selection is one thing (a stroke per line): it goes whole
-      const n = m.h && notes.find(o => o.hl && (o.marks || []).includes(m.id)), all = n ? n.marks.map(id => marks.find(y => y.id === id)).filter(y => y && y.h) : [m];
+      const n = isSel(m) && notes.find(o => o.hl && (o.marks || []).includes(m.id)), all = n ? n.marks.map(id => marks.find(y => y.id === id)).filter(isSel) : [m];
       for (const y of all) removeMark(y); hit = true } }
-    if (hit) syncBar();
+    if (hit) { syncBar(); schedule() }
   }
   function removeMark(m){ drop(marks, m); drop(pendPage, m); drop(undoStack, m); const g = markEl.get(m); if (g) g.remove(); markEl.delete(m) }
   // Undo: the last mark made anywhere, on the page or in the notebook
   function undo(){
     const u = undoStack.pop(); if (!u) return;
-    if (u.m) { removeMark(u.m); if (!pendPage.length) { clearTimeout(PG.timer); PG.out.status('') } }
+    if (u.m) { const hn = isSel(u.m) && notes.find(o => o.hl && (o.marks || []).includes(u.m.id));   // a selection's highlight is one thing: undone whole
+      if (hn) for (const id of hn.marks) { const y = marks.find(z => z.id === id); if (isSel(y) && y !== u.m) removeMark(y) }
+      removeMark(u.m); schedule(); if (!pendPage.length) { clearTimeout(PG.timer); PG.out.status('') } }
     else if (book[u.pg]) { drop(book[u.pg].ink, u.s); drop(pend, u.s); pgs[u.pg].ink.redraw(); pend.length || NB.out.typed() ? arm(NB) : renderOn() }
     saveBook(); syncBar();
   }
@@ -2891,8 +2914,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (a === 'fold' || a === 'open') { n.fold = a === 'fold'; if (a === 'open') n.resolved = false; e.classList.toggle('kb-folded', n.fold); e.classList.toggle('kb-resolved', !!n.resolved); if (!n.fold) activate(n); saveBook(); schedule() }
       else if (a === 'resolve') { n.resolved = true; n.fold = true; e.classList.add('kb-folded', 'kb-resolved'); saveBook(); schedule() }
       else if (a === 'del') {   // the note goes with the marks only it was about (its highlight, its loop); Undo brings them back
-        const snap = {edits:[], marks:[], notes:[n]}; drop(notes, n); e.remove(); noteEl.delete(n); if (activeNote === n) activeNote = null;
-        for (const id of n.marks || []) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); snap.marks.push(m) } }
+        const snap = {edits:[], marks:[], notes:[n], at:new Map([[n.id, notes.indexOf(n)]])}; drop(notes, n); e.remove(); noteEl.delete(n); if (activeNote === n) activeNote = null;
+        for (const id of n.marks || []) { const m = marks.find(y => y.id === id); if (m && (isSel(m) || m.dash) && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); snap.marks.push(m) } }   // the reader's own ink stays
         saveBook(); placeMarks(); offerUndo('Note deleted', snap);
       }
       else if (a === 'retry') {   // the failed turn goes and its question is asked again in this note
@@ -2914,12 +2937,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const h = e.querySelector('.kb-nh');
     h.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || ev.target.closest('button')) return; ev.preventDefault(); h.setPointerCapture(ev.pointerId); front(e);
-      const sx = ev.clientX, sy = ev.clientY, x0 = n.x, y0 = n.y, fr = frameOf(n) || {s:1};
-      const mv = q => { n.x = x0 + (q.clientX - sx) / fr.s; n.y = y0 + (q.clientY - sy) / fr.s; placeNote(n, notesBox.getBoundingClientRect());
+      const f0 = frameOf(n), sx0 = n.x, sy0 = n.y; let moved = false; if (f0) { const r0 = e.getBoundingClientRect(); n.x = Math.round((r0.left - f0.x) / f0.s); n.y = Math.round((r0.top - f0.y) / f0.s) }   // from where it is shown (the margin), not where it was saved
+      const sx = ev.clientX, sy = ev.clientY, x0 = n.x, y0 = n.y, fr = f0 || {s:1};
+      const mv = q => { if (!moved && Math.hypot(q.clientX - sx, q.clientY - sy) < 4) return; moved = true; n.dragged = 1; n.x = x0 + (q.clientX - sx) / fr.s; n.y = y0 + (q.clientY - sy) / fr.s; placeNote(n, notesBox.getBoundingClientRect());
         const r = e.getBoundingClientRect(), W = document.documentElement.clientWidth, dx = Math.max(0, 8 - r.left) - Math.max(0, r.right - (W - 8));
-        const t0 = dock.e === 'top' && !bar.hidden ? bar.getBoundingClientRect().bottom + 4 : 0, dy = Math.max(0, t0 - r.top);
+        const t0 = clipLine() + 4, dy = Math.max(0, t0 - r.top);
         if (dx || dy) { n.x += dx / fr.s; n.y += dy / fr.s; placeNote(n, notesBox.getBoundingClientRect()) } };
-      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); if (n.x !== x0 || n.y !== y0) n.dragged = 1; saveBook() };
+      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); if (!moved) { n.x = sx0; n.y = sy0; return } saveBook() };   // a tap writes nothing
       h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
     });
     e.addEventListener('pointerenter', () => lightMarks(n, 0)); e.addEventListener('pointerleave', () => lightMarks({}, 0));
@@ -2932,7 +2956,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function activate(n){ activeNote = n; mgSpot.delete(n); for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
   function deactivate(){ if (!activeNote) return; activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
-  document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS)) return; deactivate() }, true);
+  document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS) || t.closest('input,button,select,textarea,a,label,summary,[role=tab],[role=button],figure,svg,canvas,iframe,' + FIGCOL + ',.lab') || (PG.cur && PG.cur.note && PG.cur.note.n === activeNote)) return; deactivate() }, true);   // the page's own controls and figures leave it open
   // light up a note's marks for a moment (tapping or pointing at the note)
   let lightT = 0;
   function lightMarks(n, dur){
@@ -2945,12 +2969,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // the nearest empty margin spot beside a passage (right of it, level with it or a little lower), on screen and clear of the toolbar band
   function findMargin(bx, right, w, h){
-    const top0 = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0) + 8, x = Math.max(bx.x1, right) + 14;
+    const top0 = clipLine() + 8, x = Math.max(bx.x1, right) + 14;
     if (x + w > innerWidth - 8) return null;
-    for (let dy = 0; dy <= 640; dy += 40) { const y = Math.max(bx.y0 - 4, top0) + dy; if (y > innerHeight - 80) break; if (marginFree(x, y, w, Math.min(h, 520))) return {x, y} }
+    if (bx.y1 < top0 || bx.y0 > innerHeight - 80) return undefined;   // the passage is off screen: try again once it is in view
+    for (let dy = 0; dy <= 640; dy += 40) { const y = Math.max(bx.y0 - 4, top0) + dy; if (y > innerHeight - 80) break; if (marginFree(x, y, w, Math.min(h > 60 ? Math.max(h, innerHeight * 0.44) : h, 520))) return {x, y} }   // a note grows as its answer is written; a dot does not
     return null;
   }
+  // the figure column of a split section is taken along its whole height (its sticky figure slides through it as the page scrolls)
+  const FIGCOL = '.s3R,.s3side,.stg,.kb-vis';
   function marginFree(x, y, w, h){
+    for (const c of pageRoot().querySelectorAll(FIGCOL)) { const r = c.getBoundingClientRect(); if (r.width && r.left < x + w && r.right > x && r.top < y + h && r.bottom > y) return false }
     const rows = Math.max(3, Math.ceil(h / 40));
     for (let i = 0; i <= 3; i++) for (let j = 0; j <= rows; j++) {
       const px = x + w * i / 3, py = Math.min(innerHeight - 2, y + h * j / rows); if (px >= innerWidth || py < 0) return false;
@@ -2970,12 +2998,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function openNote(n){
     const e = noteEl.get(n); if (!e) return;
     n.fold = false; n.resolved = false; e.classList.remove('kb-folded', 'kb-resolved'); activate(n); saveBook(); placeMarks();
-    const r = e.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 20) window.scrollBy({top:r.top - Math.min(innerHeight / 3, 160), behavior:'smooth'});
+    const r = e.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 20) { window.scrollBy({top:r.top - Math.min(innerHeight / 3, 160), behavior:'smooth'}); setTimeout(() => { mgSpot.delete(n); schedule() }, 500) }   // its margin spot found again once the scroll has settled
     e.classList.remove('kb-flash'); void e.offsetWidth; e.classList.add('kb-flash');
   }
   // the note whose marks are under a point (viewport), if any
   function noteAt(cx, cy){
-    for (const [n, ls] of selRects) if (ls.some(L => cx >= L.l && cx <= L.r && cy >= L.t - 2 && cy <= L.b + 2)) return n;
+    { const px = cx + scrollX, py = cy + scrollY; for (const [n, ls] of selRects) if (ls.some(L => px >= L.l && px <= L.r && py >= L.t - 2 && py <= L.b + 2)) return n }
     for (const n of notes.slice().reverse()) {
       if (!n.marks) continue;
       for (const id of n.marks) { const m = marks.find(x => x.id === id), f = m && frameOf(m); if (f && nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (8 + markW(m) / 2) / f.s)) return n }
@@ -3006,7 +3034,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
-      const b = job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);
+      const b = (job.marks && job.marks.length && viewBox(job.marks)) || job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);   // where its marks are now, not when it was asked
       let x, y;
       const blk = job.anchorEl && job.anchorEl.isConnected ? job.anchorEl.getBoundingClientRect() : null, mg = findMargin(b, blk ? blk.right : b.x1, w, 220);
       if (mg) { x = mg.x; y = mg.y }   // the empty margin beside the passage
