@@ -477,7 +477,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
   function placeBar(){
-    const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v); Object.assign(bar.style, {left:'0px', top:'0px'});
+    const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v); Object.assign(bar.style, {left:'0px', top:'0px', width:''});
     // too wide for one row (an iPad held upright): the colours fold into the current one, which opens the palette
     bar.classList.remove('kb-compact'); if (!v && bar.offsetHeight > 62) bar.classList.add('kb-compact');
     const W = innerWidth, H = innerHeight, w = bar.offsetWidth, h = bar.offsetHeight, m = 8;
@@ -486,7 +486,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else {   // centred on its usual width: the buttons that come and go (Send, the section dot, sync) extend it to the right, so the tools never slide
       const extra = [...bar.querySelectorAll('[data-b=nudge],[data-b=send],[data-b=sync]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
       y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - (w - extra) / 2)) }
-    Object.assign(bar.style, {left:x + 'px', top:y + 'px'}); placeToast();
+    Object.assign(bar.style, {left:x + 'px', top:y + 'px', width:v ? '' : w + 'px'}); placeToast();   // its measured width, so it does not wrap where it lands
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
     const de = document.documentElement.style; de.setProperty('--kb-room', (dock.e === 'top' ? y + h + 6 : 0) + 'px'); de.setProperty('--kb-room-b', (dock.e === 'bottom' ? H - y + 6 : 0) + 'px');
     if (!P.hidden && P.classList.contains('kb-full')) fitFull(); else if (!P.hidden) place();
