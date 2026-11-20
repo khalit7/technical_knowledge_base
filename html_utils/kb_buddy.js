@@ -2027,7 +2027,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!o.cur || e.pointerId !== o.cur.id) return; e.preventDefault();
       if (o.cur.er) { opt.erase(pt(e, o.cur.r)); return }
       if (o.cur.la) { o.cur.p.push(pt(e, o.cur.r)); opt.lasso(o.cur.p, false); return }
-      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      const evs = (c => c.length ? c : [e])(e.getCoalescedEvents ? e.getCoalescedEvents() : []);
       const st = o.cur.s, c = o.cur; if (c.snapped) return; let moved = false;
       g.save(); g.strokeStyle = g.fillStyle = st.c || opt.color(); g.lineCap = 'round';
       for (const x of (evs.length ? evs : [e])) {
@@ -2078,7 +2078,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (rdSay.textContent) { rdSay.classList.add('kr-out'); clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2400) }   // writing again: the last answer sinks
     const r = rdCv.getBoundingClientRect(); rd.cur = [[e.clientX - r.left, e.clientY - r.top]]; rdDraw();
   });
-  rdCv.addEventListener('pointermove', e => { if (!rd.cur) return; const r = rdCv.getBoundingClientRect(); for (const q of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]); rdDraw() });
+  rdCv.addEventListener('pointermove', e => { if (!rd.cur) return; const r = rdCv.getBoundingClientRect(); const co = e.getCoalescedEvents ? e.getCoalescedEvents() : []; for (const q of (co.length ? co : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]); rdDraw() });
   const rdUp = () => { if (!rd.cur) return; rd.strokes.push(rd.cur); rd.cur = null; rdDraw(); clearTimeout(rd.timer); rd.timer = setTimeout(rdSend, 2200) };
   rdCv.addEventListener('pointerup', rdUp); rdCv.addEventListener('pointercancel', rdUp);
   rdForm.addEventListener('submit', e => { e.preventDefault(); const t = rdIn.value.trim(); if (!t || rd.busy) return; rdIn.value = ''; rdHint.style.opacity = 0; rdSend(t) });
@@ -2862,7 +2862,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (live.er) { erasePage(e.clientX, e.clientY); return }
     if (live.la) { live.p.push([r1(e.clientX - live.o.left), r1(e.clientY - live.o.top), 0.5]); live.g.setAttribute('d', 'M' + live.p.map(q => q[0] + ' ' + q[1]).join('L') + 'Z'); return }
     if (live.snapped) return;
-    const m = live.m, o = live.o, evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    const m = live.m, o = live.o, evs = (c => c.length ? c : [e])(e.getCoalescedEvents ? e.getCoalescedEvents() : []);
     for (const x of (evs.length ? evs : [e])) { const p = [r1(x.clientX - o.left), r1(x.clientY - o.top), x.pointerType === 'pen' ? (x.pressure || 0.3) : 0.5], q = m.p[m.p.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 0.8) m.p.push(p); if (Math.hypot(p[0] - live.hx, p[1] - live.hy) > 3) { live.hx = p[0]; live.hy = p[1]; holdLive(live) } }
     live.g.setAttribute('d', pathD(m.p, m.sh));
   }, true);
