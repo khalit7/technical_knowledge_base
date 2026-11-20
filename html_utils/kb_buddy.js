@@ -127,6 +127,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBuddy.kr-on .kb-h{background:#2a1a0f;color:#e9d9b0}#kbBuddy.kr-on .kb-h b{color:#e9d9b0;font-family:Georgia,serif;letter-spacing:.02em}
 .kr-view{flex:1;min-height:0;display:flex;flex-direction:column;background:#2a1a0f;padding:14px}
 .kr-page{container-type:size;position:relative;flex:1;min-height:260px;border-radius:4px 10px 10px 4px;overflow:hidden;background:radial-gradient(ellipse at 30% 20%,#f6ead0 0%,#efdfba 55%,#e2cc9c 100%);box-shadow:inset 18px 0 30px -18px rgba(70,40,10,.55),inset 0 0 60px rgba(120,80,30,.25),0 6px 30px rgba(0,0,0,.5)}
+.kr-ghost{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity 1.8s ease-in,filter 1.8s ease-in}.kr-ghost.kr-sink{opacity:0;filter:blur(2px)}
 .kr-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.8s ease-in}.kr-ink.kr-sink{opacity:0}
 .kr-say{position:absolute;left:8%;right:8%;pointer-events:none;font-family:${HAND};font-size:clamp(18px,4.2cqw,34px);line-height:1.35;color:#2b1a0e;text-shadow:0 0 1px rgba(43,26,14,.4)}
 .kr-say span{opacity:0;transition:opacity .9s ease-out,filter .9s ease-out;filter:blur(2px)}.kr-say span.kr-in{opacity:.92;filter:blur(0)}.kr-say.kr-out span{opacity:0;filter:blur(3px);transition:opacity 2.4s ease-in,filter 2.4s ease-in}
@@ -2074,7 +2075,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function rdDraw(){ const g = rd.ctx; if (!g) return; g.clearRect(0, 0, rdCv.width, rdCv.height); g.strokeStyle = '#2b1a0e'; g.lineCap = 'round'; g.lineJoin = 'round';
     for (const st of rd.strokes.concat(rd.cur ? [rd.cur] : [])) { g.lineWidth = 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } }
   // every open is a fresh, empty diary; anything still on its way from an earlier one is dropped (gen), and nothing is ever kept
-  function rdReset(){ rd.gen++; clearTimeout(rd.timer); clearTimeout(rd.fadeT); if (rd.ac) try { rd.ac.abort() } catch(e) {} rd.ac = null; rd.busy = false; rd.hist = []; rd.strokes = []; rd.cur = null; rd.pid = null; rdSay.innerHTML = ''; rdWait.hidden = true; rdCv.classList.remove('kr-sink') }
+  function rdReset(){ rd.qTyped = ''; rd.gen++; clearTimeout(rd.timer); clearTimeout(rd.fadeT); if (rd.ac) try { rd.ac.abort() } catch(e) {} rd.ac = null; rd.busy = false; rd.hist = []; rd.strokes = []; rd.cur = null; rd.pid = null; rdSay.innerHTML = ''; rdWait.hidden = true; rdCv.classList.remove('kr-sink') }
   function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (!store.get('key')) toast('The diary needs your Claude key: add it in Settings (the gear).', 6000) }
   function riddleClose(){ rdReset() }
   new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
@@ -2083,7 +2084,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (e.button > 0 || rd.cur) return;   // one stroke at a time: a palm or second finger does not take it over
     if (e.pointerType === 'touch' && (Math.max(e.width || 0, e.height || 0) > 44 || performance.now() - rd.penUp < 400)) return;
     e.preventDefault(); try { rdCv.setPointerCapture(e.pointerId) } catch(err) {} clearTimeout(rd.timer); rdHint.style.opacity = 0;
-    if (rdSay.textContent && !rdSay.classList.contains('kr-out')) { rdSay.classList.add('kr-out'); clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2400) }   // writing again: the last answer sinks
+    if (tool !== 'erase' && rdSay.textContent && !rdSay.classList.contains('kr-out')) { rdSay.classList.add('kr-out'); clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2400) }   // writing again: the last answer sinks
     const r = rdCv.getBoundingClientRect(); if (tool === 'erase') { rd.pid = e.pointerId; rd.cur = null; rdErase(e.clientX - r.left, e.clientY - r.top); return }
     rd.pid = e.pointerId; rd.cur = [[e.clientX - r.left, e.clientY - r.top]]; rdDraw();
   });
@@ -2092,7 +2093,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const co = e.getCoalescedEvents ? e.getCoalescedEvents() : []; for (const q of (co.length ? co : [e])) rd.cur.push([q.clientX - r.left, q.clientY - r.top]); rdDraw() });
   const rdUp = e => { if (e.pointerId !== rd.pid) return; rd.pid = null; if (e.pointerType === 'pen') rd.penUp = performance.now(); if (rd.cur) { rd.strokes.push(rd.cur); rd.cur = null; rdDraw() } if (rd.strokes.length && !rd.busy) rdArm() };
   rdCv.addEventListener('pointerup', rdUp); rdCv.addEventListener('pointercancel', rdUp);
-  rdForm.addEventListener('submit', e => { e.preventDefault(); const t = rdIn.value.trim(); if (!t || rd.busy) return; rdIn.value = ''; rdHint.style.opacity = 0; clearTimeout(rd.timer); rdSend(t) });
+  rdForm.addEventListener('submit', e => { e.preventDefault(); const t = rdIn.value.trim(); if (!t) return; rdIn.value = ''; rdHint.style.opacity = 0; clearTimeout(rd.timer); if (rd.busy) rd.qTyped = (rd.qTyped ? rd.qTyped + '\n' : '') + t; else rdSend(t) });   // typed while it thinks: sent next
   function rdUndo(){ if (rd.strokes.length) { rd.strokes.pop(); rdDraw(); if (!rd.strokes.length) clearTimeout(rd.timer) } }   // the toolbar's Undo, while the diary is open
   async function rdSend(typed){
     if (rd.busy || rdView.hidden || needKey(NB)) return; const ink = rd.strokes.slice(); if (!ink.length && !typed) return;
@@ -2101,7 +2102,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (ink.length) { const xs = ink.flat(); box = {x0:Math.min(...xs.map(q => q[0])), y0:Math.min(...xs.map(q => q[1])), x1:Math.max(...xs.map(q => q[0])), y1:Math.max(...xs.map(q => q[1]))};
       const c = document.createElement('canvas'), pad = 20, w = box.x1 - box.x0 + 2 * pad, h = box.y1 - box.y0 + 2 * pad, k = Math.min(1, 1000 / Math.max(w, h)); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k)); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.translate(pad - box.x0, pad - box.y0); g.strokeStyle = '#000'; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 3; for (const st of ink) { g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke() }
       content.push({type:'image', source:{type:'base64', media_type:'image/png', data:c.toDataURL('image/png').split(',')[1]}}, {type:'text', text:'What they just wrote in the diary, by hand.'});
-      rdCv.classList.add('kr-sink'); setTimeout(() => { if (gen !== rd.gen) return; rd.strokes = rd.strokes.filter(st => !ink.includes(st)); rdCv.style.transition = 'none'; rdCv.classList.remove('kr-sink'); rdDraw(); void rdCv.offsetWidth; rdCv.style.transition = '' }, 1900);   // only the ink that was sent sinks
+      const ghost = el('img', {class:'kr-ghost', alt:''}); try { ghost.src = rdCv.toDataURL('image/png') } catch(e) {} rdPage.insertBefore(ghost, rdCv);   // the sent ink sinks on a copy; the page is free for new writing at once
+      rd.strokes = rd.strokes.filter(st => !ink.includes(st)); rdDraw(); requestAnimationFrame(() => ghost.classList.add('kr-sink')); setTimeout(() => ghost.remove(), 2000);
     }
     if (typed) { content.push({type:'text', text:'They wrote in the diary:\n' + typed});
       const mine = el('div', {class:'kr-mine'}); mine.textContent = typed; rdPage.appendChild(mine); if (!box) box = {x0:0, y0:(rdCv.getBoundingClientRect().height || 400) * 0.3, x1:0, y1:0};
@@ -2121,8 +2123,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     } catch(err) { if (gen !== rd.gen) return; say = 'The ink will not take. (' + (ac.signal.aborted ? 'no answer came' : plainErr(err)) + ')' }
     finally { clearTimeout(wd); if (gen === rd.gen) { rd.busy = false; rd.ac = null; rdWait.hidden = true } }
     await new Promise(r => setTimeout(r, 900)); if (gen !== rd.gen) return;
+    const fresh = rd.strokes.concat(rd.cur ? [rd.cur] : []).flat(); if (fresh.length) { const fy0 = Math.min(...fresh.map(q => q[1])), fy1 = Math.max(...fresh.map(q => q[1])), H = rdPage.clientHeight || 400; box = {x0:0, y0:fy1 + 50 < H * 0.7 ? fy1 + 50 : Math.max(16, fy0 - 160), x1:0, y1:0} }   // never over what they are writing now
     rdShow(say, box);
-    if (rd.strokes.length) rdArm();   // what they wrote while it thought goes next
+    if (rd.qTyped) { const q = rd.qTyped; rd.qTyped = ''; setTimeout(() => { if (gen === rd.gen) rdSend(q) }, 1500) } else if (rd.strokes.length) rdArm();   // what they wrote while it thought goes next
   }
   function rdShow(text, box){
     const H = rdPage.clientHeight || 400; rdSay.classList.remove('kr-out'); rdSay.style.top = '0px';
@@ -2144,7 +2147,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const saveBook = () => { clearTimeout(saveT); saveT = setTimeout(() => { saveT = 0; commitRecs() }, 400) };
   const rq = q => [r1(q[0]), r1(q[1]), Math.round(q[2] * 100) / 100];
   // how wide a typed note's text really is (its box runs to the margin)
-  function measureW(it){ const e = elOf.get(it); if (!e) return it.w; const rg = document.createRange(); rg.selectNodeContents(e); const base = e.getBoundingClientRect(), k = base.width / it.w || 1; let r = 0; for (const q of rg.getClientRects()) r = Math.max(r, (q.right - base.left) / k); return Math.max(40, r) }
+  function measureW(it){ const e = elOf.get(it); if (!e) return it.w; const rg = document.createRange(); rg.selectNodeContents(e); const base = e.getBoundingClientRect(); if (!base.width) return it.w; const k = base.width / it.w || 1; let r = 0;   // not laid out (the notebook hidden): its saved width
+    for (const q of rg.getClientRects()) r = Math.max(r, (q.right - base.left) / k); return Math.max(40, r) }
   const blank = p => !p.ink.length && !p.items.length;
 
   // a page's DOM; its index is looked up when needed, since a page can be inserted before it
@@ -2229,7 +2233,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (let k = d.ink.length - 1; k >= 0; k--) { const s = d.ink[k]; if (nearStroke(s.p, p, 12 + (s.h ? s.w / 2 : 0))) { d.ink.splice(k, 1); drop(pend, s); drop(undoStack, s); hit = true } }
     for (const it of d.items.slice()) {
       const iw = /^(typed|reply)$/.test(it.kind) ? Math.min(it.w, measureW(it)) : it.w, on = it.kind === 'arrow' ? dseg(p, [it.x1, it.y1], [it.x2, it.y2]) < 12 : p[0] >= it.x && p[0] <= it.x + iw && p[1] >= it.y && p[1] <= it.y + (it.h || LH);
-      if (on) { removeItem(i, it); hit = true }
+      if (on) { removeItem(i, it); hit = true; if (it.kind === 'reply' && it.id) for (const ar of d.items.filter(x => x.kind === 'arrow' && x.of === it.id)) removeItem(i, ar) }   // a reply's arrow goes with it
     }
     if (hit) pgs[i].ink.redraw();
   }
@@ -2669,7 +2673,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const q of rg.getClientRects()) { if (!q.width) continue; x0 = Math.min(x0, (q.left - base.left) / k); y0 = Math.min(y0, (q.top - base.top) / k); x1 = Math.max(x1, (q.right - base.left) / k); y1 = Math.max(y1, (q.bottom - base.top) / k) }
     if (x0 > x1) return;
     const sx = Math.max(x0, Math.min(tx, x1)), sy = Math.max(y0, Math.min(ty, y1)), L = Math.hypot(tx - sx, ty - sy); if (L < 36) return;
-    const ux = (tx - sx) / L, uy = (ty - sy) / L, it = {kind:'arrow', x1:sx + ux * 8, y1:sy + uy * 8, x2:tx - ux * 10, y2:ty - uy * 10, t:Date.now()};
+    const ux = (tx - sx) / L, uy = (ty - sy) / L, it = {kind:'arrow', x1:sx + ux * 8, y1:sy + uy * 8, x2:tx - ux * 10, y2:ty - uy * 10, t:Date.now()}; if (a.it) { a.it.id = a.it.id || newId(); it.of = a.it.id }   // the reply it belongs to
     inkIn(addItem(a.pg, it));
   }
 
