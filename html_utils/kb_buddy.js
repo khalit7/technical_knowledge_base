@@ -2421,7 +2421,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const fn = job.follow || job.reuse, again = fn && notes.find(x => x.id === fn.id);
       job.early = null; job.note = null; job.newNote = false;
       if (!fn) { S.busy = false; S.cur = null; nextJob(S); return }   // a new note deleted before its answer: the question is dropped
-      if (again) { if (job.follow) job.follow = again; else job.reuse = again }
+      if (again) { if (job.follow) job.follow = again; else job.reuse = again; job.replace = true }   // only this re-placing takes over its own waiting turn
     }
     const content = [];
     if (job.kind === 'note') {
@@ -3064,11 +3064,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     go(job);
   }
   // like a chat: the question shows in its note at once with a thinking line under it, before the screen is captured and sent
-  function early(job){ preparing++; setTimeout(() => { preparing = Math.max(0, preparing - 1) }, 8000); if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
+  const unprep = job => { if (job.prep) { job.prep = false; preparing = Math.max(0, preparing - 1) } };
+  function early(job){ job.prep = true; preparing++; setTimeout(() => unprep(job), 8000); if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
   // a note that opened below or above the screen is brought into view, so the reader sees their question and the answer arrive
   function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden) return; const r = e.getBoundingClientRect(); if (r.top > innerHeight - 140 || r.bottom < clipLine() + 60) window.scrollBy({top:r.top - innerHeight * 0.35, behavior:'smooth'}) }
   function go(job){
-    reveal(job); preparing = Math.max(0, preparing - 1);   // after the screen was captured
+    reveal(job); unprep(job);   // after the screen was captured
     if (PG.busy) { if (!enqueue(PG, job)) { if (job.early) PG.out.empty(job); return } if (!job.early) PG.out.status('Will read after this reply…'); return }
     send(PG, job);
   }
@@ -3081,7 +3082,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
       if (job.follow || job.reuse) {
         const n = job.follow || job.reuse, e = noteEl.get(n), ts = turnsOf(n), last = ts[ts.length - 1];
-        let t, d; if (last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
+        let t, d; if (job.replace && last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
         if (!d) { t = {q:job.typed, a:'', t:Date.now()}; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d) }
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
