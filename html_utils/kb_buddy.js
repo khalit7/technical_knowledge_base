@@ -774,7 +774,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   async function screenBlocks(full, fresh, mark){
     const ink = fresh && fresh.length;
     if (!seeOn() && !ink) return {blocks:[], note:'', img:null, k:1};
-    const v = inViewNow(), shot = await screenImage(mark, fresh);
+    const v = inViewNow(), shot = await screenImage(mark, fresh, true);   // the page as they see it, without the buddy's note cards over it
     const lines = ['What is on their screen right now' + (full ? ' (the page under the full-screen notebook)' : '') + ':',
       '- Tab "' + v.tab + '"' + (v.section ? ', section "' + v.section + '"' : '') + ', ' + v.pct + '% of the way down the page.'];
     if (mark) lines.push('- They highlighted this' + (mark.where ? ' (in ' + mark.where + ')' : '') + ':\n<highlight>\n' + mark.text + '\n</highlight>');
@@ -3049,7 +3049,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   if (window.visualViewport) { visualViewport.addEventListener('resize', fitMax); visualViewport.addEventListener('scroll', fitMax) }
   function maxNote(n, on){
     const e = noteEl.get(n); if (!e) return; if (on) { for (const [m, x] of noteEl) if (m !== n && x.classList.contains('kb-max')) maxNote(m, false); activate(n) }
-    e.classList.toggle('kb-max', on); if (on) e.classList.remove('kb-folded'); else if (n.fold || n.resolved) e.classList.add('kb-folded'); maxBg.hidden = !on;   // a resolved note is read, not reopened document.documentElement.classList.toggle('kb-maxed', on);
+    e.classList.toggle('kb-max', on); if (on) e.classList.remove('kb-folded'); else if (n.fold || n.resolved) e.classList.add('kb-folded'); maxBg.hidden = !on; document.documentElement.classList.toggle('kb-maxed', on);   // a resolved note is read, not reopened
     const b = e.querySelector('[data-n=max]'); if (b) { b.innerHTML = on ? 'Done' : '&#x2922;'; b.title = on ? 'Back to the note beside the page' : 'Full screen: the whole conversation, big'; b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen') }
     const nb = e.querySelector('.kb-nb'); if (on) { fitMax(); nb.scrollTop = nb.scrollHeight; const inp = e.querySelector('.kb-nf input'); if (inp && matchMedia('(pointer:fine)').matches) inp.focus({preventScroll:true}) }   // no keyboard popping up on the iPad
     else { mgSpot.delete(n); try { if (e.contains(document.activeElement)) document.activeElement.blur() } catch(err) {} }
@@ -3109,6 +3109,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     setTimeout(() => {
       placeMarks(); const b = regionOf(n); if (!b || !frameOf(n)) { toast('This conversation\'s place on the page could not be found (the page may have changed).', 6000); return }
       window.scrollBy({top:(b.y0 + b.y1) / 2 - innerHeight * 0.42}); mgSpot.delete(n);   // the marked words in the middle of the screen
+      if (n.resolved || n.fold) toast('Resolved: tap its \u2713 to open the conversation again.', 5000);
       setTimeout(() => { const e = noteEl.get(n); if (!e) return; activate(n); placeMarks(); e.classList.remove('kb-flash'); void e.offsetWidth; e.classList.add('kb-flash') }, 120);
     }, 160);
   }
@@ -3230,7 +3231,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     },
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
-    done(job, text){ if (job.quiet) return; if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
+    done(job, text){ if (job.quiet) return; try { const nn = job.note && job.newNote && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
+      if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
       job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
