@@ -1009,7 +1009,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
   // under way. Marks still waiting for Claude (Claude off, or before the pause) are carried over by their ids
-  const canApply = () => !live && !ed && !sel && !psel && !PG.busy && !NB.busy && !preparing && !saveT && !pgs.some(p => p.ink.busy());
+  const canApply = () => !live && !ed && !sel && !psel && !PG.busy && !NB.busy && !preparing && !maxOpen() && !saveT && !pgs.some(p => p.ink.busy());
   function applyRecs(){
     if (!canApply()) { needApply = true; setTimeout(applyRecs, 2000); return }
     closeChg();   // what it showed may be replaced by the merged records
@@ -1062,6 +1062,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // records from the notes repo are data from outside this browser: keep only well-formed ones, colours as hex, no pictures
   const COLOR_OK = /^#[0-9a-f]{3,8}$/i;
   const SHOT_OK = /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]{16,250000}$/;   // a picture from the repo: only a JPEG of bounded size
+  function maxOpen(){ try { return !maxBg.hidden } catch(e) { return false } }   // a full-screen conversation is being read: a sync waits for it
   function cleanRecs(R){
     const out = {}; if (!R || typeof R !== 'object') return out;
     for (const [id, r] of Object.entries(R)) {
@@ -3056,8 +3057,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     schedule();
   }
   let fromOvw = null, ovwTop = 0;   // a conversation opened from the overview goes back to it
-  function exitMax(){ const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) maxNote(m[0], false) }
-  function leaveMax(){ const back = fromOvw; fromOvw = null; exitMax(); if (back) openOvw(true) }
+  function exitMax(){ const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) maxNote(m[0], false); maxBg.hidden = true; document.documentElement.classList.remove('kb-maxed'); fromOvw = null }   // the backdrop never outlives its note
+  function leaveMax(){ const back = fromOvw; exitMax(); if (back) openOvw(true) }
 
   // ---- the overview: every conversation on this page (all its tabs) as a picture of where it was asked, the highlight or drawing with a
   // margin round it. A tap opens that conversation full screen, with Show on page to go there. The pictures are part of the notes, so they
@@ -3176,7 +3177,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   });
   // a follow-up in a note's thread: the same marks, the earlier turns, the new question
   async function followUp(n, q, where){
-    if (needKey(PG)) return; { const ne = noteEl.get(n), w0 = ne && ne.querySelector('.kb-where'); if (w0) w0.remove() }
+    if (needKey(PG)) return; if (n.resolved) { n.resolved = false; n.fold = false; const ne0 = noteEl.get(n); if (ne0) ne0.classList.remove('kb-resolved', 'kb-folded'); saveBook() }   // talking again reopens it { const ne = noteEl.get(n), w0 = ne && ne.querySelector('.kb-where'); if (w0) w0.remove() }
     const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean);
     const job = {kind:'page', typed:q, where, follow:n, thread:turnsOf(n).slice(), hl:n.hl ? {text:n.hl, where:'', rects:[]} : null, marks:ms, box:viewBox(ms), near:nearText(ms), scr:null};
     early(job); job.scr = await screenBlocks(false, ms, job.hl);
