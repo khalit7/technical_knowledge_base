@@ -59,7 +59,7 @@
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
   };
   const mem = {};
-  const mgSpot = new Map(); addEventListener('resize', () => mgSpot.clear());   // where an open note shows in the margin, relative to its passage
+  const mgSpot = new Map(), dotSpot = new Map(); addEventListener('resize', () => { mgSpot.clear(); dotSpot.clear() });   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
   const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.nudge', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
@@ -2168,7 +2168,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     t.addEventListener('pointerdown', ev => ev.stopPropagation());
     // the keyboard only comes up for a focus made while handling the tap itself, so focus on the pointer's release (and now, for a mouse)
     const go = () => { try { t.focus({preventScroll:true}); t.setSelectionRange(t.value.length, t.value.length) } catch(err) {} };
-    if (e.pointerType === 'mouse') setTimeout(go, 0); else { const c = pgs[i].ink.cv, up = () => { c.removeEventListener('pointerup', up); c.removeEventListener('touchend', up); go() }; c.addEventListener('pointerup', up); c.addEventListener('touchend', up) }
+    if (e.pointerType === 'mouse') setTimeout(go, 0);   // and again on the release: a mouse click's own focus change can come after the first
+    { const up = () => { removeEventListener('pointerup', up, true); removeEventListener('touchend', up, true); setTimeout(go, 0) }; addEventListener('pointerup', up, true); addEventListener('touchend', up, true) }
   }
   // close the open line: what was typed becomes a typed note (nothing typed: it just goes)
   function finishEd(){
@@ -2579,6 +2580,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     notes.forEach((n, k) => { const e = noteEl.get(n); if (e) e.querySelector('.kb-dot').textContent = n.resolved ? '\u2713' : String(k + 1) });
     const open = notes.map(n => [n, noteEl.get(n)]).filter(([n, e]) => e && !e.hidden && !e.classList.contains('kb-folded') && n === activeNote)
       .map(([n, e]) => ({n, e, top:parseFloat(e.style.top), left:parseFloat(e.style.left), w:e.offsetWidth, h:e.offsetHeight})).sort((a, b) => a.top - b.top);
+    for (const n of notes) {   // a closed note's dot sits in the margin beside its passage when there is room, not on the words
+      if (n === activeNote || n.dragged) continue; const e = noteEl.get(n), f = e && !e.hidden && frameOf(n); if (!f) continue;
+      if (!dotSpot.has(n)) {
+        const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms), ae = anchorEl(n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null;
+        const bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}), mg = bx && inV(ar || {left:bx.x0, top:bx.y0, right:bx.x1, bottom:bx.y1, width:1, height:1}) ? findMargin(bx, ar ? ar.right : bx.x1, 34, 34) : undefined;
+        if (mg !== undefined) dotSpot.set(n, mg ? {dx:mg.x - f.x - 6, dy:mg.y - f.y} : null);
+      }
+      const sp = dotSpot.get(n); if (sp) { e.style.left = (f.x + sp.dx - ob.left) + 'px'; e.style.top = (f.y + sp.dy - ob.top) + 'px' }
+    }
     for (const x of open) {   // not moved by hand: shown in the empty margin beside its passage when there is one, so it covers nothing
       if (x.n.dragged) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
       const ae = anchorEl(x.n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null, bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}); if (!bx) continue;
@@ -2881,12 +2891,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function findMargin(bx, right, w, h){
     const top0 = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0) + 8, x = Math.max(bx.x1, right) + 14;
     if (x + w > innerWidth - 8) return null;
-    for (let dy = 0; dy <= 640; dy += 40) { const y = Math.max(bx.y0 - 4, top0) + dy; if (y > innerHeight - 80) break; if (marginFree(x, y, w, Math.min(h, 220))) return {x, y} }
+    for (let dy = 0; dy <= 640; dy += 40) { const y = Math.max(bx.y0 - 4, top0) + dy; if (y > innerHeight - 80) break; if (marginFree(x, y, w, Math.min(h, 520))) return {x, y} }
     return null;
   }
   function marginFree(x, y, w, h){
-    for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) {
-      const px = x + w * i / 3, py = Math.min(innerHeight - 2, y + h * j / 3); if (px >= innerWidth || py < 0) return false;
+    const rows = Math.max(3, Math.ceil(h / 40));
+    for (let i = 0; i <= 3; i++) for (let j = 0; j <= rows; j++) {
+      const px = x + w * i / 3, py = Math.min(innerHeight - 2, y + h * j / rows); if (px >= innerWidth || py < 0) return false;
       const hit = document.elementsFromPoint(px, py).find(e => !e.closest(OURS + ',.kb-note,.kb-marks'));
       if (!hit || /^(HTML|BODY)$/.test(hit.tagName)) continue;
       if (!/^(DIV|SECTION|ARTICLE|MAIN)$/.test(hit.tagName) || [...hit.childNodes].some(c => c.nodeType === 3 && c.nodeValue.trim())) return false;
