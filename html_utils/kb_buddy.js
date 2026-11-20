@@ -94,7 +94,7 @@
 #kbBar.kb-v .kb-sws{flex-direction:column}
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
-#kbBar button[data-b=claude][aria-pressed=false]{color:var(--mute)}
+#kbBar button[data-b=claude][aria-pressed=false]{color:var(--mute)}#kbBar button[data-b=claude][aria-pressed=false] svg{opacity:.4}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
 #kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur){display:none!important}
 #kbBar [hidden]{display:none!important}
@@ -136,6 +136,8 @@
 .kb-edtag.kb-kept{opacity:.7}
 .kb-ins{margin-top:.6em}
 .kb-hid{display:none!important}
+.kb-cut{color:var(--bad,#c2703a);font-style:normal;font-size:.9em}.kb-retry{margin-left:6px;padding:2px 10px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font:12.5px system-ui,-apple-system,sans-serif;cursor:pointer}
+@media (pointer:coarse){.kb-retry{min-height:40px}}
 .kb-hidstub.kb-stale{flex-wrap:wrap;width:auto;border-radius:12px;padding:6px 10px;border-color:var(--acc,#2b6cb0);border-style:solid}.kb-hidstub.kb-stale span{flex-basis:100%;white-space:normal;max-width:none}.kb-stcmp{flex-basis:100%;color:var(--ink);font:14px/1.55 system-ui,-apple-system,sans-serif}
 .kb-hidstub{display:flex;align-items:center;gap:8px;margin:8px 0;padding:3px 10px;border:1px dashed color-mix(in srgb,var(--acc) 45%,transparent);border-radius:99px;color:var(--mute);font:12.5px/1.5 system-ui,-apple-system,sans-serif;width:max-content;max-width:100%}
 .kb-hidstub span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46ch}
@@ -148,6 +150,8 @@
 .kb-edtag{position:relative}.kb-edtag::after{content:'';position:absolute;inset:-3px -10px}
 .kb-edtag.kb-more{padding:0 8px;margin-left:2px}
 #kbOrig:not([hidden])~#kbUndo{bottom:72px}
+@media (pointer:coarse){#kbBar button{min-width:38px;height:40px;padding:0 4px}#kbBar button.kb-sw{min-width:0;width:28px;height:28px}#kbBar .kb-grip2{height:40px;width:20px}#kbBar .kb-sws{gap:5px}.kb-note .kb-nh button{min-width:40px;min-height:40px}#kbBuddy .kb-h button{min-height:40px}#kbAskPop button{min-height:40px}#kbAskPop input{min-height:40px}}
+@media (pointer:coarse) and (max-width:900px){#kbBar button[data-b=claude] span{display:none}}
 @media (pointer:coarse){.kb-blk button,.kb-chips button,#kbChg button,.kb-hidstub button,#kbUndo button,#kbOrig button,.kb-vish button{min-height:40px;min-width:40px}.kb-edtag{font-size:12.5px;padding:2px 10px}}
 #kbChg[hidden],#kbBlkPop[hidden],#kbUndo[hidden],#kbOrig[hidden],#kbHandle[hidden]{display:none}
 #kbChg .kb-chh{display:flex;align-items:center;gap:5px}
@@ -217,7 +221,7 @@ html.kb-narrow .kb-note:not(.kb-active) .kb-dot{display:flex;align-items:center;
 #kbNotes{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:58}
 html.kb-pen body,html.kb-pen body *{cursor:crosshair}
 html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #kbBuddy button,html.kb-pen .kb-note .kb-nh{cursor:default}
-.kb-note{position:absolute;max-width:calc(100vw - 16px);background:color-mix(in srgb,var(--card,var(--bg)) 95%,transparent);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--acc)}
+.kb-note{position:absolute;max-width:calc(100vw - 16px);background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--acc)}
 .kb-note[hidden]{display:none}
 .kb-note .kb-nh{display:flex;align-items:center;gap:4px;padding:3px 4px 0 12px;font-size:11.5px;color:var(--mute);cursor:move;touch-action:none;-webkit-user-select:none;user-select:none}
 .kb-note .kb-nh .kb-sp{flex:1}
@@ -349,18 +353,18 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-t="hl" title="Highlighter" aria-label="Highlighter">' + ic(ICON.hl) + '</button>' +
     '<button type="button" data-t="erase" title="Eraser: touch a mark to remove it" aria-label="Eraser">' + ic(ICON.erase) + '</button>' +
     '<button type="button" data-t="lasso" title="Lasso: draw a loop round marks or part of the page or notebook to ask about it, move it, resize it (notebook) or delete it" aria-label="Lasso"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="kb-dash" d="M12 4.5c4.4 0 8 2.2 8 5s-3.6 5-8 5-8-2.2-8-5 3.6-5 8-5z"/><path d="M8 13.8c-.8 1.8-.6 3.6.6 5.2"/></svg></button>' +
-    '<button type="button" data-t="text" title=""Text: tap anywhere in the notebook and type there (Enter sends, Shift+Enter is a new line)" aria-label="Text"><span class="kb-A">A</span></button>' +
+    '<button type="button" data-t="text" title="Text: tap anywhere in the notebook and type there (Enter sends, Shift+Enter is a new line)" aria-label="Text"><span class="kb-A">A</span></button>' +
     '<span class="kb-sep"></span><span class="kb-sws">' + COLORS.map(([c, n]) => '<button type="button" class="kb-sw" data-c="' + c + '" title="' + n + '" aria-label="' + n + '" style="--c:' + (c || 'var(--ink)') + '"></button>').join('') + '</span>' +
     '<button type="button" data-b="width" title="Line width: thin or thick" aria-label="Line width"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18L18 6"/></svg></button>' +
     '<button type="button" data-b="undo" title="Undo your last mark" aria-label="Undo">' + ic(ICON.undo) + '</button>' +
     '<span class="kb-sep"></span>' +
-    '<button type="button" data-b="claude" title="">' + ic(ICON.claude) + '<span>Claude</span></button>' +
+    '<button type="button" data-b="claude" title="" aria-label="Claude">' + ic(ICON.claude) + '<span>Claude</span></button>' +
     '<button type="button" data-b="nudge" hidden aria-label="Claude has a thought on this section"><span class="kb-glow"></span></button>' +
-    '<button type="button" data-b="send" title=""Send your new marks to Claude now" hidden>Send</button>' +
+    '<button type="button" data-b="send" title="Send your new marks to Claude now" hidden>Send</button>' +
     '<button type="button" data-b="over" title="Overview: every mark and note on this page" aria-label="Overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>' +
-    '<button type="button" data-b="notebook" title=""Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
+    '<button type="button" data-b="notebook" title="Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
     '<button type="button" data-b="sync" hidden aria-label="Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span class="kb-sdot"></span></button>' +
-    '<button type="button" data-b="set" title=""Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
+    '<button type="button" data-b="set" title="Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
     '<button type="button" data-b="min" title="Make the toolbar small" aria-label="Make the toolbar small">&#x2013;</button>');
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
@@ -388,7 +392,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     if (P.classList.contains('kb-full')) return;
     const W = innerWidth, H = innerHeight, g = geom || defGeom();
     g.w = Math.max(290, Math.min(g.w, W - 8)); g.h = Math.max(300, Math.min(g.h, H - 8));
-    g.x = Math.max(4 - g.w + 120, Math.min(g.x, W - 120)); g.y = Math.max(0, Math.min(g.y, H - 44));
+    const br = bar.hidden ? null : bar.getBoundingClientRect(), top0 = br && dock.e === 'top' ? Math.ceil(br.bottom) + 4 : 0, bot0 = br && dock.e === 'bottom' ? Math.floor(br.top) - 4 : H;
+    g.h = Math.min(g.h, Math.max(300, bot0 - top0 - 8));
+    g.x = Math.max(4 - g.w + 120, Math.min(g.x, W - 120)); g.y = Math.max(top0, Math.min(g.y, bot0 - 44));
     geom = g; Object.assign(P.style, {left:g.x + 'px', top:g.y + 'px', width:g.w + 'px', height:g.h + 'px'});
   }
   const keepGeom = () => mine.set('geom', JSON.stringify(geom));
@@ -464,13 +470,13 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
   function placeBar(){
-    const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v);
+    const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v); Object.assign(bar.style, {left:'0px', top:'0px'});
     const W = innerWidth, H = innerHeight, w = bar.offsetWidth, h = bar.offsetHeight, m = 8;
     let x, y;
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
     else { y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - w / 2)) }
     Object.assign(bar.style, {left:x + 'px', top:y + 'px'}); placeToast();
-    if (!P.hidden && P.classList.contains('kb-full')) fitFull();
+    if (!P.hidden && P.classList.contains('kb-full')) fitFull(); else if (!P.hidden) place();
   }
   bar.querySelector('.kb-grip2').addEventListener('pointerdown', e => {
     if (e.button > 0) return; e.preventDefault(); const g = e.currentTarget; g.setPointerCapture(e.pointerId);
@@ -820,16 +826,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let webBroken = false;   // the account refused the web tools: this visit goes on without them
   async function stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl){
     const m = MODELS[mdl] ? mdl : model(), usage = {}; let raw = '', stop = null; const blocks = [], web = webOn() && !webBroken;
-    const res = await fetch(API, {method:'POST', signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
+    const ac = new AbortController(); if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener('abort', () => ac.abort(), {once:true}) }
+    let quiet = 0; const kick = () => { clearTimeout(quiet); quiet = setTimeout(() => { ac.timedOut = true; ac.abort() }, 75000) }; kick();
+    try {
+    const res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
         system:[{type:'text', text:system}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {}
-      if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool) }
+      if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl) }
       throw new Error(res.status === 401 ? 'The API key was not accepted. Check it in Settings.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) {
-      const {value, done} = await rd.read(); if (done) break;
+      const {value, done} = await rd.read(); if (done) break; kick();
       buf += dec.decode(value, {stream:true});
       let k; while ((k = buf.indexOf('\n\n')) >= 0) {
         const evt = buf.slice(0, k); buf = buf.slice(k + 2);
@@ -863,6 +872,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       return b.raw;   // a server tool's result, unchanged
     }).filter(Boolean);
     return {raw, stop, usage, model:m, cents:c, content};
+    } catch(e) { if (ac.timedOut) throw new Error('Claude sent nothing for 75 seconds, so the request was stopped. Try again.'); throw e } finally { clearTimeout(quiet) }
   }
   const costLine = r => MODELS[r.model].name + ' · ≈ ' + r.cents.toFixed(2) + '¢ (this visit ≈ ' + spent.toFixed(1) + '¢)';
 
@@ -2190,7 +2200,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let wz = 1, wzT = 0, wAt = null, wTo = null;
   scr.addEventListener('wheel', e => {
     if (!e.ctrlKey) return; e.preventDefault(); if (!wAt) { wAt = paperAt(e.clientX, e.clientY); wTo = [e.clientX, e.clientY] }
-    wz *= Math.exp(-e.deltaY * 0.01); cancelAnimationFrame(wzT); wzT = requestAnimationFrame(() => { setZoom(zoom * wz, wAt, wTo); wz = 1; wAt = null });
+    // a wheel notch is 100 or more; a trackpad pinch sends small steps
+    wz *= Math.exp(-Math.max(-40, Math.min(40, e.deltaY)) * 0.01); cancelAnimationFrame(wzT); wzT = requestAnimationFrame(() => { setZoom(zoom * wz, wAt, wTo); wz = 1; wAt = null });
   }, {passive:false});
   scr.addEventListener('touchend', endGest); scr.addEventListener('touchcancel', endGest);
 
@@ -2327,6 +2338,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:noMarks(e.reply) || '…'});
     return h;
   }
+  // an error as the reader should read it
+  function plainErr(e){
+    const m = String(e && e.message || e);
+    if (/failed to fetch|networkerror|load failed|network connection/i.test(m)) return 'Could not reach Claude: check the connection, then try again.';
+    if (/overloaded|\b529\b|\b503\b/i.test(m)) return 'Claude is overloaded right now; try again in a moment.';
+    if (/internal server error|\b500\b|api_error/i.test(m)) return 'Claude had a server error; try again in a moment.';
+    return m;
+  }
   async function send(S, job){
     try { await send0(S, job) } catch(e) {   // only what fails before send0's own try (building the request) arrives here
       if (S.cur !== job) return; S.busy = false; S.cur = null; job.err = String(e.message || e); if (!job.quiet) toast('Could not ask Claude: ' + job.err, 9000);
@@ -2356,7 +2375,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       ? job.refine ? refineText(job)
       : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
       : job.nudge ? 'A quiet nudge: they ' + (job.nudge.reread ? 'came back to re-read' : 'just finished reading') + ' the section "' + job.nudge.name + '" and tapped the dot on the toolbar to hear your one thought on it. Offer the single most useful thing for understanding that section deeply: the key intuition, a connection they may have missed, or a gentle correction of something they marked there. One to three sentences, as a note beside the section heading. If nothing is genuinely worth adding, answer only NONE. No <at> or <point> here.'
-      : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + noMarks(t.a)).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
+      : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.filter(t => t.a || !t.cut).map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + noMarks(t.a) + (t.cut ? ' [your answer was cut off here]' : '')).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
       : job.lasso ? 'They drew a loop round part of the page (the dashed loop, outlined NEW on the screen image' + (job.marks.length > 1 ? '; their own marks inside it are part of what they mean' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The loop is on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Answer that question about what is inside the loop, in a note that will sit beside it. No <at> or <point> here.'
       : job.typed ? 'They selected a passage on the page (its text is in <highlight> above; it is now highlighted in yellow and outlined NEW on the screen image) and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that question about that passage, in a note that will sit beside it. No <at> or <point> here.'
       : 'They drew on the page itself, over what is on their screen: their new marks are in the dashed box marked NEW on the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. ' + colourNote(job.marks) + ' ' + (job.near ? 'They are on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Read what they wrote or marked (a circle, an arrow, an underline, a highlight, a note in the margin, a sketch) and answer about exactly that, in a note that will sit beside their marks. No <at> or <point> here.'
@@ -2399,7 +2418,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
         const big = !!job.refine || ASKED_CHANGE.test(job.typed || '');
-        r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) say('Writing…'); feed(before + raw, end) }, undefined,
+        r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) say('Writing…'); job.lastRaw = before + raw; feed(before + raw, end) }, undefined,
           name => say(name === 'add_visual' ? 'Building a visual for the page…' : name === 'rewrite_block' ? 'Rewriting that part of the page…' : name === 'web_search' ? 'Searching the web…' : name === 'web_fetch' ? 'Reading a web page…' : name === 'patch_visual' ? 'Changing the visual…' : 'Looking further…'), job.model);
         cost += r.cents; const uses = r.content.filter(b => b.type === 'tool_use');
         if (r.stop === 'pause_turn' && turn < 5) { before += r.raw; msgs = msgs.concat([{role:'assistant', content:r.content}]); continue }   // the server's own loop paused: resume it
@@ -2419,8 +2438,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!job.quiet) save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
     } catch(e) {
       await drained();
-      const msg = String(e.message || e);
-      job.err = msg; if (job.quiet) {} else if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
+      const msg = plainErr(e);
+      job.err = msg; if (job.lastRaw) try { job.lastReply = replyPart(job.lastRaw).trim() } catch(e2) {}
+      if (job.quiet) {} else if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
     } finally {
       S.busy = false; S.cur = null; if (S === PG && job.gid) try { tidyOrphan(job) } catch(e) {}
       nextJob(S);
@@ -2753,11 +2773,18 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- Claude's notes on the page: each is the thread about one set of marks (a highlight with its questions, or a drawing): every
   // turn is kept, and a reply box at its foot asks a follow-up. Tapping the marks (with Read or Text) opens the thread ----
   const turnsOf = n => n.turns || (n.turns = [{q:n.q || '', a:n.text || ''}]);   // notes saved before threads had one turn
+  const retryOf = new WeakMap();   // a failed turn -> its request, so Try again asks it the same way (until the page is reloaded)
+  // a turn that failed or was cut off says so (kept apart from the answer, so it never goes back to Claude as its words), with Try again
+  function showCut(t, d){
+    const a = d.querySelector('.kb-na'); if (!a || a.querySelector('.kb-cut')) return;
+    a.insertAdjacentHTML('beforeend', '<span class="kb-cut">' + (t.a ? ' [cut off: ' : 'Not answered: ') + esc(String(t.cut).slice(0, 200)) + (t.a ? ']' : '') + '</span>' + (t.q ? ' <button type="button" class="kb-retry" data-n="retry">Try again</button>' : ''));
+  }
   function turnEl(t){
     const d = el('div', {class:'kb-turn'});
     if (t.q) d.appendChild(el('div', {class:'kb-nq'}, 'You: ' + esc(t.q)));
     const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
     for (const x of replyPieces(t.a || '')) { if (typeof x === 'string') a.appendChild(txt(x, a)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
+    if (t.cut) showCut(t, d);
     return d;
   }
   let noteZ = 1;
@@ -2771,6 +2798,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (a === 'fold' || a === 'open') { n.fold = a === 'fold'; if (a === 'open') n.resolved = false; e.classList.toggle('kb-folded', n.fold); e.classList.toggle('kb-resolved', !!n.resolved); if (!n.fold) activate(n); saveBook(); schedule() }
       else if (a === 'resolve') { n.resolved = true; n.fold = true; e.classList.add('kb-folded', 'kb-resolved'); saveBook(); schedule() }
       else if (a === 'del') { drop(notes, n); e.remove(); noteEl.delete(n); saveBook() }
+      else if (a === 'retry') {   // the failed turn goes and its question is asked again in this note
+        const td = b.closest('.kb-turn'), ts = turnsOf(n), t = ts[[...td.parentElement.children].filter(c => c.classList.contains('kb-turn')).indexOf(td)];
+        if (!t || !t.q || needKey(PG)) return;
+        if (PG.busy && PG.queued.length >= 3) { toast('Claude is still busy with earlier requests; try again in a moment.', 5000); return }   // nothing is removed until it can be asked
+        const old = retryOf.get(t); drop(ts, t); td.remove(); saveBook();
+        if (old && !old.follow && !(old.refineId && !edits.some(y => y.id === old.refineId))) {   // the note's first question: asked again as it was (a selection, a loop), its reply in this note
+          const j = Object.assign({}, old, {note:null, newNote:false, err:null, lastRaw:null, lastReply:null, reuse:n, gid:edits.some(y => y.g === old.gid) ? old.gid : undefined, tab:old.tab});
+          (async () => { try { j.scr = await screenBlocks(false, j.marks || [], j.hl) } catch(e2) {}   // the screen as it is now
+            if (PG.busy) { PG.queued.push(j); toast('Will ask again after this reply.', 4000) } else send(PG, j) })();
+        } else followUp(n, t.q);
+      }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input');
     f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (q) { inp.value = ''; followUp(n, q) } });
@@ -2780,7 +2818,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     h.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || ev.target.closest('button')) return; ev.preventDefault(); h.setPointerCapture(ev.pointerId); front(e);
       const sx = ev.clientX, sy = ev.clientY, x0 = n.x, y0 = n.y, fr = frameOf(n) || {s:1};
-      const mv = q => { n.x = x0 + (q.clientX - sx) / fr.s; n.y = y0 + (q.clientY - sy) / fr.s; placeNote(n, notesBox.getBoundingClientRect()) };
+      const mv = q => { n.x = x0 + (q.clientX - sx) / fr.s; n.y = y0 + (q.clientY - sy) / fr.s; placeNote(n, notesBox.getBoundingClientRect());
+        const r = e.getBoundingClientRect(), W = document.documentElement.clientWidth, dx = Math.max(0, 8 - r.left) - Math.max(0, r.right - (W - 8));
+        const t0 = dock.e === 'top' && !bar.hidden ? bar.getBoundingClientRect().bottom + 4 : 0, dy = Math.max(0, t0 - r.top);
+        if (dx || dy) { n.x += dx / fr.s; n.y += dy / fr.s; placeNote(n, notesBox.getBoundingClientRect()) } };
       const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); saveBook() };
       h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
     });
@@ -2840,9 +2881,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const PG = Session({kind:'page', status:s => toast(s, /¢/.test(s) ? 6000 : 0), typed:() => '',
     place(job){
       if (job.quiet) { job.note = null; return el('div') }   // a repair: nothing to show
-      if (job.follow && !noteEl.get(job.follow)) job.follow = null;   // deleted while it waited
-      if (job.follow) {
-        const n = job.follow, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
+      if (job.follow && !noteEl.get(job.follow)) { job.follow = null; job.lostFollow = true }   // deleted while it waited
+      if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
+      if (job.follow || job.reuse) {
+        const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
         n.fold = false; e.classList.remove('kb-folded'); front(e); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
       const b = job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);
@@ -2871,7 +2913,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight },
     done(job, text){ if (job.quiet) return; if (job.nudge && /^\s*NONE\.?\s*$/i.test(text)) { this.empty(job); toast('Nothing to add on "' + job.nudge.name + '"', 4000); return } job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
-    fail(job, reply, msg){ const J = job.note; if (J && !J.d.querySelector('.kb-na').textContent.trim()) this.empty(job); else if (J) { J.t.a = J.d.querySelector('.kb-na').textContent; saveBook() } toast(msg, 9000) }});
+    fail(job, reply, msg){ try {
+      if (!job.note && job.typed && !job.nudge && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
+      const J = job.note;
+      if (J) {
+        const got = J.d.querySelector('.kb-na').textContent.trim(), raw = job.lastReply || '';
+        J.t.a = got ? raw || got : ''; J.t.cut = msg; saveBook(); retryOf.set(J.t, job); showCut(J.t, J.d); try { linkNote(job) } catch(e) {}
+      } else if (!job.follow) { for (const id of job.made || []) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) removeMark(m) } saveBook(); placeMarks() }
+    } finally { toast(msg, 9000) } }});
 
   // ---- Pages: every notebook page as a small picture (tap to go there), and search over what is on them: Claude's reading of the
   // handwriting (kept from each exchange), typed notes and Claude's replies ----
@@ -2940,7 +2989,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const c = g.ms[0] ? g.ms[0].c || '' : '', w = where(g.el), kind = kindOf(g), turns = g.n ? turnsOf(g.n) : [];
       const head = (g.ms[0] && g.ms[0].dash ? 'Loop' : kind === 'highlight' ? 'Highlight' : kind === 'note' ? (g.n.hl ? 'Highlight' : 'Drawing') : 'Drawing') + (g.n ? ' · ' + turns.length + ' exchange' + (turns.length > 1 ? 's' : '') + (g.n.resolved ? ' · resolved' : '') : '') + (M[c] ? ' · ' + M[c] : '');
       const quote = g.n && g.n.hl ? g.n.hl : (g.el.innerText || g.el.textContent || '').replace(/\s+/g, ' ').trim();
-      const q = turns.find(t => t.q), a = turns.length ? plain(turns[turns.length - 1].a) : '';
+      const lt = turns[turns.length - 1], q = turns.find(t => t.q), a = lt ? (lt.cut && !lt.a ? 'Not answered: ' + lt.cut : plain(lt.a) + (lt.cut ? ' [cut off]' : '')) : '';
       return '<button type="button" class="kd-ovi" data-g="' + k + '"><i style="background:' + (g.ms[0] ? (c || 'var(--ink)') : 'var(--acc)') + '"></i><span><b>' + esc(head) + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
         '<q>' + esc(quote.slice(0, 140)) + (quote.length > 140 ? '…' : '') + '</q>' + (q ? '<em>You: ' + esc(q.q) + '</em>' : '') + (a ? '<em class="kd-ova">' + esc(a.slice(0, 120)) + (a.length > 120 ? '…' : '') + '</em>' : '') + '</span></button>' }).join('') || '<p class="kb-hint">Nothing matches these filters.</p>';
     ovList._g = list.filter(g => !g.lost);
@@ -2957,7 +3006,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const rel = KBI.filter(e => e !== me && ((me.pre || []).includes(e.id) || (e.pre || []).includes(me.id))).slice(0, 20), out = [];
     for (const e of rel) {
       const r = await tx('readonly', st => st.get(new URL(e.p + '/', KBROOT).pathname), 'recs'); const ns = r && r.recs ? Object.values(r.recs).filter(x => x.k === 'note' && !x.del) : [];
-      for (const n of ns) { const t = (n.turns || [{q:n.q, a:n.text}]).find(x => x.q || x.a); if (t) out.push({e, n, t}) }
+      for (const n of ns) { const ts = n.turns || [{q:n.q, a:n.text}], t = ts.find(x => x.a) || ts.find(x => x.q); if (t) out.push({e, n, t}) }
     }
     if (!out.length) return '';
     return '<h4 class="kd-relh">From related pages</h4>' + out.slice(0, 30).map(({e, n, t}) => '<a class="kd-ovi" href="' + esc(KBROOT + e.p + '/') + '"><i style="background:var(--acc)"></i><span><b>' + esc(e.t) + '</b>' + (n.hl ? '<q>' + esc(n.hl.slice(0, 120)) + '</q>' : '') + (t.q ? '<em>You: ' + esc(t.q) + '</em>' : '') + '<em class="kd-ova">' + esc(plain(t.a).slice(0, 120)) + '</em></span></a>').join('');
