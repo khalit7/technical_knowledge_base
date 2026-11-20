@@ -66,7 +66,7 @@
   const mgSpot = new Map(), dotSpot = new Map(); let spotW = innerWidth; addEventListener('resize', () => { if (innerWidth === spotW) return; spotW = innerWidth; mgSpot.clear(); dotSpot.clear() });   // Safari's bars collapsing on scroll is not a new layout   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
-  const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.nudge', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
+  const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
   const rawGet = k => { try { return localStorage.getItem(k) } catch(e) { return mem[k] || null } };
   const rawSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v) } catch(e) { mem[k] = v } };
   let onSettingChange = () => {};
@@ -107,8 +107,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur){display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-v [data-b=claude] span{display:none}
-#kbBar [data-b=nudge]{min-width:26px;padding:0}
-#kbBar .kb-glow{width:11px;height:11px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 var(--acc);animation:kbGlow 2.2s ease-out infinite}
+
 @keyframes kbGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
 #kbBar [data-b=sync]{position:relative}
 #kbBar .kb-sdot{position:absolute;right:5px;bottom:5px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--card,var(--bg));background:var(--good,#2f9e44)}
@@ -381,7 +380,6 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="undo" title="Undo your last mark" aria-label="Undo">' + ic(ICON.undo) + '</button>' +
     '<span class="kb-sep"></span>' +
     '<button type="button" data-b="claude" title="" aria-label="Claude">' + ic(ICON.claude) + '<span>Claude</span></button>' +
-    '<button type="button" data-b="nudge" hidden aria-label="Claude has a thought on this section"><span class="kb-glow"></span></button>' +
     '<button type="button" data-b="send" title="Send your new marks to Claude now" hidden>Send</button>' +
     '<button type="button" data-b="over" title="Overview: every mark and note on this page" aria-label="Overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>' +
     '<button type="button" data-b="notebook" title="Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
@@ -482,7 +480,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
-  const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off', nudgeOn = () => mine.get('nudge') !== 'off', webOn = () => mine.get('web') !== 'off';
+  const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off', webOn = () => mine.get('web') !== 'off';
   // one-tap prompts beside every Ask box: "Label: prompt" per line; a prompt ending in "…" is put in the box to finish, not sent
   const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …\nVisualise: Add a visual to the page that shows this.\nRewrite: Rewrite this part of the page more clearly for me.';
   const prompts = () => (mine.get('prompts') || PROMPTS0).split('\n').map(l => { const i = l.indexOf(':'); return i > 0 ? {label:l.slice(0, i).trim(), text:l.slice(i + 1).trim()} : null }).filter(x => x && x.label && x.text).slice(0, 8);
@@ -522,8 +520,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const W = innerWidth, H = innerHeight, w = Math.ceil(bar.getBoundingClientRect().width) + 1, h = bar.offsetHeight, m = 8;   // rounded up: a fraction short and it wraps
     let x, y;
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
-    else {   // centred on its usual width: the buttons that come and go (Send, the section dot, sync) extend it to the right, so the tools never slide
-      const extra = [...bar.querySelectorAll('[data-b=nudge],[data-b=send],[data-b=sync]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
+    else {   // centred on its usual width: the buttons that come and go (Send, sync) extend it to the right, so the tools never slide
+      const extra = [...bar.querySelectorAll('[data-b=send],[data-b=sync]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
       y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - (w - extra) / 2)) }
     Object.assign(bar.style, {left:x + 'px', top:y + 'px', width:v ? '' : w + 'px'}); placeToast();   // its measured width, so it does not wrap where it lands
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
@@ -568,7 +566,6 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.b === 'notebook' && !NB_OFF) P.hidden ? open() : close();
     else if (b.dataset.b === 'set') open('set');
     else if (b.dataset.b === 'sync') { if (syncState === 'error' && /token|repository/.test(syncMsg)) open('set'); syncNow() }
-    else if (b.dataset.b === 'nudge') takeNudge();
     else if (b.dataset.b === 'over' && !NB_OFF) { if (!P.hidden && sub === 'marks') close(); else open('marks') }
     else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? '+' : '&#x2013;'; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; placeBar() }
   });
@@ -2447,7 +2444,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     content.push({type:'text', text:job.kind === 'page'
       ? job.refine ? refineText(job)
       : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
-      : job.nudge ? 'A quiet nudge: they ' + (job.nudge.reread ? 'came back to re-read' : 'just finished reading') + ' the section "' + job.nudge.name + '" and tapped the dot on the toolbar to hear your one thought on it. Offer the single most useful thing for understanding that section deeply: the key intuition, a connection they may have missed, or a gentle correction of something they marked there. One to three sentences, as a note beside the section heading. If nothing is genuinely worth adding, answer only NONE. No <at> or <point> here.'
       : job.follow ? 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new). The thread so far:\n<thread>\n' + job.thread.filter(t => t.a || !t.cut).map(t => (t.q ? 'They asked: ' + t.q + '\n' : '') + 'You answered: ' + noMarks(t.a) + (t.cut ? ' [your answer was cut off here]' : '')).join('\n') + '\n</thread>\nTheir follow-up:\n<question>\n' + job.typed + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
       : job.lasso ? 'They drew a loop round part of the page (the dashed loop, outlined NEW on the screen image' + (job.marks.length > 1 ? '; their own marks inside it are part of what they mean' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The loop is on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Answer that question about what is inside the loop, in a note that will sit beside it. No <at> or <point> here.'
       : job.typed ? 'They selected a passage on the page (its text is in <highlight> above; it is now highlighted in yellow and outlined NEW on the screen image) and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that question about that passage, in a note that will sit beside it. No <at> or <point> here.'
@@ -2487,7 +2483,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     };
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
-      const inNote = S === PG && !job.quiet && !job.nudge;   // a question on the page shows its progress in its own note, like a chat
+      const inNote = S === PG && !job.quiet;   // a question on the page shows its progress in its own note, like a chat
       if (inNote) { try { const fresh = !job.early; target(); thinkLine(reply, 'Thinking…'); S.out.follow(job); if (fresh && !job.follow && job.typed) reveal(job) } catch(e) {} }
       const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)…$/.test(t)) { thinkLine(reply, t); S.out.follow(job) } return } S.out.status(t) }; say('Reading…');
       let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
@@ -3125,7 +3121,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       else { x = b.x0; y = b.y1 + 8 }
       x = Math.max(8, Math.min(x, W - w - 8));
       for (let k = 0; k < 12; k++) { const hit = [...noteEl.values()].find(e => { if (e.hidden || e.classList.contains('kb-folded')) return false; const r = e.getBoundingClientRect(); return r.left < x + w && r.right > x && r.top < y + 80 && r.bottom > y }); if (!hit) break; y = hit.getBoundingClientRect().bottom + 8 }
-      if (job.nudge) { x = Math.min(b.x0 + 24, W - w - 8); y = b.y1 + 6 }
       const ar = job.anchorEl ? {a:pathOf(job.anchorEl), qt:quoteOf(job.anchorEl), aw:Math.round(job.anchorEl.getBoundingClientRect().width) || 1} : null;
       const m0 = job.marks[0], f = m0 ? frameOf(m0) : ar && frameOf(ar);
       let an = m0 && f ? m0 : ar && f ? ar : null, fr = f, waits = false;
@@ -3142,10 +3137,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     },
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
-    done(job, text){ if (job.quiet) return; if (job.nudge && /^\s*NONE\.?\s*$/i.test(text)) { this.empty(job); toast('Nothing to add on "' + job.nudge.name + '"', 4000); return } job.note.t.a = text; linkNote(job); saveBook() },
+    done(job, text){ if (job.quiet) return; job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
-      if (!job.note && job.typed && !job.nudge && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
+      if (!job.note && job.typed && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
       const J = job.note; if (J) { const tk = J.d.querySelector('.kb-think'); if (tk) tk.remove() }   // not part of an answer
       if (J) {
         const got = J.d.querySelector('.kb-na').textContent.trim(), raw = job.lastReply || '';
@@ -3270,33 +3265,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     marksSvg.appendChild(r); setTimeout(() => r.remove(), 1700);
   }
 
-  // ---- quiet nudges: reading is followed section by section (the heading nearest above the upper part of the screen). Leaving a
-  // section after a minute or more in it, or coming back to re-read one and staying 20 s, lights a dot on the toolbar (at most once per
-  // section; only while Claude is on and the reader is not drawing or reading a reply). Nothing is sent until the dot is tapped ----
-  const reading = {key:null, el:null, name:'', t0:0, seen:new Map(), offered:new Set(), cand:null};
-  function sectionNow(){
-    const tb = document.querySelector('[role=tab][aria-selected=true]'), tab = tb && document.getElementById(tb.dataset.t);
-    let h = null; for (const x of (tab || pageRoot()).querySelectorAll('h2,h3')) { if (!x.getClientRects().length) continue; if (x.getBoundingClientRect().top < innerHeight * 0.45) h = x; else break }
-    return h ? {key:(tb ? tb.dataset.t : '') + '|' + h.textContent.trim(), el:h, name:h.textContent.trim().replace(/\s+/g, ' ')} : null;
-  }
-  setInterval(() => {
-    if (document.hidden || !nudgeOn() || !claudeOn() || !P.hidden || live || PG.busy) return;
-    const now = Date.now(), s2 = sectionNow(), cur = reading.key;
-    if (!s2 || s2.key === cur) { if (s2 && reading.cand && reading.cand.reread && now - reading.t0 > 20000) offerNudge(reading.cand); return }
-    if (cur) { const spent = now - reading.t0, prev = reading.seen.get(cur) || 0; reading.seen.set(cur, prev + spent); if (spent > 60000) offerNudge({key:cur, el:reading.el, name:reading.name, reread:false}) }
-    reading.cand = reading.seen.get(s2.key) > 20000 ? {key:s2.key, el:s2.el, name:s2.name, reread:true} : null;
-    reading.key = s2.key; reading.el = s2.el; reading.name = s2.name; reading.t0 = now;
-  }, 2000);
-  let nudge = null;
-  function offerNudge(c){ if (reading.offered.has(c.key) || nudge) return; reading.offered.add(c.key); reading.cand = null; nudge = c; const b = bar.querySelector('[data-b=nudge]'); b.hidden = false; b.title = 'Claude has a thought on "' + c.name + '"' + (c.reread ? ' (you came back to it)' : '') + '; tap to see it'; placeBar() }
-  function dropNudge(){ nudge = null; bar.querySelector('[data-b=nudge]').hidden = true; placeBar() }
-  async function takeNudge(){
-    const c = nudge; dropNudge(); if (!c || needKey(PG)) return;
-    showEl(c.el); PG.out.status('Thinking about "' + c.name + '"…');
-    const job = {kind:'page', nudge:c, typed:'', hl:null, marks:[], anchorEl:c.el, box:(r => ({x0:r.left, y0:r.top, x1:r.right, y1:r.bottom}))(c.el.getBoundingClientRect()), near:'', scr:await screenBlocks(false, [], null)};
-    if (PG.busy) { if (!enqueue(PG, job)) return; return }
-    send(PG, job);
-  }
 
   function renderLog(){
     const used = book.filter(p => !blank(p)).length, wipe = '<button type="button" data-a="wipe">Delete all</button>';
@@ -3328,7 +3296,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <label for="kbBuddyPrompts">One-tap prompts</label><textarea id="kbBuddyPrompts" rows="5" spellcheck="false">${esc(prompts().map(x => x.label + ': ' + x.text).join('\n'))}</textarea>
 <p>One per line, "Label: what to ask". They appear under every Ask box; one ending in "…" is put in the box for you to finish.</p>
 <label class="kb-ck"><input type="checkbox" id="kbBuddyWeb"${webOn() ? ' checked' : ''}><span>Web access: Claude may search the web and read web pages (at most 3 searches and 3 pages per question) when this page and the rest of the knowledge base are not enough, or when you ask for something newer. Web sources show as small links; each search costs about 1 cent.</span></label>
-<label class="kb-ck"><input type="checkbox" id="kbBuddyNudge"${nudgeOn() ? ' checked' : ''}><span>Quiet nudges: when you finish a section you spent a while on, or come back to re-read one, a small dot appears on the toolbar; tap it for Claude's one thought on that section. Nothing is sent unless you tap.</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddyQ"${qOn() ? ' checked' : ''}><span>A question mark sends at once: end what you write or type with "?" and Claude reads it straight away (even when Claude waits for Send).</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddyScratch"${scratchOn() ? ' checked' : ''}><span>Scratch out to erase: a quick zigzag over your writing deletes it. Holding the pen still at the end of a stroke straightens it into a line, an ellipse or a box.</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddySee"${seeOn() ? ' checked' : ''}><span>Let Claude see the screen: an image of the figures and animations in view, the text in view, the controls' values and your highlight, sent with each message.</span></label>
@@ -3337,7 +3304,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     setv.querySelector('#kbBuddySee').onchange = e => mine.set('see', e.target.checked ? null : 'off');
     setv.querySelector('#kbBuddyQ').onchange = e => mine.set('qsend', e.target.checked ? null : 'off');
     for (const x of setv.querySelectorAll('[data-mean]')) x.onchange = () => { const m = {}; for (const y of setv.querySelectorAll('[data-mean]')) if (y.value.trim() !== (MEAN0[y.dataset.mean] || '')) m[y.dataset.mean] = y.value.trim(); mine.set('means', Object.keys(m).length ? JSON.stringify(m) : null); syncBar() };
-    const nu = setv.querySelector('#kbBuddyNudge'); nu.onchange = () => mine.set('nudge', nu.checked ? null : 'off');
     const wb = setv.querySelector('#kbBuddyWeb'); wb.onchange = () => { mine.set('web', wb.checked ? null : 'off'); webBroken = false };
     setv.querySelector('#kbBuddyPrompts').onchange = e => { const v = e.target.value.trim(); mine.set('prompts', v && v !== PROMPTS0 ? v : null) };
     setv.querySelector('#kbBuddyScratch').onchange = e => mine.set('scratch', e.target.checked ? null : 'off');
