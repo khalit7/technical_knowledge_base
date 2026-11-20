@@ -15,9 +15,20 @@
 //   mouse (two fingers scroll), or type; Claude gets the new ink close up and the whole notebook page with free spots lettered on
 //   it, picks one (or a fresh page right after it) and its reply writes itself there in a handwriting face, with a small pen sketch when a
 //   picture helps and an arrow to an earlier mark when that makes the link clear. Typing is the chat.
-// Claude changing the page, on request (the Visualise and Rewrite prompts, or any ask): rewrite_block rewrites a text block in place
-//   (a tag switches to the original and back), add_visual adds an interactive visual after a block in a sandboxed frame (no access to
-//   the page, its storage or the keys). Each change is a synced record; the overview's Page changes lists them to keep or discard.
+// Claude changing the page, only when the reader's own words ask for a change: rewrite_block (a text block in place), insert_text (a new
+//   paragraph after a block), add_visual (an interactive visual after a block, as a split section, in a sandboxed frame with no access
+//   to the page, its storage or the keys), hide_block and move_block; Hide and the arrows also work directly from a selection, the
+//   lasso or the hover handle. Each change is a synced record that keeps its versions (up to 6): its badge opens the change bar, which
+//   refines it in one tap (shorter, simpler, deeper, example, try again, two versions, or the reader's words), shows what changed
+//   against the original or the version before, and keeps, removes or undoes it with the whole request (its highlight and note go too,
+//   with an Undo). The overview's Changes panel reviews them all and shows the page as written.
+// Visuals: each frame has a guard (errors, a blank drawing once it is in view, the part the reader points at) and window.kit (the
+//   page's colours; svg, arrows, matrices, plots, bars, touch-sized sliders, steps that play once in view, loops only while seen).
+//   A visual made here that fails is repaired out of sight (patch_visual, a faster model, at most twice), else dropped back to the
+//   version before or shown with Try to fix it and Remove. "Point at a part" tells Claude which part a refinement is about.
+// After the page itself is rebuilt: a change whose id the page carries (data-kb-edit="<id>", put there when it is folded in from
+//   html_utils/kb_changes.py), or a rewrite the page now says word for word, is cleared; a rewrite whose block the page changed since
+//   it was made shows the page's new text, marked "Needs a look": use Claude's version, keep the page's, or ask Claude to merge them.
 // Web access (Settings, on by default): Claude may use the API's web_search and web_fetch (at most 3 each per question) when the page
 //   and the knowledge base are not enough; web sources show as link chips (http(s) only, new tab); web content can never change the page.
 // Everything is kept in this browser (IndexedDB 'recs': one record per mark, note thread, notebook page, stroke, typed note or reply,
@@ -125,6 +136,7 @@
 .kb-edtag.kb-kept{opacity:.7}
 .kb-ins{margin-top:.6em}
 .kb-hid{display:none!important}
+.kb-hidstub.kb-stale{flex-wrap:wrap;width:auto;border-radius:12px;padding:6px 10px;border-color:var(--acc,#2b6cb0);border-style:solid}.kb-hidstub.kb-stale span{flex-basis:100%;white-space:normal;max-width:none}.kb-stcmp{flex-basis:100%;color:var(--ink);font:14px/1.55 system-ui,-apple-system,sans-serif}
 .kb-hidstub{display:flex;align-items:center;gap:8px;margin:8px 0;padding:3px 10px;border:1px dashed color-mix(in srgb,var(--acc) 45%,transparent);border-radius:99px;color:var(--mute);font:12.5px/1.5 system-ui,-apple-system,sans-serif;width:max-content;max-width:100%}
 .kb-hidstub span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46ch}
 .kb-hidstub button{padding:0 8px;border:1px solid var(--line);border-radius:99px;background:var(--soft);color:var(--ink);font:inherit;cursor:pointer}
@@ -866,7 +878,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let REC = {}, LOCAL = {}, BASE = new Map(), recsReady = false, needApply = false, changeSeq = 0;
   const canon = v => Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v === undefined ? null : v);
   const bare = r => { const o = Object.assign({}, r); delete o.u; delete o.del; return o };
-  const sig = r => canon(bare(r));
+  const sig = r => { const o = bare(r); delete o.a; if (o.ref && typeof o.ref === 'object') { o.ref = Object.assign({}, o.ref); delete o.ref.a } return canon(o) };   // its path is left out: finding its place again after a rebuild is no change, so it can never outdate a newer edit made elsewhere
   const strokeRec = st => ({p:st.p.map(rq), c:st.c || null, w:st.w, h:!!st.h, sh:!!st.sh, t:st.t || 0});
   // what is on screen now, as records (blank notebook pages are not kept)
   function buildRecs(){
@@ -1136,7 +1148,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const ks = REV_KEYS[x.kind]; if (!ks) return x;
     if (!Array.isArray(x.revs) || !x.revs.length) { const r = {t:x.t || Date.now(), ask:x.ask || ''}, has = ks.some(k => x[k] != null); for (const k of ks) if (x[k] != null) r[k] = x[k]; x.revs = has ? [r] : []; x.cur = 0 }   // a record from before versions becomes version 1; a new one starts empty
     if (!x.revs.length) return x;
-    x.revs.forEach((r, i) => { if (!r.rid) r.rid = 'r' + (r.t || 0) + '.' + i });   // a version from before ids: the same id on every device
+    x.revs.forEach((r, i) => { if (!r.rid) r.rid = 'r' + (r.t || 0) + '.' + i; if (!r.oh && x.oh) r.oh = x.oh });   // a version from before ids and hashes: the same id on every device, and the hash of the text it was written against   // a version from before ids: the same id on every device
     x.cur = Math.max(0, Math.min(x.revs.length - 1, Math.floor(+x.cur || 0))); const r = x.revs[x.cur] || {}; for (const k of ks) x[k] = r[k]; return x;
   }
   function addRev(x, content, ask){
@@ -1180,6 +1192,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       x = sameKind ? R : kind === 'rewrite' ? edits.find(y => y.kind === 'rewrite' && anchorOf(y) === e) : null;
       if (!x) { x = newEdit(kind, e, job); edits.push(x) }
       addRev(x, {html:text, why:String(inp.why || '').slice(0, 200)}, job.typed);
+      const ot = normT(origText(e)); x.oh = x.revs[x.cur].oh = hashT(ot); if (kind === 'rewrite') x.revs[x.cur].ot = ot.slice(0, 2000);   // made against the page as it is now
       msg = kind === 'rewrite' ? 'Done: the block now shows your version' + (x.revs.length > 1 ? ' (version ' + x.revs.length + '; the earlier ones are kept)' : ' (the reader can switch back to the original)') + '.' : 'Done: your paragraph is on the page' + (x.revs.length > 1 ? ' as version ' + x.revs.length : ' after block ' + i) + '.';
     } else if (u.name === 'add_visual') {
       const html = String(inp.html || ''); if (!html.trim()) return 'The visual was empty.'; if (html.length > 60000) return 'That visual is too big; keep it under about 25 KB.';
@@ -1235,7 +1248,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const x = job.refine, e = anchorOf(x), i = e ? blockOf(e) : -1, plainT = h => normT(String(h || '').replace(/<[^>]+>/g, ' '));
     const what = x.kind === 'visual' ? 'a visual you added after block ' + i + ' (title "' + (x.title || '') + '")\n<current_explanation>\n' + (x.expl || '') + '\n</current_explanation>\n<current_steps>\n' + (x.steps || []).join('\n') + '\n</current_steps>\n<current_html>\n' + (x.html || '') + '\n</current_html>'
       : x.kind === 'insert' ? 'a paragraph you added after block ' + i + '\n<current>\n' + plainT(x.html) + '\n</current>'
-      : 'your rewrite of block ' + i + '\n<original>\n' + (e ? normT(origText(e)) : '') + '\n</original>\n<current>\n' + plainT(x.html) + '\n</current>';
+      : (staleIds.has(x.id) && x.revs[x.cur] && x.revs[x.cur].ot ? 'your rewrite of block ' + i + '; the page was updated there since\n<page_text_when_you_wrote_it>\n' + x.revs[x.cur].ot + '\n</page_text_when_you_wrote_it>\n<page_text_now>\n' + (e ? normT(origText(e)) : '') + '\n</page_text_now>'
+        : 'your rewrite of block ' + i + '\n<original>\n' + (e ? normT(origText(e)) : '') + '\n</original>') + '\n<current>\n' + plainT(x.html) + '\n</current>';
     const tool = x.kind === 'visual' ? 'patch_visual (small find-and-replace edits on current_html) when the change is local, or add_visual with after_block ' + i + ' for a new design' : x.kind === 'insert' ? 'insert_text with after_block ' + i : 'rewrite_block with block ' + i;
     if (job.repair) return 'A visual you added to this page fails in the reader\'s browser: ' + job.repair + '\n' + what + '\nFix it, preferably with patch_visual, keeping its design and content (the frame has no network: no libraries or fonts from the web; window.kit and, for 3D, window.S3 are there). Then say in a few words what you fixed. No <at> or <point> here.';
     const pk = job.pick ? '\nThey pointed at a spot about ' + job.pick.x + '% across and ' + job.pick.y + '% down the visual' + (job.pick.tag ? ', on a ' + job.pick.tag + (job.pick.text ? ' reading "' + job.pick.text + '"' : '') : '') + ' (marked there with a red ring); their request is about that part.' : '';
@@ -1442,6 +1456,36 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const refreshOv = () => { if (!ovView.hidden) renderOverview() };
   const origPill = el('div', {id:'kbOrig', hidden:'', role:'status'}, '<span>Showing the page as written</span><button type="button">Show my changes</button>'); document.body.appendChild(origPill);
   origPill.querySelector('button').addEventListener('click', () => { origView = false; renderEdits(); refreshOv() });
+  // ---- after the page itself is rebuilt: a change folded into the page (an element there carries data-kb-edit with its id, or, for a
+  // rewrite, the page now says its words exactly) has done its job and its record is cleared; a rewrite whose block the page changed
+  // since (its original text no longer hashes to oh) is not shown over the new text but waits for the reader: keep Claude's version,
+  // keep the page's, or ask Claude to merge the two ----
+  function folded(x){
+    try { if (document.querySelector('[data-kb-edit~="' + CSS.escape(x.id) + '"]')) return true } catch(e) {}
+    if (x.kind !== 'rewrite' || !Array.isArray(x.revs)) return false;
+    const words = new Set(x.revs.map(r => normT(plainOf(r.html))).filter(w => w.length >= 40)); if (!words.size) return false;   // a heading or a cell may say the same as another
+    const oh = verOh(x), moved = b => hashT(origText(b)) !== oh;   // only where the page changed since (Claude's version may say the same words as the original)
+    for (const b of [anchorEl(x.a), anchorOf(x)]) if (b && moved(b) && words.has(normT(origText(b)))) return true;
+    if (anchorOf(x)) return false;
+    // its block's opening words changed, so it no longer finds it: the one block that now says exactly Claude's words is where it went
+    return [...pageRoot().querySelectorAll(CITE_SEL)].filter(b => !b.closest(OURS + ',' + KB_NODES) && words.has(normT(origText(b)))).length === 1;
+  }
+  let staleIds = new Set(), staleTold = false;
+  // each version keeps the hash (and the text) of the block it was written against; versions from before that use the change's
+  const verOh = x => { const r = x.revs && x.revs[x.cur]; return (r && r.oh) || x.oh };
+  const isStale = x => x.kind === 'rewrite' && !!verOh(x) && (e => !!e && hashT(origText(e)) !== verOh(x))(anchorOf(x));
+  const staleCmp = new Set();   // the stale changes whose Compare is open
+  const MERGE_Q = 'The page was updated here after your version was written. Write a new version that keeps what I asked for and takes in everything the update added or corrected.';
+  function staleAct(x, a){
+    if (a === 'stcmp') { if (staleCmp.has(x.id)) staleCmp.delete(x.id); else staleCmp.add(x.id); renderEdits(); if (chgId === x.id && !chg.hidden) openChg(x); return }
+    if (a === 'stmine') {
+      const e = anchorOf(x); if (!e) { toast('This change no longer finds its place on the page.', 5000); return }
+      const ot = normT(origText(e)), r = x.revs[x.cur]; x.oh = hashT(ot); if (r) { r.oh = x.oh; r.ot = ot.slice(0, 2000) }   // Claude's version, now over the new text
+      staleCmp.delete(x.id); origView = false; renderEdits(); saveBook(); refreshOv(); if (chgId === x.id && !chg.hidden) openChg(x); toast('Claude\'s rewrite shows again.', 3000);
+    }
+    else if (a === 'stpage') removeEdits([x], 'Removed: the new text stays');
+    else if (a === 'stmerge') refineEdit(x, MERGE_Q);
+  }
   function renderEdits(){
     for (const [e, o] of edited) { e.replaceChildren(o.frag); e.classList.remove('kb-ed-on', 'kb-ed-new'); delete e.dataset.edw } edited.clear();
     for (const ph of [...document.querySelectorAll('.kb-mvph')]) { if (ph._moved) ph.replaceWith(ph._moved); else ph.remove() }
@@ -1452,6 +1496,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const b of document.querySelectorAll('.kb-vsp,.kb-vis')) { const top = b.parentElement && b.parentElement.closest('.kb-vsp') ? null : b; if (!top) continue; if (want.get(b.dataset.ed) === b.dataset.sig && b.isConnected) continue; const f = visFrames.get(b.dataset.ed); if (f) { visSeen.unobserve(f); visFrames.delete(b.dataset.ed) } b.remove() }
     for (const b of document.querySelectorAll('.kb-edtag,.kb-ins,.kb-hidstub')) b.remove();
     for (const [k, v] of anchors) if (v === null) anchors.delete(k);   // looked for again: a block may be back
+    const gone = edits.filter(folded);   // its highlight and note stay: they are the reader's own
+    if (gone.length) { for (const x of gone) drop(edits, x); saveBook(); setTimeout(() => toast(gone.length === 1 ? 'One of your changes is now part of the page itself, so it no longer shows as a change.' : gone.length + ' of your changes are now part of the page itself, so they no longer show as changes.', 6000), 900) }
+    staleIds = new Set(edits.filter(isStale).map(x => x.id));
+    if (staleIds.size && !staleTold) { staleTold = true; setTimeout(() => toast('This page was updated where Claude had rewritten ' + (staleIds.size === 1 ? 'a passage' : staleIds.size + ' passages') + '. Look for "Needs a look" to choose.', 8000), 1500) }
     origPill.hidden = !origView || !edits.length;
     if (!origView) {
       const order = {move:0, rewrite:1, insert:2, hide:3, visual:4};
@@ -1468,6 +1516,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const SHOW = {
     rewrite(x, e){
       if (edited.has(e)) return;   // one rewrite per block (two can meet after a merge): the first stands
+      if (staleIds.has(x.id)) {
+        const d = el('div', {class:'kb-hidstub kb-stale', 'data-ed':x.id}, '<span>This passage was updated after Claude rewrote it' + (x.ask ? ' (you asked: ' + esc(String(x.ask).slice(0, 80)) + ')' : '') + '. You are seeing the new text.</span>');
+        for (const [a, t] of [['stcmp', staleCmp.has(x.id) ? 'Hide the comparison' : 'Compare'], ['stmerge', 'Combine the two'], ['stmine', 'Use Claude\'s rewrite'], ['stpage', 'Keep the new text']]) d.appendChild(el('button', {type:'button', 'data-hs':a}, t));
+        if (staleCmp.has(x.id)) d.appendChild(el('div', {class:'kb-df kb-stcmp'}, '<small>From the new text (struck) to Claude\'s rewrite (marked):</small> ' + wordDiff(origText(e), x.html)));
+        d.appendChild(el('button', {type:'button', class:'kb-edtag kb-more', 'data-ed':x.id, 'aria-label':'More about this change'}, '\u22EF'));
+        e.before(d); return;
+      }
       if (x.show !== 'orig') {
         const frag = document.createDocumentFragment(), text = e.textContent; while (e.firstChild) frag.appendChild(e.firstChild); edited.set(e, {frag, text}); e.dataset.edw = x.id;
         const df = diffOn.get(x.id), prev = df === 'prev' && x.cur > 0 ? cleanRich(x.revs[x.cur - 1].html) : null;
@@ -1480,7 +1535,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       e = wideBlock(e); const n = el(e.tagName === 'LI' ? 'li' : 'p', {class:'kb-ins kb-ed-on' + (x.st !== 'kept' ? ' kb-ed-new' : ''), 'data-ed':x.id}); n.innerHTML = cleanRich(x.html); n.appendChild(badge(x, 'added'));
       insAfter(e, n);
     },
-    hide(x, e){ e.classList.add('kb-hid'); e.before(stub(x, 'Hidden: “' + esc(normT(origText(e)).slice(0, 80) || 'a figure') + '”', 'Show', 'unhide')) },
+    hide(x, e){ e.classList.add('kb-hid'); e.before(stub(x, (x.oh && !e.querySelector('svg,canvas,input,button,select,iframe,output') && hashT(origText(e)) !== x.oh ? 'Hidden, and updated since you hid it: “' : 'Hidden: “') + esc(normT(origText(e)).slice(0, 80) || 'a figure') + '”', 'Show', 'unhide')) },
     move(x, e){
       const r = anchorOf(x.ref); if (!r || r === e || r.parentElement !== e.parentElement) return;
       const ph = document.createElement('span'); ph.className = 'kb-mvph'; ph.hidden = true; ph._moved = e; e.before(ph);
@@ -1539,6 +1594,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (a === 'change') { openChg(x, t); return }
     if (a === 'retry') { fixTries.set(rk(x, curRev(x)), 2); visState.delete(vkey(x)); trouble(x, 'Fixing this visual…', false); repairVisual(x, lastErr.get(x.id) || 'it did not work'); return }   // one tap, one try
     if (a === 'prev' || a === 'next') { stepRev(x, a === 'prev' ? -1 : 1); return }
+    if (a === 'stmine' || a === 'stpage' || a === 'stmerge' || a === 'stcmp') { staleAct(x, a); return }
     if (a === 'discard' || a === 'unhide' || a === 'unmove') { removeEdits([x], a === 'unhide' ? 'Shown again' : a === 'unmove' ? 'Put back' : 'Removed'); return }
     if (a === 'keep') x.st = 'kept'; else if (a === 'show') x.show = 'edit';
     renderEdits(); saveBook(); refreshOv();
@@ -1570,7 +1626,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const KIND = {rewrite:'Rewritten by Claude', insert:'Added by Claude', visual:'Claude\'s visual', hide:'Hidden', move:'Moved'}[x.kind] || 'Change';
     const ask = (x.revs && x.revs[x.cur] && x.revs[x.cur].ask) || x.ask;
     chg.innerHTML = '<div class="kb-chh"><b>' + KIND + '</b>' + (n > 1 ? '<button type="button" data-c="prev" aria-label="Previous version">\u2039</button><span>version ' + (x.cur + 1) + ' of ' + n + '</span><button type="button" data-c="next" aria-label="Next version">\u203A</button>' : '') + '<span class="kb-sp"></span><button type="button" data-c="close" aria-label="Close">\u2715</button></div>'
-      + (x.kind === 'rewrite' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show Claude\'s version' : 'Show the original') + '</button><button type="button" data-c="diff" aria-pressed="' + (df === 'orig') + '">What changed</button>' + (x.cur > 0 ? '<button type="button" data-c="diffprev" aria-pressed="' + (df === 'prev') + '">Since the version before</button>' : '') + '</div>'
+      + (staleIds.has(x.id) ? '<small>The page was updated here after this was written; the new text shows until you choose.</small><div class="kb-chr"><button type="button" data-c="stcmp" aria-pressed="' + staleCmp.has(x.id) + '">Compare</button><button type="button" class="kb-go" data-c="stmerge">Combine the two</button><button type="button" data-c="stmine">Use Claude\'s rewrite</button><button type="button" data-c="stpage">Keep the new text</button></div>'
+        : x.kind === 'rewrite' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show Claude\'s version' : 'Show the original') + '</button><button type="button" data-c="diff" aria-pressed="' + (df === 'orig') + '">What changed</button>' + (x.cur > 0 ? '<button type="button" data-c="diffprev" aria-pressed="' + (df === 'prev') + '">Since the version before</button>' : '') + '</div>'
         : x.kind === 'insert' || x.kind === 'visual' ? '<div class="kb-chr"><button type="button" data-c="toggle">' + (x.show === 'orig' ? 'Show it' : 'Hide it for now') + '</button>' + (x.kind === 'visual' && x.show !== 'orig' ? '<button type="button" data-c="pick" title="Tap the part of the visual you want changed">Point at a part</button>' : '') + '</div>' + (picks.has(x.id) ? '<small>Pointing at: ' + esc(picks.get(x.id).text || picks.get(x.id).tag || 'a spot') + ' (' + picks.get(x.id).x + '%, ' + picks.get(x.id).y + '%)</small>' : '') : '')
       + (R ? '<div class="kb-chips">' + R.map((r, k) => '<button type="button" data-rf="' + k + '" title="' + esc(r[1]) + '">' + esc(r[0]) + '</button>').join('') + '</div><div class="kb-pr"><input type="text" placeholder="Or say how to change it…" enterkeyhint="send" aria-label="How to change it"><button type="button" class="kb-go" data-c="go">Go</button></div>' : '')
       + '<div class="kb-chr">' + (x.st !== 'kept' ? '<button type="button" class="kb-go" data-c="keep" title="Mark it as reviewed and worth keeping: kept changes are the ones to fold into the page itself later">Keep</button>' : '<button type="button" data-c="unkeep" title="Mark it as not reviewed again">Kept \u2713 \u00B7 undo</button>') + '<button type="button" data-c="discard">' + (x.kind === 'hide' ? 'Show it again' : x.kind === 'move' ? 'Put it back' : 'Remove') + '</button>' + (grp > 1 ? '<button type="button" data-c="group">Undo the whole request (' + grp + ')</button>' : '') + '</div>'
@@ -1593,6 +1650,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (c === 'group') removeEdits(edits.filter(y => y.g === x.g), 'The whole request was undone');
     else if (c === 'go' && inp && inp.value.trim()) refineEdit(x, inp.value.trim());
     else if (c === 'pick') askPick(x);
+    else if (c === 'stmine' || c === 'stpage' || c === 'stmerge' || c === 'stcmp') staleAct(x, c);
   });
   chg.addEventListener('keydown', e => { const x = chgX0(); if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.value.trim() && x) { e.preventDefault(); refineEdit(x, e.target.value.trim()) } });
   document.addEventListener('pointerdown', e => { if (!chg.hidden && !chg.contains(e.target) && !(e.target.closest && e.target.closest('.kb-edtag,.kb-vis [data-ev]'))) closeChg() }, true);
@@ -1714,13 +1772,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- the changes panel (the overview's Page changes): grouped by request, filters, step through, keep or remove, the page as written ----
   let edF = 'all', edNav = -1;
   const KLAB = {rewrite:'Rewrite', insert:'Added text', visual:'Visual', hide:'Hidden', move:'Moved'};
-  const edMatch = x => edF === 'all' || (edF === 'new' ? x.st !== 'kept' : edF === 'kept' ? x.st === 'kept' : x.kind === edF);
+  const edMatch = x => edF === 'all' || (edF === 'new' ? x.st !== 'kept' : edF === 'kept' ? x.st === 'kept' : edF === 'look' ? staleIds.has(x.id) : x.kind === edF);
   const docOrder = xs => xs.map(x => [x, anchorOf(x)]).sort((a, b) => !a[1] ? 1 : !b[1] ? -1 : a[1] === b[1] ? 0 : (a[1].compareDocumentPosition(b[1]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).map(p2 => p2[0]);
   function changesHtml(){
     if (!edits.length) return '<p class="kb-hint">No changes yet. Select some text (or draw a loop round something with the lasso; with a mouse, the \u22EE handle beside a block works too), then ask Claude to rewrite it, add to it, visualise it, hide it or move it. Hide and the arrows also work directly.</p>';
-    const pn = edits.filter(x => x.st !== 'kept').length;
+    const pn = edits.filter(x => x.st !== 'kept').length; if (edF === 'look' && !staleIds.size) edF = 'all';
     let h = '<div class="kd-edbar"><label><input type="checkbox" data-ch="orig"' + (origView ? ' checked' : '') + '> Show the page as written</label><button type="button" data-ch="prev">‹ Previous</button><button type="button" data-ch="next">Next ›</button>' + (pn ? '<button type="button" data-ch="keepall">Keep all ' + pn + '</button><button type="button" data-ch="dropall">Remove all not kept</button>' : '') + '</div>';
-    h += '<div class="kb-chips kd-edf">' + [['all', 'All'], ['new', 'To review'], ['kept', 'Kept'], ['rewrite', 'Rewrites'], ['insert', 'Added text'], ['visual', 'Visuals'], ['hide', 'Hidden'], ['move', 'Moved']].map(([k, t]) => '<button type="button" data-ef="' + k + '" aria-pressed="' + (edF === k) + '">' + t + '</button>').join('') + '</div>';
+    h += '<div class="kb-chips kd-edf">' + [['all', 'All'], ['new', 'To review'], ['kept', 'Kept']].concat(staleIds.size ? [['look', 'Needs a look (' + staleIds.size + ')']] : []).concat([ ['rewrite', 'Rewrites'], ['insert', 'Added text'], ['visual', 'Visuals'], ['hide', 'Hidden'], ['move', 'Moved']]).map(([k, t]) => '<button type="button" data-ef="' + k + '" aria-pressed="' + (edF === k) + '">' + t + '</button>').join('') + '</div>';
     const groups = new Map(); for (const x of docOrder(edits.filter(edMatch))) { const g = x.g || x.id; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(x) }
     if (!groups.size) return h + '<p class="kb-hint">Nothing matches.</p>';
     for (const [g, xs] of groups) {
@@ -1729,7 +1787,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       for (const x of xs) {
         normEdit(x); const e = anchorOf(x), w = e ? where(e) : '', n = x.revs ? x.revs.length : 0;
         const body = x.kind === 'rewrite' || x.kind === 'insert' ? normT(String(x.html || '').replace(/<[^>]+>/g, ' ')) : x.kind === 'visual' ? (x.title || '') : e ? normT(origText(e)) : (x.qt || '');
-        h += '<div class="kd-ovi kd-edi" data-edi="' + esc(x.id) + '"><i style="background:' + (x.st === 'kept' ? 'var(--good,#2f9e44)' : 'var(--acc)') + '"></i><span><b>' + KLAB[x.kind] + (n > 1 ? ' · ' + n + ' versions' : '') + ' · ' + (x.st === 'kept' ? 'kept' : 'to review') + (e ? '' : ' · not found on the page') + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') + (body ? '<q>' + esc(body.slice(0, 160)) + '</q>' : '') +
+        h += '<div class="kd-ovi kd-edi" data-edi="' + esc(x.id) + '"><i style="background:' + (x.st === 'kept' ? 'var(--good,#2f9e44)' : 'var(--acc)') + '"></i><span><b>' + KLAB[x.kind] + (n > 1 ? ' · ' + n + ' versions' : '') + ' · ' + (x.st === 'kept' ? 'kept' : 'to review') + (staleIds.has(x.id) ? ' · needs a look: the page changed here' : '') + (e ? '' : ' · not found on the page (if it is already part of the page, Remove clears it)') + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') + (body ? '<q>' + esc(body.slice(0, 160)) + '</q>' : '') +
           '<span class="kb-chips">' + (e ? '<button type="button" data-ea="go">Show</button>' : '') + (x.st !== 'kept' ? '<button type="button" data-ea="keep">Keep</button>' : '<button type="button" data-ea="unkeep">Unmark</button>') + '<button type="button" data-ea="discard">' + (x.kind === 'hide' ? 'Show again' : x.kind === 'move' ? 'Put back' : 'Remove') + '</button></span></span></div>';
       }
     }
@@ -2224,7 +2282,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // press they are sent with the screen and the reply writes itself: in the notebook at the spot Claude picks, on the page in a card ----
   function Session(out){ return {out, timer:0, busy:false, queued:[], cur:null} }
   // a request made while another is being written waits its turn; at most three wait
-  function enqueue(S, job){ if (S.queued.length >= 3) { S.out.status('Claude is still busy with earlier requests; try again in a moment.'); return false } S.queued.push(job); return true }
+  function enqueue(S, job){ if (job.tab === undefined) job.tab = openTab(); if (S.queued.length >= 3) { S.out.status('Claude is still busy with earlier requests; try again in a moment.'); return false } S.queued.push(job); return true }
   // 3 s after the last stroke or key press, when Claude is on; with Claude off the marks wait for Send
   function arm(S){
     clearTimeout(S.timer); syncBar();
@@ -2282,7 +2340,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (S.queued.length) send(S, S.queued.shift());
   }
   async function send0(S, job){
-    S.busy = true; S.cur = job; let reply = null, rawNow = '';
+    S.busy = true; S.cur = job; let reply = null, rawNow = ''; if (job.tab === undefined) job.tab = openTab();
     if (job.refineId) { const y = edits.find(z => z.id === job.refineId); if (y) job.refine = y }   // the change as it is now (a sync may have replaced it while this waited)
     job.gid = job.gid || newId();
     const content = [];
@@ -2438,15 +2496,20 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (e) anchors.set(key, e); return e || null;
   }
   // the element a mark belongs to: what is under its centre, widened to a block (a paragraph, a list item, a figure, a whole svg)
+  // the page's open tab (on a page with tabs): what a note or mark that belongs to no passage is kept on
+  // a block outside every tab panel (the page root, the title, the tab bar) shows on every tab: what is pinned to it keeps the tab it was made on
+  const tabTag = (el, fallback) => el && el.closest && el.closest('.tab[id]') ? undefined : (fallback || openTab() || undefined);
+  const openTab = () => { const ts = [...pageRoot().querySelectorAll('.tab[id]')]; if (ts.length < 2) return null; const v = ts.filter(t => t.getClientRects().length); return v.length === 1 ? v[0].id : null };
   function anchorFor(cx, cy){
-    let e = document.elementFromPoint(cx, cy); const root = pageRoot();
-    if (!e || e.closest(OURS) || !root.contains(e)) return root;
+    let e = document.elementsFromPoint(cx, cy).find(x => !x.closest(OURS)); const root = pageRoot();   // under the buddy's own layers (a note, the Ask box)
+    if (!e || !root.contains(e)) return root;
     let s = e.closest('svg'); while (s && s.parentElement && s.parentElement.closest('svg')) s = s.parentElement.closest('svg'); if (s) e = s;
     while (e !== root && e.parentElement) { const r = e.getBoundingClientRect(); if (!/^inline/.test(getComputedStyle(e).display) && r.height >= 18 && r.width >= 40) break; e = e.parentElement }
     return e;
   }
   // where a pinned thing's element is now (viewport), and its scale since it was pinned; null while it is hidden (another tab)
-  function frameOf(x){ const e = anchorOf(x); if (!e) return null; const r = e.getBoundingClientRect(); if (!r.width && !r.height) return null; return {x:r.left, y:r.top, s:x.aw ? r.width / x.aw : 1, e} }
+  function frameOf(x){ if (x.tab) { const t = document.getElementById(x.tab); if (t && !t.getClientRects().length) return null }   // made on a tab that is closed now
+    const e = anchorOf(x); if (!e) return null; const r = e.getBoundingClientRect(); if (!r.width && !r.height) return null; return {x:r.left, y:r.top, s:x.aw ? r.width / x.aw : 1, e} }
   // a mark's path: smooth curves through the pen's points (a snapped shape keeps its corners)
   const pathD = (p, sh) => {
     if (p.length === 1) return `M${p[0][0]} ${p[0][1]}h0.1`;
@@ -2494,6 +2557,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const schedule = () => { cancelAnimationFrame(placeT); placeT = requestAnimationFrame(placeMarks) };
   window.addEventListener('resize', schedule); new ResizeObserver(schedule).observe(document.body);
   document.addEventListener('click', () => setTimeout(schedule, 80));   // tabs, details, steppers
+  try { const mo = new MutationObserver(schedule); for (const t of document.querySelectorAll('.tab,[role=tabpanel]')) mo.observe(t, {attributes:true, attributeFilter:['hidden', 'class', 'style']}) } catch(e) {}   // a tab opened by keyboard or a link, not a click
   setInterval(() => { if ((marks.length || notes.length) && !document.hidden) placeMarks() }, 1500);
   // the viewport box of some marks (null when none is in view), and the text of the element the first one is pinned to
   function viewBox(ms){
@@ -2607,7 +2671,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // keep a mark drawn in layer coordinates (o: the layer's rect then), pinned to its element: points relative to the element's corner
   function pin(m, o, g){
     const b = bbox([m]), an = anchorFor(o.left + (b.x0 + b.x1) / 2, o.top + (b.y0 + b.y1) / 2), r = an.getBoundingClientRect();
-    m.id = m.id || newId(); m.a = pathOf(an); m.qt = quoteOf(an); m.aw = Math.round(r.width) || 1; const dx = r.left - o.left, dy = r.top - o.top;
+    m.id = m.id || newId(); m.a = pathOf(an); m.qt = quoteOf(an); m.tab = tabTag(an); m.aw = Math.round(r.width) || 1; const dx = r.left - o.left, dy = r.top - o.top;
     m.p = m.p.map(q => [r1(q[0] - dx), r1(q[1] - dy), Math.round(q[2] * 100) / 100]); m.t = Date.now();
     marks.push(m); if (g) { markEl.set(m, g); g.setAttribute('d', pathD(m.p, m.sh)) } placeMarks(); undoStack.push({m});
   }
@@ -2791,9 +2855,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       for (let k = 0; k < 12; k++) { const hit = [...noteEl.values()].find(e => { if (e.hidden || e.classList.contains('kb-folded')) return false; const r = e.getBoundingClientRect(); return r.left < x + w && r.right > x && r.top < y + 80 && r.bottom > y }); if (!hit) break; y = hit.getBoundingClientRect().bottom + 8 }
       if (job.nudge) { x = Math.min(b.x0 + 24, W - w - 8); y = b.y1 + 6 }
       const ar = job.anchorEl ? {a:pathOf(job.anchorEl), qt:quoteOf(job.anchorEl), aw:Math.round(job.anchorEl.getBoundingClientRect().width) || 1} : null;
-      const m0 = job.marks[0], f = m0 ? frameOf(m0) : ar && frameOf(ar), an = m0 && f ? m0 : ar && f ? ar : {a:'', aw:0}, fr = f || frameOf({a:''}) || {x:0, y:0, s:1};
+      const m0 = job.marks[0], f = m0 ? frameOf(m0) : ar && frameOf(ar);
+      let an = m0 && f ? m0 : ar && f ? ar : null, fr = f, waits = false;
+      // its marks or its block are on a tab closed now (switched while the reply was written): the note waits there, beside them
+      if (!an && m0 && anchorOf(m0)) { an = m0; waits = 'mark' }
+      else if (!an && ar && job.anchorEl.isConnected) { an = Object.assign({}, ar, {aw:Math.round(anchorEl('').getBoundingClientRect().width) || 1}); waits = 'block' }
+      if (!an) { an = {a:'', aw:0}; fr = frameOf({a:''}) }
+      fr = fr || {x:0, y:0, s:1};
+      const anEl = an === m0 ? anchorOf(m0) : ar && an.a === ar.a && waits !== 'mark' && job.anchorEl ? job.anchorEl : pageRoot();
       const t = {q:job.typed || '', a:''};
-      const n = {id:newId(), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:Math.round((x - fr.x) / fr.s), y:Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
+      const n = {id:newId(), tab:tabTag(anEl, job.tab), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:waits === 'mark' ? Math.round(bbox([m0]).x1 + 12) : waits ? 0 : Math.round((x - fr.x) / fr.s), y:waits === 'mark' ? Math.round(bbox([m0]).y0) : waits ? 28 : Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
     },
