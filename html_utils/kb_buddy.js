@@ -130,6 +130,8 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 .kr-ink{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity 1.8s ease-in}.kr-ink.kr-sink{opacity:0}
 .kr-say{position:absolute;left:8%;right:8%;pointer-events:none;font-family:${HAND};font-size:clamp(22px,3.2vw,34px);line-height:1.35;color:#2b1a0e;text-shadow:0 0 1px rgba(43,26,14,.4)}
 .kr-say span{opacity:0;transition:opacity .9s ease-out,filter .9s ease-out;filter:blur(2px)}.kr-say span.kr-in{opacity:.92;filter:blur(0)}.kr-say.kr-out span{opacity:0;filter:blur(3px);transition:opacity 2.4s ease-in,filter 2.4s ease-in}
+.kr-mine{position:absolute;left:8%;right:8%;top:30%;font-family:${HAND};font-size:clamp(22px,3.2vw,34px);line-height:1.35;color:#2b1a0e;opacity:.9;transition:opacity 1.8s ease-in,filter 1.8s ease-in}.kr-mine.kr-gone{opacity:0;filter:blur(3px)}
+#kbBuddy.kr-on .kb-h button{background:transparent;color:#e9d9b0;border:1px solid #6b4a2b}#kbBuddy.kr-on .kb-h button:hover{background:#3a2516}
 .kr-hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;font:italic 14px Georgia,serif;color:rgba(60,35,15,.45);pointer-events:none;transition:opacity .6s}
 .kr-form{margin-top:10px}.kr-form input{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid #6b4a2b;background:#3a2516;color:#f1e3bf;font:italic 16px Georgia,serif}.kr-form input::placeholder{color:#b89c72}
 .kb-vrow{display:flex;gap:6px;padding:0 8px 8px}.kb-vrow button{flex:1;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card,var(--bg));color:var(--ink);font:600 12.5px/1.4 system-ui,-apple-system,sans-serif;cursor:pointer}.kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}
@@ -2072,7 +2074,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function riddleClose(){ clearTimeout(rd.timer); clearTimeout(rd.fadeT); rd.hist = []; rd.strokes = []; rd.cur = null; rdSay.innerHTML = '' }
   new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
   rdCv.addEventListener('pointerdown', e => {
-    if (rd.busy || e.button > 0) return; e.preventDefault(); rdCv.setPointerCapture(e.pointerId); clearTimeout(rd.timer); rdHint.style.opacity = 0;
+    if (rd.busy || e.button > 0) return; e.preventDefault(); try { rdCv.setPointerCapture(e.pointerId) } catch(err) {} clearTimeout(rd.timer); rdHint.style.opacity = 0;
     if (rdSay.textContent) { rdSay.classList.add('kr-out'); clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 2400) }   // writing again: the last answer sinks
     const r = rdCv.getBoundingClientRect(); rd.cur = [[e.clientX - r.left, e.clientY - r.top]]; rdDraw();
   });
@@ -2086,7 +2088,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const content = [];
     if (hasInk) { const c = document.createElement('canvas'), pad = 20, w = box.x1 - box.x0 + 2 * pad, h = box.y1 - box.y0 + 2 * pad, k = Math.min(1, 1000 / Math.max(w, h)); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k)); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.translate(pad - box.x0, pad - box.y0); g.strokeStyle = '#000'; g.lineCap = g.lineJoin = 'round'; g.lineWidth = 3; for (const st of rd.strokes) { g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke() }
       content.push({type:'image', source:{type:'base64', media_type:'image/png', data:c.toDataURL('image/png').split(',')[1]}}, {type:'text', text:'What they just wrote in the diary, by hand.'}) }
-    else content.push({type:'text', text:'They wrote in the diary:\n' + typed});
+    else { content.push({type:'text', text:'They wrote in the diary:\n' + typed});
+      const mine = el('div', {class:'kr-mine'}); mine.textContent = typed; rdView.querySelector('.kr-page').appendChild(mine); box = {x0:0, y0:(rdCv.getBoundingClientRect().height || 400) * 0.3, x1:0, y1:0};
+      setTimeout(() => mine.classList.add('kr-gone'), 900); setTimeout(() => mine.remove(), 3000) }   // typed words are written in ink first, then sink
     // the writing sinks into the paper
     rdCv.classList.add('kr-sink'); setTimeout(() => { rd.strokes = []; rdDraw(); rdCv.classList.remove('kr-sink') }, 1900);
     try {
