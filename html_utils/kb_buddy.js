@@ -849,6 +849,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         else if (d.type === 'content_block_delta' && d.delta.type === 'text_delta') { raw += d.delta.text; if (blocks[d.index]) blocks[d.index].text += d.delta.text; else blocks[d.index] = {type:'text', text:d.delta.text, cites:[]}; onText(raw, false) }
         else if (d.type === 'content_block_delta' && d.delta.type === 'citations_delta') { const b = blocks[d.index]; if (b) b.cites.push(d.delta.citation) }
         else if (d.type === 'content_block_delta' && d.delta.type === 'input_json_delta') { const b = blocks[d.index]; if (b) b.json += d.delta.partial_json || '' }
+        // thinking goes back to the API exactly as it came: its text (empty when the display is omitted) and its signature, which arrives as a delta
+        else if (d.type === 'content_block_delta' && d.delta.type === 'thinking_delta') { const b = blocks[d.index]; if (b) b.think = (b.think || '') + (d.delta.thinking || '') }
+        else if (d.type === 'content_block_delta' && d.delta.type === 'signature_delta') { const b = blocks[d.index]; if (b) b.sig = (b.sig || '') + (d.delta.signature || '') }
         else if (d.type === 'content_block_stop') {   // a cited stretch of text ends: its chips go right after it
           const b = blocks[d.index], c = b && b.cites.filter(x => x.type === 'content_block_location' && x.document_index === 0);
           let add = c && c.length ? [...new Set(c.map(x => x.start_block_index))].map(i => '⟦c' + i + '⟧').join('') : '';
@@ -869,6 +872,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       let input = {}; try { input = JSON.parse(b.json || '{}') } catch(e) {}
       if (b.type === 'tool_use') return {type:'tool_use', id:b.id, name:b.name, input};
       if (b.type === 'server_tool_use') return Object.assign({}, b.raw, {input:b.json ? input : (b.raw.input || {})});
+      if (b.type === 'thinking') { const sig = (b.raw.signature || '') + (b.sig || ''); return sig ? {type:'thinking', thinking:(b.raw.thinking || '') + (b.think || ''), signature:sig} : null }
       return b.raw;   // a server tool's result, unchanged
     }).filter(Boolean);
     return {raw, stop, usage, model:m, cents:c, content};
