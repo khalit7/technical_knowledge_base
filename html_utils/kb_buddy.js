@@ -78,6 +78,9 @@
   const HAND = 'Caveat,"Bradley Hand","Segoe Print",cursive';
 
   const css = `
+body{padding-top:var(--kb-room,0px)!important;padding-bottom:var(--kb-room-b,0px)!important}html{scroll-padding-top:calc(var(--kb-room,0px) + 56px)}
+body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room,0px);background:var(--bg,#fff);z-index:50;pointer-events:none;box-shadow:0 1px 0 var(--line,rgba(0,0,0,.08))}
+.nav{top:var(--kb-room,0px)!important}.stg,.s3stick{top:calc(50px + var(--kb-room,0px))!important}.s3side{top:calc(20px + var(--kb-room,0px))!important}.nm-nav,.dd-nav,.mx-nav{top:var(--kb-room,0px)!important}
 #kbBar{position:fixed;z-index:70;display:flex;align-items:center;gap:3px;padding:4px 6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18));touch-action:none;-webkit-user-select:none;user-select:none;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 #kbBar{flex-wrap:wrap;justify-content:center}
 #kbBar.kb-v{flex-direction:column;padding:6px 4px;align-content:center}
@@ -476,6 +479,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
     else { y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - w / 2)) }
     Object.assign(bar.style, {left:x + 'px', top:y + 'px'}); placeToast();
+    // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
+    const de = document.documentElement.style; de.setProperty('--kb-room', (dock.e === 'top' ? y + h + 6 : 0) + 'px'); de.setProperty('--kb-room-b', (dock.e === 'bottom' ? H - y + 6 : 0) + 'px');
     if (!P.hidden && P.classList.contains('kb-full')) fitFull(); else if (!P.hidden) place();
   }
   bar.querySelector('.kb-grip2').addEventListener('pointerdown', e => {
@@ -807,7 +812,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   let spent = 0;
   // the first user message starts with the page as a document (citations on, cached), so the cached prefix is the same every turn
   function withDoc(messages){
-    const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order; "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral'}};
+    const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content.map((c, i) => ({type:'text', text:'[' + i + '] ' + c.text}))}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order, each starting with its block number in square brackets (the number the page-changing tools take); "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral'}};
     const m0 = messages[0], c0 = typeof m0.content === 'string' ? [{type:'text', text:m0.content}] : m0.content;
     return [{role:'user', content:[doc].concat(c0)}].concat(messages.slice(1));
   }
@@ -1141,7 +1146,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function blockOf(e){ const B = docBlocks(); for (let x = e; x && x !== pageRoot(); x = x.parentElement) { const i = B.els.indexOf(x); if (i >= 0) return i } return -1 }
   function blockHint(job){
     const e = job.marks && job.marks[0] ? anchorOf(job.marks[0]) : job.anchorEl; if (!e) return '';
-    const i = blockOf(e); return i >= 0 ? 'Their marks or highlight are on block ' + i + ' of the page document' + (job.hl ? '' : ' (or the blocks around it)') + '.' : '';
+    const i = blockOf(e); if (i < 0) return ''; const t = (docBlocks().content[i] || {}).text || '', w = t.split(/\s+/).slice(0, 8).join(' ');
+    return 'Their marks or highlight are on block [' + i + '] of the page document' + (w ? ', which begins "' + w + '…"' : '') + (job.hl ? '' : ' (or the blocks around it)') + '. A change they ask for about it goes to that block number.';
   }
   // the reader's own words must ask for a change (or they tapped one of a change's own buttons): web pages can never change the page
   const ASKED_CHANGE = new RegExp(['\\b(rewrite|rephrase|reword|visuali[sz]e|re-?draw)\\b',
@@ -1173,7 +1179,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // a new change record: where (path, quote and a hash of the block's original text), new until kept, in the request's group, with what
   // the request itself made (a highlight or a loop) so it can go with the change
-  const newEdit = (kind, e, job, more) => Object.assign({id:newId(), kind, a:pathOf(e), qt:quoteOf(e), oh:hashT(origText(e)), st:'new', show:'edit', g:job.gid || newId(), made:(job.made || []).slice(), ask:job.typed || '', t:Date.now()}, more || {});
+  const newEdit = (kind, e, job, more) => Object.assign({id:newId(), kind, a:pathOf(e), qt:quoteOf(e), oh:hashT(origText(e)), st:'new', show:'edit', g:job.gid || newId(), made:(job.made || []).slice(), ask:job.typed || '', t:Date.now()}, job.note && job.newNote ? {nid:job.note.n.id} : {}, more || {});   // the note this request opened goes with it, even when the reply then fails
   // the block a hide, a move or added text acts on: a whole table or definition list rather than one of its cells or terms
   const wideBlock = e => e && (/^(TD|TH|TR|CAPTION|THEAD|TBODY)$/.test(e.tagName) ? e.closest('table') || e : /^(DT|DD)$/.test(e.tagName) ? e.closest('dl') || e : e);
   const textOK = e => REWRITABLE.test(e.tagName) && !e.querySelector('input,select,button:not(.kb-edtag),canvas,svg,textarea,iframe,ul,ol,p,table,div,pre,blockquote,figure') && !(e.closest('figure,.lab,.stage,.viz,[class*=viz],[class*=lab]') && e.tagName !== 'FIGCAPTION');
@@ -1683,8 +1689,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // a note a request opened belongs to its changes (and goes with them when they are all removed)
   function linkNote(job){ if (!job.gid || !job.note || !job.newNote) return; for (const y of edits) if (y.g === job.gid && !y.nid) y.nid = job.note.n.id }
 
-  // ---- removing changes: what the request made goes with its last change (its highlight or loop, and its note unless the reader
-  // went on talking in it); one tap brings it all back ----
+  // ---- removing changes: what the request made goes with its last change (its highlight or loop, and the note it opened, follow-ups
+  // and all); one tap on Undo brings it all back ----
   const undoBar = el('div', {id:'kbUndo', hidden:'', role:'status'}, '<span></span><button type="button">Undo</button>'); document.body.appendChild(undoBar);
   const undos = []; let undoT = 0;
   function offerUndo(text, snap){ undos.push(snap); if (undos.length > 6) undos.shift(); undoBar.querySelector('span').textContent = text + (undos.length > 1 ? ' (' + undos.length + ' to undo)' : ''); undoBar.hidden = false; clearTimeout(undoT); undoT = setTimeout(() => { undoBar.hidden = true; undos.length = 0 }, 9000) }
@@ -1700,7 +1706,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const orphaned = new Map();   // group -> marks it made, for a request whose changes were removed while it was being written
   function tidyOrphan(job){
     const ids = orphaned.get(job.gid); if (!ids || edits.some(y => y.g === job.gid)) { orphaned.delete(job.gid); return } orphaned.delete(job.gid);
-    const n = job.newNote && job.note && job.note.n; if (n && turnsOf(n).length > 1) return;
+    const n = job.newNote && job.note && job.note.n;
     const snap = [...undos].reverse().find(u => (u.edits || []).some(y => y.g === job.gid));   // so Undo brings them back with the change
     if (n) { drop(notes, n); const ne = noteEl.get(n); if (ne) ne.remove(); noteEl.delete(n); if (snap) snap.notes.push(n) }
     for (const id of ids) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); if (snap) snap.marks.push(m) } }
@@ -1714,7 +1720,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (edits.some(y => y.g === g)) continue;
       if (g === live) { orphaned.set(g, new Set(xs.filter(x => x.g === g).flatMap(x => x.made || []))); continue }   // still being written: tidied when it ends
       const mine = xs.filter(x => x.g === g), ids = new Set(mine.flatMap(x => x.made || [])), nid = (mine.find(x => x.nid) || {}).nid, n = nid && notes.find(y => y.id === nid);
-      if (n && turnsOf(n).length > 1) continue;   // the note has a conversation of its own: it and its highlight stay
       if (n) { drop(notes, n); const ne = noteEl.get(n); if (ne) ne.remove(); noteEl.delete(n); snap.notes.push(n) }
       for (const id of ids) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); snap.marks.push(m) } }
     }
@@ -2562,10 +2567,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // shows; where it belongs is kept). A note shown away from its marks gets a thin line to them. Dots carry the note's number.
   const links = document.createElementNS(NS, 'g'); links.setAttribute('class', 'kb-links'); marksSvg.appendChild(links);
   function layoutNotes(o, ob){
-    document.documentElement.classList.toggle('kb-narrow', innerWidth < 700);
+    document.documentElement.classList.add('kb-narrow');   // every screen: only the note being read is open, the others are numbered dots
     const shown = [];
     notes.forEach((n, k) => { const e = noteEl.get(n); if (e) e.querySelector('.kb-dot').textContent = n.resolved ? '\u2713' : String(k + 1) });
-    const open = notes.map(n => [n, noteEl.get(n)]).filter(([n, e]) => e && !e.hidden && !e.classList.contains('kb-folded') && !(innerWidth < 700 && n !== activeNote))
+    const open = notes.map(n => [n, noteEl.get(n)]).filter(([n, e]) => e && !e.hidden && !e.classList.contains('kb-folded') && n === activeNote)
       .map(([n, e]) => ({n, e, top:parseFloat(e.style.top), left:parseFloat(e.style.left), w:e.offsetWidth, h:e.offsetHeight})).sort((a, b) => a.top - b.top);
     for (const x of open) { for (const y of shown) if (x.left < y.left + y.w && x.left + x.w > y.left && x.top < y.top + y.h + 8) x.top = y.top + y.h + 8; x.e.style.top = x.top + 'px'; shown.push(x) }
     links.innerHTML = ''; if (links.parentNode !== marksSvg || links !== marksSvg.lastChild) marksSvg.appendChild(links);
@@ -2798,7 +2803,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const t of turnsOf(n)) body.appendChild(turnEl(t));
     e.addEventListener('click', ev => {
       const b = ev.target.closest('[data-n]'); if (!b) return; const a = b.dataset.n;
-      if (a === 'open' && innerWidth < 700 && !n.fold && !n.resolved) { activate(n); schedule(); return }
+      if (a === 'open' && !n.fold && !n.resolved) { activate(n); schedule(); return }
+      if (a === 'fold' && !n.fold) { deactivate(); return }   // folding the open note just closes it to its dot
       if (a === 'fold' || a === 'open') { n.fold = a === 'fold'; if (a === 'open') n.resolved = false; e.classList.toggle('kb-folded', n.fold); e.classList.toggle('kb-resolved', !!n.resolved); if (!n.fold) activate(n); saveBook(); schedule() }
       else if (a === 'resolve') { n.resolved = true; n.fold = true; e.classList.add('kb-folded', 'kb-resolved'); saveBook(); schedule() }
       else if (a === 'del') { drop(notes, n); e.remove(); noteEl.delete(n); saveBook() }
@@ -2836,7 +2842,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const front = e => { e.style.zIndex = String(++noteZ) };
   // the note being read: on top, and on a narrow screen the only one open (the others show as numbered dots)
   let activeNote = null;
-  function activate(n){ activeNote = n; for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600) }
+  function activate(n){ activeNote = n; for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
+  function deactivate(){ if (!activeNote) return; activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
+  // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
+  document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS)) return; deactivate() }, true);
   // light up a note's marks for a moment (tapping or pointing at the note)
   let lightT = 0;
   function lightMarks(n, dur){
@@ -2846,6 +2855,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const b = ms.length && viewBox(ms);
     if (b) { const o = marksSvg.getBoundingClientRect(), r = document.createElementNS(NS, 'rect'); Object.entries({x:b.x0 - o.left - 8, y:b.y0 - o.top - 8, width:b.x1 - b.x0 + 16, height:b.y1 - b.y0 + 16, rx:6, class:'kb-hotr'}).forEach(([k, v]) => r.setAttribute(k, v)); marksSvg.appendChild(r) }
     if (dur) lightT = setTimeout(off, dur);
+  }
+  function marginFree(x, y, w, h){
+    for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) {
+      const px = x + w * i / 3, py = Math.min(innerHeight - 2, y + h * j / 3); if (px >= innerWidth || py < 0) return false;
+      const hit = document.elementsFromPoint(px, py).find(e => !e.closest(OURS + ',.kb-note,.kb-marks'));
+      if (!hit || /^(HTML|BODY)$/.test(hit.tagName)) continue;
+      if (!/^(DIV|SECTION|ARTICLE|MAIN)$/.test(hit.tagName) || [...hit.childNodes].some(c => c.nodeType === 3 && c.nodeValue.trim())) return false;
+      const bg = getComputedStyle(hit).backgroundColor; if (bg && !/rgba\(0, 0, 0, 0\)|transparent/.test(bg) && hit !== pageRoot() && !hit.classList.contains('tab')) return false;
+    }
+    return true;
   }
   function placeNote(n, ob){
     const e = noteEl.get(n) || noteNode(n), f = frameOf(n);
@@ -2889,11 +2908,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
       if (job.follow || job.reuse) {
         const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
-        n.fold = false; e.classList.remove('kb-folded'); front(e); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
+        n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
       const b = job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);
       let x, y;
-      if ((job.hl || job.lasso) && job.typed) { x = b.x0; y = b.y1 + 6 }   // a question about a selection or a loop: just under it
+      const blk = job.anchorEl && job.anchorEl.isConnected ? job.anchorEl.getBoundingClientRect() : null, mx = Math.max(b.x1, blk ? blk.right : b.x1) + 14;
+      if (mx + w <= W - 8 && marginFree(mx, b.y0, w, 220)) { x = mx; y = Math.max(b.y0 - 4, 8) }   // the empty margin beside the passage, level with it
+      else if ((job.hl || job.lasso) && job.typed) { x = b.x0; y = b.y1 + 6 }   // a question about a selection or a loop: just under it
       else if (b.x1 + 12 + w <= W - 8) { x = b.x1 + 12; y = b.y0 }
       else if (b.x0 - 12 - w >= 8) { x = b.x0 - 12 - w; y = b.y0 }
       else { x = b.x0; y = b.y1 + 8 }
