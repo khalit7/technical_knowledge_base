@@ -59,6 +59,7 @@
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
   };
   const mem = {};
+  const mgSpot = new Map(); addEventListener('resize', () => mgSpot.clear());   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
   const SYNCED = ['kbAsk.model', 'kbBuddy.wait', 'kbBuddy.claude', 'kbBuddy.see', 'kbBuddy.qsend', 'kbBuddy.scratch', 'kbBuddy.nudge', 'kbBuddy.prompts', 'kbBuddy.means', 'kbBuddy.web'];
@@ -79,7 +80,7 @@
 
   const css = `
 body{padding-top:var(--kb-room,0px)!important;padding-bottom:var(--kb-room-b,0px)!important}html{scroll-padding-top:calc(var(--kb-room,0px) + 56px)}
-body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room,0px);background:var(--bg,#fff);z-index:50;pointer-events:none;box-shadow:0 1px 0 var(--line,rgba(0,0,0,.08))}
+body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room,0px);background:var(--bg,#fff);z-index:60;pointer-events:none;box-shadow:0 1px 0 var(--line,rgba(0,0,0,.08))}
 .nav{top:var(--kb-room,0px)!important}.stg,.s3stick{top:calc(50px + var(--kb-room,0px))!important}.s3side{top:calc(20px + var(--kb-room,0px))!important}.nm-nav,.dd-nav,.mx-nav{top:var(--kb-room,0px)!important}
 #kbBar{position:fixed;z-index:70;display:flex;align-items:center;gap:3px;padding:4px 6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18));touch-action:none;-webkit-user-select:none;user-select:none;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 #kbBar{flex-wrap:wrap;justify-content:center}
@@ -452,7 +453,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let tool = /^(hand|pen|hl|erase|text|lasso)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
+  let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand', color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
   const qOn = () => mine.get('qsend') !== 'off', scratchOn = () => mine.get('scratch') !== 'off', nudgeOn = () => mine.get('nudge') !== 'off', webOn = () => mine.get('web') !== 'off';
@@ -477,7 +478,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const W = innerWidth, H = innerHeight, w = bar.offsetWidth, h = bar.offsetHeight, m = 8;
     let x, y;
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
-    else { y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - w / 2)) }
+    else {   // centred on its usual width: the buttons that come and go (Send, the section dot, sync) extend it to the right, so the tools never slide
+      const extra = [...bar.querySelectorAll('[data-b=nudge],[data-b=send],[data-b=sync]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
+      y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - (w - extra) / 2)) }
     Object.assign(bar.style, {left:x + 'px', top:y + 'px'}); placeToast();
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
     const de = document.documentElement.style; de.setProperty('--kb-room', (dock.e === 'top' ? y + h + 6 : 0) + 'px'); de.setProperty('--kb-room-b', (dock.e === 'bottom' ? H - y + 6 : 0) + 'px');
@@ -1449,7 +1452,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const cs = getComputedStyle(document.body), rs = getComputedStyle(document.documentElement), v = n => (cs.getPropertyValue(n) || rs.getPropertyValue(n)).trim();
     const vars = ['--ink', '--bg', '--acc', '--line', '--soft', '--card', '--mute', '--bad', '--good', '--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--shadow'].map(n => n + ':' + (v(n) || (n === '--ink' ? cs.color : n === '--bg' ? cs.backgroundColor : '#888'))).join(';');
     return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; form-action \'none\'; base-uri \'none\'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{' + vars + '}html,body{margin:0;background:transparent;color:var(--ink);font:15px/1.5 ' + cs.fontFamily + '}*{box-sizing:border-box}</style>' + FRAME_JS + (uses3d(x) ? '<style>' + ((document.getElementById('kb-split') || {}).textContent || '') + '</style><script>' + S3SRC + '<\/script>' : '') + '<\/he' + 'ad><bo' + 'dy>' + x.html +
-      '<script>(function(){var id=' + JSON.stringify(x.id) + ',f=function(){parent.postMessage({kbVis:id,h:Math.ceil(document.documentElement.getBoundingClientRect().height)},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
+      '<script>(function(){var id=' + JSON.stringify(x.id) + ',f=function(){parent.postMessage({kbVis:id,h:Math.ceil(Math.max(document.documentElement.getBoundingClientRect().height,document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0))},"*")};try{new ResizeObserver(f).observe(document.documentElement)}catch(e){}addEventListener("load",f);setTimeout(f,60);setTimeout(f,600)})()<\/script></body></html>';
   }
   // messages from a visual's frame (checked to come from that frame): its height, and the step it shows (marked in its step list)
   window.addEventListener('message', e => {
@@ -2579,8 +2582,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const x of open) {   // not moved by hand: shown in the empty margin beside its passage when there is one, so it covers nothing
       if (x.n.dragged) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
       const ae = anchorEl(x.n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null, bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}); if (!bx) continue;
-      const mx = Math.max(bx.x1, ar ? ar.right : bx.x1) + 14, my = Math.max(bx.y0 - 4, 8);
-      if (mx + x.w <= innerWidth - 8 && marginFree(mx, my, x.w, Math.min(x.h, 260))) { x.left = mx - ob.left; x.top = my - ob.top; x.e.style.left = x.left + 'px' }
+      const f = frameOf(x.n); if (!f) continue;
+      if (!mgSpot.has(x.n)) { const mg = findMargin(bx, ar ? ar.right : bx.x1, x.w, x.h); mgSpot.set(x.n, mg ? {dx:mg.x - f.x, dy:mg.y - f.y} : null) }   // found once, then it scrolls with its passage
+      const sp = mgSpot.get(x.n); if (sp) { x.left = f.x + sp.dx - ob.left; x.top = f.y + sp.dy - ob.top; x.e.style.left = x.left + 'px' }
     }
     for (const x of open) { for (const y of shown) if (x.left < y.left + y.w && x.left + x.w > y.left && x.top < y.top + y.h + 8) x.top = y.top + y.h + 8; x.e.style.top = x.top + 'px'; shown.push(x) }
     links.innerHTML = ''; if (links.parentNode !== marksSvg || links !== marksSvg.lastChild) marksSvg.appendChild(links);
@@ -2859,7 +2863,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const front = e => { e.style.zIndex = String(++noteZ) };
   // the note being read: on top, and on a narrow screen the only one open (the others show as numbered dots)
   let activeNote = null;
-  function activate(n){ activeNote = n; for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
+  function activate(n){ activeNote = n; mgSpot.delete(n); for (const [m, e] of noteEl) e.classList.toggle('kb-active', m === n); const e = noteEl.get(n); if (e) front(e); lightMarks(n, 1600); schedule() }
   function deactivate(){ if (!activeNote) return; activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
   document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS)) return; deactivate() }, true);
@@ -2872,6 +2876,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const b = ms.length && viewBox(ms);
     if (b) { const o = marksSvg.getBoundingClientRect(), r = document.createElementNS(NS, 'rect'); Object.entries({x:b.x0 - o.left - 8, y:b.y0 - o.top - 8, width:b.x1 - b.x0 + 16, height:b.y1 - b.y0 + 16, rx:6, class:'kb-hotr'}).forEach(([k, v]) => r.setAttribute(k, v)); marksSvg.appendChild(r) }
     if (dur) lightT = setTimeout(off, dur);
+  }
+  // the nearest empty margin spot beside a passage (right of it, level with it or a little lower), on screen and clear of the toolbar band
+  function findMargin(bx, right, w, h){
+    const top0 = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0) + 8, x = Math.max(bx.x1, right) + 14;
+    if (x + w > innerWidth - 8) return null;
+    for (let dy = 0; dy <= 640; dy += 40) { const y = Math.max(bx.y0 - 4, top0) + dy; if (y > innerHeight - 80) break; if (marginFree(x, y, w, Math.min(h, 220))) return {x, y} }
+    return null;
   }
   function marginFree(x, y, w, h){
     for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) {
@@ -2929,8 +2940,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       }
       const b = job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);
       let x, y;
-      const blk = job.anchorEl && job.anchorEl.isConnected ? job.anchorEl.getBoundingClientRect() : null, mx = Math.max(b.x1, blk ? blk.right : b.x1) + 14;
-      if (mx + w <= W - 8 && marginFree(mx, b.y0, w, 220)) { x = mx; y = Math.max(b.y0 - 4, 8) }   // the empty margin beside the passage, level with it
+      const blk = job.anchorEl && job.anchorEl.isConnected ? job.anchorEl.getBoundingClientRect() : null, mg = findMargin(b, blk ? blk.right : b.x1, w, 220);
+      if (mg) { x = mg.x; y = mg.y }   // the empty margin beside the passage
       else if ((job.hl || job.lasso) && job.typed) { x = b.x0; y = b.y1 + 6 }   // a question about a selection or a loop: just under it
       else if (b.x1 + 12 + w <= W - 8) { x = b.x1 + 12; y = b.y0 }
       else if (b.x0 - 12 - w >= 8) { x = b.x0 - 12 - w; y = b.y0 }
