@@ -94,7 +94,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar.kb-v .kb-grip2{width:32px;height:18px}
 #kbBar .kb-sep{width:1px;height:22px;background:var(--line);margin:0 3px;flex:none}
 #kbBar.kb-v .kb-sep{width:22px;height:1px;margin:3px 0}
-#kbBar .kb-sws{display:flex;gap:3px;align-items:center}
+#kbBar .kb-sws{display:flex;gap:3px;align-items:center}#kbBar.kb-compact .kb-sws{position:relative}#kbBar.kb-compact .kb-sws:not(.kb-open) .kb-sw:not([aria-pressed=true]){display:none}#kbBar.kb-compact .kb-sws.kb-open{position:absolute;z-index:2;top:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:8px 10px;gap:8px;background:var(--card,var(--bg));border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.18))}
 #kbBar.kb-v .kb-sws{flex-direction:column}
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
@@ -370,6 +370,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="sync" hidden aria-label="Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span class="kb-sdot"></span></button>' +
     '<button type="button" data-b="set" title="Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
     '<button type="button" data-b="min" title="Make the toolbar small" aria-label="Make the toolbar small">&#x2013;</button>');
+  const sws = bar.querySelector('.kb-sws');
+  document.addEventListener('pointerdown', e => { if (sws.classList.contains('kb-open') && !sws.contains(e.target)) sws.classList.remove('kb-open') }, true);
+  let barRO = 0; try { new ResizeObserver(() => { cancelAnimationFrame(barRO); barRO = requestAnimationFrame(() => { if (!bar.classList.contains('kb-drag')) placeBar() }) }).observe(bar) } catch(e) {}
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
   P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="marks" title="Overview: every mark, highlight and note on this page; tap one to go there">Marks</button><button type="button" data-a="find" title="All pages at a glance, and search what you and Claude wrote">Pages</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
@@ -475,6 +478,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
   function placeBar(){
     const v = dock.e === 'left' || dock.e === 'right'; bar.classList.toggle('kb-v', v); Object.assign(bar.style, {left:'0px', top:'0px'});
+    // too wide for one row (an iPad held upright): the colours fold into the current one, which opens the palette
+    bar.classList.remove('kb-compact'); if (!v && bar.offsetHeight > 62) bar.classList.add('kb-compact');
     const W = innerWidth, H = innerHeight, w = bar.offsetWidth, h = bar.offsetHeight, m = 8;
     let x, y;
     if (v) { x = dock.e === 'left' ? m : W - w - m; y = Math.max(m, Math.min(H - h - m, dock.f * H - h / 2)) }
@@ -514,7 +519,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   bar.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.t) setTool(b.dataset.t === tool && tool !== 'hand' ? 'hand' : b.dataset.t);
-    else if (b.dataset.c != null) { color = b.dataset.c; mine.set('color', color || null); if (tool === 'hand' || tool === 'erase') setTool('pen'); else syncBar() }
+    else if (b.dataset.c != null && bar.classList.contains('kb-compact') && !sws.classList.contains('kb-open')) { sws.classList.add('kb-open') }
+    else if (b.dataset.c != null) { sws.classList.remove('kb-open'); color = b.dataset.c; mine.set('color', color || null); if (tool === 'hand' || tool === 'erase') setTool('pen'); else syncBar() }
     else if (b.dataset.b === 'width') { thick = !thick; mine.set('thick', thick ? '1' : null); syncBar() }
     else if (b.dataset.b === 'undo') undo();
     else if (b.dataset.b === 'claude') { mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing ' + waitS() + ' s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
@@ -2558,14 +2564,42 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     g.setAttribute('stroke-linecap', 'round'); g.setAttribute('stroke-linejoin', 'round'); if (m.h) g.setAttribute('stroke-opacity', '0.35');
     if (m.dash) { g.style.stroke = 'var(--acc)'; g.setAttribute('stroke-dasharray', '7 6'); g.setAttribute('stroke-opacity', '0.55'); g.setAttribute('stroke-width', '1.6') } else g.style.stroke = '';
   }
+  // ---- a highlight made from a selection follows its words: drawn from the text itself on every layout, so it stays on the right
+  // words when the text reflows (another screen width, the iPad turned); its stored strokes are the fallback when the words are gone ----
+  const selG = document.createElementNS(NS, 'g'); selG.setAttribute('class', 'kb-selhl');
+  const selRects = new Map(), selHid = new Set(), selBox = new Map(), selRange = new Map();
+  function findText(root, text){
+    const want = String(text || '').replace(/\s+/g, ' ').trim(); if (want.length < 2) return null;
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: t => t.parentElement && t.parentElement.closest(OURS + ',' + KB_NODES + ',script,style') ? 2 : 1});
+    let norm = '', map = [], sp = true;
+    for (let t = tw.nextNode(); t; t = tw.nextNode()) { const v = t.nodeValue; for (let i = 0; i < v.length; i++) { const ws = /\s/.test(v[i]); if (ws) { if (sp) continue; norm += ' '; sp = true } else { norm += v[i]; sp = false } map.push([t, i]) } }
+    const k = norm.indexOf(want); if (k < 0) return null;
+    const r = document.createRange(), a = map[k], b = map[k + want.length - 1]; r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1); return r;
+  }
+  function drawSel(o, over){
+    selG.replaceChildren(); selRects.clear(); selHid.clear(); selBox.clear(); if (selG.parentNode !== marksSvg) marksSvg.insertBefore(selG, marksSvg.firstChild);
+    for (const n of notes) {
+      if (!n.hl || !n.marks || !n.marks.length) continue;
+      const ms = n.marks.map(id => marks.find(m => m.id === id)).filter(m => m && m.h); if (!ms.length || ms.some(m => over.has(m.id)) || !frameOf(ms[0])) continue;
+      let r = selRange.get(n); if (!r || !r.startContainer.isConnected || r.collapsed) {
+        const a = anchorOf(ms[0]); r = a && a !== pageRoot() ? findText(a, n.hl) || (a.parentElement && a.parentElement !== pageRoot() ? findText(a.parentElement, n.hl) : null) : null;
+        if (r) selRange.set(n, r); else { selRange.delete(n); continue } }
+      const lines = []; for (const q of r.getClientRects()) { if (q.width < 2) continue; const L = lines.find(l => Math.abs(l.t - q.top) < 4); if (L) { L.l = Math.min(L.l, q.left); L.r = Math.max(L.r, q.right); L.b = Math.max(L.b, q.bottom) } else lines.push({l:q.left, r:q.right, t:q.top, b:q.bottom}) }
+      if (!lines.length) continue;
+      for (const L of lines) { const e = document.createElementNS(NS, 'rect'); Object.entries({x:r1(L.l - o.left - 1), y:r1(L.t - o.top), width:r1(L.r - L.l + 2), height:r1(L.b - L.t), rx:3, fill:ms[0].c || '#f5c400', 'fill-opacity':0.35}).forEach(([k2, v]) => e.setAttribute(k2, v)); selG.appendChild(e) }
+      const bx = {x0:Math.min(...lines.map(L => L.l)), y0:lines[0].t, x1:Math.max(...lines.map(L => L.r)), y1:lines[lines.length - 1].b};
+      selRects.set(n, lines); for (const m of ms) { selHid.add(m.id); selBox.set(m.id, bx) }
+    }
+  }
   function markNode(m){ const g = document.createElementNS(NS, 'path'); styleMark(g, m); g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(g); markEl.set(m, g); return g }
   function placeMarks(){
     const o = marksSvg.getBoundingClientRect(), seen = new Map();
     // a highlight or loop that asked for a rewrite was drawn over the old words: hidden while Claude's version shows, back with the original
     const over = new Set(); for (const x of edits) if (x.kind === 'rewrite' && x.made && x.made.length) { const e = anchorOf(x); if (e && e.classList.contains('kb-ed-on')) x.made.forEach(id => over.add(id)) }
+    drawSel(o, over);
     for (const m of marks) {
       const g = markEl.get(m) || markNode(m), k = m.a + '|' + m.aw; if (!seen.has(k)) seen.set(k, frameOf(m)); const f = seen.get(k);
-      if (!f || over.has(m.id)) { g.style.display = 'none'; continue }
+      if (!f || over.has(m.id) || selHid.has(m.id)) { g.style.display = 'none'; continue }
       g.style.display = ''; g.setAttribute('transform', `translate(${(f.x - o.left).toFixed(1)} ${(f.y - o.top).toFixed(1)}) scale(${f.s.toFixed(4)})`);
     }
     const ob = notesBox.getBoundingClientRect(); for (const n of notes) placeNote(n, ob);
@@ -2597,6 +2631,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const sp = mgSpot.get(x.n); if (sp) { x.left = f.x + sp.dx - ob.left; x.top = f.y + sp.dy - ob.top; x.e.style.left = x.left + 'px' }
     }
     for (const x of open) { for (const y of shown) if (x.left < y.left + y.w && x.left + x.w > y.left && x.top < y.top + y.h + 8) x.top = y.top + y.h + 8; x.e.style.top = x.top + 'px'; shown.push(x) }
+    const W0 = document.documentElement.clientWidth;   // a note or dot placed on a wider screen stays inside this one (no sideways scrolling)
+    for (const [n, e] of noteEl) { if (e.hidden) continue; const L = parseFloat(e.style.left) || 0, w = e.offsetWidth, lim = W0 - w - 6 - ob.left; if (L > lim) e.style.left = Math.max(6 - ob.left, lim) + 'px'; else if (L < 6 - ob.left) e.style.left = (6 - ob.left) + 'px' }
+    for (const x of open) x.left = parseFloat(x.e.style.left) || 0;
     links.innerHTML = ''; if (links.parentNode !== marksSvg || links !== marksSvg.lastChild) marksSvg.appendChild(links);
     for (const x of open) {
       const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms); if (!b) continue;
@@ -2615,14 +2652,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the viewport box of some marks (null when none is in view), and the text of the element the first one is pinned to
   function viewBox(ms){
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for (const m of ms) { const f = frameOf(m); if (!f) continue; for (const q of m.p) { const x = f.x + q[0] * f.s, y = f.y + q[1] * f.s; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y) } }
+    for (const m of ms) { const sb = selBox.get(m.id); if (sb) { x0 = Math.min(x0, sb.x0); y0 = Math.min(y0, sb.y0); x1 = Math.max(x1, sb.x1); y1 = Math.max(y1, sb.y1); continue }
+      const f = frameOf(m); if (!f) continue; for (const q of m.p) { const x = f.x + q[0] * f.s, y = f.y + q[1] * f.s; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y) } }
     return x0 > x1 ? null : {x0, y0, x1, y1};
   }
   function nearText(ms){ const e = ms.length && anchorEl(ms[0].a); if (!e || e === pageRoot()) return ''; const t = (e.innerText || e.textContent || '').replace(/\s+/g, ' ').trim(); return (where(e) ? '(' + where(e) + ') ' : '') + t.slice(0, 700) }
   // the marks (and the open notes) drawn into the screen image; the new marks outlined
   function paintMarks(g, fresh){
     const def = getComputedStyle(document.body).color || '#222';
-    for (const m of marks) { const f = frameOf(m); if (!f) continue; g.save(); g.translate(f.x, f.y); g.scale(f.s, f.s); drawStroke(g, Object.assign({}, m, {w:markW(m), p:m.p.map(q => [q[0], q[1], 0.5])}), def); g.restore() }
+    g.save(); for (const [n, ls] of selRects) { const ms0 = marks.find(m => m.id === n.marks[0]); g.fillStyle = (ms0 && ms0.c) || '#f5c400'; g.globalAlpha = 0.35; for (const L of ls) g.fillRect(L.l, L.t, L.r - L.l, L.b - L.t) } g.restore();
+    for (const m of marks) { const f = frameOf(m); if (!f || selHid.has(m.id)) continue; g.save(); g.translate(f.x, f.y); g.scale(f.s, f.s); drawStroke(g, Object.assign({}, m, {w:markW(m), p:m.p.map(q => [q[0], q[1], 0.5])}), def); g.restore() }
     const rg = document.createRange();
     for (const [n, e] of noteEl) {
       if (e.hidden || n.fold) continue; const r = e.getBoundingClientRect(); if (!inV(r)) continue;
@@ -2791,7 +2830,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }, {passive:false, capture:true});
   function erasePage(cx, cy){
     let hit = false;
-    for (const m of marks.slice()) { const f = frameOf(m); if (!f || !marks.includes(m)) continue; if (nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (12 + markW(m) / 2) / f.s)) {
+    for (const [n, ls] of [...selRects]) if (ls.some(L => cx >= L.l - 6 && cx <= L.r + 6 && cy >= L.t - 6 && cy <= L.b + 6)) { for (const id of n.marks) { const y = marks.find(z => z.id === id); if (y && y.h) removeMark(y) } selRects.delete(n); hit = true }
+    for (const m of marks.slice()) { const f = frameOf(m); if (!f || !marks.includes(m) || selHid.has(m.id)) continue; if (nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (12 + markW(m) / 2) / f.s)) {
       // a highlight made from a selection is one thing (a stroke per line): it goes whole
       const n = m.h && notes.find(o => o.hl && (o.marks || []).includes(m.id)), all = n ? n.marks.map(id => marks.find(y => y.id === id)).filter(y => y && y.h) : [m];
       for (const y of all) removeMark(y); hit = true } }
@@ -2919,6 +2959,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // the note whose marks are under a point (viewport), if any
   function noteAt(cx, cy){
+    for (const [n, ls] of selRects) if (ls.some(L => cx >= L.l && cx <= L.r && cy >= L.t - 2 && cy <= L.b + 2)) return n;
     for (const n of notes.slice().reverse()) {
       if (!n.marks) continue;
       for (const id of n.marks) { const m = marks.find(x => x.id === id), f = m && frameOf(m); if (f && nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (8 + markW(m) / 2) / f.s)) return n }
