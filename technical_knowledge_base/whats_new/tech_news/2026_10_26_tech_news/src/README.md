@@ -10,7 +10,7 @@ Ten tabs: **At a glance** (`t-read`, open by default: lead, theme, week strip, o
 ## Machinery (copied from 2026_10_19_tech_news)
 - `mk_items.py` parses `issue.md` into `data/items.json` (unchanged).
 - `data/annotations.json`: window and strip axis, glance texts, section leads, per item dates, short label, feeds, Hacker News points and comments read on 2026-10-26 (with thread links), notes (Checked, Correction, Unconfirmed, Related) and `viz_after`. It starts with no follow-ups.
-- `mk_issue.py` renders the tabs; `mk_coverage.py` proves every item, number and link survived into the page (`coverage.json`, `all_found`).
+- `mk_issue.py` renders the tabs.
 - `recompute.py` asserts every derived number in the text and the visuals.
 - Visuals: `v_strip` + `12_js_strip.js`, `v_cost` + `13_js_cost.js` (Top stories, beside the Kimi story), `v_graft` + `14_js_graft.js` (Research, beside GRAFT; on `RD.anim` since 2026-11-13, below). `viz_ideas.md` records the choices.
 - Checks: `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/tech_news/2026_10_26_tech_news` from the repo root.

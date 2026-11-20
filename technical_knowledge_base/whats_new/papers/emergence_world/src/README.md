@@ -1,8 +1,8 @@
 # Emergence World (Study 2): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d818fbffbc9e2ceab824b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`mk_paper.py` in the MOLE variant, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `05z_errbox.js.html`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`, `mk_coverage.py` with this paper's own items).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d818fbffbc9e2ceab824b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`mk_paper.py` in the MOLE variant, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `05z_errbox.js.html`, the CSS, `check_page.mjs`, `extract_paper.py`).
 
-The page follows arXiv v1 (15 September 2026), the only version on 3 October 2026. The Notion text (`live.md`, fetched as of 21 September) is fully covered (`coverage.json`, 30 of 30 items verified against the built page).
+The page follows arXiv v1 (15 September 2026), the only version on 3 October 2026.
 
 ## Tabs
 
@@ -23,7 +23,6 @@ The page follows arXiv v1 (15 September 2026), the only version on 3 October 202
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `inputs/tables_v1.txt`, `inputs/anchors.txt` (the HTML itself is not kept).
 - `mine_logs.py`: reads the Season 2 tool-call dataset from `$EW_DATA` (default `~/.cache/emergence_world`; download the eight zips from https://github.com/EmergenceAI/Emergence-World/tree/main/Season%202/tool_call_dataset and unzip there, about 175 MB zipped, 875 MB unzipped; not kept in the repo). Removes exact duplicate records, counts crimes, votes, breach searches, tool shares, the post_egress tally, and classifies the stress-event calls with the rules it prints; writes `model/logs.json` and `model/mine_log.txt`. Run it again only if the rules change; everything else reads `model/logs.json`.
 - `mk_logs_js.py`: the part of `model/logs.json` the page ships (`parts/21_logs_data.js`, about 59 KB).
@@ -38,7 +37,7 @@ The page follows arXiv v1 (15 September 2026), the only version on 3 October 202
 - **Owned elsewhere, now linked** (what this paper did kept here): controls at the action boundary (Agent security, key "lethal trifecta") and the MAST taxonomy that "reasoning-action mismatch" comes from (Multi-agent patterns).
 - **Moved into closed blocks**: provenance and corrections to the first summary; the Language section's coined terms, opacity judge and human parallels (a two-sentence summary stays in the core). No volatile follow-up news was on the page, so there is no dated block.
 - **Never autoplays**: `makeAnim` (copied from the Phi-Bench page) waits on step 1 until the reader presses play or steps, also after a mode switch; both captions say so. `check_page.mjs` scrolls `ocx` and `rpx` into view and fails on any frame drawn before a click, clicks tabs through the DOM and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `ew-tab`; `90_js_tabs.js` removed). Header: "Reading: 28 min, plus 16 in closed details." from `reading.json`.
-- **Takeaway softened** (`paper.json` takeaway and takeaway_note, so the card, `live.md` and `mk_coverage.py`): run lengths as the paper reports them (4 to 21 days, not 16); "more than 850,000" calls and "nearly 50 billion" tokens; the 46 hours is one agent's retry after the campaign, not a detection-to-stop delay; "none was resilient" is now what the scorecards show; "model-level alignment proved not to be compositional" is now the authors' interpretation of single runs. The Notion property itself is Khalid's to change.
+- **Takeaway softened** (`paper.json` takeaway and takeaway_note, so the card): run lengths as the paper reports them (4 to 21 days, not 16); "more than 850,000" calls and "nearly 50 billion" tokens; the 46 hours is one agent's retry after the campaign, not a detection-to-stop delay; "none was resilient" is now what the scorecards show; "model-level alignment proved not to be compositional" is now the authors' interpretation of single runs. The Notion property itself is Khalid's to change.
 - **Length judgement**: Reading core 28 min before (6,346 words, 27.6 min) and 28 after (6,433, 28.0), plus 14 then 16 in closed details (3,328 then 3,735 words; `audit_pages.mjs`, 230 words a minute). The top added about 1.5 minutes; folding Language and the provenance note took out about as much. The rest is core: three stress events with their scorecards, five indicators, the Claude-world case and an evidence section that recounts the paper against its released records. Over time and Model or population could also fold if Khalid wants it shorter. Other tabs: Replay 8.5 to 8.6 min (caption), Tables 13.9 and Further reading 3.1 unchanged.
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 397 units; core 250, depth 142, owned 2, volatile 0, fat 3 (old header line, the old "kept as written" card note, the old autoplay note); `ledger.py check` problems 0.
 - **No real image**: the paper's subject is software agents in a simulated town; its own figures are CC BY-NC (the repository's licence) or of unstated licence, so the key results are redrawn from tables and records instead.
@@ -46,7 +45,7 @@ The page follows arXiv v1 (15 September 2026), the only version on 3 October 202
 
 ## Checks (25 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (354 actions); `recompute.py` 36 reproduce, 18 close, 17 do not, 7 paper disagrees, 3 derived (unchanged); `mk_coverage.py` 30 of 30; `ledger.py check` problems 0.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (354 actions); `recompute.py` 36 reproduce, 18 close, 17 do not, 7 paper disagrees, 3 derived (unchanged); `ledger.py check` problems 0.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -74,4 +73,4 @@ The growth is the step lists that explain the three stages (about 1,100 words) a
 Ledger: 402 units (core 255, depth 142, owned 2, volatile 0, fat 3); `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 4, about 305 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stages and animations over three widths, 0 problems. `verify_layout.mjs`: problems 0. `mk_coverage.py`: 30 of 30. `recompute.py` unchanged.
+`checkpage.sh`: tabs 4, about 305 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stages and animations over three widths, 0 problems. `verify_layout.mjs`: problems 0. `recompute.py` unchanged.

@@ -1,6 +1,6 @@
 # Source of "Data mixing, curricula and continued-pretraining ratios" (prefix mx2)
 
-Child page of Topic: data-curation-and-datasets. Reuses the old Notion page "Data mixing" (old text in the root's `src/read/old/03_data_mixing.md`; claim-by-claim status in `coverage.md`).
+Child page of Topic: data-curation-and-datasets. Reuses the old Notion page "Data mixing".
 
 ## Build and check
 - `sh build.sh`: runs `recompute.py` (every derived number and every check; writes `data/mx2_data.json` and `data/checks.json`), writes `parts/22_js_data.js`, assembles `../index.html`. Links `{{text|url}}`, `{{text|n:<notion id>}}`, `{{text|#t-<tab>}}`.

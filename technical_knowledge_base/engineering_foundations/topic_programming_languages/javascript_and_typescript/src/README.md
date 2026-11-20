@@ -12,7 +12,7 @@ The essentials page of JavaScript and TypeScript (prefix `je`, storage key `je-t
 - `merge_ledger.py`: how `ledger.json` was made from the master ledger (below).
 
 ## What was removed
-With plain `rm` on 2026-10-26: `src/tb/` (Part 2, now `typescript/src/tb/`) and `src/tl/` (Part 3, now `llm_apps_and_agents/src/tl/`), whole; every old file in `src/parts/` (the part bar, Start here, the three parts' tabs and scripts, the two-level tab script); from `src/ja/`, the examples and outputs the children now hold (`b*` to `j*`, `n*`, `f_mod/`, `loop/`, `q/`, `i4_trace.json`, `j1_sse.json`), the old templates, `check_ui.mjs` and `viz_ideas.md`. Kept in `src/ja/`: `a1`, `k1` to `k6`, `l1`, `l2`, `m1` to `m3`, `x1`, `x2` and their outputs, with a trimmed `run_all.sh`, a new `gen.py` and `check_embed.py`; `coverage.json` trimmed to this page. The worker-threads run stays here because the event-loop child links it.
+With plain `rm` on 2026-10-26: `src/tb/` (Part 2, now `typescript/src/tb/`) and `src/tl/` (Part 3, now `llm_apps_and_agents/src/tl/`), whole; every old file in `src/parts/` (the part bar, Start here, the three parts' tabs and scripts, the two-level tab script); from `src/ja/`, the examples and outputs the children now hold (`b*` to `j*`, `n*`, `f_mod/`, `loop/`, `q/`, `i4_trace.json`, `j1_sse.json`), the old templates, `check_ui.mjs` and `viz_ideas.md`. Kept in `src/ja/`: `a1`, `k1` to `k6`, `l1`, `l2`, `m1` to `m3`, `x1`, `x2` and their outputs, with a trimmed `run_all.sh`, a new `gen.py` and `check_embed.py`. The worker-threads run stays here because the event-loop child links it.
 
 Nothing inside this language folder reads the removed paths. Outside it, readers of the old `src/tl/` (to be repointed by the lead to `llm_apps_and_agents/src/tl/outputs/`, where the same files are): `engineering_foundations/topic_protocols/src/read/gen_data.py` line 6 (`TL = ... javascript_and_typescript/src/tl/outputs`, read at generation time), the text of `engineering_foundations/topic_protocols/src/parts/20_read_h.html` line 23, that page's ledger key (`src/ledger.json`, the unit quoting `src/tl/outputs/g3_mcp_http.json`) and `src/read/viz_ideas.md`.
 
@@ -43,7 +43,7 @@ None to remove: no recording, drill or prediction appears on two children. The l
 `sh html_utils/checkpage.sh <page>`: fail=0, emdash 0, errbox 1, clipped 0. `python3 src/ja/check_embed.py`: 13 outputs embedded, problems 0. Every Notion id linked is in `pages.json`.
 
 ## 2026-11-07: split layout, a 3D hero (renderer v2), explained and autoplaying steps (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the four children were rebuilt in the same rollout. `01_head.html` kept (it carries the `kb-look` block).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the four children were rebuilt in the same rollout. `01_head.html` kept (it carries the `kb-look` block).
 
 **Sections** (Reading tab; Further reading unchanged):
 | Section | Layout | Visual | Step list |

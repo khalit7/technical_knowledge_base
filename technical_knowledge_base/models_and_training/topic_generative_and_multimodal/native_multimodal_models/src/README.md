@@ -49,7 +49,7 @@ Why 33 minutes is right: the Reading tab now holds what two lab tabs used to car
 351 units: core 245, depth 83, fat 23. 335 were drafted from the old page by `ledger.py init`; 16 were added by hand (script-rendered tables and the explorer, the moved lab, and the new section 7 and figures). Fat units carry a `note`.
 
 ## Departures from the child-page method
-The Reading tab is organised by the subject's logic; one tool tab (Token economics) remains. The old Notion page could not be read (Notion disconnected): see `coverage.md`.
+The Reading tab is organised by the subject's logic; one tool tab (Token economics) remains. The old Notion page could not be read (Notion disconnected).
 
 ## 2026-10-24, topic close
 - Section 9 keeps the Moshi frame diagram only for the native-against-cascade point: its caption and the Moshi bullet no longer teach the streams (inner monologue, temporal and depth transformers, acoustic delay); they link Video and audio generation section 8, which owns them. Ledger: units 202, 218 and 351 are `owned:` Video and audio generation; 352 and 353 added for the trimmed bullet and caption.

@@ -24,7 +24,7 @@ Checks: `node check_stages.mjs [shots dir]` (from `html_utils/`: every stage pla
 ## Provenance (copied with `cp -R` from the language page's `src/`, which was left unchanged)
 | Here | From the language page | What |
 |---|---|---|
-| `rb/code`, `rb/ext`, `rb/outputs`, `rb/versions.txt`, `rb/coverage.json` | `src/rb/` | unchanged, except `ext/tests/test_tokrs.py`, whose path to the root's `chat.jsonl` now walks up to `topic_programming_languages` |
+| `rb/code`, `rb/ext`, `rb/outputs`, `rb/versions.txt` | `src/rb/` | unchanged, except `ext/tests/test_tokrs.py`, whose path to the root's `chat.jsonl` now walks up to `topic_programming_languages` |
 | `rb/gen.py`, `rb/run_all.sh` | `src/rb/` | the root lookup (`ROOT = HERE.parents[2]` and `$HERE/../../..`) now walks up to `topic_programming_languages`; shared data stays in the root's `src/` (`bench/results`, `rosetta/data`), read-only |
 | `rb/check_outputs.py` | `src/rb/` | unchanged (the depth to `index.html` is the same) |
 | `rb/check_ui.mjs` | `src/rb/` | rewritten for one Reading tab; finds the repository with `git rev-parse --show-toplevel` |

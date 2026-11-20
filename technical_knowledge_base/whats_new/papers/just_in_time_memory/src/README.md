@@ -2,14 +2,12 @@
 
 `sh build.sh` writes `../index.html` (it runs `mk_tables.py`, `recompute.py`, `stream_sim.py` if `inputs/stream.json` is missing, and `mk_paper.py` first; `%%S:...%%` and `%%R:...%%` in the parts are filled from `inputs/stream.json` and `inputs/recompute.json`). Then:
 - `python3 check_sim.py` (needs node): runs `parts/20_js_stream.js` against `stream_sim.py` on 5 seeds and success rates; orderings, retrievals and every statistic identical; writes `inputs/check_sim.json`.
-- `python3 mk_coverage.py`: `coverage.json`, every fact of `live.md` checked against the built page (25 of 25).
 - `node src/check_page.mjs [shots dir]` from the repo root: every control in both themes and widths (Chrome launched with `headless: 'shell'`); since 2026-11-13 it asserts that the Idea animation plays once scrolled into view (it used to forbid any autoplay) and that the replay widget does not.
 - `node src/check_stages.mjs [shots dir]` from the repo root: the 2026-11-06 layout and motion checks and the stage's numbers.
 - `sh fetch_inputs.sh` regenerates `inputs/` from public sources (arXiv HTML and e-print, SkillOS's arXiv HTML, the ALFWorld release zip); `decode_figs.py` needs `uv run --with pymupdf`.
 
 | File | What |
 |---|---|
-| `live.md` | the Notion row page as fetched on 2026-10-03 (Notion's own timestamp 2026-09-28); written from the fetch result, see the note below |
 | `paper.json` | headline card, verdict, resources, KB links |
 | `mk_tables.py` | Tables 1, 2 and 9 parsed from the LaTeX in the e-print (`inputs/tex/`), Tables 3 to 8 typed and checked against `inputs/tables_v1.txt`; marks every baseline cell that matches SkillOS's published tables (`inputs/skillos_tables.txt`) |
 | `recompute.py` | the 63 derived numbers printed in the paper (62 reproduce), standard errors of the gaps, the gain decomposition, the 17 untrained comparisons, validation-set sizes from the decoded curves, training budget |
@@ -27,7 +25,6 @@
 - **The Idea animation is the paper's own example (Figure 3)** run through both designs; its trajectory steps and the write-time artifact are illustrative and labelled.
 - **No "Then and now"**: a 2026 result paper.
 - **The Reading tab is long (about 17 minutes against the old page's 6)**, because the old summary's central claim ("an untrained curator already wins, so the gain is the timing") does not hold for the headline cells, and showing why takes the decomposition, the 17-cell comparison and the provenance of the baselines.
-- **`live.md` was written with the Write tool from the fetch result in context**, not with `save_live.py`: the permission system blocked reading the session transcript. The content is the fetch result's text field, verbatim.
 
 ## The 2026-10-26 light pass (teaching contract)
 
@@ -38,7 +35,7 @@ What changed and why:
 - **Volatile**: one dated closed block, "Since the paper (dated: checked 26 October 2026)": still v1 only, no code or weights.
 - **No autoplay**: `makeAnim` patched as on Dream-RSI (both animations, Idea and the replay tab, wait for a click); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `jitm-tab`), keeping the `data-to` scroll target. `check_page.mjs` now fails if either animation draws a frame before a click, and audits every closed block opened.
 - **Lab tab kept**: the replay tab is a lab with several controls (success rate, ordering, task inspector, 50-ordering statistics) used from Method, Ablations and the hero; its result already sits inline in Method's predict reveal and now in the hero.
-- **Takeaway scoped** (`paper.json` with a new `takeaway_note`, the card, `live.md` and `mk_coverage.py`): the database Takeaway said an untrained curator already wins "so the gain is the timing rather than the model". The new one keeps 15 of 17 like for like, gives the headline with its executor, the RL share of the gain, the copied Qwen3-8B baselines and the tau2-bench +3.9 under two standard errors. The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json` with a new `takeaway_note`, the card): the database Takeaway said an untrained curator already wins "so the gain is the timing rather than the model". The new one keeps 15 of 17 like for like, gives the headline with its executor, the RL share of the gain, the copied Qwen3-8B baselines and the tau2-bench +3.9 under two standard errors. The Notion property needs the same edit.
 - `inputs/paper_v1.txt` and `tables_v1.txt`: 20 em-dashes written as `--`; no author emails were present.
 
 ## Length judgement
@@ -55,7 +52,7 @@ Why about 16 minutes is right: the top added about 330 words (core sentence, her
 221 units: core 193, depth 25, owned 1, volatile 1, fat 1 (the old reading-time header). 208 drafted by `ledger.py init` from the page before the pass; 13 added. `ledger.py check`: problems 0.
 
 ## Checks (26 October 2026)
-`checkpage.sh`: tabs 4, about 180 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 288 actions, 0 problems (no frame before a click). `mk_coverage.py`: 25 of 25. `check_sim.py`: identical on 5 runs.
+`checkpage.sh`: tabs 4, about 180 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 288 actions, 0 problems (no frame before a click). `check_sim.py`: identical on 5 runs.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -77,4 +74,4 @@ What changed and why:
 
 The growth is the step lists: about 420 words explaining the new stage, and the Idea animation's 14 captions (about 550 words), which were drawn by script before and so invisible to the word count, now static beside it; the hero's long caption went. Nothing was cut or moved into a closed block. Header: "Reading: 20 min, plus 3 in closed details." from `reading.json`.
 
-Ledger: 224 units (core 196, depth 25, owned 1, volatile 1, fat 1). `label_ledger.py` re-keyed unit 210 (the hero, now the stage: key "where the headline gain comes from") and re-pointed unit 212 (owned by RL for LLMs) to "dr. grpo removes the division by the standard deviation", the owner's current wording (its old key "dr. grpo gives" was no longer on the owner's page); three units added for the stage's list, the Idea lists and the replay widget. `ledger.py check` problems 0. `mk_coverage.py` 25 of 25; `check_sim.py` identical on 5 runs.
+Ledger: 224 units (core 196, depth 25, owned 1, volatile 1, fat 1). `label_ledger.py` re-keyed unit 210 (the hero, now the stage: key "where the headline gain comes from") and re-pointed unit 212 (owned by RL for LLMs) to "dr. grpo removes the division by the standard deviation", the owner's current wording (its old key "dr. grpo gives" was no longer on the owner's page); three units added for the stage's list, the Idea lists and the replay widget. `ledger.py check` problems 0. `check_sim.py` identical on 5 runs.

@@ -25,15 +25,14 @@
 - `paper.json`, `tables.json` (Tables 1 to 5 and the README table, printed precision), `mk_paper.py` (as in the RAG folder: card with verdict, Further reading, data).
 - `recompute.py`: Figures 2 and 3 from `inputs/fig*.svg`; figure against Table 1 checks; Table 2 sums and the count-consistency search; binomial standard errors (HotpotQA and FEVER with n = 500 labelled as an assumption); headline gaps; Table 3 row means; exemplar word counts from Appendix C. Writes `inputs/recompute.json`.
 - `mk_traces.py`: writes `parts/20_traces.js`. Figures 1, 4 and 5 are images, so their text is transcribed in the script by hand (with the paper's highlights as markup); Table 10, Appendix D.1 and the Appendix E.1 examples are cut from `inputs/paper_v3.txt` by the script.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `extract_paper.py`: the arXiv HTML (v3, and v1 for comparison) to `inputs/paper_v*.txt` and `inputs/table_*.txt`.
+- `extract_paper.py`: the arXiv HTML (v3, and v1 for comparison) to `inputs/paper_v*.txt` and `inputs/table_*.txt`.
 - `inputs/`: paper text (v1 and v3; the experiment numbers are identical, v3 adds Appendix A.1 on GPT-3 and footnotes 2, 3 and 7), the three figure SVGs, `repo_README.md`, `repo_hotpotqa_loop.txt` and `repo_wikienv.txt` (the released code, MIT), `later_extracts.txt` (the lines quoted from later work), `recompute.json`.
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at 1400 and 920 px light and 390 px dark, reduced motion, the stage's step list, the Then and now list, the replay staying a widget, and the numbers the stage's list states against `window.R1FIG`.
 - `check_page.mjs` (from the repo root with node): every control, both themes and three widths, each replay episode and mode stepped end to end, text at least 11 px, no NaN, no sideways scroll; mid-animation screenshots to `../.shots/x-*.png`.
-- `mk_coverage.py`: writes `coverage.json` (every fact of `live.md` and where the HTML carries it) and verifies each against the built page.
 
 ## Checks (3 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 167 KB. `node src/check_page.mjs`: 880 actions, 0 problems. `mk_coverage.py`: 59 of 59 items verified.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 167 KB. `node src/check_page.mjs`: 880 actions, 0 problems.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -62,7 +61,7 @@ Why about 19 minutes is right: the added top (core sentence, hero caption, terms
 294 units: core 262, depth 14, owned 5, volatile 11, fat 2. 285 drafted by `ledger.py init` from the page before the pass; 9 added (core sentence, hero, new terms, Figure 1 panel, five owner links). Fat: the old reading-time line and the old animation-manners line. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 880 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 59 of 59 (the reading-time item's keys updated; the Figure 3 reveal keeps "becomes the best of the four").
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 880 actions, 0 problems (including no movement before a click and every closed block opened).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -84,7 +83,7 @@ What changed and why:
 
 The growth is the step lists: the stage's eight steps and Then and now's six generations were captions drawn by script one at a time (invisible to the word count) and are now static text beside their visuals. Nothing was cut. Header: "Reading: 21 min, plus 3 in closed details." (`reading.json`).
 
-Ledger: 310 units (core 278, depth 14, owned 5, volatile 11, fat 2); seven re-keyed where a sentence was reworded or split from its controls (27, 28, 29, 30, 31, 256, 260) and sixteen added for the two step lists and the widget sentence. `ledger.py check` problems 0. `mk_coverage.py` 59 of 59; the generated parts are byte-identical.
+Ledger: 310 units (core 278, depth 14, owned 5, volatile 11, fat 2); seven re-keyed where a sentence was reworded or split from its controls (27, 28, 29, 30, 31, 256, 260) and sixteen added for the two step lists and the widget sentence. `ledger.py check` problems 0. The generated parts are byte-identical.
 
 ## Checks (13 November 2026)
 `checkpage.sh`: tabs 5, about 227 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 1,158 actions, 0 problems. `check_stages.mjs`: 9 stage and animation checks over three widths, 0 problems. `verify_layout.mjs`: problems 0.

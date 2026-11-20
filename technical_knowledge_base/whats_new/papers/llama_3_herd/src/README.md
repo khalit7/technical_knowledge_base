@@ -17,7 +17,6 @@
 ## Files
 
 - `build.sh`: runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, assembles `parts/`, expands the link macros, fails on an em-dash or an unexpanded macro, and fills the reading times.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v3 to `inputs/paper_v3.txt` and `inputs/table_*.txt` (v1 was also extracted to diff; the only content change is Table 4's DP 4 to 8 in the 128K row).
 - `extract_figs.py` (`uv run --with pymupdf python extract_figs.py [source dir]`): downloads the arXiv e-print (not kept) and reads Figures 2, 3, 4 and 17 from the vector PDFs in `assets/`, calibrated on gridlines or axis ticks, into `inputs/figs.json`.
 - `mk_tables.py`: tables from the HTML extracts into `tables.json`, strings as printed.
@@ -25,7 +24,6 @@
 - `mk_paper.py`: card (with the verdict line and the Notion Takeaway verbatim), Further reading, `window.PAPER` (tables, recompute results, figure points).
 - `check_page.mjs` (from the repo root: `node technical_knowledge_base/whats_new/papers/llama_3_herd/src/check_page.mjs [shots dir]`): every control in light 920 and dark 390, the pipeline animation (plays once in view) and the 54-day widget (never moves by itself) stepped, text at least 11 px, no NaN, no sideways scroll; mid-animation shots to `../.shots/x-*.png`.
 - `check_stages.mjs` (since 2026-11-13, after InstructGPT's): splits two columns at 1400; both stages (Fig. 2 in both modes) and the pipeline animation at 1400 light, 920 light and 390 dark (play on view, one list item per step, last step, flows stop off screen); the 54-day widget never moves; reduced motion; 24 step-list numbers against `window.PAPER`.
-- `mk_coverage.py`: `coverage.json`, every fact of `live.md` with where the page carries it, verified against the built HTML.
 - `inputs/`: paper text and table extracts, `figs.json`, `recompute.json`, the Llama 3.1 model card and the 8B and 70B config.json files.
 - `viz_ideas.md`: ideas built and rejected (rows `P-llama_3_herd.*` for the log).
 
@@ -41,7 +39,7 @@ JS: `10_js_common`, `_gen_data`, `11_js_ui` (`makeAnim` from Chinchilla with the
 
 ## Checks (3 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems. `mk_coverage.py`: 112 of 112 verified.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems.
 
 ## Light pass, 2026-10-25 (teaching contract)
 
@@ -51,7 +49,7 @@ JS: `10_js_common`, `_gen_data`, `11_js_ui` (`makeAnim` from Chinchilla with the
 - **No autoplay**: `makeAnim` waits on step 1, also after a mode switch; `check_page.mjs` fails if `pt`, `pp` or `rl` draws a frame before play or on a mode switch, and opens every closed block before auditing a tab. Header: "Reading: 29 min, plus 11 in closed details." (`reading.json`, from audit_pages.mjs).
 - **Length**: Reading core 6,834 words (30 min) plus 1,878 closed (8) before; 6,560 (29 min, including about 330 words of new top) plus 2,608 closed (11) after. Tables tab 1,543 open before; 589 open plus 970 closed after. Refit and Run tabs unchanged (2.5 and 4.7 min). The core stays long because the ledger is mostly core: the page owns a 92-page report whose argument runs through data, sizing, infrastructure, reliability, recipe, post-training and evidence, and the verdict rests on the open numbers. Generic mechanisms were already short here, so linking owners saved little.
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 409 units, core 284, depth 115, owned 6, volatile 2, fat 2 (old reading-time line, tab labels); `ledger.py check` problems 0.
-- `mk_coverage.py`: reading-time and pipeline items updated for the new wording; 112 of 112. Saved extracts: em-dashes replaced with `--`; no author emails were present, and `extract_paper.py` now redacts any it meets.
+- Saved extracts: em-dashes replaced with `--`; no author emails were present, and `extract_paper.py` now redacts any it meets.
 
 Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 228 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 384 actions, 0 problems.
 
@@ -81,4 +79,4 @@ What changed and why:
 
 The growth is the step lists: Fig. 1's six steps (about 330 words, new explanation of how the 133 runs become the 405B's size), Fig. 2's PPO list (six items, about 150 words, hidden until the mode is chosen but counted by the audit; before, these captions were drawn by script one at a time) and the pipeline list with its mode descriptions. Fig. 2's Llama 3 list absorbed the old five-item recipe list, so it adds little. Nothing was closed or cut. Header: "Reading: 32 min, plus 11 in closed details." (`reading.json`). Pages quoting the old 29 minutes need `check_times.py --fix` by the lead.
 
-Ledger: 428 units (core 300, depth 117, owned 6, volatile 2, fat 3). 19 added (Fig. 1's six steps and its provenance, Fig. 2's contrast sentence, PPO list and step 8, the Alignment link, the pipeline modes and steps, the widget sentence). Keys re-pointed on units 43 (the mix sentence), 146 and 150 (the recipe list, now Fig. 2's steps), 156 (the animation sentence) and 302 (the Refit caption, moved left); unit 159 (the old "starts paused" note) is now fat. `ledger.py check`: problems 0. `mk_coverage.py`: the rejection-sampling key re-pointed to the step list's wording; 112 of 112.
+Ledger: 428 units (core 300, depth 117, owned 6, volatile 2, fat 3). 19 added (Fig. 1's six steps and its provenance, Fig. 2's contrast sentence, PPO list and step 8, the Alignment link, the pipeline modes and steps, the widget sentence). Keys re-pointed on units 43 (the mix sentence), 146 and 150 (the recipe list, now Fig. 2's steps), 156 (the animation sentence) and 302 (the Refit caption, moved left); unit 159 (the old "starts paused" note) is now fat. `ledger.py check`: problems 0.

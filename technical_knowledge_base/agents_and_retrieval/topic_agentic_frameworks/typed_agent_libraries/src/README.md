@@ -33,7 +33,6 @@ Checks: `check_page.py` (data embedded exactly, prose numbers against the data i
 mlx_lm/server.py 1159-1194 and 1614 (fields read; no response_format, no tool_choice); pydantic_ai/_output.py 73-74, profiles/__init__.py (prompted template), messages.py 1854, agent/__init__.py 432 (retries default 1), usage.py 482, _agent_graph.py 128 and node classes, _display.py 212; agents/run_config.py 45 and 378, guardrail.py 100, handoffs/__init__.py 214, agent.py 396, run_internal/turn_resolution.py 1010-1060, tracing/processors.py 146; smolagents/utils.py 49, local_python_executor.py 57-60, 130, 143, 1688, agents.py (max_steps 20, stop sequences, CODEAGENT_RESPONSE_FORMAT), memory.py 106; google/adk/agents/run_config.py (500 calls), llm_agent.py 451, flows/llm_flows/prompt/_schema.py, tools/transfer_to_agent_tool.py, a2a/utils/agent_to_a2a.py 79.
 
 ## Departures from the method
-- No `live.md` or `coverage.json`: a new page with no old Notion text.
 - Claude is measured only through `claude -p` (no API key): Anthropic's native `output_config.format` route is described from the docs, not run.
 
 ## The 2026-11-06 pass: split layout, 3D stages (renderer v2), explained and autoplaying animations

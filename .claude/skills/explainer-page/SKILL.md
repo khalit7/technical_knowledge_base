@@ -5,7 +5,7 @@ description: Build an interactive explainer page for Khalid's Technical knowledg
 
 # explainer-page
 
-**The goal: Khalid understands the subject deeply in the least time.** Read [teaching/teaching-contract.md](teaching/teaching-contract.md) first: the page shape, length judged per page with a knowledge ledger, and choosing each visual by what the concept is. It overrides any older rule here that adds mandatory sections.
+**The goal: Khalid understands the subject deeply in the least time.** Read [teaching/teaching-contract.md](teaching/teaching-contract.md) first: the page shape, length judged per page with a knowledge ledger, and choosing each visual by what the concept is.
 
 **Golden rule: understand the topic well enough to teach it before building anything.** A page is a teacher, not a summary. If you cannot explain the problem, the mechanism, the cost, when it matters and how to check it, with a running example and the numbers traced to sources, you are not ready to write a tab or brief an agent.
 
@@ -18,39 +18,37 @@ The repository is the source of truth. Every page is one interactive `index.html
 | One new child page under an existing root | read the root and siblings, then research | [page-kinds/topic-child.md](page-kinds/topic-child.md) |
 | A paper (title, arXiv link or PDF) | [understand/research.md](understand/research.md) (read the paper and its tables) | [page-kinds/paper.md](page-kinds/paper.md) |
 | A tech-news issue (written by the `update-kb` skill's periodic pass) | sources of the window | [page-kinds/tech-news.md](page-kinds/tech-news.md) |
-| An existing written Notion page or an old topic | [page-kinds/migrate-or-fold.md](page-kinds/migrate-or-fold.md) (coverage floor, unmatched children) | the kind it becomes |
+| Merge, fold or retire an existing page | [page-kinds/migrate-or-fold.md](page-kinds/migrate-or-fold.md) | the kind it becomes |
 | An audit or rebuild of a page already in the repo (condense, restructure, re-visualise) | [teaching/teaching-contract.md](teaching/teaching-contract.md) (knowledge ledger, `html_utils/ledger.py`), the measurement `html_utils/audit_pages.mjs` | the kind it is |
 
 ## The flow
 1. **Know the reader.** [understand/reader.md](understand/reader.md): who Khalid is, what he already knows, the opening questions for a new topic (level, goals, evidence allowed, deletions). Ask only those; decide the curriculum yourself ([teach, don't ask scope]).
 2. **Learn it.** [understand/research.md](understand/research.md): primary sources and their tables, pinned source code at file:line, independent measurements, every old claim verified, shared `FACTS.md`.
 3. **Plan the teaching.** [understand/curriculum.md](understand/curriculum.md): one running example, the comparison axes for the root, depth for the children, labs, what to measure. Present it to Khalid as a teaching plan with reasons and the proposed children (approve, reword, drop).
-4. **Choose the evidence.** [evidence/sourcing.md](evidence/sourcing.md) for published numbers; [evidence/local-runs.md](evidence/local-runs.md) for when running locally is genuinely useful; [evidence/resource-safety.md](evidence/resource-safety.md) before any heavy run on the Mac.
+4. **Choose the evidence.** [evidence/sourcing.md](evidence/sourcing.md) for published numbers; [evidence/local-runs.md](evidence/local-runs.md) for when running locally is genuinely useful; [evidence/resource-safety.md](evidence/resource-safety.md) before any heavy run.
 5. **Choose the visuals.** [visuals/choosing.md](visuals/choosing.md), the catalogue [visuals/animation-types.md](visuals/animation-types.md) (before/after on the same input first), [visuals/three-d.md](visuals/three-d.md) (3D stages) and [visuals/mechanics.md](visuals/mechanics.md) (including the split layout).
 6. **Write to teach.** [teaching/teaching-contract.md](teaching/teaching-contract.md), [teaching/page-quality.md](teaching/page-quality.md) and [teaching/writing-style.md](teaching/writing-style.md).
 7. **Build and check.** [build/scaffold.md](build/scaffold.md), [build/templates/](build/templates/), [build/checks.md](build/checks.md).
-8. **Publish.** The `sync-kb-github` skill: `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`) commits, `git push` deploys the site, a new page gets its Notion link page, and `python3 html_utils/sync_status.py --no-build` ends "Published". Concept owners: add a row to `technical_knowledge_base/OWNERS.md` when the page owns something new. Present pages to Khalid before publishing unless he has said to publish.
+8. **Publish** with the `sync-kb-github` skill. Concept owners: add a row to `technical_knowledge_base/OWNERS.md` when the page owns something new. Present pages to Khalid before publishing unless he has said to publish.
 9. **Keep the lessons.** Add a dated lesson to the page-kind file or [lessons.md](lessons.md) when something new is learned; add a new page kind when Khalid approves a new shape.
 
 Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md) and the fill-in briefs in [orchestration/briefs/](orchestration/briefs/).
 
-## Hard constraints
-- **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`. Never force content into a shape.
-- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)). The one exception is the AI buddy loader in the head, which fetches the shared buddy only when the reader turns it on ([build/scaffold.md](build/scaffold.md)); keep the page buddy-friendly (rules there) and `checkpage.sh` at `ask 0, buddy 1`.
+## Hard constraints (each rule lives in the file named)
+- **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`.
+- One self-contained `index.html` per page (no network, no CDN, no web fonts; images in `img/`), the AI buddy loader the only exception: [build/scaffold.md](build/scaffold.md).
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
-- **Split layout everywhere** (Khalid, 2026-11-06): a section with a visual is text on the left, the visual on the right (sticky); a section without one is full width ([teaching/teaching-contract.md](teaching/teaching-contract.md), [visuals/mechanics.md](visuals/mechanics.md)). **3D stages only when depth teaches (2D by default; never for looks)** ([visuals/three-d.md](visuals/three-d.md)). Every animation is explained step by step on the left.
-- Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll; animations play by themselves once in view, pause off screen, stop on any reader control, and never move by themselves under reduced motion (a long replay the reader drives is a widget that never autoplays).
-- Every specific fact sourced inline and dated; measured results labelled with the machine; anything not run says "not run here" and why.
-- No em-dashes anywhere (prose, HTML, captions, commits).
-- Privacy: never write the home path, the scratchpad path, hostnames, network addresses, git identity, emails or tokens into the repo or a page.
-- Safety of the Mac first: guard before heavy steps, one GPU job at a time, the MPS memory cap ([evidence/resource-safety.md](evidence/resource-safety.md)).
-- Ask Khalid before a multi-agent Workflow; plain subagents are fine (about four at a time). Agents never commit, publish or edit `pages.json`.
-- Never leave an old page without a new equivalent unchecked: grep coverage, report, ask (rebuild, fold, or retitle "TO DELETE: ...").
+- Split layout, 2D by default, every animation explained step by step: [teaching/teaching-contract.md](teaching/teaching-contract.md); motion rules: [visuals/mechanics.md](visuals/mechanics.md).
+- Fail-safe JS, light and dark, 390 px with no sideways scroll, and the checkpage line: [build/scaffold.md](build/scaffold.md), [build/checks.md](build/checks.md).
+- Every fact sourced and dated, measured results labelled: [evidence/sourcing.md](evidence/sourcing.md), [evidence/local-runs.md](evidence/local-runs.md).
+- Privacy: [build/checks.md](build/checks.md), Privacy. Machine safety: [evidence/resource-safety.md](evidence/resource-safety.md).
+- Agents never commit, publish or edit `pages.json`: [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md), Lead rules.
+- An existing page without a new equivalent is never left unchecked: [page-kinds/migrate-or-fold.md](page-kinds/migrate-or-fold.md).
 
 ## Reference pages in this repo
-- Split layout, 3D stages, step lists and autoplay (the 2026-11-06 standard): `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`.
+- Split layout, 3D stages, step lists and autoplay: `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`.
 - Root built by a team with labs and children: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/` (children inside it).
-- Before/after animation Khalid likes most: the MLA explainer, first built on the DeepSeek page and now Fig. 4 of `technical_knowledge_base/models_and_training/topic_llm_architecture/attention_variants/` (`src/parts/44_js_sc_mla.js`, rebuilt as a 3D stage in the 2026-11-06 rollout).
+- Before/after animation Khalid likes most: the MLA explainer, Fig. 4 of `technical_knowledge_base/models_and_training/topic_llm_architecture/attention_variants/` (`src/parts/44_js_sc_mla.js`).
 - Paper: `technical_knowledge_base/whats_new/papers/ddpm/`, `.../clip/`.
 - Each page's `src/README.md` says how it was built and `src/viz_ideas.md` lists the visuals built and rejected.
 

@@ -21,7 +21,7 @@ Rebuild: `python3 scripts/make_data.py && sh build.sh` (from this folder; `make_
 
 Runs were made under the slurm lock, in three batches; the cluster's configuration, QOS, limits and reservations were restored after each (`runs/raw*/restored.txt`). Source quoted at slurm-24-11-5-1 (commit e4788bed70462dc5e14b1b170d271d7495a0f334) from the shared sparse clone.
 
-Departures from the child-page method: none structural. Notion is disconnected, so no `live.md`; see `coverage.md`.
+Departures from the child-page method: none structural.
 
 ## The 2026-10-24 rebuild: what changed and why
 Rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`); editing and new figures only, no new runs.
@@ -56,7 +56,7 @@ Why about 31 minutes is right: the page owns the whole of Slurm for ML (daemons,
 This page owns Slurm on Kubernetes (Khalid's decision). The closed block in section 12 absorbed the root Tool map's Slinky and SUNK facts (open-sourcing date, slurm-bridge, SUNK accounting and scope, which to pick); the root keeps one merged row linking here.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `sl-tab`). No new runs; no change to `make_data.py`, `sl_data.json` or `recompute.py`: every scene draws from `window.SL`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `sl-tab`). No new runs; no change to `make_data.py`, `sl_data.json` or `recompute.py`: every scene draws from `window.SL`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -3,7 +3,7 @@
 `sh build.sh` writes `../index.html`, the whole Notion page "Mixture of experts: routers, load balancing, fine-grained and
 shared experts, expert parallelism" (https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58), a child of Topic:
 llm-architecture. Built 2026-10-18 with the explainer-page skill (`page-kinds/topic-child.md`); floor: the Topic: llms
-"Deeper: inside an MoE" tab (`topic_llms/src/parts/35_*`), every claim accounted for in `coverage.md`.
+"Deeper: inside an MoE" tab (`topic_llms/src/parts/35_*`).
 
 ## Tabs (since the 2026-10-23 rebuild)
 | Tab | id | What |

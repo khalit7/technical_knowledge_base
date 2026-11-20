@@ -17,7 +17,6 @@ Visuals, each beside the item it explains (the split layout since 2026-11-13, be
 
 ## Files
 - `recompute.py`: every derived number, with asserts on the published ones (task-horizon crossings, 2% and 4.6%, Z.ai's step product, Rubin ratios and per-GW cost, all 29 BITCOS rows and 26 of 29, Bonsai's bits, the KV steps 3,514 / 652 / 1,630 / 890 and 437x, Huawei pull-ins, harness-tax geometric means, and the smaller checks in the notes).
-- `coverage.json` (from `mk_coverage.py`, run after `build.sh`): every item verbatim, its 415 numbers and 27 source links found in the built page, the video (recorded as dropped), the replaced read-time line, 6 dropped Notion auto-links, corrections and follow-ups. `all_found` true.
 - `viz_ideas.md`: candidates, scores, data, rejections, and what the methodology lacked.
 - `inputs/`: source extracts read on 2026-10-02, plus `next_issue_2026_09_28.md` (the next issue, used to find follow-ups, each checked against a primary source).
 - Checks: `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/tech_news/2026_09_21_tech_news` from the repo root.

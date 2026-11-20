@@ -2,8 +2,7 @@
 and the two index pages under it (Tech news, Papers). Called by build_site.py; reads pages.json, each issue's
 src/issue.md (or live.md for the older issues) and each paper's src/paper.json.
 
-usage: python3 html_utils/whats_new.py          prints the latest issue, its top stories and the newest papers it would show
-       python3 html_utils/whats_new.py check    the data each card needs (also run by build_site.py, which stops on a problem)
+usage: python3 html_utils/whats_new.py check    the data each card needs (also run by build_site.py, which stops on a problem)
 """
 import datetime as dt, html, json, re
 from pathlib import Path
@@ -278,18 +277,9 @@ CSS = """.wn{margin:28px 0 8px}
 
 if __name__ == "__main__":
     import sys
-    if sys.argv[1:2] == ["check"]:
-        probs = check()
-        print(*probs, sep="\n") if probs else None
-        print(f"what's new: {len(probs)} problem(s)")
-        sys.exit(1 if probs else 0)
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    pages = json.loads((ROOT / "technical_knowledge_base/pages.json").read_text())["pages"]
-    by_id = {p["id"].replace("-", ""): p for p in pages}
-    u = lambda p: "/" + p["path"].removeprefix("technical_knowledge_base/") + "/"
-    iss = issues(pages, u)
-    for r in iss:
-        print(r["d"], r["win"], r["weeks"], len(r["top"]), "|", r["intro"][:80])
-    print(*[f'  {s[:110]}' for s in iss[0]["top"]], sep="\n")
-    for r in papers(pages, u, by_id, iss[0])[:10]:
-        print(r["when"], r["new"], r["title"][:60], [t[0] for t in r["tops"]][:2], [t[1] for t in r["tops"]][:2])
+    if sys.argv[1:] != ["check"]:
+        sys.exit("usage: python3 html_utils/whats_new.py check")
+    probs = check()
+    print(*probs, sep="\n") if probs else None
+    print(f"what's new: {len(probs)} problem(s)")
+    sys.exit(1 if probs else 0)

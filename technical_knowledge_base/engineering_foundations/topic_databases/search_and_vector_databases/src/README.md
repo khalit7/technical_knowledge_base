@@ -13,7 +13,7 @@
 - `measure/`: `svpg.py`, `embed.py`, `m1_ann.py`, `m2_fts.py`, `m3_tiny.py`. Outputs in `inputs/`: `embed_log.json`, `m1_ann.json`, `m2_fts.json`, `m3_tiny.json` (unchanged by the rebuild; no new runs).
 - `python3 recompute.py`: BM25, idf and RRF for the worked example and the derived facts, re-derived from `inputs/`; checks every fact appears in `../index.html`; writes `recompute_out.json`.
 - `node <this folder>/check_page.mjs` (from the repo root): clicks every control at 390 px dark and 920 px light, steps both steppers to the end, checks that neither moves by itself, that every figure is drawn, and compares the page's JavaScript with `recompute_out.json`.
-- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`). `coverage.json`: the inherited ANN facts from the old storage page. `viz_ideas.md`: visuals built and rejected.
+- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`). `viz_ideas.md`: visuals built and rejected.
 
 ## Reproduce
 All from a scratch folder; nothing installed system-wide; each step under 15 minutes on an M1 Pro.

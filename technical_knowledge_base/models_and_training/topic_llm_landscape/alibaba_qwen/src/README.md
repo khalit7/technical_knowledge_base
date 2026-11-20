@@ -61,7 +61,7 @@ The added words are step lists: the hybrid animation's 17 step texts were script
 
 # Alibaba: Qwen, interactive page (v3)
 
-`visual.html` replaces all the text of the Notion page "Alibaba: Qwen" (child of Topic: llm-landscape, https://app.notion.com/p/3c65c17b0d0d81fd8c36ce06672bb235). It is the only source of information on the page, so it carries every fact of the old text (`coverage.json`), each specific figure linked inline to its source.
+`visual.html` replaces all the text of the Notion page "Alibaba: Qwen" (child of Topic: llm-landscape, https://app.notion.com/p/3c65c17b0d0d81fd8c36ce06672bb235). It is the only source of information on the page, so it carries every fact of the old text, each specific figure linked inline to its source.
 
 ## Build and check
 
@@ -114,8 +114,6 @@ In order: Reading (default), Configs and cache, Lineage, Licences, Further readi
   - `agent_news/`, the news pages and licence files fetched for verification.
 - `recompute.py` recomputes every reproduced default.
 - `viz_ideas.md` holds the scored candidates, the reproduced figures and the rejected ideas.
-- `mk_coverage.py` writes `coverage.json` and checks that each carried fact's text is present.
-- `live.md` and `live_before_delete.md` hold the page text as fetched on 1 October 2026. The old embed's signed URL is shortened there; it expires anyway.
 
 ## Technical notes
 

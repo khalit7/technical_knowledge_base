@@ -12,13 +12,13 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **When to use it.** Whenever a page explains a mechanism that replaced an earlier one, or a process that unfolds in steps. Khalid asks for it by name; root pages carry at least one per axis where a mechanism replaced another, and each lab tab at least one where it fits.
 
-**Anatomy of the reference (the MLA explainer, Khalid's favourite).** First built on the DeepSeek page; now Fig. 4 of Attention variants, rebuilt as a 3D stage in the 2026-11-06 rollout: `models_and_training/topic_llm_architecture/attention_variants/src/parts/44_js_sc_mla.js`, in the Reading tab's MLA section.
+**Anatomy of the reference (the MLA explainer, Khalid's favourite).** Fig. 4 of Attention variants: `models_and_training/topic_llm_architecture/attention_variants/src/parts/44_js_sc_mla.js`, in the Reading tab's MLA section.
 - **One input, two methods.** One token through one attention layer under MLA (compress to a 512-number latent, add the 64-number decoupled RoPE key, cache 576 numbers, rebuild heads in prefill, absorb in decode), and a toggle that runs the same token through standard multi-head attention.
 - **Drawn to scale.** One square is 64 numbers, so 576 against 32,768 numbers cached per token per layer is visible as area, not just stated. The scale is printed on the card.
 - **An explanation for every step** (now a step-list item on the left, in HTML): what happens and why it matters, with the formula and the number at that step. Seven steps for MLA, six for standard attention, each mode with its own step list.
 - **Running counters** that tie the picture to the numbers the text quotes (numbers cached, bytes per token over 61 layers, read per decoded token).
 - **Controls:** play and pause, step back and forward, a scrubber over the steps, and a speed control (0.5x, 1x, 2x), so a reader can stop on the step they are thinking about.
-- **Good manners:** it plays by itself once in view, pauses off screen, stops for good when the reader takes a control or reaches the last step ([mechanics.md](mechanics.md), Khalid 2026-11-06), and under `prefers-reduced-motion` never moves by itself and steps without tweening.
+- **Good manners:** the motion rules in [mechanics.md](mechanics.md) (Motion manners).
 
 **What makes it good.** The static switch shows two end states; the animation shows how one becomes the other. The earlier rejection of this animation as duplicating the static mode switch was wrong, and the log says so.
 
@@ -229,7 +229,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 ## 17. 3D stage (stacks, shapes, many matrices, spatial systems)
 **Reference:** the Attention Is All You Need paper page, every section of The paper tab (2026-11-06).
-**When to use it.** When the concept has real spatial structure or depth separates what a flat drawing overlaps: the model's two stacks, a vector splitting into heads, an FFN's expansion, attention weights of four heads as bar fields, a causal mask as walls. Reasonable, never forced; Khalid prefers one to none.
+**When to use it.** When the concept has real spatial structure or depth separates what a flat drawing overlaps: the model's two stacks, a vector splitting into heads, an FFN's expansion, attention weights of four heads as bar fields, a causal mask as walls. Only when it passes the 2D-by-default test in [../teaching/teaching-contract.md](../teaching/teaching-contract.md).
 **What makes it good.** A step list on the left explains each step; real numbers from the page's toy model or recomputation; a few large objects per step (the camera glides in close when a step is about one item); glass plates for matrices and flowing dots where data moves; upright labels; drag to turn. Reference: Fig. 3 on that page. How to build: [three-d.md](three-d.md).
 
 ## Patterns that were rejected (do not rebuild)

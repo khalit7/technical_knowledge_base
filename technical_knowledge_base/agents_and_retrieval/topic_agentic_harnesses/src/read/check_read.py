@@ -94,8 +94,6 @@ ok(sum(1 for r in D["runs"] if "haiku" in r["label"]) == 3, "three Haiku runs")
 mine = [f for f in os.listdir(PARTS) if f.startswith("20_read") or f.startswith("22_js_rd") or f.startswith("23_js_rd") or f.startswith(("26_js_sc", "27_js_sc", "28_js_sc")) or f == "39_tab_more.html"]
 mine_txt = "".join(open(os.path.join(PARTS, f)).read() for f in mine)
 mine_txt += "".join(open(os.path.join(HERE, f)).read() for f in os.listdir(HERE) if f.endswith(".md"))
-for f in os.listdir(os.path.join(HERE, "old")):
-    mine_txt += open(os.path.join(HERE, "old", f)).read()
 ok("\u2014" not in mine_txt, "no em-dash in Reading files and notes")
 import getpass
 for bad in ["/Users/", "Users-", "glpat", "sk-ant", getpass.getuser()]:  # case-sensitive: the login name is looked up at run time, never spelt

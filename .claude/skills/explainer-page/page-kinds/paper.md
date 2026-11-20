@@ -2,7 +2,6 @@
 
 The paper method: the paper's argument in its own order, anchored into the paper, with one live ingredient chosen by the kind of paper, its tables rebuilt and recomputed, and a verdict on how far to trust it.
 
-Approved on Attention Is All You Need (2026-10-02); used for all 63 rows of the Papers database by 2026-10-03.
 - **Reference folder**: `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`; its `src/` holds the reusable pieces.
 - **Recent examples**: `.../ddpm/` (training-recipe ablation run live) and `.../clip/` (training-objective toy plus Then and now).
 
@@ -10,9 +9,8 @@ Approved on Attention Is All You Need (2026-10-02); used for all 63 rows of the 
 
 ## Inputs
 - **An existing row** (title, Notion id, folder from `technical_knowledge_base/pages.json`, entries with `"parent": "Papers"`):
-  - fetch the row page read-only and save it verbatim to `src/live.md` with a script (`save_live.py`), never retyped;
   - the row's body is only the link line to the site page. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it (the `update-kb` pass writes the Takeaway of the rows it creates, scoped as below).
-- **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-kb` pass creates rows itself for papers central to a topic (its step 4). There is no old body, so coverage runs against the paper's own claims.
+- **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-kb` pass creates rows itself for papers central to a topic (its step 4).
 - **Either way**: fetch the paper itself (arXiv HTML where it exists, else the PDF text or the publisher page) and read it until you could teach it ([../understand/research.md](../understand/research.md)). Keep small extracts in `src/inputs/`, never PDFs or files over about 1 MB.
 
 ## Why papers need their own method
@@ -67,17 +65,17 @@ Three outside ideas shaped it:
 
 Tabs may merge when the content is thin (a short paper can put its tables in Reading) or be renamed to match what the reader does; say why in `src/README.md`.
 
-## Teaching contract on a paper page (the 2026-10-26 light pass)
-Every paper was brought to the [teaching contract](../teaching/teaching-contract.md) on 2026-10-25 and 26; a new paper starts there. Each folder's `src/README.md` has a "light pass" section (`whats_new/papers/sharpening_tax` and `.../agora` are good examples).
+## Teaching contract on a paper page
+A paper follows the [teaching contract](../teaching/teaching-contract.md) (`whats_new/papers/sharpening_tax` and `.../agora` are good examples).
 - **Top, after the card**: "The idea in one sentence"; one hero (the paper's own figure when its licence allows, embedded as WebP and credited under it and in `img/CREDITS.md`, otherwise redrawn as SVG, with a title saying what to notice); "You need" (links to the owners of what the paper assumes); new terms. In that order, at body size.
 - **Owned elsewhere**: a general mechanism the paper uses (UCB, bootstrap, temperature) gets a sentence and a link to its owner ([OWNERS.md](../../../../technical_knowledge_base/OWNERS.md)); the page owns only the paper's method, numbers and evidence.
 - **Closed `<details>`**: proofs and derivations, provenance and "how the replay was checked" boxes, per-item and per-figure lists, hyperparameters, bookkeeping slips, version-to-version changes, related work, the bullets of What it takes (one open summary paragraph stays). The argument in the paper's order, the verdict and How much to believe stay open. A page with no closed block is a defect.
 - **Volatile**: release status, code availability, later versions sit in one dated closed block, "Since the paper (checked <date>)", never in open prose.
 - **Tabs**: a tab stays only when it is a tool used across the page (a replay, a toy, the tables); a tab explaining one mechanism moves into the Reading flow.
-- **Motion** (2026-11-06): animations and 3D stages play by themselves once half in view and stop for good on any reader control or at the last step ([../visuals/mechanics.md](../visuals/mechanics.md)); `check_page.mjs` confirms each plays when scrolled into view, none moves under reduced motion, and opens every closed block. **Layout:** the split ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)), 3D stages only when depth teaches, 2D by default ([../visuals/three-d.md](../visuals/three-d.md)). Tabs use the template `99_js_tabs.js` from [../build/templates/](../build/templates/) (storage key `<prefix>-tab`, keeping the page's `data-to` scroll), never the old `90_js_tabs.js`.
-- **Header**: "Reading: N min, plus M in closed details.", both numbers measured (`html_utils/audit_pages.mjs`, 230 words a minute, one pass with default modes as [writing-style.md](../teaching/writing-style.md) says; several pages write them to `src/reading.json` and `build.sh` fills the header from it).
+- **Motion and layout** as on every page ([../visuals/mechanics.md](../visuals/mechanics.md), [../teaching/teaching-contract.md](../teaching/teaching-contract.md)); `check_page.mjs` confirms each animation plays when scrolled into view, none moves under reduced motion, and opens every closed block. Tabs use the template `99_js_tabs.js` from [../build/templates/](../build/templates/) (storage key `<prefix>-tab`, keeping the page's `data-to` scroll), never the old `90_js_tabs.js`.
+- **Header**: the reading time as [writing-style.md](../teaching/writing-style.md) says (several pages write it to `src/reading.json` and `build.sh` fills the header from it).
 - **The site's What's new block and Papers page read `paper.json`** (`html_utils/whats_new.py`): `arxiv` (orders papers newest first), `lab`, `takeaway`, `topics` (chips in their section colour). Keep them filled on a new paper, with topic ids that are pages in `pages.json`; `python3 html_utils/whats_new.py check` (run by the site build, which stops on a problem) fails a paper without them.
-- **Takeaway scoped to the paper's own evidence**: the model and size it was shown on, single runs or seeds, the metric, matched comparisons rather than each side's best point (a headline that compares different settings is the flaw the trust section names, so it cannot lead), a theorem's conditions, no "first", "proves", "beats" or "consistently" without support. One text in `paper.json` (plus `takeaway_note` when it needs a qualifier), the card, `live.md` where the page has one, `mk_coverage.py` and the row's Takeaway property.
+- **Takeaway scoped to the paper's own evidence**: the model and size it was shown on, single runs or seeds, the metric, matched comparisons rather than each side's best point (a headline that compares different settings is the flaw the trust section names, so it cannot lead), a theorem's conditions, no "first", "proves", "beats" or "consistently" without support. This is the one home for the takeaway rule; tech-news issues and `update-kb` point here. One text in `paper.json` (plus `takeaway_note` when it needs a qualifier), the card and the row's Takeaway property.
 - **Ledger**: once the page is final, `python3 html_utils/ledger.py init <folder>`, label every unit (paper text `core`, provenance `depth`, mechanisms taught elsewhere `owned:<path>`, the release block `volatile`), keys on the built page; `ledger.py check` problems 0. `src/README.md` records the length judgement and ledger counts.
 - **Privacy in extracts**: `extract_paper.py` replaces author emails with "[email removed]" and long dashes with `--`.
 
@@ -102,11 +100,9 @@ From the reference folder's `src/` (ddpm and clip have later versions of some):
 - `mk_paper.py`: card, Further reading, data;
 - `11_js_ui.js`: `fit` for width-measured charts, `makeAnim` for step animations (give it the autoplay rules of `RD.anim` in the templates), the predict widget, `placeLabels`, `legend`;
 - `check_page.mjs`: every control, both themes and widths, text at least 11 px, animations stepped;
-- `mk_coverage.py`, `save_live.py`, `extract_paper.py`, and the CSS.
+- `extract_paper.py` and the CSS.
 
 Charts are drawn at the container's measured width in CSS pixels, so a font size in the code is the size on screen; the check script enforces 11 px. Never edit the reference folder.
-
-When you copy `mk_coverage.py` from another paper, **replace its item list entirely** with this paper's facts from `src/live.md` (a copied list once checked the wrong paper's facts and still reported all found).
 
 ## Honesty rules for a live ingredient
 - **Held-out accuracy**: report it, with how the test set was drawn, and measure the overlap with the training stream. In the Transformer page, 49% of sentences from the training distribution occurred in training, so the in-browser test samples uniformly instead, with 0.2% overlap.
@@ -121,59 +117,49 @@ When you copy `mk_coverage.py` from another paper, **replace its item list entir
 - **Keep** each paper's `src/model/` under about 1 MB.
 - **Weights count toward the page**: budget size early (the Transformer's three models took 117 KB at 6 bits, 35,184 parameters each; the rest of the page 168 KB). A paper page stays under about 1 MB; say why if it needs more.
 
-## Running it (work rules for a paper agent)
-- **Pre-check the machine**: run the guard before training ([../evidence/resource-safety.md](../evidence/resource-safety.md)).
-- **Threads and priority**: train on CPU at `nice -n 15` with at most 4 threads (`torch.set_num_threads(4)`), variants one after another, not all at once.
-- **Background long jobs**: anything over about 4 minutes (training, long screenshot loops, big fetch batches) runs with `run_in_background`, writes progress to a log, and is checked with short commands every few minutes. A run whose `checkpage.sh` is slow because the machine is busy goes in the background too.
-- **Reuse interrupted work**: before training, look in `src/model/` for checkpoints an interrupted builder left, and reuse them if the config matches.
-- **Small writes**: write big files (`paper.json`, long HTML parts) in several smaller pieces; an agent with no progress for 600 s is killed.
-- **Stay in your folder**: never write to Notion, commit, edit `pages.json` or other papers' folders. Temporary scripts go in scratch or `src/`; this paper's visual ideas go in `src/viz_ideas.md` with ids `P-<folder>.<k>`.
+## Running it
+Machine, threads, background jobs and small writes: [../evidence/resource-safety.md](../evidence/resource-safety.md). Before training, look in `src/model/` for checkpoints an interrupted builder left, and reuse them if the config matches. A paper agent never writes to Notion, commits, or edits `pages.json` or other papers' folders; this paper's visual ideas go in `src/viz_ideas.md` with ids `P-<folder>.<k>`.
 
 ## Checks
-- `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 0`, `buddy 1`, `clipped 0`.
+- [../build/checks.md](../build/checks.md), and:
 - `node src/check_page.mjs` passes: every animation plays when scrolled into view; none moves under reduced motion.
 - `python3 html_utils/ledger.py check <folder>` prints problems 0; the header matches the measured minutes.
-- `check_forward.py` passes, and `mk_coverage.py` accounts for every item.
+- `check_forward.py` passes.
 - Look at screenshots of every tab (cropped) and mid-animation frames.
 - Exercise every control by DOM clicks (a sticky nav swallows coordinate clicks) at 390 dark, 920 light and 1400 light: no errors, NaN, undefined, sideways scroll, text under 11 px or overlap.
 - Rebuild the page as the very last step ([../build/checks.md](../build/checks.md)).
 
 ## Report back
-- Child pages, databases or video found, and the tabs and Reading outline.
+- The tabs and Reading outline.
 - The verdict and its main reasons.
 - The live ingredient chosen and why (or why none): what reproduces and what does not.
-- Corrections to the old summary (and any wrong Takeaway property).
+- Any wrong Takeaway property.
 - Departures from this method and why.
-- Coverage counts, reading time, size, check results, and the new `viz_ideas.md` rows.
+- Reading time, size, check results, and the new `viz_ideas.md` rows.
 
 ## Time budget per paper
 | Step | Architecture paper | Systems / empirical / agent paper |
 |---|---|---|
-| Fetch the row, save `live.md`, fetch the arXiv HTML, extract text and tables, list anchors | 15 min | 15 min |
+| Fetch the arXiv HTML, extract text and tables, list anchors | 15 min | 15 min |
 | `paper.json`, `tables.json`, `recompute.py` | 30 min | 30 to 45 min |
 | Reading tab prose with anchors and two or three predict questions | 60 min | 60 min |
 | Live ingredient: toy task, training (10 to 40 min CPU, in the background), export, forward check; or simulation, refits, trace | 90 to 120 min | 60 to 90 min |
 | Tables tab, Then and now if any | 45 to 60 min | 30 to 60 min |
-| Checks: checkpage, check_page.mjs, screenshots of every tab and mid-animation, coverage | 30 to 45 min | 30 to 45 min |
+| Checks: checkpage, check_page.mjs, screenshots of every tab and mid-animation | 30 to 45 min | 30 to 45 min |
 | **Total** | **about 4.5 to 6 hours** | **about 3.5 to 5 hours** |
 
 Short papers with nothing to run take about 2 hours.
 
 ## Many papers at once
-1. **Assign**: give each paper to one subagent with the paper brief ([../orchestration/briefs/paper-agent.md](../orchestration/briefs/paper-agent.md)): title, Notion id and folder; about four at a time.
-2. **Check each finished page**: rerun `checkpage.sh` and look at the screenshots.
-3. **Publish it** with the `sync-kb-github` steps: `python3 html_utils/paper_finalize.py <slug>` commits, then push; the row page's body is the link line (no children, so `replace_content` is right).
-
-Progress is in `pages.json`. A paper with status `not_migrated` whose folder already has an `index.html` was built and not yet published; one with only a README has not started.
+One subagent per paper with [../orchestration/briefs/paper-agent.md](../orchestration/briefs/paper-agent.md), about four at a time; the lead checks and publishes each ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md), Single page).
 
 ## Lessons from the first page (2026-10-02)
-1. **Write the coverage list first.** Listing every fact of `live.md` before writing prose sets the Reading outline directly.
-2. **Measure before claiming.** "About 0.1%" train/test overlap and "1.1 billion sentences" were first guesses; measuring gave 49% and 540.8 million. Every number about the toy model comes from a script, from the start.
-3. **Design the toy task for the ablations you want to show.** Positional encoding failed spectacularly (3.6%) but one head did not fail at all; a task with two simultaneous dependencies per word (agreement plus reordering) would probably make the head count matter. Decide which variants should differ before training, then check that they do.
-4. **Start from the reference folder.** Copy its `src/` pieces rather than adapting another page's CSS and helpers by hand.
-5. **Judge the Reading tab's length by its ledger, not by the old page.** It came out at 14 minutes against the old page's 9, because the paper page owns every detail of the paper; long lists, provenance and proofs go into closed details blocks (the 2026-10-26 light pass left most papers at 16 to 28 minutes of core plus closed details, each with its length judgement in src/README.md).
-6. **Test with DOM clicks.** A sticky nav silently swallowed puppeteer's coordinate clicks; `check_page.mjs` clicks through the DOM.
-7. **Pick what you draw by measurement, not by eye.** The page draws the attention head whose weights best match the rule alignment and says which and how well (over 90% on the default sentence), so the choice is reproducible.
+1. **Measure before claiming.** "About 0.1%" train/test overlap and "1.1 billion sentences" were first guesses; measuring gave 49% and 540.8 million. Every number about the toy model comes from a script, from the start.
+2. **Design the toy task for the ablations you want to show.** Positional encoding failed spectacularly (3.6%) but one head did not fail at all; a task with two simultaneous dependencies per word (agreement plus reordering) would probably make the head count matter. Decide which variants should differ before training, then check that they do.
+3. **Start from the reference folder.** Copy its `src/` pieces rather than adapting another page's CSS and helpers by hand.
+4. **Judge the Reading tab's length by its ledger.** It came out at 14 minutes against the old page's 9, because the paper page owns every detail of the paper; long lists, provenance and proofs go into closed details blocks.
+5. **Test with DOM clicks.** A sticky nav silently swallowed puppeteer's coordinate clicks; `check_page.mjs` clicks through the DOM.
+6. **Pick what you draw by measurement, not by eye.** The page draws the attention head whose weights best match the rule alignment and says which and how well (over 90% on the default sentence), so the choice is reproducible.
 
 ## Lessons from the other 62 (dated)
 - **2026-10-02 (BERT)**: fine-tuning seeds all share one pretrained model, so they hide pretraining-seed noise; repeat pretraining with a second seed before reporting a toy ablation gap. A toy result can come from the toy's own data (true sentence pairs always shared a name); say so.
@@ -210,5 +196,3 @@ Progress is in `pages.json`. A paper with status `not_migrated` whose folder alr
 - **2026-10-03 (Re-grading physics, DSec, MoE memory bottlenecks, Latent Context LMs)**: for audit and systems papers with counts or vector figures only, replay the pipeline from the counts and simulate what the protocol cannot observe; check which baseline a speed-up divides by. Pilot the plain decoder on the raw task before building a retrieval toy, and drop the toy if even that does not learn.
 - **(DDPM, CLIP, from their src/README.md)**: when 6-bit weights break a model (DDPM's mu-predicting variants), ship 8-bit and report what it costs. When the argument is about the objective, the toy trains several objectives on one encoder; results that do not reproduce (CLIP's 4x, prompt engineering's gains) are shown as such, not retuned.
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

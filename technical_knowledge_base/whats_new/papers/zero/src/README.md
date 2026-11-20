@@ -19,9 +19,8 @@
 - `paper.json`: metadata, headline numbers, resources, connected KB papers and topics. `mk_paper.py`: the card, Further reading and `window.PAPER` (copied from the reference, with the card's tab link read from `paper.json`).
 - `mk_tables.py`: builds `tables.json` from the table extracts (Table 1 bold cells and the appendix figure mapping by hand, from the HTML).
 - `recompute.py`: every reproduced number (Figure 1, all 54 cells of Table 1 with how each was rounded, Table 2, communication, activations, buffers, compute gap, results arithmetic, parameter recount of every configuration, Figure 3 and Figure 6 memory, MT-NLG's 20-byte count). Writes `inputs/recompute.json`; prints a report.
-- `save_live.py` copied the Notion fetch verbatim into `live.md`; `extract_paper.py` turned the arXiv HTML v3 into `inputs/paper_v3.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from BLOOM, DeepSeek-V3, Llama 3, MT-NLG, FSDP (paper and docs), ZeRO-Offload, ZeRO-Infinity, ZeRO++, the DeepSpeed blog and the archived Turing-NLG post.
+- `extract_paper.py` turned the arXiv HTML v3 into `inputs/paper_v3.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from BLOOM, DeepSeek-V3, Llama 3, MT-NLG, FSDP (paper and docs), ZeRO-Offload, ZeRO-Infinity, ZeRO++, the DeepSpeed blog and the archived Turing-NLG post.
 - `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, the animation stepped through every mode and every N_d, text at least 11 px, no NaN or errors, no sideways scroll. Its regex ignores "Infinity" after a hyphen (ZeRO-Infinity).
-- `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
 
 ## Parts
 
@@ -29,7 +28,7 @@ HTML: `00_top`, `01_css` (reference CSS plus a few ZeRO additions), `02_header`,
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 165 KB. `node .../src/check_page.mjs`: 0 problems (rerun after the evidence section, 171 KB). `__zeroCheck()`: the schedule moves 2Ψ, 2Ψ, 2Ψ, 3Ψ and its at-rest memory equals §5's formulas at N_d = 2, 4, 8. `mk_coverage.py`: 53 of 53 items verified.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 165 KB. `node .../src/check_page.mjs`: 0 problems (rerun after the evidence section, 171 KB). `__zeroCheck()`: the schedule moves 2Ψ, 2Ψ, 2Ψ, 3Ψ and its at-rest memory equals §5's formulas at N_d = 2, 4, 8.
 
 ## The 2026-10-24 light pass (teaching contract)
 
@@ -58,11 +57,11 @@ Why about 21 minutes is right: the Reading tab now holds what used to take 21.3 
 228 units: core 193, depth 19, owned 4, volatile 1, fat 11. 221 were drafted by `ledger.py init`; 7 record the core sentence, the hero, the new terms and four owner links. `label_ledger.py` keys each unit to a run of its own words found on the rebuilt page and labels it depth when that run sits in a closed block. `python3 html_utils/ledger.py check` prints problems 0.
 
 ## Checks (24 October 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0, 177 KB. `check_page.mjs`: 380 actions, 0 problems (including no movement before a click). `__zeroCheck()`: 2Ψ, 2Ψ, 2Ψ, 3Ψ and the at-rest memory matches §5's formulas. `mk_coverage.py`: 53 of 53 (four keys updated for British spelling and moved sentences). `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0, 177 KB. `check_page.mjs`: 380 actions, 0 problems (including no movement before a click). `__zeroCheck()`: 2Ψ, 2Ψ, 2Ψ, 3Ψ and the at-rest memory matches §5's formulas. `ledger.py check`: problems 0.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership: this page owns the paper (its accounting, its three stages as the paper states them, its numbers and evidence). Sharded data parallelism as a form is Distributed training's, whose section 4 already has Figure 1's numbers as flat bars (Fig. 5) and the same step played under each stage on a stack of layers in 3D (Fig. 6); its PyTorch API is Distributed PyTorch's (FSDP2). So the one stage here draws what the paper's own Figure 1 says, at its own example size, with §7's volumes beside it, and both the stage and the step-through link to Distributed training's Figs. 5 and 6 instead of redrawing them.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Ownership: this page owns the paper (its accounting, its three stages as the paper states them, its numbers and evidence). Sharded data parallelism as a form is Distributed training's, whose section 4 already has Figure 1's numbers as flat bars (Fig. 5) and the same step played under each stage on a stack of layers in 3D (Fig. 6); its PyTorch API is Distributed PyTorch's (FSDP2). So the one stage here draws what the paper's own Figure 1 says, at its own example size, with §7's volumes beside it, and both the stage and the step-through link to Distributed training's Figs. 5 and 6 instead of redrawing them.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|
@@ -99,4 +98,4 @@ Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership: this page owns the 
 
 The growth is the step lists. The step-through's 44 captions (11 steps in each of 4 comparisons) were drawn by script and invisible to the audit; they are now static lists, about 300 words each, and only one is shown at a time, so about 900 of the counted words (some 4 minutes) are the three comparisons a reader sees only by switching. Figure 1's five steps add about 330 words that state its numbers. Nothing was cut and the argument keeps its order. A reader who follows one comparison reads about 24 minutes; the header quotes the audit's measure, "Reading: 28 min, plus 2 in closed details." (`reading.json`).
 
-**Ledger**: 228 units (core 193, depth 19, fat 11, owned 4, volatile 1); keys re-pointed on units 46 and 47 (the Figure 1 paragraph now introduces the 3D stage: "figure 1 of the paper, redrawn and live, now in 3d", "each tower one gpu's model states stacked to scale"), 153 (the "Try" line became "Watch: in DDP against ZeRO-3, the parameters") and 155 (the counters sentence moved into the step-through's introduction). `ledger.py check`: problems 0. `mk_coverage.py`: 52 of 53; the one missing item (the Notion Takeaway property's text, "gradients, and parameters" with a comma, against the card's) is from `paper.json`, untouched in this pass.
+**Ledger**: 228 units (core 193, depth 19, fat 11, owned 4, volatile 1); keys re-pointed on units 46 and 47 (the Figure 1 paragraph now introduces the 3D stage: "figure 1 of the paper, redrawn and live, now in 3d", "each tower one gpu's model states stacked to scale"), 153 (the "Try" line became "Watch: in DDP against ZeRO-3, the parameters") and 155 (the counters sentence moved into the step-through's introduction). `ledger.py check`: problems 0.

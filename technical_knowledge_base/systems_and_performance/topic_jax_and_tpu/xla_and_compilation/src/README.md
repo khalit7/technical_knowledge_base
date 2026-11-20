@@ -64,7 +64,7 @@ Why 34 minutes is right: this page owns XLA in depth (HLO, the pipeline, fusion 
 
 ## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying steppers (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (as `40_js_s3.js`), `21_js_rd_common.js`, `99_js_tabs.js` (key `xp-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: `make_data.py` derives `XPD.low.scn` (the followed subtraction in the four forms, the chain's kernels and bytes) from `lab/out/*.json`, and `check_data.py` checks every number typed into the new step lists. Each numbered section is one `<section>` (for the nav) holding its splits as `div.xp-blk`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (as `40_js_s3.js`), `21_js_rd_common.js`, `99_js_tabs.js` (key `xp-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: `make_data.py` derives `XPD.low.scn` (the followed subtraction in the four forms, the chain's kernels and bytes) from `lab/out/*.json`, and `check_data.py` checks every number typed into the new step lists. Each numbered section is one `<section>` (for the nav) holding its splits as `div.xp-blk`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -1,6 +1,6 @@
 # Editorial rules for an update
 
-How new material enters a page so the knowledge base reads like a reference, not a mailing-list archive. Distilled from the Notion update-KB skill (deleted 2026-10-19), whose rules came from full audits of the knowledge base; the Notion-only parts (page text shape, mentions, the Visuals, Updates and Tracker databases) are gone because pages are now built here.
+How new material enters a page so the knowledge base reads like a reference, not a mailing-list archive.
 
 ## Three layers: intake, knowledge, history
 - **Tech news is intake.** Dated releases and industry news land in the issue first.
@@ -10,7 +10,7 @@ How new material enters a page so the knowledge base reads like a reference, not
 ## Integrate, never append
 **A page must read as though its current state had always been true.** A first-time reader should not be able to tell which sentence was written this week.
 - No dated additions: not "Added 2026-09-21", not "Update:", not a section at the bottom holding this week's news, not a dated bullet on a list. If the page discusses the thing, revise the passage; if not, write it where it belongs.
-- **A volatile fact is a dated reading, not an addition.** A version, price, availability, leaderboard reading or incident goes in the provider page's dated lineup table, or in a closed `<details>` whose summary carries its read date ("as of 26 October 2026"; on a paper page "Since the paper (checked <date>)"), rewritten in place each run; or only in the issue. Never as present-tense core prose ("now", "the latest", "currently"). Core keeps the durable lesson the reading illustrates (teaching contract, `volatile` label).
+- **A volatile fact is a dated reading, not an addition** (the one home for this rule). A version, price, availability, leaderboard reading or incident goes in the provider page's dated lineup table, or in a closed `<details>` whose summary carries its read date ("as of 26 October 2026"; on a paper page "Since the paper (checked <date>)"), rewritten in place each run; or only in the issue. Never as present-tense core prose ("now", "the latest", "currently"). Core keeps the durable lesson the reading illustrates (teaching contract, `volatile` label).
 - When new material supersedes something, rewrite the old passage. Never leave both accounts.
 - A date inside a sentence is fine when it is part of the fact ("shipped in September 2026"); "added September 2026" is bookkeeping.
 - No notes to a future editor in page prose. Do the work now.
@@ -77,9 +77,9 @@ An MSc-level AI engineer with production LLM experience; most fat comes from wri
 
 ## Checks before publishing an update
 - Durable knowledge went into its owning page (OWNERS.md), not only into the issue; other pages carry one sentence and a link. Volatile facts sit in the provider page's dated table or a dated closed block, never in core prose; no forward-looking dates anywhere.
-- Paper claims (issue items, concept pages, takeaways) carry the paper's scope: model and size, runs, metric, matched comparisons, a theorem's conditions.
+- Paper claims (issue items, concept pages, takeaways) carry the paper's scope ([paper](../explainer-page/page-kinds/paper.md), takeaway rule).
 - No bookkeeping dates; no month in a heading.
 - The root's map, tables and summary claims still tell the truth; children name the same latest versions as their roots.
 - A page with a video says what the video now misses.
-- Every changed page: header "Reading: N min, plus M in closed details." measured with `audit_pages.mjs` (230 words a minute); `ledger.py check` problems 0 where it has a ledger; `checkpage.sh` `fail=0`. Then `check_times.py --fix`, the pages it touched rebuilt, its AMBIGUOUS lines reported.
+- Every changed page: header reading time measured ([writing-style](../explainer-page/teaching/writing-style.md)); `ledger.py check` problems 0 where it has a ledger; checks as [checks.md](../explainer-page/build/checks.md) says. Then `check_times.py --fix`, the pages it touched rebuilt, its AMBIGUOUS lines reported.
 - Every new link resolves to a page in `pages.json` that is not retired.

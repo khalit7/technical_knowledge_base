@@ -25,10 +25,9 @@
 - `paper.json`, `mk_paper.py` (card, Further reading, `window.PAPER`; `where_label` extended to appendix anchors).
 - `mk_tables.py`: `tables.json` from the extracts (Tables 5 and 6 share one HTML figure, so they are parsed from the paper text).
 - `recompute.py`: the HBM counts of Algorithms 0 to 4, Figure 2 reconstruction, FLOPs, an online-softmax exactness test, the toy counts, and the claim checks. Writes `inputs/recompute.json`.
-- `save_live.py` copied the Notion fetch verbatim into `live.md`; `extract_paper.py` turned the arXiv HTML v2 into `inputs/paper_v2.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from FlashAttention-2, -3, -4, Mamba, PyPI, the repo README and usage.md, PyTorch, cuDNN, vLLM and the FlexAttention blog.
+- `extract_paper.py` turned the arXiv HTML v2 into `inputs/paper_v2.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from FlashAttention-2, -3, -4, Mamba, PyPI, the repo README and usage.md, PyTorch, cuDNN, vLLM and the FlexAttention blog.
 - `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, text at least 11 px, no NaN or errors, no sideways scroll, and the simulator against `recompute.json`.
 - `check_stages.mjs` (from the repo root with node, 2026-11-13): both 3D stages at 1400 light, 920 light and 390 dark (autoplay on view, one list item per step in every mode, flows stop off screen, reader control stops autoplay, last step reached), every split two columns at 1400, reduced motion, and 43 numbers in the step lists and the block-size table against the simulator and Figure 2's table.
-- `mk_coverage.py`: writes and verifies `coverage.json` against `live.md` (63 items).
 
 ## Parts
 
@@ -63,11 +62,11 @@ Why about 24 minutes is right: The paper plus the old Run tab was 24.3 minutes o
 231 units: core 204, depth 17, owned 3, volatile 5, fat 2. 219 drafted by `ledger.py init` from the page as committed before the pass; 12 added (core sentence, hero, new terms, photo, three owner links, five script-drawn tools and tables). `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 184 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 340 actions, 0 problems; the simulator still equals `recompute.py` (std 4,608, FlashAttention 2,496, FA-2 order 1,312 values; Figure 2 model 25.233 and 4.605 GB). `mk_coverage.py`: 63 of 63.
+`checkpage.sh`: tabs 4, 184 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 340 actions, 0 problems; the simulator still equals `recompute.py` (std 4,608, FlashAttention 2,496, FA-2 order 1,312 values; Figure 2 model 25.233 and 4.605 GB).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `fa-tab`). `21_js_rd_common.js` is not used (no `RD.anim` on this page).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `fa-tab`). `21_js_rd_common.js` is not used (no `RD.anim` on this page).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

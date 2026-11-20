@@ -9,7 +9,7 @@
 - `check_quotes.py <cache dir>`: checks quotes that are not in an abstract against the arXiv full text or the fetched page, into `inputs/quote_checks.json`.
 - `epoch_frontier.py <unzipped dir>`: top five rows per Epoch CSV into `inputs/epoch_frontier.json` (from https://epoch.ai/data/benchmark_data.zip, CC BY 4.0, downloaded 2026-10-04).
 - `fetch_anim_inputs.py`: SWE-bench Verified issue dates (Hugging Face datasets-server) and LiveCodeBench release windows (README) into `inputs/anim_inputs.json`.
-- `parse_old.py`: the old page's master table, verbatim, from `../live.md` into `inputs/old_table.json`.
+- `inputs/old_table.json`: the old page's master table, verbatim; a frozen input.
 - `check_atlas.mjs`: clicks every control at 390 px dark and 920 px light (chips on and off, search, owner, corrections filter, every sort, every row, ticks, presets, every correction link, every map chip, every defence dot, animation modes, steps, play, scrub); fails on errors, NaN, undefined or null text, and sideways scroll.
 - `viz_ideas.md`: visuals built and rejected.
 

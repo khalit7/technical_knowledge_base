@@ -25,7 +25,7 @@ Child page 9 of Topic: data-curation-and-datasets (prefix `sl`). `sh src/build.s
 - `check_page.mjs`: from the repo root, `node .../storage_and_loading/src/check_page.mjs`: clicks every control at 390 dark and 920 light (reduced motion), checks the Megatron stepper does not move by itself under reduced motion, embedded data, JS-against-Python for packing and shuffle metrics, and 38 prose numbers; saves element screenshots to `../.shots/`.
 - `check_stages.mjs` (2026-11-09): `node .../storage_and_loading/src/check_stages.mjs [shot dir] [--all]`: at 1400 light, 920 light and 390 dark the five stages and the Megatron stepper (both modes) play when scrolled into view, reach their last step with one list item per step, stop redrawing off screen and never move under reduced motion; splits are two columns at 1400 only; the widgets have no play control; every number in the step lists is recomputed from `window.SL` and the scenes' `window.SLSC`.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`).
-- `viz_ideas.md`, `coverage.md` (the original build's corrections to the root).
+- `viz_ideas.md`.
 
 Input data: the topic's running example (FineWeb CC-MAIN-2024-30 random 50k sample, first 2,000 and 50,000 rows; Nemotron-CC head samples), Qwen3-0.6B and GPT-2 tokenizers; the FineWeb `000_00000.parquet` footer read by HTTP range (revision 9bb295dd).
 

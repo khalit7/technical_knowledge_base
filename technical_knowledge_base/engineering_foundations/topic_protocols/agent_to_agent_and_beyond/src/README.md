@@ -8,7 +8,7 @@
   - `mcp_eval_server.py` + `mcp_same_job.py`: the same job as MCP tools driven step by step.
 - `gen_data.py` turns `lab/out/*.json` and `inputs/ucp_allbirds_profile.json` (one read-only fetch of a real store's `/.well-known/ucp`, 5 Oct 2026) into `parts/22_js_data.js`.
 - Checks: `check_embed.py` (page embeds the current data, 29 prose claims against the recordings, private-pattern grep); `check_ui.mjs` (every control at 390 px dark and 920 px light, every widget frame; the widget never moves by itself), `check_stages.mjs` (the stages: autoplay on view, every mode to its last step, list lengths, off-screen and reduced-motion stillness, the step lists' numbers against `window.A2AD`); `ledger.json` (`python3 html_utils/ledger.py check <page>`).
-- `old_root_excerpt.md` and `coverage.json`: the old Topic: protocols paragraphs this page carries (its floor, 2026-10-05). `unconfirmed.md`: what was left out and why. `viz_ideas.md`: visuals built and rejected.
+- `unconfirmed.md`: what was left out and why. `viz_ideas.md`: visuals built and rejected.
 
 ## 2026-11-07: split layout, six 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
 - **Templates** `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js` (renderer v2) and `99_js_tabs.js` (key `a2a-tab`) copied unchanged; `build.sh` cats `02_split.html` after `01_head.html`; the eased-step CSS (`rd-fwd`, `rd-new`, `rd-fade`) added to `01_head.html` before the `kb-look` block.

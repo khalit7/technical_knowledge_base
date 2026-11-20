@@ -57,7 +57,7 @@ A child page (since 2026-10-24 with one tool tab; it had three lab tabs); the ro
 This page owns the network-hang checklist (Khalid's decision): section 6 now carries it as a key box (wrong interface with GLOO_SOCKET_IFNAME, firewall, MTU mismatch, silent socket fallback, accept queue, straggler), absorbed from Networking foundations section 14, which keeps one sentence plus a link. Reading 30 to 31 min.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `ld-tab`). No new runs; `out/data.json` and `22_js_ld_data.js` unchanged. One small script, `scripts/ld_scene_data.py`, reads the stuck-rank run already in `runs/hang/stuck_OFF/` and writes `parts/27_js_ld_scdata.js` (step, bug, watchdog, py-spy, timeout and exit times in seconds since `init_process_group`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `ld-tab`). No new runs; `out/data.json` and `22_js_ld_data.js` unchanged. One small script, `scripts/ld_scene_data.py`, reads the stuck-rank run already in `runs/hang/stuck_OFF/` and writes `parts/27_js_ld_scdata.js` (step, bug, watchdog, py-spy, timeout and exit times in seconds since `init_process_group`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

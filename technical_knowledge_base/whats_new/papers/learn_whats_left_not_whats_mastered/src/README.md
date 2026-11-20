@@ -1,6 +1,6 @@
 # Learn What's Left, Not What's Mastered (SA-MRPO): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs`, `mk_paper.py`, `mk_coverage.py`, `check_page.mjs`, `build.sh`), via the DeepSeekMath page's copies.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs`, `mk_paper.py`, `check_page.mjs`, `build.sh`), via the DeepSeekMath page's copies.
 
 ## Tabs
 
@@ -31,7 +31,7 @@
 
 ## Files
 
-- `save_live.py` (Notion fetch from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_S5_T*.txt`), `mk_tables.py` (`tables.json`, every value verified in reading order against the extracted text), `recompute.py` (`inputs/recompute.json`: Figure 1, the flip threshold, Table 1 to 4 deltas and averages, eval-noise standard errors, the share-of-update estimate, steps per epoch).
+- `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_S5_T*.txt`), `mk_tables.py` (`tables.json`, every value verified in reading order against the extracted text), `recompute.py` (`inputs/recompute.json`: Figure 1, the flip threshold, Table 1 to 4 deltas and averages, eval-noise standard errors, the share-of-update estimate, steps per epoch).
 - `parts/22_js_toy.js`: the toy engine (environment, the three advantage recipes, gradient, Adam, exact evaluation); runs in the browser and in node. Since 2026-11-13 `TOY.train` takes a read-only `onBatch(t, batch)` hook (no result changes: `toy_sweep.mjs` rewrote `inputs/toy.json` and `parts/_gen_toydata.js` byte for byte).
 - `stage_batch.mjs` (node, under a second, run by `build.sh`): Stage 2's data (`inputs/stage.json`, `parts/_gen_stage.js`): the batch the graded SA-MRPO γ = 0.5 run (seed 1) trained on at step 80, four groups chosen by a fixed rule (the first of each kind), GDPO's advantages on the same batch.
 - `parts/31_js_sc_fig1.js`, `parts/32_js_sc_batch.js`: the two 3D scenes; `parts/25_js_s3.js` and `parts/02_split.html`: the templates, unchanged.
@@ -39,11 +39,11 @@
 - `toy_sweep.mjs` (node, about 10 s): every toy number (`inputs/toy.json`, `parts/_gen_toydata.js`).
 - `check_engine.mjs` then `uv run --with torch --with numpy python check_engine.py`: `model/check_engine.json` (PASS). `model/engine_case.json` (0.8 MB) is regenerated and gitignored.
 - `inputs/`: paper text and tables, `gdpo_extracts.txt` (quoted GDPO passages), `other_extracts.txt` (R1 and Qwen2.5 table rows, dataset sizes, the Sober Look abstract, GDPO licence), `toy_design_log.txt`.
-- `check_page.mjs` (from the repo root with node): every control in both themes and widths, a custom live run, the full frontier sweep in the browser (must match `toy_sweep.mjs`), both stages playing when scrolled into view and stepped to the end (Stage 1 in all three modes). `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs` (from the repo root with node): every control in both themes and widths, a custom live run, the full frontier sweep in the browser (must match `toy_sweep.mjs`), both stages playing when scrolled into view and stepped to the end (Stage 1 in all three modes).
 
 ## Checks (3 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 161 KB. `check_page.mjs`: 0 problems; the in-browser sweep matches `toy_sweep.mjs` to 5e-5 (the sweep stores 4 decimals). `check_engine.py`: PASS. `mk_coverage.py`: 44 of 44.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 161 KB. `check_page.mjs`: 0 problems; the in-browser sweep matches `toy_sweep.mjs` to 5e-5 (the sweep stores 4 decimals). `check_engine.py`: PASS.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -53,7 +53,7 @@ What changed and why:
 - **Closed**: the concurrent methods (Problem), the special cases, ratio form and cost (Method), the Eq. 2 argument (one sentence stays open), every reward as defined (one sentence on the two length rewards stays open), why the base scores look low, the one-epoch-or-three mismatch (one sentence stays open). Two bullets of "How much to believe" that restated the γ section now point to it.
 - **Volatile**: the 2026 family of multi-reward methods moved from Why it matters into one dated closed block (checked 25 October 2026).
 - **No autoplay**: `makeAnim` patched as on the WSM page (the Figure 1 animation waits on its first step until play or a step; a recipe toggle pauses); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `samrpo-tab`, plus `data-to` scrolling). `check_page.mjs` fails if the animation draws a frame before a click, and opens every closed block. The live toy already waited for its button.
-- **Takeaway softened** (paper.json, so the card, and `live.md`): "beats GDPO ... with γ = 0.5 the sweet spot" became "reports higher accuracy than GDPO ... but every cell is one training run, several margins sit inside evaluation noise, γ = 0.5 was picked on the test benchmarks in a 3B-only ablation, and a smaller fixed weight on the easy objective was never compared"; "drop-in" dropped. The Notion property needs the same edit.
+- **Takeaway softened** (paper.json, so the card): "beats GDPO ... with γ = 0.5 the sweet spot" became "reports higher accuracy than GDPO ... but every cell is one training run, several margins sit inside evaluation noise, γ = 0.5 was picked on the test benchmarks in a 3B-only ablation, and a smaller fixed weight on the easy objective was never compared"; "drop-in" dropped. The Notion property needs the same edit.
 - The author email in `inputs/paper_v1.txt` redacted; `extract_paper.py` now redacts emails and writes em-dashes as `--`. Header: "Reading: 19 min, plus 3 in closed details." from `reading.json` (measured by `audit_pages.mjs`).
 
 ## Length judgement
@@ -70,7 +70,7 @@ Why about 19 minutes is right: the page owns one short paper's whole argument (t
 243 units: core 219, depth 20, owned 2, volatile 1, fat 1. 237 drafted by `ledger.py init` from the page before the pass; 6 added (core sentence, hero, new terms, two owner links, the claim-list caption). The one fat unit is the wind-up "Three things to see." `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 166 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 199 actions, 0 problems (no frame before a click; the in-browser sweep matches `toy_sweep.mjs` to 5e-5). `mk_coverage.py`: 44 of 44. The toy engine is unchanged, so `check_engine.py` was not rerun.
+`checkpage.sh`: tabs 4, 166 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 199 actions, 0 problems (no frame before a click; the in-browser sweep matches `toy_sweep.mjs` to 5e-5). The toy engine is unchanged, so `check_engine.py` was not rerun.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

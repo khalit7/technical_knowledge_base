@@ -9,10 +9,10 @@ Checks:
 - `node src/check_page.mjs` (from the repo root): every control, animation and stage step in headless Chrome, light 920 px and dark 390 px; fails on script errors, NaN, undefined or Infinity, on anything moving under reduced motion, if the step animation does not play in view or an explorer moves by itself; element screenshots in `../.shots/`.
 - `node src/check_stages.mjs [shots dir]` (from the repo root, about 3 minutes): the 2026-11-06 rollout checks, see the 2026-11-10 section.
 - `uv run --with torch --with numpy python check_wd.py` (from `src/`): the weight-decay animation (`parts/26_js_wd_sim.js`) against `torch.optim.Adam` and `AdamW` on the same seeded noise, float64; result in `check/wd.json` (max difference 2e-16).
-- `coverage.json`: every fact of `live.md` and where the page carries it. `viz_ideas.md`: ranked ideas.
+- `viz_ideas.md`: ranked ideas.
 
 ## 2026-11-10: the split layout and three 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (storage key `rg-tab`). `27_js_wd.js` (the 2D weight-decay bars) is removed; `26_js_wd_sim.js` still drives the new Fig. 3 and is still checked by `check_wd.py`.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (storage key `rg-tab`). `27_js_wd.js` (the 2D weight-decay bars) is removed; `26_js_wd_sim.js` still drives the new Fig. 3 and is still checked by `check_wd.py`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -27,7 +27,7 @@ Run with `GM_SCRATCH=<shared setup folder> nice -n 15 $GM_SCRATCH/venv/bin/pytho
 `inputs/published.json` (every published number, quoted, with URL and table), `inputs/source_lines.json` (quoted source lines with file and line), `inputs/vqa_questions.json`.
 
 ## Notes
-`facts.md` (verified facts, also appended to the topic's shared facts file), `viz_ideas.md`, `coverage.md`.
+`facts.md` (verified facts, also appended to the topic's shared facts file), `viz_ideas.md`.
 
 ## The 2026-10-24 rebuild: what changed and why
 - **Top**: the core idea in one sentence; a static hero (three pipelines: set against data, image against prompt, image against image; the features box highlighted; the two knobs that move every number, N and the pixels); "You need"; four new terms. The old "In one screen" table is a closed block.

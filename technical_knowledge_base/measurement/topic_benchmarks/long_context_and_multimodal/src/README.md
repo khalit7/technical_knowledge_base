@@ -4,7 +4,7 @@ Source of the interactive HTML for "Long-context and multimodal benchmarks" (chi
 `python3 mk_data.py && sh build.sh` writes `../index.html` (about 140 KB). Checks, from the repository root unless said:
 - `sh html_utils/checkpage.sh <page>`: must end `fail=0, emdash 0, errbox 1, clipped 0`.
 - `python3 recompute.py` (in `src/`, writes `recompute_out.json`), then `node <page>/src/check_page.mjs`: every 2D control at 390 dark and 920 light, JS against `recompute_out.json`, card screenshots into `../.shots/c-*.png`. `node <page>/src/check_stages.mjs [shots dir]`: the three 3D stages (autoplay in view, last step in every mode, one list item per step, no redraws off screen, still under reduced motion, splits two columns at 1400 px only) and every number in their step lists against `window.LCS`.
-- `python3 check_seqmatch.py` (the JS SequenceMatcher port against difflib, 64 pairs), `python3 mk_coverage.py` (after build: root atlas rows this page owns).
+- `python3 check_seqmatch.py` (the JS SequenceMatcher port against difflib, 64 pairs).
 - `python3 html_utils/ledger.py check <page>`: problems 0.
 The reading time in `parts/10_header.html` is set by hand from `html_utils/audit_pages.mjs`.
 
@@ -15,7 +15,7 @@ The reading time in `parts/10_header.html` is set by hand from `html_utils/audit
 - `mk_mrcr.py`: extracts row 170 of `openai/mrcr` (MIT); the 190 MB parquet stays outside the repo.
 - `recompute.py`: every derived number (effective lengths, overlaps, MMMU-Pro deltas, MRCR grades, half-widths, and since 2026-10-24 the ANLS examples, POPE always-yes F1 66.67 and CircularEval always-A).
 - `img/niah_claude21_heatmap.webp` (Greg Kamradt, MIT; `../img/CREDITS.md`).
-- `ledger.json`, `coverage.json`, `viz_ideas.md`.
+- `ledger.json`, `viz_ideas.md`.
 
 ## What changed on 2026-10-24, and why (teaching contract rebuild)
 - **Top**: the core idea in one sentence (a score measures use of the input only if the benchmark removes the shortcut) and a hero figure: two lanes of benchmarks, each step naming the shortcut it closed and the score before and after (GPT-4o 99.3% to 69.7%; GPT-4V 45.1% blind of 53.6%; OpenFlamingo 36.7% to 2.6%). You need and six new terms.

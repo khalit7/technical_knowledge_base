@@ -1,8 +1,8 @@
 # Agora: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`build.sh`, `mk_paper.py`, `10_js_common.js`, `11_js_ui.js`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`build.sh`, `mk_paper.py`, `10_js_common.js`, `11_js_ui.js`, the CSS, `check_page.mjs`, `extract_paper.py`).
 
-The page follows arXiv v4 (30 September 2026). The Notion text (`live.md`, fetched as of 21 September) was written from an earlier version.
+The page follows arXiv v4 (30 September 2026).
 
 ## Tabs
 
@@ -24,7 +24,6 @@ The page follows arXiv v4 (30 September 2026). The Notion text (`live.md`, fetch
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (every fact of `live.md`, verified against the built page).
 - `extract_paper.py`: arXiv HTML to `inputs/paper_v<n>.txt`, `tables_v4.txt`, `anchors.txt`. `diff_versions.py`: `inputs/version_diffs.txt`. `decode_fig2.py`: Figure 2 from the e-print's vector PDF (`uv run --with pymupdf`).
 - `fetch_data.py`: the 200 FineWeb-Edu texts (to `$AGORA_DATA`, default `~/.cache/agora_toy`, not kept).
 - `stage_a.py` (`OMP_NUM_THREADS=3 uv run --with torch --with transformers python stage_a.py`): builds the 50,257 × 50,257 tables for one and 28 contexts (10 GB each, in `$AGORA_DATA`, not kept), the randomized SVDs, and every rank's bits per byte; writes `model/stage_a.json` and `model/stage_a.log`.
@@ -43,7 +42,7 @@ What changed and why:
 - **Volatile**: the release status now sits in one dated closed block, "Since the paper (dated: checked 25 October 2026)": still no code, the repository unchanged since 29 September, `github.com/nvlabs/agora` still 404, arXiv still at v4.
 - **Trimmed restatements**: the Idea paragraph (the hero carries it), "Fast exploitation" (the numbers are in Results), the transfer paragraph of Why it matters (the rebuild numbers are in How much to believe).
 - **No autoplay**: `makeAnim` patched as on Terminal-Universe (the descent and the replay wait on step 1; a mode change resets paused); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `agora-tab`), keeping this page's `data-to` scroll target. `check_page.mjs` fails if either animation draws a frame before a click.
-- **Takeaway scoped** (paper.json, so the card, `live.md` and `mk_coverage.py`): "165 independent reproductions failed zero times" became 165 verification posts by other accounts on 95 targets reporting no failure, with unposted failures leaving no trace; the drop is said to be about 98% day one (first 85% from one account); one task, one run, no matched comparison. The Notion property needs the same edit.
+- **Takeaway scoped** (paper.json, so the card): "165 independent reproductions failed zero times" became 165 verification posts by other accounts on 95 targets reporting no failure, with unposted failures leaving no trace; the drop is said to be about 98% day one (first 85% from one account); one task, one run, no matched comparison. The Notion property needs the same edit.
 - Author emails in `inputs/paper_v*.txt` and `inputs/version_diffs.txt` replaced by "[email removed]"; `extract_paper.py` now redacts them (it already wrote em-dashes as `--`; none remained). Header: "Reading: 27 min, plus 8 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -60,7 +59,7 @@ Why about 27 minutes is right: the top added about 250 words (core sentence, her
 312 units: core 244, depth 58, owned 4, volatile 5, fat 1 (the old autoplay note). 299 drafted by `ledger.py init` from the page before the pass; 13 added (top, hero, real image, owner links, release block, script-drawn charts keyed to static captions). `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 184 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 388 actions, 0 problems (no frame before a click). `mk_coverage.py`: 33 of 33.
+`checkpage.sh`: tabs 4, 184 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 388 actions, 0 problems (no frame before a click).
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -89,4 +88,4 @@ The growth is the step lists that explain the three stages and the two animation
 Ledger: 317 units (core 249, depth 58, owned 4, volatile 5, fat 1); 5 added for the stages and stretches; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 4, 241 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 406 actions, 0 problems. `check_stages.mjs`: 15 stages and animations (three widths), 0 problems. `mk_coverage.py`: 33 of 33. `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 4, 241 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 406 actions, 0 problems. `check_stages.mjs`: 15 stages and animations (three widths), 0 problems. `ledger.py check`: problems 0.

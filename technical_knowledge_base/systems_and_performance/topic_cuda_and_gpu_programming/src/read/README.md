@@ -1,7 +1,5 @@
 # Reading tab and Further reading (CUDA root): sources, scripts, outputs
 
-- `old/`: the old Notion root and its six children, verbatim (fetched read-only 2026-10-05, extracted by script from the fetch results).
-- `coverage.md`: every claim of the old pages marked verified, corrected, unconfirmed or left to a child, with where the page carries it.
 - `code/measure_m1.py`: three measurements on the Apple M1 Pro GPU through MLX 0.32.3 (launch-and-wait overhead, a 8192 x 8192 softmax, attention unfused vs `mx.fast.scaled_dot_product_attention`); run three times, outputs in `out/run_{1,2,3}.json` with the load average of each run. Needs an MLX environment (`uv venv` + `uv pip install mlx numpy`); not run inside the repo's project.
 - `code/summarize.py` (run from `src/`): medians of the three runs, plus quoted values from the GPU simulator (`../sim/out/data.json`), the Kernel lab (`../lab/out/data.json`) and the Compiler explorer (`../compile/out/*.ptxas.txt`), every derived number, `out/summary.json`, `out/prose_values.json`, the page data `../parts/22_js_rd_data.js`, and it rewrites every `<span data-rdv>` number in the Reading parts.
 - `check/check_embed.py` (from `src/`): the page embeds exactly `summary.json`, the tagged prose numbers equal the data, key derived figures recompute, no private paths.

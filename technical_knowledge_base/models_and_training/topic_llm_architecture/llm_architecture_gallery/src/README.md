@@ -55,8 +55,7 @@ node <page>/src/checks/check_controls.mjs <page>/index.html
   and KDA derivations, the MoE summary, the KV calculator with presets) were removed: since 2026-10-18 they are owned by the
   sibling pages (attention_variants, positional_encodings, normalisation_residuals_and_stability, beyond_attention,
   mixture_of_experts) and the root's Config calculator. The page keeps what the topic gave it: reading a card and config,
-  the per-layer strips, the attention ladder, and the deltas measured across released models. `coverage.md` lists where
-  every old claim went.
+  the per-layer strips, the attention ladder, and the deltas measured across released models.
 - No local training or model runs: the subject is configs; "measured" means a script parsed configs on the Mac.
 - The running example (the tiny GPT) appears as one row of the gallery, decoded by the same code, rather than as a lab.
 

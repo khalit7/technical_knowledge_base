@@ -24,7 +24,7 @@ Models (downloaded to a scratch folder, never the repo): Qwen/Qwen3-1.7B @ 70d24
 - `check_data.py`: the page embeds exactly `out_lo_data.json`; every `data-lo` key exists; facts recomputed from results; bits per weight from block structs.
 - `check_ui.mjs <shots dir>`: puppeteer, 390 px dark and 920 px light, every control; since 2026-11-12 it also asserts that the three 2D Reading animations play once in view and the File explorer widget does not.
 - `check_stages.mjs [shots dir]`: the 2026-11-06 rollout checks (below).
-- `coverage.md`: the old page claim by claim. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 Rebuild: `python3 -I gen_data.py && (cd formats && python3 -I gen_data.py) && sh build.sh && python3 -I check_data.py && (cd formats && python3 -I check_data.py) && node check_ui.mjs <scratch shots dir>`, then from the repo root `sh html_utils/checkpage.sh technical_knowledge_base/systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` and `node technical_knowledge_base/systems_and_performance/topic_inference_and_serving/local_and_on_device_inference/src/check_stages.mjs <shots dir>` (about five minutes).
 
@@ -34,7 +34,7 @@ Other agents used the same GPU, and the load average does not see GPU use. Speed
 
 ## Build additions (2026-10-23)
 - `bake_facts.py` (run by `build.sh`): writes every `<span data-lo>` and `<span data-mf>` number into the static HTML, so the prose numbers show without script and `html_utils/ledger.py` can find them. The script still fills them at load (same values).
-- `formats/`: everything Model formats measured on 2026-10-11 (its `results/`, `scripts/`, `inputs/research_2026-10-11.md`, `coverage.md`, `viz_ideas.md`), with its `gen_data.py` (writes `parts/20_js_mf_data.js`, `window.MF`) and `check_data.py` (embedded MF equals a fresh build; prose numbers typed into the parts match `results/`). Its scripts, versions and models are as recorded in that page's README: PyTorch 2.14.1, transformers 5.19.0, safetensors 0.8.0, onnx 1.23.2, ONNX Runtime 1.31.0, gguf-py 0.19.0, llama.cpp b11146, mlx 0.32.3; Qwen3-0.6B @ c1899de2, the Unsloth Qwen3-0.6B BF16 GGUF @ 50968a44.
+- `formats/`: everything Model formats measured on 2026-10-11 (its `results/`, `scripts/`, `inputs/research_2026-10-11.md`, `viz_ideas.md`), with its `gen_data.py` (writes `parts/20_js_mf_data.js`, `window.MF`) and `check_data.py` (embedded MF equals a fresh build; prose numbers typed into the parts match `results/`). Its scripts, versions and models are as recorded in that page's README: PyTorch 2.14.1, transformers 5.19.0, safetensors 0.8.0, onnx 1.23.2, ONNX Runtime 1.31.0, gguf-py 0.19.0, llama.cpp b11146, mlx 0.32.3; Qwen3-0.6B @ c1899de2, the Unsloth Qwen3-0.6B BF16 GGUF @ 50968a44.
 - JS parts from Model formats: `22_js_mf_read.js`, `23_js_mf_pickle.js`, `24_js_mf_charts.js`, `25_js_mf_conv.js` (was its Conversion map tab), `31_js_bytes.js` + `31_tab_bytes.html` (File explorer). `25_js_lo_ladder.js` is the old Quant ladder tab's code, now drawing inline. `26_js_lo_hero.js` was the hero (removed 2026-11-12; Fig. 1 is `40_js_sc_hero.js`). `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (recopied 2026-11-12: animations now play once in view).
 - `check_ui.mjs`: every control in every tab at 390 dark and 920 light, plus a motion check (inverted 2026-11-12: the Reading animations play once in view; the File explorer widget never moves by itself).
 
@@ -71,7 +71,7 @@ Why 42 and not 35: the page still owns two subjects (local engines and model for
 
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `lo-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. The static SVG hero `26_js_lo_hero.js` is gone (Fig. 1 replaces it); the never-autoplay check in `check_ui.mjs` is inverted.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `lo-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. The static SVG hero `26_js_lo_hero.js` is gone (Fig. 1 replaces it); the never-autoplay check in `check_ui.mjs` is inverted.
 
 **No new runs.** The four scenes read the page's own data at load: `LO.q` (llama-bench speeds and file bytes measured on this laptop), `LO.hw` (makers' memory sizes and bandwidths), `LO.models` (KV bytes per token from the configs), `LO.facts.wsGB` (measured working set). Derived numbers in the step lists (ceilings 93, 157, 163, 64, 719; the 11 GB spill) are checked against that data by `check_stages.mjs`, as are the cache-reuse and safetensors step lists (`LO.reuse`, `MF.tinySt`).
 

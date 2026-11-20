@@ -21,7 +21,6 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (22 items from `live.md`, all verified against the built page; four corrections listed).
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `tables_v1.txt`, `anchors.txt`. `mk_tables.py`: `tables.json` (Tables I to III parsed from the extraction, Figures 1 and 3 from printed labels). `recompute.py`: every printed change recomputed, Pass@1 granularity, unpaired intervals and McNemar limits, RQ4 power, Figure 1 and 3 shares, ratios; writes `inputs/recompute.json`.
 - `schro_ref.py`: verbatim copies of the released `tokenize_identifier`, `create_token_mapping`, `reconstruct_identifier`, `_build_run_specs` and `_random_topological_order` (one stated change: integer seeds for the retries instead of string seeds hashed with SHA-512). `extract_targets.py`: runs the released extractor on a Django checkout (`uv run --with rich python extract_targets.py <Schrodinger-Repo> <django>`). `mk_excerpt.py`: `inputs/excerpt.json`. `mk_repo_data.py`: `parts/20_repo_data.js` (excerpt, targets, lexicon, Level 3 specs, Python reference results for seeds 1 to 10).
 - `parts/21_js_port.js`: the JavaScript port (PyRandom, SR). `check_page.mjs` (from the repo root with node): the port against the Python reference (mappings, both orders, texts, Figure 4 preset), every control in both themes and widths, both animations stepped in both modes, 11 px text, NaN, errors, sideways scroll.
@@ -29,7 +28,7 @@
 
 ## Checks (3 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: see the latest run in the builder's report (fail=0, emdash 0, errbox 1, clipped 0). `node .../src/check_page.mjs`: 0 problems, JS port identical to the released Python for seeds 1 to 10. `mk_coverage.py`: 22 of 22.
+`sh html_utils/checkpage.sh <folder>`: see the latest run in the builder's report (fail=0, emdash 0, errbox 1, clipped 0). `node .../src/check_page.mjs`: 0 problems, JS port identical to the released Python for seeds 1 to 10.
 
 ## The 2026-10-26 light pass (teaching contract)
 
@@ -39,7 +38,7 @@ What changed and why:
 - **Closed** (`details.more`): the provenance box on "6 to 14 points"; the four code-against-text differences with file names and defaults (an open paragraph keeps all four in one sentence each); the detailed bullets of What it takes to use this (one open paragraph).
 - **No volatile block**: nothing on the page is dated follow-up news. The Transform tab stays a tab: it is a tool the Reading tab links to from the levels, the case study and the evidence.
 - **No autoplay**: `makeAnim` patched as on RRSI and Dream-RSI (waits on step 1 until the reader presses play or steps); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `schro-tab`), keeping the `data-to` scroll target. `check_page.mjs` now fails if either animation draws a frame before a click and opens every closed block. `details.more` wraps long code words (a path overflowed by 1 px at 390 px).
-- **Takeaway scoped** (`paper.json`, so the card; `live.md`'s property line): "consistently degrades ... on SWE-bench Verified and SWE-QA" became the measured ranges (Pass@1 6.0 to 11.2 on 500 tasks, 14.4 on Gemini's 300; actions 1.6 to 2.2 times, input tokens 2.4 to 3.5 times; Level 2 the costliest single level; over 80% of extra actions on finding code; SWE-QA 4.64 and 0.55) and the two limits (memorised against meaningful names not separated; an underpowered fresh-task control). The old wording is quoted in `takeaway_note`. The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json`, so the card): "consistently degrades ... on SWE-bench Verified and SWE-QA" became the measured ranges (Pass@1 6.0 to 11.2 on 500 tasks, 14.4 on Gemini's 300; actions 1.6 to 2.2 times, input tokens 2.4 to 3.5 times; Level 2 the costliest single level; over 80% of extra actions on finding code; SWE-QA 4.64 and 0.55) and the two limits (memorised against meaningful names not separated; an underpowered fresh-task control). The old wording is quoted in `takeaway_note`. The Notion property needs the same edit.
 - `inputs/paper_v1.txt`: three author emails replaced with `[email removed]` and two em-dashes written as `--`; `extract_paper.py` now does both. Header: "Reading: 20 min, plus 3 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -56,7 +55,7 @@ Why about 20 minutes is right: the top (about 330 words) went in and about 760 w
 250 units: core 218, depth 30, owned 2, volatile 0, fat 0. 241 drafted by `ledger.py init` from the page before the pass; 9 added. Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (26 October 2026)
-`checkpage.sh`: tabs 4, about 222 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 200 actions, 0 problems (JS port identical to the released Python for 10 seeds; no frame before a click). `mk_coverage.py`: 22 of 22.
+`checkpage.sh`: tabs 4, about 222 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 200 actions, 0 problems (JS port identical to the released Python for 10 seeds; no frame before a click).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

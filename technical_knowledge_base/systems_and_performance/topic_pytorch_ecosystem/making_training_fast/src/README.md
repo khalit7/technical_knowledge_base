@@ -84,11 +84,11 @@ Why 32 minutes is right: the page teaches a method (measure, fix one thing, meas
 
 ## Departures from the child-page method
 
-Reading organised by the hunt (measure, then each lever with its cost, when and how to check), one tool tab, Further reading last. Old-page corrections are in `coverage.md` (2026-10-13, describes the old structure), visual choices in `viz_ideas.md`.
+Reading organised by the hunt (measure, then each lever with its cost, when and how to check), one tool tab, Further reading last. Visual choices are in `viz_ideas.md`.
 
 ## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged (see the parts table). No new runs: every scene draws from `window.FST` (`exp/inputs/` via `build_data.py`, unchanged; `check_data.py` passes).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged (see the parts table). No new runs: every scene draws from `window.FST` (`exp/inputs/` via `build_data.py`, unchanged; `check_data.py` passes).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

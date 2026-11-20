@@ -66,4 +66,4 @@ Why about 38 minutes is right: the page is the sole owner of SSH end to end (tra
 - **Logs as excerpts.** Steppers show only the lines that prove the step; the verbatim logs are one click away in closed blocks, so the evidence is complete without making the core long.
 
 ## Sources
-`inputs/` holds extracts fetched on 2026-10-05: OpenSSH release notes 9.0 to 10.5, the OpenSSH post-quantum page, RFC 10042 sections 2.1 to 2.4, the head of Qualys's regreSSHion advisory. The old page is `../../src/read/old/ssh.md`; `coverage.json` maps its facts (2026-10-05); `ledger.json` is the current accounting.
+`inputs/` holds extracts fetched on 2026-10-05: OpenSSH release notes 9.0 to 10.5, the OpenSSH post-quantum page, RFC 10042 sections 2.1 to 2.4, the head of Qualys's regreSSHion advisory. `ledger.json` is the current accounting.

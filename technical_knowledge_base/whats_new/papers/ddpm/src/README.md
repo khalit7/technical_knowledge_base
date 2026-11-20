@@ -1,9 +1,9 @@
 # DDPM paper page: source
 
-`sh build.sh` writes `../index.html` (runs `recompute.py` and `mk_paper.py` first). Then `sh html_utils/checkpage.sh <folder>` and `node src/check_page.mjs` from the repo root, and `python3 mk_coverage.py` (53 of 53 facts of `live.md` verified).
+`sh build.sh` writes `../index.html` (runs `recompute.py` and `mk_paper.py` first). Then `sh html_utils/checkpage.sh <folder>` and `node src/check_page.mjs` from the repo root.
 
 ## Files
-- `live.md`: the Notion row page as fetched 2026-09-20 (save_live.py). `inputs/`: arXiv HTML v2 text and tables (extract_paper.py), later papers' abstracts and table extracts, `recompute.json`.
+- `inputs/`: arXiv HTML v2 text and tables (extract_paper.py), later papers' abstracts and table extracts, `recompute.json`.
 - `paper.json`, `tables.json` (Tables 1 to 4 as printed), `recompute.py` (every derived number, 10 of 10 checks), `mk_paper.py` (card, Further reading, data).
 - Toy models: `toy.py` (data, schedule, MLP, Eq. 4, 7, 11, 13, bound), `train.py` (four Table 2 variants; `eval`; `export`), `export.py` (8-bit weights to `parts/20_model_data.js`, quantisation cost), `rd.py` (rate and distortion as Figure 5), `check_forward.py` + `check_forward.mjs` (JS against NumPy float64 and PyTorch). Logs and reports in `model/`.
   Rerun: `OMP_NUM_THREADS=2 STEPS=300000 uv run --with torch --with numpy python train.py <variant>` (one variant per run, in the background; about 20 to 40 minutes each), then `train.py eval`, `export.py 8`, `rd.py`, `check_forward.py`, `node check_forward.mjs`, `python3 recompute.py`.
@@ -43,7 +43,7 @@ Why about 21 minutes is right: the two added minutes are the core sentence, the 
 231 units: core 200, depth 23, owned 6, fat 2. 221 drafted by `ledger.py init`; 10 added (core sentence, hero, new terms, six owner links, the script-drawn check table). `ledger.py check`: problems 0.
 
 ## Checks (24 October 2026)
-`checkpage.sh`: tabs 5, 278 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 288 actions, 0 problems (including no movement before a click). `check_forward.mjs`: JS against NumPy within 7e-16, Gaussian stream identical. `mk_coverage.py`: 53 of 53 (the reading-time key updated).
+`checkpage.sh`: tabs 5, 278 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 288 actions, 0 problems (including no movement before a click). `check_forward.mjs`: JS against NumPy within 7e-16, Gaussian stream identical.
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
 

@@ -1,6 +1,6 @@
 # Coding benchmarks: page source
 
-`sh build.sh` writes `../index.html`. When inputs change: `python3 recompute.py && python3 mk_data.py && sh build.sh`, then `node check_controls.mjs` (every 2D control in both themes and widths, the page's numbers against `recompute_out.json`, and Fig. 4 autoplaying in view and still under reduced motion), `node check_stages.mjs` (the three 3D stages; see below), `python3 mk_coverage.py` and `python3 ../../../../html_utils/ledger.py check technical_knowledge_base/measurement/topic_benchmarks/coding` (from the repository root).
+`sh build.sh` writes `../index.html`. When inputs change: `python3 recompute.py && python3 mk_data.py && sh build.sh`, then `node check_controls.mjs` (every 2D control in both themes and widths, the page's numbers against `recompute_out.json`, and Fig. 4 autoplaying in view and still under reduced motion), `node check_stages.mjs` (the three 3D stages; see below) and `python3 ../../../../html_utils/ledger.py check technical_knowledge_base/measurement/topic_benchmarks/coding` (from the repository root).
 
 Shape: child page per `.claude/skills/explainer-page/page-kinds/topic-child.md`, rebuilt 2026-10-24 to the teaching contract. Tabs: Reading (`t-read`), Further reading (`t-more`). Storage key `codebench-tab`. Statuses, saturation series and same-model readings are the parent's tabs (Benchmark atlas, Saturation timeline, Same model, many numbers), linked, not rebuilt.
 
@@ -24,7 +24,7 @@ Shape: child page per `.claude/skills/explainer-page/page-kinds/topic-child.md`,
 | JS | `21_js_rd_common.js` (skill template, never autoplays), `22_js_data.js` (generated), `23_js_math.js`, `24_js_rd_pk.js`, `25_js_rd_hecode.js` (the code of Fig. 2's three samples; replaced `25_js_rd_he.js` on 2026-11-09), `25_js_s3.js` (renderer v2), `26_js_rd_misc.js`, `27_js_rd_hero.js` (hero and probes chart, `window.RDB`), `28_js_rd_pklab.js`, `29_js_rd_lcb.js`, `30_js_rd_task.js`, the stages `31_js_sc_hero.js`, `32_js_sc_he.js`, `33_js_sc_swe.js` (below), `99_js_tabs.js` (skill template) |
 | `39_tab_more.html` | Further reading |
 
-Scripts: `recompute.py`, `mk_data.py`, `mk_inputs.py`, `mk_coverage.py` (56 coding facts from the old Math and coding page; 56 verified after the rebuild), `check_controls.mjs` (replaces `check_page.mjs`), `ledger.json`, `viz_ideas.md`.
+Scripts: `recompute.py`, `mk_data.py`, `mk_inputs.py`, `check_controls.mjs` (replaces `check_page.mjs`), `ledger.json`, `viz_ideas.md`.
 
 ## The 2026-10-24 rebuild: what changed and why
 - **Top**: the core idea in one sentence (a coding score also measures the tests, the tasks and the harness; the field moved function, contest, repository as each broke) and a new static hero: the pipeline task, model in a harness, tests, score, with one published same-model pair per lever (MBPP 95.5 to MBPP+ 80.2 for o1-preview; SWE-Bench Pro V2 public 99.4 to private 81.6 for Claude Opus 5; Verified 46.8 to transformed 35.6 for GPT-5.4-mini; Pro V1 public 23.3 at 200 turns to 41.8 at 250 uncapped for GPT-5). Then "You need" (parent, harness pages, test-time compute, eval statistics) and seven new terms.

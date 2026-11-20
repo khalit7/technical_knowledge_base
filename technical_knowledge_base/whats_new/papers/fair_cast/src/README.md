@@ -1,6 +1,6 @@
 # Fair Cast: page source
 
-`sh build.sh` writes `../index.html`. The paper is arXiv 2610.41073v1 (29 October 2026, Andrew Gao and William Gao, Stanford), the only version on 2 November 2026; code at github.com/andrewgcodes/faircast (MIT, read at commit 7c213b2 of 29 October 2026). The Papers row is new (created by the lead), so there is no `live.md` and coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, with the shared pieces copied from the GRAFT page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `99_js_tabs` with storage key `fc-tab`, `mk_paper.py`, `build.sh`, `label_ledger.py`); everything else written for this paper.
+`sh build.sh` writes `../index.html`. The paper is arXiv 2610.41073v1 (29 October 2026, Andrew Gao and William Gao, Stanford), the only version on 2 November 2026; code at github.com/andrewgcodes/faircast (MIT, read at commit 7c213b2 of 29 October 2026). The Papers row is new (created by the lead). Built from `.claude/skills/explainer-page/page-kinds/paper.md`, with the shared pieces copied from the GRAFT page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `99_js_tabs` with storage key `fc-tab`, `mk_paper.py`, `build.sh`, `label_ledger.py`); everything else written for this paper.
 
 ## Tabs
 
@@ -33,7 +33,7 @@
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `inputs/table_*.txt`, `inputs/anchors.txt`.
 - `inputs/code_readme.md`, `inputs/table2_pairs.md`, `inputs/faircast_cast.py.txt`, `inputs/mbppplus_heldout_curves.json`: small files from the code repository (MIT), fetched 2 November 2026.
 - `mk_tables.py` (tables.json), `recompute.py` (`inputs/recompute.json`: 38 checks, 35 agree), `mk_paper.py`, `parts/20_js_sim.js` (the rounding engine, shared by the page and the checks), `check_sim.mjs` (writes `inputs/sim.json`, exact SR check) and `check_sim.py` (`uv run --no-project --with ml_dtypes --with numpy python check_sim.py`: 1,993 of 1,993 casts identical).
-- `check_page.mjs` (from the repo root with CHROME_PATH set): every control at 920 light and 390 dark, no frames before a click, every closed block opened, prose and summary numbers against the data. `mk_coverage.py` (after a build): `coverage.json`, 41 of 41 claims in the paper extract and on the page.
+- `check_page.mjs` (from the repo root with CHROME_PATH set): every control at 920 light and 390 dark, no frames before a click, every closed block opened, prose and summary numbers against the data.
 - `reading.json`: the header's minutes, measured with `html_utils/audit_pages.mjs` and `audit_pages.py` at 230 words a minute.
 - `label_ledger.py`: labels `ledger.json` after `html_utils/ledger.py init`.
 
@@ -43,7 +43,7 @@ Core sentence, hero, You need and new terms at the top; general mechanisms linke
 
 ## Checks (2 November 2026)
 
-See the report; rerun `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/fair_cast`, `node src/check_page.mjs`, `python3 src/mk_coverage.py`, `python3 html_utils/ledger.py check technical_knowledge_base/whats_new/papers/fair_cast`. Measured on a Linux cloud container (no GPU); everything is deterministic CPU work.
+See the report; rerun `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/fair_cast`, `node src/check_page.mjs`, `python3 html_utils/ledger.py check technical_knowledge_base/whats_new/papers/fair_cast`. Measured on a Linux cloud container (no GPU); everything is deterministic CPU work.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

@@ -41,7 +41,7 @@ checks = [
     ("Gateway Time-out", T[5]["curl"]["http"] == "504"),
     ("sent the same POST three times", all(len(c["server_saw"]) == 3 for c in J("sdk_retries.json")["cases"] if c["case"] in ("read_timeout", "connection_dropped"))),
     ("spoke HTTP/1.1 to the lab server over TLS", all(r["http_version"] == ("2" if r["client"] == "http2=True" else "1.1") for r in J("sdk_version.json")["runs"])),
-    ("43 to 68 ms", True),  # root's On the wire measurement, quoted from the root (src/read/coverage.md)
+    ("43 to 68 ms", True),  # root's On the wire measurement, quoted from the root
     ("land 68, 56 and 43 ms late", True),  # the same runs, embedded as HD.wirehol; check_stages.mjs compares the list with them
 ]
 for s, cond in checks:

@@ -310,7 +310,7 @@ def isotonic(z, w):
     return out
 
 
-def layout(nodes, edges, layer, height, colx, gap=14, iters=28, cgap=26):
+def layout(nodes, edges, layer, height, gap=14, iters=28, cgap=26):
     """lays out each connected part on its own and stacks the parts top to bottom, so unrelated chains never
     leave holes in each other"""
     comp = {v: v for v in nodes}
@@ -584,7 +584,7 @@ def build(url, kb=None):
 def view_from(P, nodes, edges, layer, ghost=()):
     ncol = max(layer.values()) + 1
     cx = columns(ncol)
-    tops, pts, H = layout(nodes, edges, layer, {i: P[i]["h"] for i in nodes}, cx)
+    tops, pts, H = layout(nodes, edges, layer, {i: P[i]["h"] for i in nodes})
     box = {i: (cx[layer[i]], TOP + tops[i], BW, P[i]["h"]) for i in nodes}
     sy, ty = ports(edges, box, {e: [(l, TOP + y) for l, y in p] for e, p in pts.items()})
     E = []

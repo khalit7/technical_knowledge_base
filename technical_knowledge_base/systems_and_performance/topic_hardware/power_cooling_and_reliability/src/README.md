@@ -35,7 +35,7 @@ Before: Reading 22 min core plus 2 closed, and 7 min in the other tabs (Checkpoi
 `ledger.json`: 260 units; core 190, depth 34, fat 35, owned 1 (the replica-checksum detector, owned by Fault tolerance at scale). `ledger.py check`: problems 0.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `pw-tab`). No change to `recompute.py` or `out/expected.json`: every scene draws from `window.PW` and the engine `PWE`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `pw-tab`). No change to `recompute.py` or `out/expected.json`: every scene draws from `window.PW` and the engine `PWE`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

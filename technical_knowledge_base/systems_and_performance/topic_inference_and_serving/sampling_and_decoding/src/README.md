@@ -42,10 +42,8 @@ Why 18 minutes is right: the page was thin on its own subject, and the contract 
 ## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`; `python3 html_utils/ledger.py check`: problems 0)
 199 units: core 163, depth 13, fat 16, owned 4, volatile 3. 187 drafted from the page as built on 2026-10-19 by `ledger.py init`; 12 added by hand (the long-tail table's rows, settings-table quotes, the engine table's facts, the script-rendered twelve-decoder values and beam captions). Owned: the acceptance rule and expected-tokens formula (Speculative decoding), the Table 4 calculator (Google DeepMind page), the decoding animation (tech news 2026-08-24). Volatile: the dated closed-API refusal box, kept here because it decides which knobs a reader can use. Fat units carry a `note`.
 
-`coverage.json` and `live.md` are the 2026-10-03 migration record (every fact of the old Notion page mapped); the ledger supersedes them for the rebuild.
-
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `02_css.html`, which closes `<head>`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `sampling-tab`). `build.sh` already wrote the em-dash detector's character as bytes. `check_controls.mjs` lost its never-autoplay block (inverted into `check_stages.mjs`). No new model runs: the three scenes draw `SD.LAB`, `SD.BEAM` and `SD.JSONC` with the page's own sampler, and expose what they compute as `window.SD_STG`; `check_stages.mjs` checks that every number quoted in the three step lists matches it.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `02_css.html`, which closes `<head>`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `sampling-tab`). `build.sh` already wrote the em-dash detector's character as bytes. `check_controls.mjs` lost its never-autoplay block (inverted into `check_stages.mjs`). No new model runs: the three scenes draw `SD.LAB`, `SD.BEAM` and `SD.JSONC` with the page's own sampler, and expose what they compute as `window.SD_STG`; `check_stages.mjs` checks that every number quoted in the three step lists matches it.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

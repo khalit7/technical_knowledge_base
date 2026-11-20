@@ -26,22 +26,22 @@
 - **Moved into closed blocks**: the checklist-creation prompt, Eq. 2 sum against mean, the α derivation, Table 6 and Figures 10 and 11, the two overstated §4.1 sentences, the abstract's cost ratios, the checklist verbs and Figures 14 to 17, the internal slips and prices, the five "does not establish" limits, and Claude's commentary under the Note to self (Khalid's callout stays open, verbatim). Runtime log-probability support (Ollama, OpenAI) is one dated block "Since the paper".
 - **Removed as fat** (3 units): the "three kinds" wind-up, the old reading-time line, the animation-manners line. The Figure 1 legend discrepancy now lives once, under the internal slips.
 - **Never autoplays**: `makeAnim` waits on step 1 until the reader presses play or steps; `check_page.mjs` scrolls the animation into view and fails on any frame drawn before a click, and opens every closed block.
-- **Takeaway softened** (card, `paper.json`, `live.md`): "5-10" scoped to the released 3 to 25; "killing positional bias" and "preserving calibration" dropped (independence moves agreement 1.5 points in Table 7; calibration is not measured); 0.965 against 0.979 scoped to one ranking of 12 well-separated models, one discordant pair, no error bars.
+- **Takeaway softened** (card, `paper.json`): "5-10" scoped to the released 3 to 25; "killing positional bias" and "preserving calibration" dropped (independence moves agreement 1.5 points in Table 7; calibration is not measured); 0.965 against 0.979 scoped to one ranking of 12 well-separated models, one discordant pair, no error bars.
 - **Length judgement**: Reading core 28 min before, 24 after, plus 7 in closed details (`audit_pages.mjs`, 230 words a minute; header from `reading.json`). The rest is core: this page owns the paper's evidence judgement (the 70.3% circularity, the one-pair margins, the released-data reruns), which no other page carries, and the light pass keeps the paper-specific visuals. Other tabs unchanged (Re-rank 2 min, Tables 8, Further reading 3).
 - **Ledger** (`src/ledger.json`, labelled by `label_ledger.py`): 296 units; core 233, depth 54, owned 5, volatile 1, fat 3; `ledger.py check` problems 0.
 - Author emails in `inputs/paper_v1.txt` are redacted, and `extract_paper.py` now redacts them on extraction.
 
 ## Files
 
-- `save_live.py` (Notion fetch from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt`, tables to `inputs/table_*.txt`), `mk_tables.py` (`tables.json`; Table 4 transcribed in the script).
+- `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt`, tables to `inputs/table_*.txt`), `mk_tables.py` (`tables.json`; Table 4 transcribed in the script).
 - `decode_figs.py`: Figures 4 and 5 from the vector PDFs of the arXiv source (`inputs/fig4_fig5.json`).
 - `fetch_data.sh` then `mk_data.py <cache>`: downloads the released data (about 120 MB, not committed: GPT-4o WildBench grades of 22 models, checklists, three small-judge gradings, MT-Bench gradings, lmsys MT-Bench human votes through `uv run --with pandas`, FastChat GPT-4 single grades) and reduces it to `inputs/released.json` (66 KB, committed).
 - `recompute.py`: every derived number (Table 4 cost model and the 70B mismatch, discordant pairs, the GPT-4o rerun, token counts, soft/hard correlations, checklist lengths, alpha, Table 2/3/7 claim checks, figure checks) to `inputs/recompute.json`.
-- `check_page.mjs`: every control at 1400 px light, 920 px light and 390 px dark, the Table 3 reproduction, the noisy-judge preset. `check_stages.mjs` (2026-11-13): the stages, the splits, reduced motion and the step lists' numbers. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs`: every control at 1400 px light, 920 px light and 390 px dark, the Table 3 reproduction, the noisy-judge preset. `check_stages.mjs` (2026-11-13): the stages, the splits, reduced motion and the step lists' numbers.
 
-## Checks (3 October 2026; rerun 25 October 2026 after the light pass: checkpage fail=0, emdash 0, errbox 1, clipped 0; check_page.mjs problems 0; mk_coverage 61 of 61)
+## Checks (3 October 2026; rerun 25 October 2026 after the light pass: checkpage fail=0, emdash 0, errbox 1, clipped 0; check_page.mjs problems 0)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 233 KB. `check_page.mjs`: 180 actions, 0 problems. `mk_coverage.py`: 61 of 61.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 233 KB. `check_page.mjs`: 180 actions, 0 problems.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -65,4 +65,4 @@ What changed and why:
 
 The growth is the stage step lists (about 780 words net, lists of 213, 298 and 233 words; the CoT list is counted although a reader sees one mode at a time). They carry what the hero SVG and the animation drew as script text, which the audit never counted: the hero's stage boxes and outcomes, and the ten per-step captions and counters of the before/after. Nothing was removed as fat. Header: "Reading: 28 min, plus 7 in closed details." from `reading.json`.
 
-Ledger: 299 units (core 236, depth 54, owned 5, volatile 1, fat 3); `ledger.py check` problems 0. `mk_coverage.py` 61 of 61.
+Ledger: 299 units (core 236, depth 54, owned 5, volatile 1, fat 3); `ledger.py check` problems 0.

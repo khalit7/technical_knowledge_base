@@ -1,5 +1,5 @@
 """Recompute every default the HTML reproduces. Run: python3 recompute.py
-Sources: Anthropic pricing page (src/about-claude_pricing.md), page worked example (live.md),
+Sources: Anthropic pricing page (src/about-claude_pricing.md),
 AA snapshot (../../src/data/aa_snapshot.json, Intelligence Index v4.3), METR raw data (src/metr.yaml)."""
 import json, math, datetime, yaml
 

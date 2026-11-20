@@ -57,7 +57,7 @@ Rebuild from scratch (with the topic scratch present): `LA_SCRATCH=<scratch>/la`
 
 ## Files
 
-`build.sh`, `parts/` (above), `lab/` (scripts above, `out/`, `check_controls.mjs`, `check_page_data.py ../index.html`, `shoot_cards.mjs`), `ledger.json`, `facts.md`, `viz_ideas.md`, `coverage.md`.
+`build.sh`, `parts/` (above), `lab/` (scripts above, `out/`, `check_controls.mjs`, `check_page_data.py ../index.html`, `shoot_cards.mjs`), `ledger.json`, `facts.md`, `viz_ideas.md`.
 
 Reading time: see the length judgement above.
 

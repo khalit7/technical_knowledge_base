@@ -4,13 +4,11 @@
 
 | File | What it does |
 |---|---|
-| `live.md` | The Notion row page before migration, saved verbatim by `save_live.py` from the session transcript. |
 | `extract_paper.py` | arXiv HTML v1 to `inputs/paper_v1.txt` (section ids marked). |
 | `decode_figs.py` | Decodes every figure from the vector PDFs in the arXiv e-print (`uv run --with pymupdf`; usage in the docstring), each axis calibrated on its tick marks; writes `inputs/figs.json`. PDFs are not kept. |
 | `recompute.py` | Every derived number and every text-against-figure check (`inputs/recompute.json`, shown in the figures tab). |
 | `mk_figdata.py` | Thins the decoded curves (RDP, kept points are decoded vertices) into `parts/_gen_figs.js`. |
 | `mk_paper.py`, `paper.json`, `tables.json` | Headline card (with the verdict), Further reading, `window.PAPER`. |
-| `mk_coverage.py` → `coverage.json` | Every fact of `live.md` and where the page carries it (27 of 27 verified). |
 | `mk_hero.py` | The hero figure (`parts/03_hero.svg.html`), run by `build.sh`. |
 | `reading.json` | The header's reading minutes, measured with `html_utils/audit_pages.mjs` after a build. |
 | `ledger.json`, `label_ledger.py` | The knowledge ledger and its labeller. |
@@ -39,7 +37,7 @@ What changed and why:
 - **Volatile**: one dated closed block, "Since the paper (dated: checked 26 October 2026)": AgentENV's README claims (read 3 October), the press and Hacker News readings, arXiv still v1.
 - **No autoplay**: `makeAnim` patched as on Dream-RSI (request path, layers, preemption wait for a click); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `dsec-tab`), keeping `data-to`. `check_page.mjs` fails if any animation draws a frame before a click, audits every closed block opened, and no longer clicks Play after a mode switch (which used to pause an autoplaying animation).
 - **Lab tab kept**: Place a burst is a simulator with several controls across the placement algorithm, not one mechanism's illustration.
-- **Takeaway scoped** (`paper.json` with a new `takeaway_note`, the card, `live.md` and `mk_coverage.py`): the database Takeaway called this the first publication with production numbers and stated the scale and the preemption co-design as results. The new one says the scale is self-reported without a method, that four mechanisms are measured on a 10-node test cluster, and that the co-design is described, not evaluated. The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json` with a new `takeaway_note`, the card): the database Takeaway called this the first publication with production numbers and stated the scale and the preemption co-design as results. The new one says the scale is self-reported without a method, that four mechanisms are measured on a 10-node test cluster, and that the co-design is described, not evaluated. The Notion property needs the same edit.
 - `inputs/paper_v1.txt`: the authors' contact email replaced with "[email removed]"; it had no em-dashes. `extract_paper.py` now writes `--` and redacts emails.
 
 ## Length judgement
@@ -56,7 +54,7 @@ Why about 25 minutes is right: the top added about 350 words, and about 780 word
 268 units: core 223, depth 38, owned 2, volatile 4, fat 1 (the old reading-time header). 256 drafted by `ledger.py init` from the page before the pass; 12 added. `ledger.py check`: problems 0.
 
 ## Checks (26 October 2026)
-`checkpage.sh`: tabs 4, about 214 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 438 actions, no problems (no frame before a click). `mk_coverage.py`: 27 of 27.
+`checkpage.sh`: tabs 4, about 214 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 438 actions, no problems (no frame before a click).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

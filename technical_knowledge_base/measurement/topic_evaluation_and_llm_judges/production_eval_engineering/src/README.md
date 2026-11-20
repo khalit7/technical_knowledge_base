@@ -4,8 +4,6 @@ Build: `sh build.sh` writes `../index.html` (parts in `parts/`, data injected fr
 
 | File | What it is |
 |---|---|
-| `live.md` | The old Notion page, verbatim (saved by `save_live.py` from the session transcript, fetched 2026-10-04) |
-| `coverage.json`, `mk_coverage.py` | Every old fact and where it is now, or which sibling owns it (55 facts: 37 here, 18 moved) |
 | `handoff_statistics.md`, `handoff_human_eval.md` | The old statistics and gold-label sections verbatim, with corrections, for Eval statistics and Human evaluation and annotation |
 | `make_data.py` | Builds `inputs/gate_data.json` from LMSYS's released MT-Bench files (URLs in the docstring; raw files not committed). `uv run --with tiktoken python3 make_data.py RAW` |
 | `recompute.py`, `recompute.json` | Independent recomputation (scipy t quantiles) of every number the JS shows; `uv run --with scipy python3 recompute.py` |

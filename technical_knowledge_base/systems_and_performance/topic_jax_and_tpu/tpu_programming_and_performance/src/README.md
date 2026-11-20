@@ -64,7 +64,7 @@ Why about 27 minutes is right: the Reading tab now carries nine core mechanisms 
 299 units: core 217, depth 51, fat 31. 286 were drafted from the old page by `ledger.py init`; 13 were added by hand for script-rendered tables and the new or moved visuals.
 
 ## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying animations (2026-11-12)
-Briefs `rebuild-page.md` and `layout-rollout.md`. `build.sh` includes `02_split.html` after `01_head.html` and writes the em-dash it looks for as bytes. No new runs: every scene draws from `window.TQ` (gens.json and recompute.json via `build_data.py`, unchanged) through the page's own formulas in `23_js_tq_util.js`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). `build.sh` includes `02_split.html` after `01_head.html` and writes the em-dash it looks for as bytes. No new runs: every scene draws from `window.TQ` (gens.json and recompute.json via `build_data.py`, unchanged) through the page's own formulas in `23_js_tq_util.js`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

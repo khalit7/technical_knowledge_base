@@ -20,7 +20,6 @@ Child 7 of Topic: data-curation-and-datasets. Built 2026-10-15. `sh build.sh` wr
 - `check_page.mjs`: data and prose checks plus every control at 390 dark and 920 light. `check_stages.mjs` (2026-11-09): the stages and 2D animations
   autoplay on view, step to their end with one list item per step, stop off screen and under reduced motion; splits two columns at 1400 px; step-list numbers recomputed from `window.PD`.
 - `ledger.json`: the knowledge ledger (teaching contract, 2026-10-24).
-- `coverage.md`: the old "Synthetic data and post-training data" page's post-training claims, verified or corrected.
   `viz_ideas.md`: visuals built and rejected.
 
 ## Runs (Apple M1 Pro CPU, 2026-10-15, nice 15, 2 to 4 threads; shared venv; large outputs outside the repo, under the shared setup folder dc/pd/)

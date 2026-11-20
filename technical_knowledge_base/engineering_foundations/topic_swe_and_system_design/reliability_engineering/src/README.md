@@ -7,7 +7,7 @@
 - Tabs: `31_tab_lab.html` (Resilience lab), `39_tab_more.html` (Further reading). The Error budget tab moved into Reading section 12.
 - Measurement: `lab/server.py`, `lab/loadgen.py` (stdlib only), `lab/run_all.sh` (6 configurations x 3 seeds, about 14 minutes; run from a short directory because of the Unix socket path limit), `lab/summarize.py` -> `inputs/lab_measured.json`. Raw per-attempt logs stayed in scratch; `inputs/baseline_attempts.txt` is the 30 s no-slowdown run that gave the timeout percentiles.
 - Checks: `python3 recompute.py` (writes `recompute_out.json`, now also the jitter and goodput figures), `node check_engine.mjs` (page JS against Python, exact: 20,782 numbers, 0 differences), `node src/check_ui.mjs <dir>` from the repo root (every control at 390 dark and 920 light, plus a check that the before/after animation does not move by itself), `node src/shot_figs.mjs <dir>` (each Reading figure, both themes), `python3 html_utils/ledger.py check <page>`.
-- Research: `inputs/research_*.json`, every quote verbatim with URL and fetch date (2026-10-04); `coverage.json` lists what this new page owns from the root and siblings, and the corrections.
+- Research: `inputs/research_*.json`, every quote verbatim with URL and fetch date (2026-10-04).
 - Shape: Part B of the topic method (summary table first, mechanisms in order, production table, mistakes). Departure: a "measured" section with a real experiment, because the page's central claim (what stops a retry storm) is cheap to test locally.
 
 ## 2026-11-07: split layout, six 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)

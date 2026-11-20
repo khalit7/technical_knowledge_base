@@ -10,7 +10,7 @@
 ## Data and checks
 - `measure/`: the measurement scripts (see "Reproduce"). Outputs in `inputs/`: `m1_pages.json` (pageinspect, buffer cache, crash recovery), `m2_wal.json` (WAL records, full-page images, commit rates), `m3_indexes.json` (write cost of 0 to 6 indexes, B-tree depth, splits, dedup, index kinds, BRIN), `m4_pg18.json` (skip scan 16 against 18, bigint against UUID v4 and v7 keys), `m5_lsm.json` (RocksDB write, space and read amplification).
 - `python3 build_data.py` writes `parts/22_js_data.js`; `python3 recompute.py` recomputes every derived number from the inputs, checks the prose (including the static captions under script-drawn tables) states them, and writes `recompute_out.json`; `check_page.mjs` (run from the repo root) clicks every control at 390 px dark and 920 px light and compares the page's JavaScript with `recompute_out.json`; `check_stages.mjs [shots dir]` (2026-11-06) checks the six stages and the crash stepper: autoplay when scrolled into view, one step-list item per step, the last step reached, flows stopped off screen, nothing moving under reduced motion, two columns at 1400 px (Reading and the lab), at 1400 light, 920 light and 390 dark.
-- `coverage.json`: every fact of the old page (`live.md`) with where it is carried, which sibling owns it, and corrections. `handoff_planner.md`, `handoff_vector.md`: the old page's planner and ANN material, verbatim with corrections, for the siblings that own them.
+- `handoff_planner.md`, `handoff_vector.md`: the old page's planner and ANN material, verbatim with corrections, for the siblings that own them.
 - `viz_ideas.md`: visuals built and rejected.
 
 ## Reproduce

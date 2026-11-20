@@ -1,6 +1,6 @@
 # Corrections to the old Notion pages (tooling, versions, dates)
 
-Checked 2026-10-05 against the old pages as fetched read-only from Notion by the Reading agent (`src/read/old/*.md`, each headed with its Notion URL and `page_last_edited_at`, 2026-09-22 for the Python page). Only tooling, version and schedule claims are covered here; the Reading agent owns the rest. Verdicts: **wrong** (false when written or now), **outdated** (true when written, superseded), **imprecise** (true in part), **confirmed**.
+Checked 2026-10-05 against the old pages as fetched read-only from Notion by the Reading agent (retired, in git history; each was headed with its Notion URL and `page_last_edited_at`, 2026-09-22 for the Python page). Only tooling, version and schedule claims are covered here; the Reading agent owns the rest. Verdicts: **wrong** (false when written or now), **outdated** (true when written, superseded), **imprecise** (true in part), **confirmed**.
 
 | # | Old page | Old claim | Verdict | What is true on 2026-10-05 | Source |
 |---|---|---|---|---|---|

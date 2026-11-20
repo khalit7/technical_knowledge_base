@@ -3,7 +3,7 @@ Source of the interactive HTML on the Notion page "Offline RL and imitation" (ch
 Build: `sh build.sh` writes `../index.html` (part order in the comment at the top of build.sh). The reading time in `10_header.html` and `39_tab_more.html` is measured with `html_utils/audit_pages.mjs` and written by hand.
 Checks: `python3 recompute.py && node check_engine.mjs` (Python reference against the page's engine: 32,948 values including every distribution, cost and fitted value, 0 mismatches, worst relative difference 5e-10); `node src/check_page.mjs [quick]` drives every control in headless Chrome at 390 px dark, 920 and 1400 px light, checks that each 3D stage autoplays in view, steps to its end, has one list item per step and stays still under reduced motion, compares the step lists' numbers with the engine, and screenshots into `../.shots/`; `node src/shot_el.mjs <id> ...` screenshots chosen Reading figures; `sh html_utils/checkpage.sh <page folder>`. `python3 parse_tables.py` regenerates `inputs/d4rl_tables.json` and `parts/30_js_d4rl_data.js` from the text extracts in `inputs/` and checks each table's printed averages against its rows.
 
-Old text: none. The Notion page was new, with only a placeholder, so there is no `live.md` and no `coverage.json`.
+Old text: none. The Notion page was new, with only a placeholder.
 
 Shape (since 2026-11-06 in the split layout with three 3D stages; see the section below): `.claude/skills/explainer-page/page-kinds/topic-child.md` under the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`). Page prefix `rd`, storage key `rloff-tab`. Tabs: Reading, D4RL results (kept: "across every dataset and method, as each paper printed it" is a tool of its own), Further reading.
 

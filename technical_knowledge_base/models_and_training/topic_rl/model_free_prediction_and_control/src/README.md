@@ -34,7 +34,7 @@ JS: `21_js_mf_engine.js` (engine, no DOM, Node-loadable: four learners, lambda-r
 Why about 31 minutes is right: the page teaches eight mechanisms (MC and TD, the n-step and lambda dial with traces, control with Q and GLIE, SARSA against Q-learning, maximisation bias, importance sampling, function approximation and the deadly triad, the DP map), each with a worked number, a picture and a formula, and about a sixth of the core words are captions, counters and legends of the nine live reruns. The cut from 55 minutes came from deleting the lab tabs' restated setups and the Reading tab's lists and recaps, not from dropping units; the new triad section added about 3 minutes.
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
-440 units: core 308, depth 63, fat 67, owned 2 (episode, return, V and Q vocabulary, owned by Topic: rl). 429 were drafted from the old page by `ledger.py init`; 11 were added for the new hero and section 7 (section "added 2026-10-24"). Fat units carry a `note` saying why. `coverage.json` (the 2026-10-04 migration's account of `live.md`) is kept as history; its "where" fields name the old tabs.
+440 units: core 308, depth 63, fat 67, owned 2 (episode, return, V and Q vocabulary, owned by Topic: rl). 429 were drafted from the old page by `ledger.py init`; 11 were added for the new hero and section 7 (section "added 2026-10-24"). Fat units carry a `note` saying why.
 
 ## Checks (run 2026-10-24)
 - `cd checks && node dump_mf.mjs && python3 recompute.py`: Python port of `21_js_mf_engine.js` (bit for bit, or 1e-12) plus independent checks, now including the eight triad settings, Figure 11.2's shape and the prose numbers 335, 114, 6.85. All pass.

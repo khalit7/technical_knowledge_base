@@ -20,7 +20,6 @@ All commands from `src/`; caches go to `$QLORA_CACHE` (default `/tmp/qlora_cache
 
 | Script | What it does | Output |
 |---|---|---|
-| `save_live.py <transcript>` | copies the Notion fetch verbatim | `live.md` |
 | `extract_paper.py <html>` | arXiv HTML v1 to text and tables | `inputs/paper_v1.txt`, `inputs/table_*.txt` |
 | `extract_figs.py <dir>` | Figures 2 and 4 from the vector PDFs of the arXiv source (`https://arxiv.org/e-print/2305.14314`), Figure 6's printed labels | `inputs/fig_points.json` |
 | `dtypes.py` | the 4-bit codes exactly as bitsandbytes builds them, the 8-bit dynamic map, an FP8 E4M3 grid, the Appendix E check | `inputs/dtypes.json` |
@@ -33,7 +32,6 @@ All commands from `src/`; caches go to `$QLORA_CACHE` (default `/tmp/qlora_cache
 | `mk_paper.py`, `mk_data.py` | card, Further reading, `window.PAPER`; packs all data into `parts/20_data.js` (`window.QD`) | `parts/_gen_*`, `parts/20_data.js` |
 | `check_engine.py` then `node check_engine.mjs` | the browser engine against Python: NF4 values, 60 quantisations, DQ, Elo in a fixed order for all three tournaments, Table 6 | `model/check_engine.json` |
 | `node check_page.mjs` (from the repo root) | every control in both themes and widths, a prompt bootstrap per judge, both animations stepped | console |
-| `mk_coverage.py` | every fact of `live.md` checked against the built page | `coverage.json` |
 
 Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui` and `build.sh` come from the reference folder (via LoRA); `99_js_tabs.js` is the explainer-page template (storage key `ql-tab`, a `data-to` link opens the closed block that holds its target); `22_js_engine.js` is the engine (codes, quantise, DQ, tournament decoding, Elo, bootstrap, Table 6), loaded by node for the checks; `13_js_read.js`, `23_js_quant.js`, `24_js_eval.js`, `25_js_tables.js` draw the tabs.
 
@@ -52,13 +50,12 @@ Parts: `00_top`, `01_css`, `05z_errbox`, `10_js_common`, `11_js_ui` and `build.s
 - **No autoplay**: `makeAnim` (11_js_ui.js) waits on step 1, also after a mode switch; `check_page.mjs` fails if `qb` or `pg` draws a frame before play or on a mode switch, and now opens every closed block before auditing a tab. Header: "Reading: 25 min, plus 8 in closed details." (`reading.json`, from audit_pages.mjs).
 - **Length**: Reading core 28 min before (6,374 words) plus 3 closed, 25 after (5,649) plus 8 closed; other tabs 20 min before, 12 core plus 8 closed after (the Tables tab went from 2,106 words open to 295 open and 1,819 closed). What stays open is the paper's argument in its order (problem, the one equation, NF4, DQ, paging, all-layer LoRA, the 4-bit against 16-bit results, Guanaco, how the chatbots were judged, limits, the evidence judgement, use, why it matters), which this page owns; the two live tabs stay because each is a tool the whole Reading tab points into.
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 269 units, core 208, depth 54, owned 3, volatile 1, fat 3 (the old reading-time line, the tab labels, the old "stops off screen" autoplay note); `ledger.py check` problems 0.
-- `mk_coverage.py`: the reading-time item now looks for the new header line; 47 of 47.
 
-Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 305 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 388 actions, 0 problems; `check_engine.mjs` PASS; `mk_coverage.py` 47 of 47.
+Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 305 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 388 actions, 0 problems; `check_engine.mjs` PASS.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Ownership (OWNERS.md): this page owns the paper (its method, numbers, evidence and the two live tabs). LoRA as practised and QLoRA's memory calculator live on the PEFT page (its Fig. 2 draws LoRA on a real matrix and Fig. 5 the training state in 3D); quantisation formats and scale granularity on Quantisation and precision (Fig. 2 there shares scales on real rows). Nothing here rebuilds those: the four stages show what only QLoRA adds, on this page's own LLaMA-7B sample and Figure 6 labels.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Ownership (OWNERS.md): this page owns the paper (its method, numbers, evidence and the two live tabs). LoRA as practised and QLoRA's memory calculator live on the PEFT page (its Fig. 2 draws LoRA on a real matrix and Fig. 5 the training state in 3D); quantisation formats and scale granularity on Quantisation and precision (Fig. 2 there shares scales on real rows). Nothing here rebuilds those: the four stages show what only QLoRA adds, on this page's own LLaMA-7B sample and Figure 6 labels.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

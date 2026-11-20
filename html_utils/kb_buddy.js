@@ -3,10 +3,10 @@
 // the buddy's only copy and is NOT inlined: each page carries the small loader html_utils/kb_buddy_loader.js (written by apply_buddy.py
 // as the marked kb-buddy block in the page's head part), which loads this file when a Claude key is saved or the reader taps "AI buddy".
 // On the site build_site.py publishes this file as kb_buddy.js at the site root (with a version stamp); edit it here and push, no page
-// rebuild needed. Ask Claude (kb_ask.js) was retired when the buddy reached every page.
+// rebuild needed.
 // Toolbar: docked to an edge of the screen (top by default; drag its grip to any edge), or made small. Read (no pen), pen,
 //   highlighter, eraser, lasso, Text (tap the notebook and type there; Enter sends), six colours, two widths, Undo, Claude on or off (on: Claude reads after a pause, 3 s unless Settings say otherwise; off: marks are just
-//   notes, Send asks), the Notebook, Settings.
+//   notes, Send asks), Conversations, the Notebook, Settings.
 // On the page: with a pen chosen, the Apple Pencil and the mouse write (fingers still scroll and work the page). Marks stay, pinned to
 //   the element they were drawn on, so they follow reflow and tabs; a highlight made from a selection is drawn from its words, so it
 //   stays on them at any screen width. Claude's replies are sticky notes by them, in the empty margin beside the passage when there is
@@ -24,7 +24,7 @@
 //   lasso or the hover handle. Each change is a synced record that keeps its versions (up to 6): its badge opens the change bar, which
 //   refines it in one tap (shorter, simpler, deeper, example, try again, two versions, or the reader's words), shows what changed
 //   against the original or the version before, and keeps, removes or undoes it with the whole request (its highlight and note go too,
-//   with an Undo). The overview's Changes panel reviews them all and shows the page as written.
+//   with an Undo). The Page changes list (from the Conversations overview) reviews them all and shows the page as written.
 // Visuals: each frame has a guard (errors, a blank drawing once it is in view, the part the reader points at) and window.kit (the
 //   page's colours; svg, arrows, matrices, plots, bars, touch-sized sliders, steps that play once in view, loops only while seen).
 //   A visual made here that fails is repaired out of sight (patch_visual, a faster model, at most twice), else dropped back to the
@@ -34,26 +34,23 @@
 //   it was made shows the page's new text, marked "Needs a look": use Claude's version, keep the page's, or ask Claude to merge them.
 // Web access (Settings, on by default): Claude may use the API's web_search and web_fetch (at most 3 each per question) when the page
 //   and the knowledge base are not enough; web sources show as link chips (http(s) only, new tab); web content can never change the page.
-// Everything is kept in this browser (IndexedDB 'recs': one record per mark, note thread, notebook page, stroke, typed note or reply,
-//   handwriting reading and History entry, each with an id, an updatedAt and a deleted marker), so it works offline. With a GitHub
+// Everything is kept in this browser (IndexedDB 'recs': one record per mark, note thread, note picture, notebook page, stroke, typed
+//   note or reply, page change and exchange, each with an id, an updatedAt and a deleted marker), so it works offline. With a GitHub
 //   token in Settings it syncs through the private repo khalit7/kb-notes: pages/<page path>.json per page plus settings.json (the
 //   synced preferences); pushed about 10 s after a change and when the page is hidden, pulled on load and when the tab returns; merged
 //   record by record, the newer wins; a save rejected because the file changed is re-read, merged and retried. The Claude key, the
-//   token, the toolbar's and window's places, the current tool and History pictures stay on each device. The toolbar's cloud shows the
+//   token, the toolbar's and window's places and the current tool stay on each device. The toolbar's cloud shows the
 //   sync state (tap to sync now). Marks and notes keep the start of their element's text, so after a rebuild of the page they find
-//   their place again; those that cannot are listed as unanchored in Marks.
+//   their place again; those that cannot are listed under Lost from the page in the Page changes list.
 // Context sent with every turn (when "see the screen" is on): the page as a cached document of blocks with citations on (figure
 //   labels included), the tab and section in view, the text
 //   in view, the values of the controls in view, the reader's highlight, and an image of the screen rebuilt in the browser (boxes and text as laid
 //   out, the figures, animations at their current frame and images at their positions, the highlight in yellow, the marks and notes),
 //   made from the page's own DOM, canvases and SVGs; nothing outside the page is loaded except the handwriting font.
-// The API key and model live in localStorage kbAsk.* (the names Ask Claude used); requests go straight to api.anthropic.com.
+// The API key and model live in localStorage kbAsk.*; requests go straight to api.anthropic.com.
 (function(){
   if (window.__kbBuddy) return; window.__kbBuddy = 1;
   const BUDDY_SRC = (document.currentScript && document.currentScript.src) || '';
-  // keep WebGL drawing buffers readable, so a 3D view can be captured between frames (the loader does this before the page's scripts
-  // run; this covers the buddy loaded any other way)
-  try { const gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   function init(){
   const API = 'https://api.anthropic.com/v1/messages', KEEP = 12, WAITS = [1, 2, 3, 5, 8, 12];
@@ -121,7 +118,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbAskPop{position:fixed;z-index:66;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 16px));padding:6px;background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid #e0b400;border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2))}
 #kbAskPop[hidden]{display:none}
 #kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
-#kbBuddy .kb-h [data-a=marks],#kbBuddy .kb-h [data-a=find],#kbBuddy .kb-h [data-a=pages],#kbBuddy.kb-chgonly .kb-h [data-a=riddle],#kbBuddy.kb-chgonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=riddle],#kbBuddy.kb-setonly .kb-h [data-a=end],#kbBuddy.kb-setonly .kb-h [data-a=marks],#kbBuddy.kb-setonly .kb-h [data-a=pages],#kbBuddy.kb-setonly .kb-h [data-a=find],#kbBuddy.kb-setonly .kb-h [data-a=set],#kbBuddy.kb-setonly .kb-h [data-a=zoom],#kbBuddy.kb-setonly .kb-h [data-a=full]{display:none}
+#kbBuddy.kb-chgonly .kb-h [data-a=riddle],#kbBuddy.kb-chgonly .kb-h [data-a=end]{display:none}
 .kb-chips{display:flex;flex-wrap:wrap;gap:4px}
 #kbBuddy .kb-h [data-a=riddle][aria-pressed=true]{background:#3b2414;color:#f1e3bf;border-color:#3b2414}
 #kbBuddy.kr-on .kb-h{background:#2a1a0f;color:#e9d9b0}#kbBuddy.kr-on .kb-h b{color:#e9d9b0;font-family:Georgia,serif;letter-spacing:.02em}
@@ -324,7 +321,6 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 .kb-sk{display:block;margin:4px 0 8px}
 .kb-sk svg{display:block;width:100%;max-width:460px;height:auto;max-height:340px;color:var(--acc);overflow:visible}
 .kb-sk text{font-family:${HAND};stroke:none;fill:currentColor}
-#kbBuddy .kd-cl .kb-sk svg{max-width:380px;max-height:260px}
 @keyframes kbInk{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
 #kbBuddy .kd-st{position:absolute;right:10px;bottom:6px;font-size:11.5px;color:var(--mute);pointer-events:none}
 #kbBuddy textarea{width:100%;min-height:44px;max-height:160px;resize:vertical;font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
@@ -335,39 +331,15 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbBuddy .kb-go{background:var(--acc);border-color:var(--acc);color:var(--card,var(--bg));font-weight:600}
 #kbBuddy .kb-scroll{flex:1;overflow-y:auto;padding:10px 16px;overscroll-behavior:contain}
 #kbBuddy.kb-full .kb-scroll>*{max-width:900px;margin-left:auto;margin-right:auto}
-#kbBuddy .kd-e{border-bottom:1px solid var(--line);padding:10px 0}
-#kbBuddy .kd-e time{color:var(--mute);font-size:11.5px}
-#kbBuddy .kd-e img{display:block;max-width:100%;max-height:160px;margin:4px 0;border:1px solid var(--line);border-radius:6px;background:#fff}
-#kbBuddy .kd-me{white-space:pre-wrap;margin:2px 0 6px}
-#kbBuddy .kd-me::before{content:"You: ";color:var(--mute)}
-#kbBuddy .kd-cl{font-family:${HAND};font-size:22px;line-height:1.3;color:var(--acc);white-space:pre-wrap}
 #kbBuddy .kb-hint{color:var(--mute);font-size:13px}
-#kbBuddy .kd-fbar{padding:8px 12px;border-bottom:1px solid var(--line)}
-#kbBuddy .kd-fbar input{width:100%;font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
-#kbBuddy .kd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
-#kbBuddy .kd-th{cursor:pointer;text-align:center;font-size:12px;color:var(--mute)}
-#kbBuddy .kd-th img{display:block;width:100%;aspect-ratio:800/1130;border:1px solid var(--line);border-radius:4px;background:#fff;margin-bottom:3px}
-#kbBuddy .kd-th:hover img{border-color:var(--acc)}
-#kbBuddy .kd-th span{display:block;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#kbBuddy .kd-hit{display:block;width:100%;text-align:left;padding:8px 10px;margin:0 0 6px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer}
-#kbBuddy .kd-hit b{color:var(--mute);font-weight:600;font-size:12px;margin-right:6px}
-#kbBuddy .kd-hit mark{background:#ffe066;color:inherit;border-radius:2px}
-#kbBuddy .kd-ovf .kb-chips button[aria-pressed=true]{border-color:var(--acc);color:var(--acc)}
-#kbBuddy .kd-ovf .kb-chips i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
 #kbBuddy .kd-ovi{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:9px 10px;margin:0 0 7px;border:1px solid var(--line);border-radius:10px;background:var(--card,var(--bg));color:var(--ink);font:inherit;cursor:pointer}
 #kbBuddy .kd-ovi:hover{border-color:var(--acc)}
-#kbBuddy a.kd-ovi{text-decoration:none}
-#kbBuddy .kd-relh{margin:16px 0 8px;font-size:13px;color:var(--mute)}
 #kbBuddy .kd-ovi>i{flex:none;width:12px;height:12px;border-radius:50%;margin-top:5px}
 #kbBuddy .kd-ovi span{display:block;min-width:0}
 #kbBuddy .kd-ovi b{font-size:13px}
 #kbBuddy .kd-ovi small{display:block;color:var(--mute);font-size:11.5px}
 #kbBuddy .kd-ovi q{display:block;font-size:13px;color:var(--ink);quotes:none;margin-top:2px;border-left:3px solid var(--line);padding-left:7px}
 #kbBuddy .kd-ovi em{display:block;font-style:normal;font-size:12.5px;color:var(--mute);margin-top:3px}
-#kbBuddy .kd-ovi em.kd-ova{font-family:${HAND};font-size:18px;color:var(--acc)}
-#kbMarks rect.kb-flashr{fill:none;stroke:var(--acc);stroke-width:3;animation:kdFlash 1.6s ease-out forwards}
-#kbBuddy .kd-flash{position:absolute;border:3px solid var(--acc);border-radius:8px;pointer-events:none;animation:kdFlash 1.6s ease-out forwards}
-@keyframes kdFlash{0%{opacity:1}100%{opacity:0}}
 #kbBuddy .kb-err,.kb-note .kb-err{color:var(--bad,#c2703a)}
 #kbBuddy .kb-set label{display:block;font-weight:600;margin:10px 0 4px;font-size:13px}
 #kbBuddy .kb-set label.kb-ck{display:flex;gap:8px;align-items:flex-start;font-weight:400}
@@ -395,7 +367,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     thin:'M5 12h14', thick:'M5 12h14'
   };
   const COLORS = [['', 'Ink'], ['#e03131', 'Red'], ['#1c7ed6', 'Blue'], ['#2f9e44', 'Green'], ['#f59f00', 'Yellow'], ['#ae3ec9', 'Purple']];
-  // what each colour means to the reader (Settings); Claude is told, the overview filters by it
+  // what each colour means to the reader (Settings); Claude is told
   const MEAN0 = {'':'', '#e03131':'confusing', '#1c7ed6':'question', '#2f9e44':'got it', '#f59f00':'key idea', '#ae3ec9':'connection', '#f5c400':'asked about'};
   const means = () => { let m = {}; try { m = JSON.parse(mine.get('means') || '{}') } catch(e) {} return Object.assign({}, MEAN0, m) };
   const colName = c => (COLORS.find(x => x[0] === (c || '')) || [c, c === '#f5c400' ? 'Yellow' : 'Ink'])[1];
@@ -426,28 +398,21 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const sws = bar.querySelector('.kb-sws');
   document.addEventListener('pointerdown', e => { if (sws.classList.contains('kb-open') && !sws.contains(e.target)) sws.classList.remove('kb-open') }, true);
   let barRO = 0; try { new ResizeObserver(() => { cancelAnimationFrame(barRO); barRO = requestAnimationFrame(() => { if (!bar.classList.contains('kb-drag')) placeBar() }) }).observe(bar) } catch(e) {}
-  // the notebook (and its Text tool) is off for now: Khalid is rethinking it (2026-11-20; the overview came back as the conversation overview). Its data stays saved
-  // and syncs; the panel still opens for Settings. Set to false to bring them back as they were.
-  const NB_OFF = false;   // the notebook is back (2026-11-20); its old Marks, Pages and History views stay off
-  if (NB_OFF) for (const q of ['[data-b=notebook]', '[data-t=text]']) { const b = bar.querySelector(q); if (b) b.hidden = true }
   const toastEl = el('div', {id:'kbToast', hidden:'', 'aria-live':'polite'});
   const P = el('div', {id:'kbBuddy', role:'dialog', 'aria-label':'Notebook', hidden:''});
-  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="marks" title="Overview: every mark, highlight and note on this page; tap one to go there">Marks</button><button type="button" data-a="find" title="All pages at a glance, and search what you and Claude wrote">Pages</button><button type="button" data-a="pages" title="Every exchange as a list: the notebook and the page">History</button><button type="button" data-a="riddle" aria-pressed="false" title="Tom Riddle's diary: a fun mode with an empty diary; what you write sinks into the page and his reply rises out of it; nothing is kept">Tom Riddle</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
+  P.innerHTML = `<div class="kb-h"><b>Notebook</b><span class="kb-sp"></span><button type="button" data-a="zoom" title="Back to the page width" hidden>100%</button><button type="button" data-a="end" title="Go to the blank page at the end">New page</button><button type="button" data-a="riddle" aria-pressed="false" title="Tom Riddle's diary: a fun mode with an empty diary; what you write sinks into the page and his reply rises out of it; nothing is kept">Tom Riddle</button><button type="button" data-a="full" title="Fill the screen">Full</button><button type="button" data-a="set" title="Settings: key, model, what Claude sees" aria-label="Settings">&#x2699;</button><button type="button" data-a="close" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>
 <div class="kb-hl" hidden><span>Your highlight:</span><q></q><button type="button" data-a="unhl" title="Do not send this highlight" aria-label="Do not send this highlight">&#x2715;</button></div>
 <div class="kb-view" data-v="notebook"><div class="kd-paper"><div class="kd-scr"><div class="kd-book"></div></div><div class="kd-st" aria-live="polite"></div></div></div>
 <div class="kb-view kr-view" data-v="riddle" hidden><div class="kr-page"><canvas class="kr-ink"></canvas><div class="kr-say" aria-live="polite"></div><div class="kr-hint">Write in the diary with your pen, finger or mouse, or type below.</div></div><form class="kr-form"><input type="text" placeholder="Or type to the diary…" enterkeyhint="send" aria-label="Write to the diary"></form></div>
-<div class="kb-view" data-v="pages" hidden><div class="kb-scroll kd-log"></div></div>
-<div class="kb-view" data-v="marks" hidden><div class="kd-fbar kd-ovf"></div><div class="kb-scroll kd-ov"></div></div>
-<div class="kb-view" data-v="find" hidden><div class="kd-fbar"><input type="search" placeholder="Search your notebook: your writing, your notes and Claude's replies" aria-label="Search the notebook"></div><div class="kb-scroll kd-find"></div></div>
+<div class="kb-view" data-v="marks" hidden><div class="kb-scroll kd-ov"></div></div>
 <div class="kb-view" data-v="set" hidden><div class="kb-scroll kb-set"></div></div>
 <div class="kb-grip" title="Drag to resize"></div>`;
   document.body.append(bar, toastEl, P);
   const $ = s => P.querySelector(s);
   const head = $('.kb-h'), grip = $('.kb-grip'), hlBox = $('.kb-hl');
-  const nbView = $('[data-v=notebook]'), pgView = $('[data-v=pages]'), stView = $('[data-v=set]'), rdView = $('[data-v=riddle]');
+  const nbView = $('[data-v=notebook]'), stView = $('[data-v=set]'), rdView = $('[data-v=riddle]');
   const stat = $('.kd-st'), scr = $('.kd-scr'), book$ = $('.kd-book');
-  const ovView = $('[data-v=marks]'), ovList = $('.kd-ov'), ovBar = $('.kd-ovf');
-  const log = $('.kd-log'), setv = $('.kb-set'), fdView = $('[data-v=find]'), fdList = $('.kd-find'), fdIn = fdView.querySelector('input');
+  const ovView = $('[data-v=marks]'), ovList = $('.kd-ov'), setv = $('.kb-set');
 
   // ---- the notebook window: full screen by default (clear of the toolbar), or floating (dragged by its title bar, resized from the
   // corner, remembered) ----
@@ -489,17 +454,15 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   dragger(grip, (g0, dx, dy) => { geom.w = g0.w + dx; geom.h = g0.h + dy });
   window.addEventListener('resize', () => { placeBar(); if (!P.hidden) { if (P.classList.contains('kb-full')) fitFull(); else place() } });
 
-  // ---- views of the window: the notebook, History, Settings ----
-  let sub = null;   // null, 'pages' or 'set'
+  // ---- views of the window: the notebook, Tom Riddle's diary, Settings and the Page changes list ----
+  let sub = null;   // null (the notebook), 'riddle', 'set' or 'marks' (the Page changes list)
   function show(){
-    const v = sub || 'notebook'; if (NB_OFF && v !== 'set') { close(); return }   // the notebook and its views are off: only Settings opens
-    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', riddle:'Tom Riddle\u2019s diary', pages:'History', set:'Settings', find:'Notebook pages', marks:'Page changes and marks'}[v] || 'Notebook';
+    const v = sub || 'notebook';
+    P.querySelector('.kb-h > b').textContent = {notebook:'Notebook', riddle:'Tom Riddle\u2019s diary', set:'Settings', marks:'Page changes'}[v] || 'Notebook';
     if (v !== 'riddle' && !rdView.hidden) riddleClose();   // leaving the diary by any route
-    nbView.hidden = v !== 'notebook'; rdView.hidden = v !== 'riddle'; pgView.hidden = v !== 'pages'; $('[data-a=riddle]').setAttribute('aria-pressed', String(v === 'riddle')); P.classList.toggle('kr-on', v === 'riddle'); $('[data-a=end]').hidden = v === 'riddle'; stView.hidden = v !== 'set'; fdView.hidden = v !== 'find'; ovView.hidden = v !== 'marks';
-    $('[data-a=marks]').classList.toggle('kb-on', sub === 'marks'); if (v === 'marks') renderOverview();
-    $('[data-a=pages]').classList.toggle('kb-on', sub === 'pages'); $('[data-a=set]').classList.toggle('kb-on', sub === 'set'); $('[data-a=find]').classList.toggle('kb-on', sub === 'find');
-    if (v === 'find') renderFind();
-    if (v === 'pages') renderLog();
+    nbView.hidden = v !== 'notebook'; rdView.hidden = v !== 'riddle'; $('[data-a=riddle]').setAttribute('aria-pressed', String(v === 'riddle')); P.classList.toggle('kr-on', v === 'riddle'); $('[data-a=end]').hidden = v === 'riddle'; stView.hidden = v !== 'set'; ovView.hidden = v !== 'marks';
+    if (v === 'marks') renderChanges();
+    $('[data-a=set]').classList.toggle('kb-on', sub === 'set');
     if (v === 'set') renderSet();
     if (v === 'notebook') requestAnimationFrame(layoutBook);
     showHl(); syncBar();
@@ -508,8 +471,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function open(view){
     exitMax(); closeOvw(); if (P.hidden) lastFocus = document.activeElement;
     P.hidden = false; setFull(mine.get('full') !== '0');
-    sub = !store.get('key') || NB_OFF ? 'set' : (view || null); P.classList.toggle('kb-chgonly', sub === 'marks');   // a plain open is the normal notebook
-    P.classList.toggle('kb-setonly', NB_OFF); show();
+    sub = !store.get('key') ? 'set' : (view || null); P.classList.toggle('kb-chgonly', sub === 'marks');   // a plain open is the normal notebook
+    show();
   }
   function close(){ if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!chg.hidden || !blkPop.hidden) { closeChg(); closeBlk() } else if (sel || psel) { clearSel(); clearPsel() } else if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
@@ -517,7 +480,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let tool = (NB_OFF ? /^(hand|pen|hl)$/ : /^(hand|pen|hl|text)$/).test(mine.get('tool')) ? mine.get('tool') : 'hand',   // the Text tool is the notebook's: off with it
+  let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand',
       color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const claudeOn = () => mine.get('claude') !== 'off';
@@ -604,7 +567,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.b === 'undo') undo();
     else if (b.dataset.b === 'claude') { mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing ' + waitS() + ' s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
     else if (b.dataset.b === 'send') { if (!P.hidden && sub === 'riddle') rdSend(); else { commit(PG); commit(NB) } }
-    else if (b.dataset.b === 'notebook' && !NB_OFF) P.hidden ? open() : close();
+    else if (b.dataset.b === 'notebook') P.hidden ? open() : close();
     else if (b.dataset.b === 'set') open('set');
     else if (b.dataset.b === 'sync') { if (syncState === 'error' && /token|repository/.test(syncMsg)) open('set'); syncNow() }
     else if (b.dataset.b === 'over') toggleOvw();
@@ -633,7 +596,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       const r = s.getRangeAt(0), elOfN = n => n && (n.nodeType === 1 ? n : n.parentElement), st = elOfN(r.startContainer);
       // a triple-click selects a whole paragraph and runs on to the very start of the next block: it is about the first one only
       const spill = r.endOffset === 0 && st && !st.contains(r.endContainer) && (st.closest(CITE_SEL) || st), host = spill ? (st.closest(CITE_SEL) || st) : r.commonAncestorContainer, he = elOfN(host);
-      if (!he || P.contains(he) || he.closest('input,textarea,select,button,#kbAsk') || !pageRoot().contains(he)) return;
+      if (!he || P.contains(he) || he.closest('input,textarea,select,button') || !pageRoot().contains(he)) return;
       const inEd = he.closest('[data-ed],[data-edw]');
       if (inEd || he.closest(KB_NODES)) { if (!inEd) return; hl = {text:txt.slice(0, 4000), where:'', el:null, edit:inEd.dataset.ed || inEd.dataset.edw, rects:[...r.getClientRects()].filter(q => q.width > 1).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))}; showHl(); if (!penOn()) showPop(); return }
       hl = {text:txt.slice(0, 4000), where:where(he), el:blockEl(he), rects:[...r.getClientRects()].filter(q => q.width > 1).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))};
@@ -643,7 +606,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function showHl(){ hlBox.hidden = !hl || !!sub; if (hl) hlBox.querySelector('q').textContent = hl.text.length > 300 ? hl.text.slice(0, 300) + '…' : hl.text }
 
   // ---- what is in view now ----
-  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel';
+  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle';
   // what the buddy itself puts into the page (visual sections, added text, hidden-block stubs, move placeholders, change badges): never
   // counted as page content, so showing or hiding a change moves no mark, citation or anchor
   const KB_NODES = '.kb-vsp,.kb-vis,.kb-ins,.kb-hidstub,.kb-mvph,.kb-edtag';
@@ -977,15 +940,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const costLine = r => MODELS[r.model].name + ' · ≈ ' + r.cents.toFixed(2) + '¢ (this visit ≈ ' + spent.toFixed(1) + '¢)';
 
   // ================= Keeping it: records, local first, synced through a private GitHub repo =================
-  // Every mark, note thread, notebook page, stroke, typed note or reply, handwriting reading and History entry is a record with a
+  // Every mark, note thread, note picture, notebook page, stroke, typed note or reply, page change and exchange is a record with a
   // stable id, an updatedAt (u) and, once removed, a deleted marker instead of vanishing. Changes are found by comparing what is on
   // screen with the records it was built from (BASE), so a change merged in from another device is never mistaken for a local edit.
   // IndexedDB ('recs') is the local copy, so everything works offline. With a GitHub token in Settings, the records go to one JSON file
   // per knowledge-base page in the notes repo (pages/<page path>.json) plus settings.json: pushed about 10 s after the last change and
   // when the page is hidden, pulled on load and when the tab comes back. Two copies merge record by record: the newer u wins. A save
-  // rejected because the file changed meanwhile is fetched again, merged and retried. History pictures stay on the device.
+  // rejected because the file changed meanwhile is fetched again, merged and retried.
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  let REC = {}, LOCAL = {}, BASE = new Map(), recsReady = false, needApply = false, changeSeq = 0;
+  let REC = {}, BASE = new Map(), recsReady = false, needApply = false, changeSeq = 0;
   const canon = v => Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v === undefined ? null : v);
   const bare = r => { const o = Object.assign({}, r); delete o.u; delete o.del; return o };
   const sig = r => { const o = bare(r); delete o.a; if (o.ref && typeof o.ref === 'object') { o.ref = Object.assign({}, o.ref); delete o.ref.a } return canon(o) };   // its path is left out: finding its place again after a rebuild is no change, so it can never outdate a newer edit made elsewhere
@@ -994,17 +957,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function buildRecs(){
     const out = {}, put = (k, o, body, extra) => { o.id = o.id || newId(); out[o.id] = Object.assign({k, id:o.id}, body, extra || {}) };
     book.forEach((pg, i) => {
-      if (blank(pg) && !(pg.reads || []).length) return;
+      if (blank(pg)) return;
       pg.id = pg.id || newId(); if (pg.order == null) pg.order = i;
       out[pg.id] = {k:'npage', id:pg.id, order:pg.order};
       for (const st of pg.ink) put('stroke', st, strokeRec(st), {pg:pg.id});
       for (const it of pg.items) { const b = Object.assign({}, it); delete b.id; put('item', it, b, {pg:pg.id}) }
-      for (const r of pg.reads || []) { const b = Object.assign({}, r); delete b.id; put('read', r, b, {pg:pg.id}) }
     });
     for (const m of marks) { const b = Object.assign({}, m, {p:m.p.map(rq)}); delete b.id; put('mark', m, b) }
     for (const n of notes) { const b = JSON.parse(JSON.stringify(n)); delete b.id; delete b.shot; put('note', n, b); if (n.shot) out['shot_' + n.id] = {k:'shot', id:'shot_' + n.id, n:n.id, img:n.shot} }   // a note's picture is its own record: taking one never touches the note, so it cannot overwrite a newer turn from another device
     for (const x of edits) { normEdit(x); const b = Object.assign({}, x); delete b.id; if (b.revs && b.revs.length) for (const k of REV_KEYS[x.kind] || []) delete b[k]; put('edit', x, b) }
-    for (const e of entries) { const b = Object.assign({}, e); delete b.id; delete b.img; delete b.page; put('entry', e, b); if (e.img) LOCAL[e.id] = {img:e.img} }
+    for (const e of entries) { const b = Object.assign({}, e); delete b.id; put('entry', e, b) }
     return out;
   }
   // fold what changed on screen since the last build into the records, stamped now
@@ -1016,16 +978,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (n) { changeSeq++; persistRecs(true); schedulePush() } else persistRecs(false);
   }
   let dirty = false;
-  function persistRecs(d){ if (d) dirty = true; return tx('readwrite', st => st.put({page:PAGE_ID, recs:REC, local:LOCAL, dirty}), 'recs') }
-  // the screen rebuilt from the records: notebook pages in order (a page also shows while something live is on it), marks, notes, History
+  function persistRecs(d){ if (d) dirty = true; return tx('readwrite', st => st.put({page:PAGE_ID, recs:REC, dirty}), 'recs') }
+  // the screen rebuilt from the records: notebook pages in order (a page also shows while something live is on it), marks, notes, changes, exchanges
   function fromRecs(){
     const live = Object.values(REC).filter(r => r && !r.del), kids = k => live.filter(r => r.k === k), strip = r => { const o = bare(r); delete o.k; delete o.pg; return o };
     const byT = (a, b) => (a.t || 0) - (b.t || 0) || (a.id < b.id ? -1 : 1);
-    const pgIds = new Set(kids('npage').map(r => r.id)); for (const r of live) if (r.pg && REC[r.pg]) pgIds.add(r.pg);
+    const pgIds = new Set(kids('npage').map(r => r.id)); for (const r of live) if (r.pg && REC[r.pg] && r.k !== 'read') pgIds.add(r.pg);
     book = [...pgIds].map(id => REC[id]).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.id < b.id ? -1 : 1)).map(np => ({id:np.id, order:np.order || 0,
-      ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip), reads:kids('read').filter(r => r.pg === np.id).sort(byT).map(strip)}));
-    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); { const sh = new Map(kids('shot').map(r => [r.n, r.img])); for (const n of notes) { const u = sh.get(n.id) || n.shot; if (u && SHOT_OK.test(u)) n.shot = u; else delete n.shot } } edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
-    entries = kids('entry').sort(byT).map(r => Object.assign(strip(r), LOCAL[r.id] || {}));
+      ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip)}));
+    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); { const sh = new Map(kids('shot').map(r => [r.n, r.img])); for (const n of notes) { const u = sh.get(n.id); if (u && SHOT_OK.test(u)) n.shot = u; else delete n.shot } } edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
+    entries = kids('entry').sort(byT).map(strip);
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
@@ -1039,23 +1001,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
     book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
     for (const g of markEl.values()) g.remove(); markEl.clear(); for (const e of noteEl.values()) e.remove(); noteEl.clear(); anchors.clear(); undoStack.length = 0;
-    renderEdits(); placeMarks(); fillQuotes(); if (!pgView.hidden) renderLog(); if (!ovView.hidden) renderOverview(); syncBar();
+    renderEdits(); placeMarks(); if (!ovView.hidden) renderChanges(); syncBar();
   }
-  // first run on this page: the bundle kept before records (IndexedDB 'books' and 'entries') becomes records, nothing dropped
+  // start-up: this page's records from IndexedDB (none yet: an empty start)
   async function loadRecs(){
     const r = await tx('readonly', st => st.get(PAGE_ID), 'recs');
-    if (r && r.recs && Object.keys(r.recs).length) { REC = r.recs; LOCAL = r.local || {}; dirty = !!r.dirty; fromRecs() }
-    else {
-      const b = await tx('readonly', st => st.get(PAGE_ID), 'books'), old = await tx('readonly', st => st.index('page').getAll(PAGE_ID), 'entries');
-      book = b && Array.isArray(b.pages) ? b.pages.filter(p => p && Array.isArray(p.ink) && Array.isArray(p.items)) : [];
-      book.forEach((p, i) => { p.id = newId(); p.order = i; p.ink = p.ink.map(asStroke) });
-      marks = b && Array.isArray(b.marks) ? b.marks.filter(m => m && Array.isArray(m.p)) : []; notes = b && Array.isArray(b.notes) ? b.notes.filter(n => n && (Array.isArray(n.turns) || typeof n.text === 'string')) : [];
-      for (const n of notes) { turnsOf(n); delete n.q; delete n.text }
-      entries = (old || []).sort((a, c) => a.t - c.t).map(e => Object.assign({}, e, {id:newId()}));
-      BASE = new Map();
-    }
+    if (r && r.recs) { REC = r.recs; dirty = !!r.dirty }
+    fromRecs();
     recsReady = true; book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook();
-    renderEdits(); placeMarks(); fillQuotes(); commitRecs(); syncNow();
+    renderEdits(); placeMarks(); commitRecs(); syncNow();
   }
 
   // ---- the GitHub side: the contents API, with the reader's fine-grained token (this browser only) ----
@@ -1088,11 +1042,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function cleanRecs(R){
     const out = {}; if (!R || typeof R !== 'object') return out;
     for (const [id, r] of Object.entries(R)) {
-      if (!r || typeof r !== 'object' || r.id !== id || !/^[0-9a-zA-Z_-]{2,40}$/.test(id) || typeof r.k !== 'string') continue;
+      if (!r || typeof r !== 'object' || r.id !== id || !/^[0-9a-zA-Z_-]{2,40}$/.test(id) || typeof r.k !== 'string' || r.k === 'read') continue;   // handwriting readings are no longer kept
       if (r.del) { out[id] = {k:r.k, id, del:true, u:+r.u || 0}; if (typeof r.pg === 'string') out[id].pg = r.pg; continue }   // a deletion carries nothing else, so a removed picture or note stays removed on every device
       if (r.c != null && !COLOR_OK.test(String(r.c))) r.c = null;
       if (r.k === 'note') { if (!Array.isArray(r.turns)) r.turns = []; for (const t of r.turns) if (t && t.ink != null) { const k = t.ink, ok = k && Number.isFinite(k.w) && Number.isFinite(k.h) && k.w > 0 && k.w <= 4000 && k.h > 0 && k.h <= 4000 && Array.isArray(k.s) && k.s.length <= 300 && k.s.every(st => Array.isArray(st) && st.length <= 4000 && st.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))); if (!ok) delete t.ink } }   // a drawing from the repo must be plain numbers
-      if (r.k === 'shot') { if (typeof r.n !== 'string' || !SHOT_OK.test(String(r.img || ''))) continue } else delete r.img; if (r.shot != null && !SHOT_OK.test(String(r.shot))) delete r.shot; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
+      if (r.k === 'shot') { if (typeof r.n !== 'string' || !SHOT_OK.test(String(r.img || ''))) continue } else delete r.img; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
       out[id] = r;
     }
     return out;
@@ -1161,7 +1115,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   window.addEventListener('online', () => syncNow()); window.addEventListener('offline', () => setSync('offline'));
 
   // ---- marks find their place again after a page is rebuilt: each keeps the start of its element's text (qt); if the element at its
-  // path no longer starts with it, the exact text is searched for, then a close match; a mark that fits nowhere is listed as unanchored ----
+  // path no longer starts with it, the exact text is searched for, then a close match; a mark that fits nowhere is listed under
+  // Lost from the page in the Page changes list ----
   const normT = t => String(t || '').replace(/\s+/g, ' ').trim();
   const quoteOf = e => !e || e === pageRoot() ? '' : normT(origText(e)).slice(0, 160);
   const bigrams = t => { const m = new Map(); for (let i = 0; i < t.length - 1; i++) { const g = t.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1) } return m };
@@ -1173,8 +1128,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     let sc = 0.62; for (const e of cands) { const d = dice(qt, normT(origText(e)).slice(0, 160)); if (d > sc) { sc = d; best = e } }
     return best;
   }
-  // give marks and notes made before quotes were kept the text of the element they sit on now
-  function fillQuotes(){ let n = 0; for (const x of marks.concat(notes)) if (x.qt == null && x.a != null) { const e = anchorEl(x.a); if (e) { x.qt = quoteOf(e); n++ } } if (n) saveBook() }
 
   // ================= The rest of the knowledge base =================
   // kb_index.json (html_utils/build_site.py) sits at the site's root: the nearest folder above this page that has it. Search uses the
@@ -1223,7 +1176,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // On request, Claude rewrites a text block (shown in place; a tag at its end switches between Claude's version and the original) or
   // adds an interactive visual after a block (in a sandboxed frame with no access to this page, its storage, the API key or the GitHub
   // token; it reports its height by message). Each change is a record (kind 'edit': where, the quoted start of the block, the content,
-  // which version shows, new or kept) synced with the notes; the overview lists them to keep or discard.
+  // which version shows, new or kept) synced with the notes; the Page changes list shows them to keep or discard.
   const edited = new Map(), visFrames = new Map();   // element -> {frag (its original nodes), text}; edit id -> iframe
   function origText(e){
     if (!e) return ''; const ed0 = edited.get(e); if (ed0) return ed0.text;
@@ -1570,7 +1523,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- showing the changes: first everything back as the page was, then each change in turn (rewrites, added text, hidden blocks,
   // moves, visuals), unless the reader chose to see the page as written ----
   let origView = false; const diffOn = new Map();
-  const refreshOv = () => { if (!ovView.hidden) renderOverview() };
+  const refreshOv = () => { if (!ovView.hidden) renderChanges() };
   const origPill = el('div', {id:'kbOrig', hidden:'', role:'status'}, '<span>Showing the page as written</span><button type="button">Show my changes</button>'); document.body.appendChild(origPill);
   origPill.querySelector('button').addEventListener('click', () => { origView = false; renderEdits(); refreshOv() });
   // ---- after the page itself is rebuilt: a change folded into the page (an element there carries data-kb-edit with its id, or, for a
@@ -1890,7 +1843,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     early(job); job.scr = await screenBlocks(false, [], null); go(job);
   }
 
-  // ---- the changes panel (the overview's Page changes): grouped by request, filters, step through, keep or remove, the page as written ----
+  // ---- the Page changes list: grouped by request, filters, step through, keep or remove, the page as written ----
   let edF = 'all', edNav = -1;
   const KLAB = {rewrite:'Rewrite', insert:'Added text', visual:'Visual', hide:'Hidden', move:'Moved'};
   const edMatch = x => edF === 'all' || (edF === 'new' ? x.st !== 'kept' : edF === 'kept' ? x.st === 'kept' : edF === 'look' ? staleIds.has(x.id) : x.kind === edF);
@@ -1916,12 +1869,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   function changesClick(e){
     const t = e.target.closest('[data-ch],[data-ef],[data-cg]'); if (!t) return false;
-    if (t.dataset.ef) { edF = t.dataset.ef; renderOverview(); return true }
-    if (t.dataset.cg) { const g = t.dataset.g, xs = edits.filter(y => (y.g || y.id) === g); if (t.dataset.cg === 'keep') { const st = xs.map(y => [y.id, y.st]); for (const y of xs) y.st = 'kept'; renderEdits(); saveBook(); renderOverview(); offerUndo('Kept', {st}) } else removeEdits(xs, 'The whole request was undone'); return true }
+    if (t.dataset.ef) { edF = t.dataset.ef; renderChanges(); return true }
+    if (t.dataset.cg) { const g = t.dataset.g, xs = edits.filter(y => (y.g || y.id) === g); if (t.dataset.cg === 'keep') { const st = xs.map(y => [y.id, y.st]); for (const y of xs) y.st = 'kept'; renderEdits(); saveBook(); renderChanges(); offerUndo('Kept', {st}) } else removeEdits(xs, 'The whole request was undone'); return true }
     const c = t.dataset.ch;
     if (c === 'orig') { origView = !!t.checked; renderEdits(); return true }
     if (c === 'prev' || c === 'next') { const pend2 = docOrder(edits.filter(x => x.st !== 'kept' && anchorOf(x))), list = pend2.length ? pend2 : docOrder(edits.filter(x => anchorOf(x))); if (!list.length) return true; edNav = ((edNav + (c === 'next' ? 1 : -1)) % list.length + list.length) % list.length; goEdit(list[edNav]); return true }
-    if (c === 'keepall') { const st = edits.filter(y => y.st !== 'kept').map(y => [y.id, y.st]); for (const y of edits) y.st = 'kept'; renderEdits(); saveBook(); renderOverview(); offerUndo(st.length + ' kept', {st}); return true }
+    if (c === 'keepall') { const st = edits.filter(y => y.st !== 'kept').map(y => [y.id, y.st]); for (const y of edits) y.st = 'kept'; renderEdits(); saveBook(); renderChanges(); offerUndo(st.length + ' kept', {st}); return true }
     if (c === 'dropall') { const xs = edits.filter(x => x.st !== 'kept'); if (confirm('Remove all ' + xs.length + ' changes you have not kept? (You can undo.)')) removeEdits(xs, 'All changes not kept were removed'); return true }
     return false;
   }
@@ -1938,14 +1891,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     try {
       const r = indexedDB.open('kbDiary', 3);
       r.onupgradeneeded = () => { const d = r.result;
-        if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', {keyPath:'id', autoIncrement:true}).createIndex('page', 'page');
-        if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', {keyPath:'page'});
-        if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // since 2026-11-19: one record per thing, synced
+        if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // one record per thing, synced
       r.onsuccess = () => res(r.result); r.onerror = () => res(null);
     } catch(e) { res(null) }
   });
-  const tx = async (m, f, name) => { const d = await db; if (!d) return null; name = name || 'entries'; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
-  const save = e => { e.id = newId(); entries.push(e); saveBook() };   // a History entry
+  const tx = async (m, f, name) => { const d = await db; if (!d) return null; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
+  const save = e => { e.id = newId(); entries.push(e); saveBook() };   // an exchange, kept so the next questions carry the recent ones
 
   // ---- ink: a stroke is {p:[[x, y, pressure]...], c:colour (null: the ink colour of the page or theme), w:width, h:highlighter}; on a
   // notebook page in paper units (its canvas is lw units wide, scaled on screen) ----
@@ -1994,7 +1945,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const dw = Math.hypot(d.x1 - d.x0, d.y1 - d.y0), hh = h.y1 - h.y0, hw = h.x1 - h.x0, dx = (d.x0 + d.x1) / 2, dy = (d.y0 + d.y1) / 2;
     return dw < 10 && hh > 12 && hw < 1.4 * hh && dx > h.x0 - 8 && dx < h.x1 + 8 && dy > h.y1 - 4 && dy - h.y1 < 0.9 * hh;
   }
-  const asStroke = s => Array.isArray(s) ? {p:s, c:null, w:2.6} : s;   // notebooks saved before strokes had colours
   function Ink(cv, opt){
     const g = cv.getContext('2d', {desynchronized:true}) || cv.getContext('2d');   // low-latency canvas where the browser offers it
     const o = {cv, strokes:[], cur:null, dpr:1, k:1}, off = () => opt.off ? opt.off() : [0, 0];
@@ -2066,12 +2016,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return c.toDataURL('image/png');
   }
   const bbox = ss => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const s of ss) for (const p of (s.p || s)) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) } return {x0, y0, x1, y1} };
-  // a small JPEG for the History view: the whole image, or the part around a box (screen coordinates, image scale k)
-  function thumb(src, box, k){ return new Promise(res => { const i = new Image(); i.onload = () => {
-    let sx = 0, sy = 0, sw = i.width, sh = i.height;
-    if (box) { const pad = 160; sx = Math.max(0, (box.x0 - pad) * k); sy = Math.max(0, (box.y0 - pad) * k); sw = Math.min(i.width - sx, (box.x1 - box.x0 + 2 * pad) * k); sh = Math.min(i.height - sy, (box.y1 - box.y0 + 2 * pad) * k) }
-    const s = Math.min(1, 480 / sw, 220 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * s)); c.height = Math.max(1, Math.round(sh * s));
-    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, sx, sy, sw, sh, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)) }; i.onerror = () => res(null); i.src = src }) }
 
   // ---- Tom Riddle's diary: a fun mode of the notebook, an empty page that is never kept or synced. What is written sinks into the paper,
   // and the diary's answer rises out of it in faded ink, then sinks too. Claude speaks as the diary's sixteen-year-old memory ----
@@ -2146,7 +2090,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     clearTimeout(rd.fadeT); rd.fadeT = setTimeout(() => { rdSay.classList.add('kr-out'); rd.fadeT = setTimeout(() => { rdSay.innerHTML = ''; rdSay.classList.remove('kr-out') }, 3200) }, 9000 + text.length * 95);
   }
 
-  // ---- the notebook: fixed-size pages one under another, kept in this browser (IndexedDB 'books'). Everything stays on the paper:
+  // ---- the notebook: fixed-size pages one under another, kept as records (IndexedDB 'recs'). Everything stays on the paper:
   // the reader's ink, their typed notes, Claude's replies and its arrows. Coordinates are paper units: a page is 800 x 1130, ruled
   // every 40; it is scaled to the window's width. There is always one blank page at the end. ----
   const PW = 800, PH = 1130, LH = 40, MX = 36, TOP = 42, BOT = 1096;
@@ -2636,9 +2580,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!text) { if (S.out.empty) S.out.empty(job, reply); else target().innerHTML = '<span class="kb-err">' + (r.stop === 'refusal' ? 'Claude declined to answer this one.' : 'No reply.') + '</span>' }
       else if (S.out.done) S.out.done(job, text, r.raw);
       say(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
-      const img = job.kind === 'page' ? (job.scr.img ? await thumb(job.scr.img, job.box, job.scr.k) : null) : (job.img ? await thumb(job.img) : null);
-      if (job.kind === 'note' && m2 && m2[1].trim() && book[job.pg]) { (book[job.pg].reads = book[job.pg].reads || []).push({t:Date.now(), text:m2[1].trim(), box:job.A}); saveBook() }
-      if (!job.quiet) save({page:PAGE_ID, t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text, img});
+      if (!job.quiet) save({t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text});
     } catch(e) {
       await drained();
       const msg = plainErr(e);
@@ -2704,12 +2646,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const kids = p => { const out = []; for (const c of p.children) { if (c.classList.contains('kb-mvph')) { if (c._moved) out.push(c._moved) } else if (!c.matches(KB_NODES) && !c.classList.contains('kb-moved')) out.push(c) } return out };
   const pathOf = e => { const root = pageRoot(), out = []; while (e && e !== root) { const p = e.parentElement; if (!p) return ''; out.unshift(kids(p).indexOf(e)); e = p } return e === root ? out.join('.') : '' };
   // the element a mark or note is pinned to: its path, checked against its quote; refound by the quote if the page changed
-  const lostSet = new Set();
   function anchorOf(x){
     const e = anchorEl(x.a); if (!x.qt) return e;
     const k = x.a + '|' + x.qt; if (anchors.has(k)) { const c = anchors.get(k); if (c === null || c.isConnected) return c }
     let f = e && normT(origText(e)).startsWith(x.qt.slice(0, 60)) ? e : refind(x.qt);
-    anchors.set(k, f || null); if (!f) { lostSet.add(x); return null } lostSet.delete(x);
+    anchors.set(k, f || null); if (!f) return null;
     if (f !== e) { x.a = pathOf(f); anchors.set(x.a + '|' + x.qt, f); saveBook() }
     return f;
   }
@@ -2750,7 +2691,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // words when the text reflows (another screen width, the iPad turned); its stored strokes are the fallback when the words are gone ----
   const selG = document.createElementNS(NS, 'g'); selG.setAttribute('class', 'kb-selhl');
   const selRects = new Map(), selHid = new Set(), selBox = new Map(), selRange = new Map();
-  const isSel = m => !!m && (m.sel === 1 || (m.h && !m.sh && m.c === '#f5c400' && m.p && m.p.length === 2));   // a stroke made from a selection (older ones by their shape), not the reader's own highlighter
+  const isSel = m => !!m && m.sel === 1;   // a stroke made from a selection, not the reader's own highlighter
   function findText(root, text, nearY, inside){
     const want = String(text || '').replace(/\s+/g, ' ').trim(); if (want.length < 2) return null;
     const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: t => t.parentElement && t.parentElement.closest(OURS + ',' + KB_NODES + ',script,style') ? 2 : 1});
@@ -3065,7 +3006,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 
   // ---- Claude's notes on the page: each is the thread about one set of marks (a highlight with its questions, or a drawing): every
   // turn is kept, and a reply box at its foot asks a follow-up. Tapping the marks (with Read or Text) opens the thread ----
-  const turnsOf = n => n.turns || (n.turns = [{q:n.q || '', a:n.text || ''}]);   // notes saved before threads had one turn
+  const turnsOf = n => n.turns || (n.turns = []);
   const retryOf = new WeakMap();   // a failed turn -> its request, so Try again asks it the same way (until the page is reloaded)
   // a turn that failed or was cut off says so (kept apart from the answer, so it never goes back to Claude as its words), with Try again
   function showCut(t, d){
@@ -3236,7 +3177,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     fromOvw = null; exitMax(); if (!P.hidden) close();
     const items = notes.filter(n => turnsOf(n).length);
     const tabOf = n => { const a = anchorEl(n.a), t = (n.tab && document.getElementById(n.tab)) || (a && a.closest && a.closest('.tab[id]')); return t ? tabName(t) : '' };
-    ovw.innerHTML = '<div class="kb-ovh"><b>Conversations on this page</b><span>' + items.length + '</span><span class="kb-sp"></span>' + (edits.length ? '<button type="button" data-o="chg" title="Every change Claude made to this page: keep, remove, or see the page as written">Page changes (' + edits.length + ')</button>' : '') + '<button type="button" data-o="close" aria-label="Close">&#x2715;</button></div>'
+    ovw.innerHTML = '<div class="kb-ovh"><b>Conversations on this page</b><span>' + items.length + '</span><span class="kb-sp"></span>' + (o => o.e || o.l ? '<button type="button" data-o="chg" title="' + (o.e ? 'Every change Claude made to this page: keep, remove, or see the page as written' : 'Notes and marks whose words are no longer on the page') + '">' + (o.e ? 'Page changes (' + o.e + ')' : 'Lost from the page (' + o.l + ')') + '</button>' : '')({e:edits.length, l:lostGroups().length}) + '<button type="button" data-o="close" aria-label="Close">&#x2715;</button></div>'
       + (items.length ? '<div class="kb-ovg">' + items.map(n => {
         const ts = turnsOf(n), q = (ts.find(t => t.q) || {}).q || (n.hl ? 'Highlight' : 'Drawing'), a = plain((ts.find(t => t.a) || {}).a || '').slice(0, 150), k = notes.indexOf(n) + 1, tb = tabOf(n);
         const pic = n.shot ? '<img src="' + esc(n.shot) + '" alt="">' : '<div class="kb-ovq">' + esc((n.hl || nearText((n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean)) || '').slice(0, 220) || 'A drawing on the page') + '</div>';
@@ -3246,7 +3187,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   ovw.addEventListener('click', e => {
     if (e.target.closest('[data-o=close]')) { closeOvw(); return }
-    if (e.target.closest('[data-o=chg]')) { closeOvw(); ovF.kind = 'edit'; open('marks'); return }   // the page-changes list (the notebook panel's old overview, filtered)
+    if (e.target.closest('[data-o=chg]')) { closeOvw(); open('marks'); return }   // the Page changes list
     const c = e.target.closest('.kb-ovc'); if (!c) return; const n = notes.find(x => x.id === c.dataset.id); if (!n) return;
     ovwTop = ovw.scrollTop; closeOvw(); if (!noteEl.get(n)) noteNode(n); fromOvw = n; maxNote(n, true);
   });
@@ -3395,133 +3336,33 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       } else if (!job.follow) { for (const id of job.made || []) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) removeMark(m) } saveBook(); placeMarks() }
     } finally { toast(msg, 9000) } }});
 
-  // ---- Pages: every notebook page as a small picture (tap to go there), and search over what is on them: Claude's reading of the
-  // handwriting (kept from each exchange), typed notes and Claude's replies ----
+  // a reply as plain text, for short previews
   const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/⟦[^⟧]*⟧/g, '').replace(/\s+/g, ' ').trim();
-  function thumbOf(i){
-    const c = document.createElement('canvas'), k = 0.25; c.width = PW * k; c.height = PH * k; const g = c.getContext('2d');
-    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k);
-    for (const s2 of book[i].ink) drawStroke(g, Object.assign({}, s2, {w:(s2.w || 2.6) * 1.8}), '#222');
-    for (const it of book[i].items) { if (it.kind === 'arrow') continue; g.fillStyle = it.kind === 'reply' ? 'rgba(160,82,45,.35)' : 'rgba(0,0,0,.28)'; const w = Math.min(it.w, measureW(it)); for (let y = it.y + 10; y < it.y + (it.h || LH) - 4; y += LH) g.fillRect(it.x, y, w, 18) }
-    return c.toDataURL('image/png');
+  // ---- the Page changes list (opened from the Conversations overview): every change Claude made to the page, then, only if there are
+  // any, the marks and notes that no longer find their place after the page changed, each with Delete ----
+  function lostGroups(){   // notes and marks whose words are no longer on the page
+    const lost = [], seen = new Set(), loose = new Map();
+    for (const n of notes) { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean); for (const m of ms) seen.add(m); if (!(ms[0] ? anchorOf(ms[0]) : anchorOf(n))) lost.push({n, ms}) }
+    for (const m of marks) if (!seen.has(m)) { const k = m.g || m.id; if (!loose.has(k)) loose.set(k, []); loose.get(k).push(m) }
+    for (const ms of loose.values()) if (!anchorOf(ms[0])) lost.push({n:null, ms});
+    return lost;
   }
-  function textsOf(i){
-    const d = book[i], out = [];
-    for (const r of d.reads || []) out.push({who:'You wrote', text:r.text, box:r.box});
-    for (const it of d.items) if (it.kind === 'typed' || it.kind === 'reply') out.push({who:it.kind === 'typed' ? 'You typed' : 'Claude', text:plain(it.text), box:{x0:it.x, y0:it.y, x1:it.x + it.w, y1:it.y + (it.h || LH)}});
-    return out;
-  }
-  function renderFind(){
-    const q = fdIn.value.trim().toLowerCase(), used = book.map((d, i) => i).filter(i => !blank(book[i]));
-    if (!q) {
-      fdList.innerHTML = used.length ? '<div class="kd-grid">' + used.map(i => { const t = textsOf(i)[0]; return '<div class="kd-th" data-pg="' + i + '"><img alt="Page ' + (i + 1) + '" src="' + thumbOf(i) + '">Page ' + (i + 1) + (t ? '<span>' + esc(t.text.slice(0, 60)) + '</span>' : '') + '</div>' }).join('') + '</div>' : '<p class="kb-hint">Nothing written in the notebook yet.</p>';
-      return;
-    }
-    const hits = []; for (const i of used) for (const t of textsOf(i)) { const at = t.text.toLowerCase().indexOf(q); if (at >= 0) hits.push({i, t, at}) }
-    fdList.innerHTML = hits.length ? hits.map((h, k) => { const s0 = Math.max(0, h.at - 50), a = h.t.text.slice(s0, h.at), m = h.t.text.slice(h.at, h.at + q.length), z = h.t.text.slice(h.at + q.length, h.at + q.length + 80);
-      return '<button type="button" class="kd-hit" data-hit="' + k + '"><b>Page ' + (h.i + 1) + ' · ' + h.t.who + '</b>' + (s0 ? '…' : '') + esc(a) + '<mark>' + esc(m) + '</mark>' + esc(z) + '</button>' }).join('') : '<p class="kb-hint">No match. Search covers Claude\'s reading of your handwriting, your typed notes and Claude\'s replies.</p>';
-    fdList._hits = hits;
-  }
-  fdIn.addEventListener('input', renderFind);
-  fdList.addEventListener('click', e => {
-    const th = e.target.closest('[data-pg]'), hit = e.target.closest('[data-hit]');
-    if (th) goPaper(+th.dataset.pg, null); else if (hit) { const h = fdList._hits[+hit.dataset.hit]; goPaper(h.i, h.t.box) }
-  });
-  // back to the notebook, at a page (and a place on it, briefly outlined)
-  function goPaper(i, box){
-    sub = null; show();
-    requestAnimationFrame(() => { const p = pgs[i]; if (!p) return; const y = box ? box.y0 : 0;
-      scr.scrollTop = Math.max(0, p.outer.offsetTop + y * scale - (box ? scr.clientHeight / 3 : 10));
-      if (box) { const f = el('div', {class:'kd-flash'}); Object.assign(f.style, {left:(box.x0 - 10) + 'px', top:(box.y0 - 8) + 'px', width:(box.x1 - box.x0 + 20) + 'px', height:(box.y1 - box.y0 + 16) + 'px'}); p.items.appendChild(f); setTimeout(() => f.remove(), 1700) } });
-  }
-
-  // ---- the overview: every group of marks on this page in reading order (a note's marks together; other marks drawn close in time
-  // on the same element together), filterable by kind, colour and resolved; tap one to go there ----
-  let ovF = {kind:'all', col:null, done:false};
-  function groupsNow(){
-    const byNote = new Map(), out = [];
-    for (const n of notes) for (const id of n.marks || []) byNote.set(id, n);
-    const seen = new Set();
-    for (const n of notes) { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean); out.push({n, ms}); for (const m of ms) seen.add(m) }
-    const loose = new Map(); for (const m of marks) if (!seen.has(m)) { const k = m.g || m.id; if (!loose.has(k)) loose.set(k, []); loose.get(k).push(m) }
-    for (const ms of loose.values()) out.push({n:null, ms});
-    for (const g of out) { const m = g.ms[0], e = m ? anchorOf(m) : g.n && anchorOf(g.n); g.lost = !e; g.el = e || pageRoot(); g.y = m ? Math.min(...m.p.map(q => q[1])) : g.n ? g.n.y : 0 }
-    return out.sort((a, b) => a.el === b.el ? a.y - b.y : (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-  }
-  function kindOf(g){ if (g.n) return 'note'; if (g.ms.every(m => m.h)) return 'highlight'; return 'ink' }
-  function renderOverview(){
-    const M = means(), gs = groupsNow();
-    const cols = [...new Set(gs.flatMap(g => g.ms.map(m => m.c || '')))];
-    ovBar.innerHTML = '<div class="kb-chips">' + [['all', 'All'], ['note', 'With a note'], ['highlight', 'Highlights'], ['ink', 'Drawings'], ['edit', 'Page changes']].map(([k, t]) => '<button type="button" data-k="' + k + '"' + (ovF.kind === k ? ' aria-pressed="true"' : '') + '>' + t + '</button>').join('') +
-      cols.map(c => '<button type="button" data-col="' + esc(c) + '"' + (ovF.col === c ? ' aria-pressed="true"' : '') + '><i style="background:' + (COLOR_OK.test(c) ? c : 'var(--ink)') + '"></i>' + esc(M[c] || colName(c)) + '</button>').join('') +
-      '<button type="button" data-done="1"' + (ovF.done ? ' aria-pressed="true"' : '') + '>Show resolved</button></div>';
-    const list = gs.filter(g => (ovF.kind === 'all' || kindOf(g) === ovF.kind) && (ovF.col == null || g.ms.some(m => (m.c || '') === ovF.col)) && (ovF.done || !(g.n && g.n.resolved)));
-    const lost = gs.filter(g => g.lost);
-    if (!gs.length) { ovList.innerHTML = '<p class="kb-hint">No marks on this page yet. Choose the pen or the highlighter on the toolbar, or select some text and ask.</p>'; return }
-    ovList.innerHTML = list.filter(g => !g.lost).map((g, k) => {
-      const c = g.ms[0] ? g.ms[0].c || '' : '', w = where(g.el), kind = kindOf(g), turns = g.n ? turnsOf(g.n) : [];
-      const head = (g.ms[0] && g.ms[0].dash ? 'Loop' : kind === 'highlight' ? 'Highlight' : kind === 'note' ? (g.n.hl ? 'Highlight' : 'Drawing') : 'Drawing') + (g.n ? ' · ' + turns.length + ' exchange' + (turns.length > 1 ? 's' : '') + (g.n.resolved ? ' · resolved' : '') : '') + (M[c] ? ' · ' + M[c] : '');
-      const quote = g.n && g.n.hl ? g.n.hl : (g.el.innerText || g.el.textContent || '').replace(/\s+/g, ' ').trim();
-      const lt = turns[turns.length - 1], q = turns.find(t => t.q), a = lt ? (lt.cut && !lt.a ? 'Not answered: ' + lt.cut : plain(lt.a) + (lt.cut ? ' [cut off]' : '')) : '';
-      return '<button type="button" class="kd-ovi" data-g="' + k + '"><i style="background:' + (g.ms[0] ? (c || 'var(--ink)') : 'var(--acc)') + '"></i><span><b>' + esc(head) + '</b>' + (w ? '<small>' + esc(w) + '</small>' : '') +
-        '<q>' + esc(quote.slice(0, 140)) + (quote.length > 140 ? '…' : '') + '</q>' + (q ? '<em>You: ' + esc(q.q) + '</em>' : '') + (a ? '<em class="kd-ova">' + esc(a.slice(0, 120)) + (a.length > 120 ? '…' : '') + '</em>' : '') + '</span></button>' }).join('') || '<p class="kb-hint">Nothing matches these filters.</p>';
-    ovList._g = list.filter(g => !g.lost);
-    if (ovF.kind === 'edit') ovList.innerHTML = changesHtml(); else if (ovF.kind === 'all' && edits.length) { const pn = edits.filter(x => x.st !== 'kept').length; ovList.insertAdjacentHTML('afterbegin', '<button type="button" class="kd-ovi kd-edsum" data-k2="edit"><i style="background:var(--acc)"></i><span><b>' + edits.length + ' page change' + (edits.length > 1 ? 's' : '') + (pn ? ' \u00B7 ' + pn + ' to review' : '') + '</b><small>Open the list: keep, refine, undo</small></span></button>') }
-    if (lost.length) ovList.insertAdjacentHTML('beforeend', '<h4 class="kd-relh">Unanchored: the page changed and these no longer find their place</h4>' + lost.map((g, k) => { const x = g.n || g.ms[0]; const t = g.n ? turnsOf(g.n).find(z => z.q || z.a) : null;
-      return '<div class="kd-ovi"><i style="background:var(--bad,#c2703a)"></i><span><b>' + (g.n ? 'Note' : 'Marks') + '</b><q>' + esc((x.qt || '').slice(0, 140)) + '</q>' + (t ? '<em>' + esc(t.q || plain(t.a).slice(0, 120)) + '</em>' : '') + '<button type="button" data-lost="' + k + '">Delete</button></span></div>' }).join(''));
+  function renderChanges(){
+    const lost = lostGroups();
+    ovList.innerHTML = changesHtml() + (lost.length ? '<div class="kd-edg"><b>Lost from the page: it changed and these no longer find their place</b></div>' + lost.map((g, k) => { const x = g.n || g.ms[0]; const t = g.n ? turnsOf(g.n).find(z => z.q || z.a) : null;
+      return '<div class="kd-ovi"><i style="background:var(--bad,#c2703a)"></i><span><b>' + (g.n ? 'Note' : 'Marks') + '</b><q>' + esc((x.qt || '').slice(0, 140)) + '</q>' + (t ? '<em>' + esc(t.q || plain(t.a).slice(0, 120)) + '</em>' : '') + '<button type="button" data-lost="' + k + '">Delete</button></span></div>' }).join('') : '');
     ovList._lost = lost;
-    relatedNotes().then(h => { if (h && !ovView.hidden) ovList.insertAdjacentHTML('beforeend', h) });
   }
-  // the reader's notes on the pages this one builds on and the pages that build on it (the knowledge base's prerequisite map)
-  async function relatedNotes(){
-    await kbIndex(); if (!KBI) return '';
-    const here = new URL('.', location.href).href, me = KBI.find(e => KBROOT + e.p + '/' === here); if (!me) return '';
-    const rel = KBI.filter(e => e !== me && ((me.pre || []).includes(e.id) || (e.pre || []).includes(me.id))).slice(0, 20), out = [];
-    for (const e of rel) {
-      const r = await tx('readonly', st => st.get(new URL(e.p + '/', KBROOT).pathname), 'recs'); const ns = r && r.recs ? Object.values(r.recs).filter(x => x.k === 'note' && !x.del) : [];
-      for (const n of ns) { const ts = n.turns || [{q:n.q, a:n.text}], t = ts.find(x => x.a) || ts.find(x => x.q); if (t) out.push({e, n, t}) }
-    }
-    if (!out.length) return '';
-    return '<h4 class="kd-relh">From related pages</h4>' + out.slice(0, 30).map(({e, n, t}) => '<a class="kd-ovi" href="' + esc(KBROOT + e.p + '/') + '"><i style="background:var(--acc)"></i><span><b>' + esc(e.t) + '</b>' + (n.hl ? '<q>' + esc(n.hl.slice(0, 120)) + '</q>' : '') + (t.q ? '<em>You: ' + esc(t.q) + '</em>' : '') + '<em class="kd-ova">' + esc(plain(t.a).slice(0, 120)) + '</em></span></a>').join('');
-  }
-  ovBar.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.k) ovF.kind = b.dataset.k; else if (b.dataset.col != null) ovF.col = ovF.col === b.dataset.col ? null : b.dataset.col; else if (b.dataset.done) ovF.done = !ovF.done; renderOverview() });
   ovList.addEventListener('click', e => {
     if (changesClick(e)) return;
-    const sm = e.target.closest('[data-k2]'); if (sm) { ovF.kind = sm.dataset.k2; renderOverview(); return }
     const ea = e.target.closest('[data-ea]'); if (ea) { const x = edits.find(y => y.id === ea.closest('[data-edi]').dataset.edi); if (!x) return;
       if (ea.dataset.ea === 'keep') x.st = 'kept'; else if (ea.dataset.ea === 'unkeep') x.st = 'new'; else if (ea.dataset.ea === 'discard') { removeEdits([x]); return }
       else if (ea.dataset.ea === 'go') { goEdit(x); return }
-      renderEdits(); saveBook(); renderOverview(); return }
-    const d = e.target.closest('[data-lost]'); if (d) { const g = ovList._lost[+d.dataset.lost]; for (const m of g.ms) removeMark(m); if (g.n) { drop(notes, g.n); const ne = noteEl.get(g.n); if (ne) ne.remove(); noteEl.delete(g.n) } saveBook(); renderOverview(); return }
-    const b = e.target.closest('[data-g]'); if (b) goGroup(ovList._g[+b.dataset.g]);
+      renderEdits(); saveBook(); renderChanges(); return }
+    const d = e.target.closest('[data-lost]'); if (d) { const g = ovList._lost[+d.dataset.lost]; for (const m of g.ms) removeMark(m); if (g.n) { drop(notes, g.n); const ne = noteEl.get(g.n); if (ne) ne.remove(); noteEl.delete(g.n) } saveBook(); renderChanges(); return }
   });
-  // go to a group of marks: its tab opened, scrolled to the middle of the screen, outlined for a moment, its note opened
+  // open the tab an element is on
   function showEl(e){ const tab = e.closest && e.closest('.tab'); if (tab && !tab.getClientRects().length) { const t = document.querySelector('[role=tab][data-t="' + tab.id + '"]'); if (t) t.click() } }
-  function goGroup(g){
-    if (P.classList.contains('kb-full')) close(); else { sub = null; show() }
-    showEl(g.el);
-    setTimeout(() => {
-      placeMarks(); const b = g.ms.length ? viewBox(g.ms) : null, r = b ? {top:b.y0, bottom:b.y1} : g.el.getBoundingClientRect();
-      window.scrollBy({top:(r.top + r.bottom) / 2 - innerHeight / 2, behavior:'smooth'});
-      setTimeout(() => { placeMarks(); flashMarks(g.ms); if (g.n) openNote(g.n) }, 450);
-    }, 120);
-  }
-  function flashMarks(ms){
-    const b = ms.length && viewBox(ms); if (!b) return; const o = marksSvg.getBoundingClientRect(), r = document.createElementNS(NS, 'rect');
-    Object.entries({x:b.x0 - o.left - 10, y:b.y0 - o.top - 10, width:b.x1 - b.x0 + 20, height:b.y1 - b.y0 + 20, rx:8, class:'kb-flashr'}).forEach(([k, v]) => r.setAttribute(k, v));
-    marksSvg.appendChild(r); setTimeout(() => r.remove(), 1700);
-  }
-
-
-  function renderLog(){
-    const used = book.filter(p => !blank(p)).length, wipe = '<button type="button" data-a="wipe">Delete all</button>';
-    if (!entries.length) { log.innerHTML = '<p class="kb-hint">Nothing yet. Every exchange in the notebook and on the page is listed here, kept in this browser only.</p>' + (used ? '<div class="kb-row"><span class="kb-meta">The notebook has ' + used + ' written page' + (used > 1 ? 's' : '') + '.</span>' + wipe + '</div>' : ''); return }
-    log.innerHTML = '<div class="kb-row" style="margin:0 0 6px"><span class="kb-meta">' + entries.length + ' exchange' + (entries.length > 1 ? 's' : '') + ' on this page of the knowledge base, kept in this browser.</span>' + wipe + '</div>' +
-      entries.slice().reverse().map(e => '<div class="kd-e"><time>' + esc(new Date(e.t).toLocaleString()) + (e.nbPage ? ' · notebook page ' + (+e.nbPage || '') : e.kind === 'page' ? ' · drawn on the page' : '') + (e.where ? ' · ' + esc(e.where) : '') + '</time>' + (e.img ? '<img alt="Your handwriting" src="' + e.img + '">' : '') +
-        '<div class="kd-me">' + esc(e.read || e.typed || '') + '</div><div class="kd-cl" data-i="' + entries.indexOf(e) + '"></div></div>').join('');
-    for (const c of log.querySelectorAll('.kd-cl')) for (const x of replyPieces(entries[+c.dataset.i].reply || '')) { if (typeof x === 'string') c.appendChild(txt(x, c)); else { const b = sketch(x.svg); if (b) c.appendChild(b) } }
-  }
-
 
   // ================= Settings and buttons =================
   function renderSet(){
@@ -3569,11 +3410,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (act === 'close') close();
     else if (act === 'full') setFull(!P.classList.contains('kb-full'));
     else if (act === 'riddle') { sub = sub === 'riddle' ? null : 'riddle'; show(); if (sub === 'riddle') riddleOpen(); else riddleClose() }
-    else if (act === 'pages') { sub = sub === 'pages' ? null : 'pages'; show() }
-    else if (act === 'marks') { sub = sub === 'marks' ? null : 'marks'; show() }
-    else if (act === 'find') { sub = sub === 'find' ? null : 'find'; show(); if (sub === 'find') fdIn.focus() }
     else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
-    else if (act === 'back') { if (NB_OFF) close(); else { sub = null; show() } }
+    else if (act === 'back') { sub = null; show() }
     else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) store.set('key', v); sub = null; show() }
     else if (act === 'forget') { store.set('key', null); renderSet() }
     else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); renderSet(); syncNow() }
@@ -3582,13 +3420,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'unhl') { hl = null; showHl() }
     else if (act === 'zoom') { const v = scr.getBoundingClientRect(), x = v.left + v.width / 2, y = v.top + v.height / 3; setZoom(1, paperAt(x, y), [x, y]) }
     else if (act === 'end') { grow(); const p = pgs[pgs.length - 1]; scr.scrollTo({top:p.outer.offsetTop - 10, behavior:'smooth'}) }
-    else if (act === 'send') commit(NB);
-    else if (act === 'wipe') {
-      if (!confirm('Delete the whole notebook, your marks and Claude\'s notes on this page of the knowledge base, and their history? This cannot be undone.')) return;
-      entries = []; renderLog();
-      book = []; pgs = []; book$.innerHTML = ''; pend.length = 0; pendPage.length = 0; pendTyped.length = 0; ed = null; undoStack.length = 0; grow();
-      marks = []; notes = []; marksSvg.innerHTML = ''; notesBox.innerHTML = ''; notesBox.appendChild(maxBg); markEl.clear(); noteEl.clear(); saveBook(); syncBar();
-    }
   });
   syncBar();
   window.kbBuddyOpen = v => open(v);   // for the loader (kb_buddy_loader.js): open Settings when the reader asked for the buddy without a key

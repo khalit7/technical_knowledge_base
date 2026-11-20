@@ -10,7 +10,6 @@ Shape (rebuilt 2026-10-24 to the teaching contract): Reading opens with the core
 - `parts/27_js_rd_new.js` (2026-10-24): hero, work_mem calculator (`window.RPG_MEM`), replication pipeline, failover stepper, XID-age slider (`window.RPG_XID`), SET-leak stepper, lock-queue diagram parsed from the monitor run (`window.RPG_LOCKQ`). `parts/21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `rpg-tab`); since 2026-11-06 animations and stages play when scrolled into view (see below).
 - `ledger.json`: the knowledge ledger (`python3 ../../../../../html_utils/ledger.py check` from the repo root).
 - `build_data.py`, `recompute.py` (checks 35 claims against the runs and writes `recompute_out.json`), `check_page.mjs` (clicks every control at 390 dark and 920 light, every incident-lab step, every notebook run, the checklist; compares the page's JavaScript with recompute; screenshots each visual into `../.shots/`).
-- `coverage.json`: root mentions and old-child facts this page owns, what is left to siblings, corrections shown.
 - `viz_ideas.md`: visuals built and rejected.
 
 ## Reproduce (from a scratch directory; never `uv run` inside the repo without --no-project)

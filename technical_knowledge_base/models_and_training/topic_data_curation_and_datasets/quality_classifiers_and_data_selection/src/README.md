@@ -13,7 +13,7 @@ shared machine). `sh build.sh` writes `../index.html` from `parts/`, embedding `
 | `scripts/` | every run, below |
 | `labels/` | `labels_qc.jsonl`: 200 run0 documents drawn uniformly at random (seed 1, excluding the root's 100), labelled by the agent that built this page (Claude) from the first 1,000 characters: keep y/u/n, WebOrganizer topic and format, region guess, generated-like flag, one-line note. `sample_ids.json`, `explain_docs.json` (16 documents for token-level views) |
 | `data/` | `qc_data.json`, `facts.json`, `out/` (small JSON results of every run) |
-| `viz_ideas.md`, `coverage.md` | visual ideas built and rejected; claims checked |
+| `viz_ideas.md` | visual ideas built and rejected |
 
 ## Environment
 ```sh

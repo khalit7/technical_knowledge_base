@@ -11,7 +11,7 @@ $R pk_run.py        # out/kernels.json: every kernel, production kernels, bugs, 
 $R pk_grid.py       # out/grid.json: per-step block indices, copies, recorded interpreter orders (needs kernels.json)
 $R pk_pipeline.py   # out/pipeline.json: Buffered(1|2|3), the serial vs double-buffered timelines (calculated, v5e figures)
 $R pk_tiles.py      # out/tiles.json: the online softmax replayed on a trained head
-$R pk_old.py        # out/old.json: checks of the old Notion page's Pallas claims; vmap; fully masked row
+# out/old.json (checks of the old Notion page's Pallas claims; vmap; fully masked row) is a frozen input, read by pk_data.py
 $JX_SCRATCH/venv/bin/python -I -B pk_source.py   # out/source.json: file:line located by regex; tuned table; guide outputs
 python3 -I -B pk_data.py                          # ../parts/22_js_pk_data.js (window.PK)
 cd .. && sh build.sh
@@ -59,7 +59,7 @@ Why 33 minutes is right: the page owns a whole kernel language: the model (grid,
 376 units: core 274, depth 40, fat 62, owned 0, volatile 0. 359 were drafted from the old page by `ledger.py init`; 17 were added by hand for script-rendered visuals and tables (section "script-rendered: ...", each keyed on a static caption that names its result). Fat units carry a `note`: headings and wind-ups, the removed bias-copy prediction (the hero shows the answer), the removed tabs' intros and try lines, the mistakes and interview answers that restated a section, and the old Further reading cards.
 
 ## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `pk-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `window.PK` (`runs/out/*.json` via `pk_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `pk-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `window.PK` (`runs/out/*.json` via `pk_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

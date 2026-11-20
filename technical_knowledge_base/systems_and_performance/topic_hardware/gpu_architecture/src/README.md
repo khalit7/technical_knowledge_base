@@ -9,7 +9,7 @@
 - `check_embed.py` also checks the AMD peaks (MI300X 1,307.4, MI355X 2,516.6 and about 10 PF MXFP4) from units x FLOPs per clock x clock.
 - `check/check_stages.mjs` (from the repo root, a few minutes): the 2026-11-06 rollout checks, see the last section.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`). `../img/`: two photos, credits in `../img/CREDITS.md`.
-- `live.md`: the old Notion page verbatim; `coverage.json`: 46 facts with verdict and where carried. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 ## The 2026-10-23 rebuild to the teaching contract
 **What changed and why.**
@@ -37,7 +37,7 @@ Why about 29 minutes is right: the page carries a whole chip from the SM up for 
 Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (Reading by the subject's logic, one tab per standalone visual). Departures: no lab tabs (every visual explains one mechanism, so all sit inline); the parent's section 2, Chip atlas and Roofline lab are linked, not repeated. Programming the GPU (instructions, kernels, profiling) is left to Topic: cuda-and-gpu-programming, whose compile results are cited.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `ga-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs: every scene draws from `window.GA` (`out/expected.json`, unchanged) and the plans already in the page.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `ga-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs: every scene draws from `window.GA` (`out/expected.json`, unchanged) and the plans already in the page.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

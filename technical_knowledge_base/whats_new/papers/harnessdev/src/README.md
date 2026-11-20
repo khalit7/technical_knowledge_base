@@ -26,7 +26,7 @@
 - **Predict question 1 changed** because the hero now shows each benchmark's best creator against its reference: it asks how many of six creators beat the MLE-bench reference (two), and reveals the same per-creator chart.
 - **Never autoplays**: `makeAnim` waits on step 1 until the reader acts (also after a mode switch); `check_page.mjs` scrolls the replay (`ev`) into view and fails on any frame drawn before a click, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `hd-tab`, with `data-to` scrolling).
 - **No real image**: nothing physical to show; the paper's figures are redrawn from its tables (Figure 4 and 6 already were).
-- **Takeaway softened** (card, `paper.json`, `live.md`): "match or beat them on writing and ML experimentation" is true only of the best one or two creators, against references that ran the same or older models, while the losing references ran newer ones; the new line says so, gives the Evolution numbers (+3.0 to +13.9 visible, +1.43 to +4.44 held out, single runs, about half of switches agreeing, three of four fixed-Gemini lineages regressing).
+- **Takeaway softened** (card, `paper.json`): "match or beat them on writing and ML experimentation" is true only of the best one or two creators, against references that ran the same or older models, while the losing references ran newer ones; the new line says so, gives the Evolution numbers (+3.0 to +13.9 visible, +1.43 to +4.44 held out, single runs, about half of switches agreeing, three of four fixed-Gemini lineages regressing).
 - **Length judgement**: Reading core 21 min before (4,930 words) and 21 after (4,857), plus 3 in closed details (691 words, from 1; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes, the moves and owner links took out as much. The rest is core: two protocols, four results and an evidence section (the executor confound, single-run Evolution) that changes how the paper reads and that no other page carries. Other tabs unchanged (Replay 3 plus 1 closed, Tables 11, Further reading 4).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 282 units; core 251, depth 26, owned 3, volatile 2; `ledger.py check` problems 0.
 - **Source extracts**: em-dashes in `inputs/paper_v1.txt` (58) and `inputs/tables_v1.txt` (18) replaced with `--`; no author emails were present. `extract_paper.py` now does both on extraction, and `mk_tables.py` reads `--` as the missing-value mark (its `tables.json` output is byte-identical).
@@ -38,14 +38,13 @@
 - `mk_tables.py`: `tables.json` (Tables 2 to 7, 9, and the decoded lineages, asserting the two figures agree).
 - `recompute.py`: 83 checks and every derived number, to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (36 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the replay stepped for every lineage and view; since 2026-11-13 it asserts that the replay and both stages play once scrolled into view (it used to forbid it).
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, and the two stage step lists' numbers against the page's data (`window.HDPROTO`, `window.HDEVO`).
 - `parts/31_js_sc_proto.js`, `parts/32_js_sc_evo.js` (2026-11-13): the two 3D scenes on the template renderer `parts/25_js_s3.js`.
 
 ## Checks (3 October 2026; rerun 25 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (794 actions); `recompute.py` 83 of 83; `mk_coverage.py` 36 of 36.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (794 actions); `recompute.py` 83 of 83.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -68,4 +67,4 @@ What changed and why:
 
 The growth is the two stage step lists (about 700 words) that explain the stages and replace the captions of the three charts they retire, and the replay's step list that replaces its caption box. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 24 min, plus 3 in closed details." from `reading.json`.
 
-Ledger: 286 units (core 255, depth 26, owned 3, volatile 2, fat 0); `label_ledger.py` re-keyed units 28, 41, 95 and 118 automatically (their toggle sentences or captions were reworded), 117 and 218 by hand (`KEYS`), and added four units for the stage lists. `ledger.py check` problems 0. `mk_coverage.py` 36 of 36.
+Ledger: 286 units (core 255, depth 26, owned 3, volatile 2, fat 0); `label_ledger.py` re-keyed units 28, 41, 95 and 118 automatically (their toggle sentences or captions were reworded), 117 and 218 by hand (`KEYS`), and added four units for the stage lists. `ledger.py check` problems 0.

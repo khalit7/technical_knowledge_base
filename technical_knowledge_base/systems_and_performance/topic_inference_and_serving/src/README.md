@@ -3,7 +3,7 @@
 Root of the topic (storage key `inf-tab`). Built 2026-10-08 by a team of tab agents (`sim/`, `bench/`, `plan/`, `read/` each have their own README); rebuilt on 2026-10-23 at the topic close, after its eight children were rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), editing only, no new runs. The examples followed were `models_and_training/topic_llm_architecture` and `models_and_training/topic_llm_training_and_post_training`.
 
 ## Build and check
-- `sh build.sh` writes `../index.html` from `parts/`. Children import `sim/sim.py`, `plan/plan.py` and read `read/old/`: keep those paths.
+- `sh build.sh` writes `../index.html` from `parts/`. Children import `sim/sim.py` and `plan/plan.py`: keep those paths.
 - `sh html_utils/checkpage.sh <this page>`: tabs 5, emdash 0, errbox 1, clipped 0, fail=0 (2026-10-23).
 - `python3 html_utils/ledger.py check <this page>`: problems 0.
 - `python3 -I read/check_data.py` (OK: 30 measured facts, 26 prose numbers, 9 derived checks); `node read/check_ui.mjs <shots dir>` (137 controls, 0 errors at 390 dark and 920 light); `node sim/check/check_ui.mjs ../index.html dark 390` and `light 920` (clean).
@@ -48,7 +48,7 @@ Stale references fixed in the children (each rebuilt; checkpage fail=0, ledger p
 2026-10-26 (final follow-up sweep): the Memory technology card in Further reading no longer names its retired Memory lab tab.
 
 ## 2026-11-12: split layout, a 3D map (renderer v2), explained and autoplaying animations (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the eight children were rebuilt in the same rollout (none of them edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `inf-tab`). `build.sh` now writes the em-dash detector's character as bytes.
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the eight children were rebuilt in the same rollout (none of them edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `inf-tab`). `build.sh` now writes the em-dash detector's character as bytes.
 
 **Reading tab.**
 - *0 The map* (`#rd-s0`): split with the new stage `stg-hero` (`parts/26_js_sc_hero.js`), replacing the HTML box hero: one request through a serving fleet in nine steps (the map; the router; the scheduler and the block pool, with the 72.66 GB of weights and the about 54 GB of cache as bars to scale; prefill; decode; the sampler; a drafter; prefill and decode pools with the cache crossing; a laptop). Driven by `RDD` (the planner's step model: weights, prefill and decode times, 141 conversations, 2,982 tokens a second at 141, 10 H200s; the laptop's 196 tokens a second from the bench facts); counts drawn (three replicas, eight layer plates, the blocks and their owners) are labelled illustrative. The step list `sx-hero` carries what the old boxes said and links each child's own figure (`#stg-...`) instead of re-teaching it. "You need", the new terms and the label key moved to a full-width section `#rd-need`.

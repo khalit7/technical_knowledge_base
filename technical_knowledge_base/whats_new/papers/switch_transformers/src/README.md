@@ -27,7 +27,7 @@
 - `recompute.py` writes `inputs/recompute.json`: Table 9 parameters and FLOPs from the printed rows and from the released flaxformer gin files (`inputs/gin_*.gin`), ratios the text quotes, Table 9 gaps, Tables 5 to 8 derived numbers, the Table 3 t statistic, the bfloat16 example.
 - The toy: `parts/20_js_switch_core.js` (the Switch layer, task, Adam, evaluation; runs in the page and in node), `dump_case.cjs` + `check_grad.py` (`node dump_case.cjs && uv run --with torch python check_grad.py`; writes `model/check_grad.json`, PASS), `sweep.cjs` (`node sweep.cjs`, about 2.5 minutes on one core; writes `model/sweep.json`), `mk_sweep_data.py` (writes `parts/20b_sweep_data.js`).
 - `check_page.mjs` (from the repo root, `node technical_knowledge_base/whats_new/papers/switch_transformers/src/check_page.mjs`): every control in light 920 and dark 390, both animations stepped end to end with mid-animation screenshots, every Train preset trained to step 1,500 and compared with the sweep, extreme settings, SVG text at least 11 px, no NaN, errors or sideways scroll.
-- `mk_coverage.py` writes `coverage.json` (58 items of `live.md`, each verified against the built page), `save_live.py` copied the Notion fetch verbatim into `live.md`, `extract_paper.py` turned the arXiv HTML v3 into `inputs/paper_v3.txt` and `inputs/table_*.txt`.
+- `extract_paper.py` turned the arXiv HTML v3 into `inputs/paper_v3.txt` and `inputs/table_*.txt`.
 - `inputs/`: also `later_extracts.txt` (quoted passages from ST-MoE, GLaM, GShard, DeepSeek-V3, Mixtral, Qwen3, MegaBlocks, DeepSeekMoE), `modern_configs.json` (Hugging Face configs of Mixtral, DeepSeek-V3, Qwen3-30B-A3B, Kimi K2, gpt-oss-120b), `mtf_moe_extract.txt` (the Mesh TensorFlow lines for the loss and the jitter).
 - `viz_ideas.md`: ideas built and rejected, with scores.
 
@@ -39,7 +39,7 @@ HTML also `02_split` (template) after `01_css`.
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 179 KB. `check_page.mjs`: 304 actions, 0 problems. `check_grad.py`: PASS on 5 configurations. `check_tables.py`: 246 cells, 0 missing. `mk_coverage.py`: 58 of 58 verified.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 179 KB. `check_page.mjs`: 304 actions, 0 problems. `check_grad.py`: PASS on 5 configurations. `check_tables.py`: 246 cells, 0 missing.
 
 ## The 2026-10-24 rebuild (teaching contract, light pass for papers)
 
@@ -48,7 +48,7 @@ HTML also `02_split` (template) after `01_css`.
 - **No autoplay**: `makeAnim` in `11_js_ui.js` (the fixed copy RAG uses) waits on step 1 for `rta` and `thn`; `check_page.mjs` fails if either draws a frame in 1.5 s on screen before any click. The page keeps its own `90_js_tabs.js` (no autoplay, no storage) and `makeAnim` instead of the templates' `99_js_tabs.js` and `RD.anim`; the Train tab never started by itself.
 - **Closed blocks** (depth, not lost): the dispatch tensor and all-to-all shapes (Eq. 7); distillation across teacher sizes and after fine-tuning (Tables 7, 8); the seven internal inconsistencies (one open sentence names the one that matters); the current frontier list (dated, October 2026). The duplicated Switch-Base+ heads paragraph was folded into the inconsistencies.
 - **Owners linked**: Distributed Training for the cost of each parallelism and the all-to-all, Quantization and Precision for the bfloat16 format, Distillation and Small Language Models for distillation in general. The generic MoE layer was already delegated to Mixture of experts.
-- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`); `mk_coverage.py` now looks for that line.
+- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`).
 
 ## Length judgement
 | | Before (audit 2026-10-23) | After (2026-10-24) |
@@ -64,11 +64,11 @@ Why about 22 minutes is right: the page owns the whole JMLR-length paper, and ev
 237 units: core 202, depth 31, owned 1 (the cost of data and model parallelism at Distributed Training, key "all-reduce of the gradients"), fat 3 (the old reading-time crumb, the tab names, the old reduced-motion sentence). Keys proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and set by hand for the unit whose paragraph moved.
 
 ## Checks (2026-10-24)
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 185 KB (images 133 KB beside it in `img/`). `check_page.mjs`: 304 actions, 0 problems (with the no-autoplay check). `check_tables.py`: 246 cells, 0 missing. `mk_coverage.py`: 58 of 58. `ledger.py check`: problems 0. The toy, `check_grad.py` and the sweep are untouched.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 185 KB (images 133 KB beside it in `img/`). `check_page.mjs`: 304 actions, 0 problems (with the no-autoplay check). `check_tables.py`: 246 cells, 0 missing. `ledger.py check`: problems 0. The toy, `check_grad.py` and the sweep are untouched.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`, and `99_js_tabs.js` in place of the page's `90_js_tabs.js` (the page had no storage key; it now remembers its last tab under `sw-tab`). `21_js_rd_common.js` is not used: the two 2D animations run on `makeAnim` in `11_js_ui.js`, replaced by Mixtral's copy (autoplay once half in view, pause off screen, stop for good on any control or at the last step, nothing under reduced motion, an `ol.sx` per mode, `data-playing` while it plays). `build.sh` finds the repository root by path instead of asking git.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`, and `99_js_tabs.js` in place of the page's `90_js_tabs.js` (the page had no storage key; it now remembers its last tab under `sw-tab`). `21_js_rd_common.js` is not used: the two 2D animations run on `makeAnim` in `11_js_ui.js`, replaced by Mixtral's copy (autoplay once half in view, pause off screen, stop for good on any control or at the last step, nothing under reduced motion, an `ol.sx` per mode, `data-playing` while it plays). `build.sh` finds the repository root by path instead of asking git.
 
 What changed and why:
 - **3D stage `stg-cap`** (`31_js_sc_cap.js`, six steps, list `#sx-cap`) beside the Capacity section, which had no visual. Driven by `20c_cap_data.js`, written by `mk_cap_data.cjs` (about 5 seconds): the Train tab's own toy layer, trained with the sweep's base settings (16 experts, top-1, α 0.01, capacity factor 1.25, init 0.1, 1,500 steps, seed 1) and its top-2 twin, then the first held-out batch of 512 tokens routed through each, buffered at capacity factors 0.5, 1.0, 1.25 and 2.0. Steps: the router's choices as 16 columns (7 to 67 tokens per expert); CF 1.0, 1.25 and 2.0 as a glass plane with the overflow in red (148, 93 and 4 dropped, flowing round the experts on the residual path) and padding as empty glass (148 of 512, 221 of 640, 516 of 1,024); the top-2 twin at 1.25 (1,024 assignments, 80-slot buffers, 1,280 slots, 55 second choices dropped); the drops against padding at four factors with the batch's error. The owner's capacity figure (Mixture of experts, Fig. 5: top-2 buffers on 32 tokens of a tiny GPT) is linked from You need, not rebuilt; this stage is the paper's own top-1 case on the paper's own factors.
@@ -91,4 +91,4 @@ What changed and why:
 
 The growth is the step lists: the two routing captions and the Then and now captions were drawn by script and invisible to the audit (now 21 items, of which the top-2 list's 7 belong to a mode a reader may not open), the capacity stage's six steps carry the toy's measured drops and padding, and Figure 9's old counters moved into its five steps. Only the duplicated Expert and data bullet was cut. Header: "Reading: 27 min, plus 3 in closed details." (`reading.json`).
 
-Ledger: 261 units (core 226, depth 31, owned 1, fat 3); 24 added for the step lists and the new captions; unit 30 re-keyed (the animation's intro was reworded), 32 (the card's controls, now its note), 116 (the Expert and data bullet, now in step 4 of Figure 9), 212 (the Then and now intro). `ledger.py check`: problems 0. `mk_coverage.py`: 58 of 58. `check_tables.py`: 246 cells, 0 missing.
+Ledger: 261 units (core 226, depth 31, owned 1, fat 3); 24 added for the step lists and the new captions; unit 30 re-keyed (the animation's intro was reworded), 32 (the card's controls, now its note), 116 (the Expert and data bullet, now in step 4 of Figure 9), 212 (the Then and now intro). `ledger.py check`: problems 0. `check_tables.py`: 246 cells, 0 missing.

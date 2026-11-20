@@ -7,7 +7,7 @@ Child 6 of Topic: data-curation-and-datasets. Built 2026-10-14. `sh build.sh` wr
 - `img/`: Shumailov et al.'s Figure 1 (CC BY 4.0), credits in `img/CREDITS.md`. `ledger.json`: the knowledge ledger. `check_controls.mjs`: clicks every control at 390 dark, 920 light and under reduced motion. `check_stages.mjs` (2026-11-09): stages and the 2D animation autoplay on view, step to their end with one list item per step, stop off screen and under reduced motion; the widgets never autoplay; splits two columns at 1400 px; step-list numbers recomputed from `window.SY` and `SYC`.
 - `data/syn_data.json` (embedded as `window.SY`) and `data/facts.json` (prose numbers, `@@key@@`), both made by `build_data.py` from the recorded runs; `data/collapse_ref.json` is the Python reference run of the collapse lab.
 - `scripts/`: every measurement (see below). `notes/sources.md`: verified facts with their sources. `inputs/`: sample manifest (repo, revision, file, row group, sha256), the five Nemotron-CC source records, sha256 of the Nemotron-CC slices.
-- `coverage.md`: the old Notion page's claims (synthetic half), verified, corrected or moved. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 ## Runs (all CPU, Apple M1 Pro, 2026-10-14; large outputs in the scratchpad under `dc/data/syn/` and `dc/syn/`)
 | Script | What | Time |

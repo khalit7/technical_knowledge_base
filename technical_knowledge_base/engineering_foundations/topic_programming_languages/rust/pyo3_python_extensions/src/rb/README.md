@@ -14,7 +14,7 @@ Copied with `cp -R` on 2026-10-26 from the Rust language page's `src/rb/` (Part 
 - `outputs/`: every displayed output and measurement. `versions.txt`: toolchain versions, machine and load.
 - `run_all.sh`: reproduces all of it (about 10 minutes; toolchains in the session scratchpad `pl/`, see the script header). The 200,000-line input is regenerated from the root's `rosetta/data/gen_chat.py --lines 200000 --seed 7` (same sha256 as the root's benchmark).
 - `check_ui.mjs`: puppeteer check of every control on the page (the four stages stepped through, the ladder widget, reveals, closed blocks) at 390 px dark (reduced motion) and 920 px light, that no stage moves under reduced motion and the ladder widget never plays; `../check_stages.mjs` checks autoplay on view, step lists and the numbers in them; `OUT=<dir>` saves element screenshots. `check_outputs.py`: the page embeds exactly the recorded outputs and data.
-- `coverage.json`: facts carried from the old "Rust: zero to expert" page (PyO3 parts) and the Python pages, with where they lived on the language page (section numbers still match this page up to 12; old 13 "who ships" is now a closed block in 13, old 14 is 13, old 15 and 16 were folded into the sections and Further reading). Visualisations: `../viz_ideas.md`.
+- Visualisations: `../viz_ideas.md`.
 
 ## Notes and departures
 - Measurements were taken while other agents were building pages on the same laptop (load average 10 to 18 on 10 cores); medians of 7 with min and max are shown, and the page says to read the second digit as noise. The abi3 cost comparison was the noisiest; the page shows it with that caveat.

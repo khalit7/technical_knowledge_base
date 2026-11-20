@@ -1,6 +1,6 @@
 # Bitune: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d8173af14ed0caa19d6db, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` with the verdict line, `check_page.mjs`, `mk_coverage.py` with this paper's own item list).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d8173af14ed0caa19d6db, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` with the verdict line, `check_page.mjs`).
 
 ## Tabs
 
@@ -20,20 +20,20 @@
 
 ## Files
 
-- `save_live.py` (Notion fetch from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1 and v2 to `inputs/paper_v*.txt` and `inputs/anchors_v*.txt`), `extract_tables.py` (every table, cell by cell, to `inputs/tables_raw.json`), `mk_tables.py` (to `tables.json`), `svgparse.py` (copied from the InstructGPT page) and `decode_figs.py` (Figures 2 and 3 to `inputs/figs.json`).
+- `extract_paper.py` (arXiv HTML v1 and v2 to `inputs/paper_v*.txt` and `inputs/anchors_v*.txt`), `extract_tables.py` (every table, cell by cell, to `inputs/tables_raw.json`), `mk_tables.py` (to `tables.json`), `svgparse.py` (copied from the InstructGPT page) and `decode_figs.py` (Figures 2 and 3 to `inputs/figs.json`).
 - `recompute.py`: every derived number (averages, gains against each baseline, the text's claims, standard errors, ablation gaps, cost ratios, Eq. 8 slopes, the graded GSM8K samples) to `inputs/recompute.json`.
 - Toy: `train.py` (`pretrain`, `lr`, `finetune`, `export`), `check_forward.py` (the JS forward pass in node against PyTorch on identical 6-bit weights), `overlap.py` (test prompts in the training streams, prompt-space size), `mk_toydata.py` (`parts/_gen_toy.js`). `model/` (544 KB) holds the pretrained weights, the seed-0 adapters of the five shipped methods (what `export` needs), `results.json` (every seed of every method), logs, `check_forward.json`, `overlap.json`, the pilot log and the failed first design's logs. The other seeds' adapters are not kept (rerun `finetune` after removing their keys from `results.json`); `export` regenerates the float64 dequantised `q_*.pt` that `check_forward.py` loads (git-ignored, 2 MB).
   - `uv run --with torch --with numpy python train.py pretrain` (about 4 minutes), `... train.py lr`, `... train.py finetune` (about 25 minutes for 27 runs on 2 threads), `... train.py export`, `... check_forward.py`, `... overlap.py`; then `sh build.sh`.
 - `paper.json`, `tables.json`, `mk_paper.py` (card, Further reading, `parts/_gen_data.js`).
 - `inputs/`: paper text v1 and v2, anchors, raw tables, `figs.json`, `gsm8k_samples.json` (A.13 graded), `acl_meta.txt`, `repo_README.md`, `repo_code_extract.txt` (`passes.py` and `PassScale`; the repository has no licence, so only these short extracts are kept as evidence), `repo_api.json`, `later_extracts.txt` (abstracts of LLM2Vec, NV-Embed, Encoder-Decoder Gemma, echo embeddings, UniLM, T5).
 - Parts: `03_paper`, `04_run`, `05_tables`, `13_js_read` (mask, α, cost, small charts), `20_model_data` (generated weights), `22_js_model` (forward pass), `23_js_run`, `24_js_tables`, `25_js_s3` (the template renderer), `31_js_sc_bt` (the Fig. 2 stage; `26_js_pf`, the 2D prefill animation, was removed on 2026-11-12).
-- `check_page.mjs` (node, from the repo root): every control in both themes and widths, the animation stepped, the in-browser test run; it opens every closed block and, since 2026-11-12, checks that the stage plays once in view (the 2026-10-25 never-autoplay assertion inverted). `check_stages.mjs`: the rollout's stage checks (1400 light, 920 light, 390 dark; both modes; reduced motion). `label_ledger.py`: labels `ledger.json` (see below). `reading.json`: the header's reading time, measured with `html_utils/audit_pages.mjs` and written by hand. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs` (node, from the repo root): every control in both themes and widths, the animation stepped, the in-browser test run; it opens every closed block and, since 2026-11-12, checks that the stage plays once in view (the 2026-10-25 never-autoplay assertion inverted). `check_stages.mjs`: the rollout's stage checks (1400 light, 920 light, 390 dark; both modes; reduced motion). `label_ledger.py`: labels `ledger.json` (see below). `reading.json`: the header's reading time, measured with `html_utils/audit_pages.mjs` and written by hand.
 
 ## Checks
 
 See the bottom of this file after the last build.
 
-Checks (3 October 2026): `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, 307,872 bytes (just over the 300 KB guide of the time (retired 2026-10-17): 122 KB of it is the five shipped 6-bit toy models). `check_page.mjs`: 308 actions, 0 problems (every control in light 920 and dark 390, the prefill animation stepped in both modes, the in-browser test run for Bitune and LoRA). `check_forward.py`: PASS, 200 of 200 identical answers per shipped model, logits within 6.3e-14, mixed K/V within 1.8e-14, attention within 4.2e-15 (float64 on identical dequantised weights). `mk_coverage.py`: 36 of 36. Every arXiv anchor the page links exists in the v2 HTML. Reading time of The paper tab: 19 minutes (the old page read in about 4; the paper page owns every detail, the evidence judgement and the toy).
+Checks (3 October 2026): `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, 307,872 bytes (just over the 300 KB guide of the time (retired 2026-10-17): 122 KB of it is the five shipped 6-bit toy models). `check_page.mjs`: 308 actions, 0 problems (every control in light 920 and dark 390, the prefill animation stepped in both modes, the in-browser test run for Bitune and LoRA). `check_forward.py`: PASS, 200 of 200 identical answers per shipped model, logits within 6.3e-14, mixed K/V within 1.8e-14, attention within 4.2e-15 (float64 on identical dequantised weights). Every arXiv anchor the page links exists in the v2 HTML. Reading time of The paper tab: 19 minutes (the old page read in about 4; the paper page owns every detail, the evidence judgement and the toy).
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -43,7 +43,7 @@ What changed and why:
 - **Closed**: §2's two phases in full; the BERT and embedding-model evidence for the weakness; the five-step list of the method (the hero carries it); implementation details (which weights are separate, training, the moved ":", fp32 mixing, multi-turn); the training recipe; the prefix-LM lineage; two minor evidence points (slips in the text, the showcased GSM8K sample).
 - **Volatile**: the repository's state and the absence of documented frontier use moved into one dated closed block, "Since the paper (sources read 3 October 2026)".
 - **No autoplay**: `makeAnim` in `11_js_ui.js` no longer starts when scrolled into view or when the mode changes; `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `bitune-tab`, keeps `data-to` scrolling). The page has no `21_js_rd_common.js`; its own controller was fixed by hand.
-- **Takeaway softened** (`paper.json`, hence `_gen_card.html`, and the Takeaway line in `live.md`): "the causal mask is required by generation, not by prompt processing" became "needed for generation but not, in principle, for reading a prompt that is already complete" (Naive Bidir. shows the pretrained model does depend on it); the gains are scoped to five 2B to 8B models on a 5-task zero-shot average, largest on the smallest model; live.md's "consistent gains" and "roughly double prompt-processing compute" now give the range and the measured 9.3x prefill time. The Notion property itself is unchanged (Khalid's).
+- **Takeaway softened** (`paper.json`, hence `_gen_card.html`): "the causal mask is required by generation, not by prompt processing" became "needed for generation but not, in principle, for reading a prompt that is already complete" (Naive Bidir. shows the pretrained model does depend on it); the gains are scoped to five 2B to 8B models on a 5-task zero-shot average, largest on the smallest model. The Notion property itself is unchanged (Khalid's).
 - **Privacy**: author email addresses in `inputs/paper_v1.txt` and `inputs/paper_v2.txt` replaced with "[email removed]"; one em-dash in `paper_v2.txt` replaced with "--".
 - Header: "Reading: 20 min, plus 4 in closed details."
 
@@ -62,7 +62,7 @@ Why about 20 minutes is right: the paper is short, but this page owns its whole 
 232 units: core 192, depth 32, owned 4, volatile 2, fat 2. 224 drafted by `ledger.py init` from the page before the pass; 8 added (core sentence, hero, terms, the two-weights sentence, four owner links). Fat: the "This is a known weakness" wind-up and the old animation-manners line. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 310 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 36 of 36 (three keys updated for the rewording and the softened takeaway). Page 315,611 bytes (122 KB of it the toy's weights).
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 310 actions, 0 problems (including no movement before a click and every closed block opened). Page 315,611 bytes (122 KB of it the toy's weights).
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -86,4 +86,4 @@ The growth is the two step lists that explain the stage; the audit counts the hi
 Ledger: 234 units (core 194, depth 32, owned 4, volatile 2, fat 2); 9 keys re-pointed to the reworded sentences (units 21, 39 to 42, 55, 183, 185, 188), 2 units added for the stage's steps; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (about 359 KB, 122 KB of it the toy's weights). `check_page.mjs`: 282 actions, 0 problems. `check_stages.mjs`: 3 stage runs (three widths, both modes), 0 problems. `mk_coverage.py`: 36 of 36.
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (about 359 KB, 122 KB of it the toy's weights). `check_page.mjs`: 282 actions, 0 problems. `check_stages.mjs`: 3 stage runs (three widths, both modes), 0 problems.

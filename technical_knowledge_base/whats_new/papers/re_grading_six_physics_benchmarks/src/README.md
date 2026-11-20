@@ -20,12 +20,10 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper.txt`, `inputs/table_*.txt`, `inputs/anchors.txt`.
 - `mk_tables.py`: `tables.json` (Tables 1 to 4 and the audit funnel from Appendix B's text).
 - `recompute.py`: 27 checks and every derived number (integer counts behind Table 1, implied scores, removal-only bound, Wilson intervals, Scott's pi bounds by enumeration, Bowman and Dahl's power ratio, Artificial Analysis cross-check), to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (26 items, this paper's own, verified against the built page).
 - `label_ledger.py`: labels `ledger.json` (rerun after a rebuild). `reading.json`: the measured core and closed-details minutes for the header.
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the pipeline animation stepped for every benchmark. `shot_parts.mjs`: screenshots of each visual for review.
 - `viz_ideas.md`: ranked ideas, rows `P-re_grading_six_physics_benchmarks.<k>`.
@@ -36,7 +34,7 @@
 - **Owned elsewhere, now linked** (what this paper did kept here): LLM-judge biases (LLM-as-judge), the FutureHouse and other HLE audits (Knowledge and reasoning benchmarks), Scott's pi (Human evaluation and annotation).
 - **Moved into closed blocks**: provenance and corrections to the first summary; the CritPt 44 repair in full (the same case is in the gallery); Bowman and Dahl's precision arithmetic. Volatile items (the Artificial Analysis CritPt reading of 3 October 2026, the other stories of the 2026-09-21 issue) went to one dated closed block, "Dated readings, September and October 2026".
 - **Never autoplays**: `makeAnim` (copied from the Phi-Bench page) waits on step 1 until the reader presses play or steps, also after a benchmark switch; the pipeline caption says so. `check_page.mjs` scrolls the animation into view and fails on any frame drawn before a click, clicks tabs through the DOM and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `rg6-tab`; `90_js_tabs.js` removed). Header: "Reading: 24 min, plus 2 in closed details." from `reading.json`.
-- **Takeaway softened** (`paper.json`, so the card, `live.md` and `mk_coverage.py`): "most reported model failures" was most of the audited rejections of one model on four benchmarks (238 of 250); "frontier models look near-saturated" is now GPT-5.6-Sol's corrected 78.7% to 94.6% mean@4 on filtered or repaired sets, upper estimates since nothing marked right was checked; "harder human-written exams rather than another leaderboard on a broken quiz" is now the paper's own call for new, hard, verified physics tasks. The Notion property itself is Khalid's to change.
+- **Takeaway softened** (`paper.json`, so the card): "most reported model failures" was most of the audited rejections of one model on four benchmarks (238 of 250); "frontier models look near-saturated" is now GPT-5.6-Sol's corrected 78.7% to 94.6% mean@4 on filtered or repaired sets, upper estimates since nothing marked right was checked; "harder human-written exams rather than another leaderboard on a broken quiz" is now the paper's own call for new, hard, verified physics tasks. The Notion property itself is Khalid's to change.
 - **Length judgement**: Reading core 24 min before (5,419 words, 23.6 min) and 24 after (5,405, 23.5), plus 0 then 2 (415 words) in closed details (`audit_pages.mjs`, 230 words a minute). The top added about 1.5 minutes and the moves took out as much. The rest is core: the page's value is the error attribution with its per-benchmark counts and the evidence audit (one-sided review, exclusions chosen by one model, denominator effects), which change how every headline number reads. Other tabs unchanged (Follow the audit 2.6, Tables 6.6, Further reading 3.0). The Follow the audit tab stays a tab: it holds two tools (the pipeline replay and the protocol simulator) that the Reading tab links from three places.
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 259 units; core 240, depth 9, owned 4, volatile 2, fat 4 (old header line, the old predict question, the old autoplay note); `ledger.py check` problems 0.
 - **Not kept here, should live elsewhere**: the SWE-bench Verified audit (problems in 59.4% of 138 tasks; about 30% of SWE-bench Pro broken) is not on the Coding benchmarks page, and Bowman and Dahl's 98% to 98.1% power arithmetic is not on Eval statistics; both stay on this page until those owners carry them.
@@ -45,11 +43,11 @@
 
 ## Checks (25 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (304 actions); `recompute.py` 27 of 27; `mk_coverage.py` 26 of 26; `ledger.py check` problems 0.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (304 actions); `recompute.py` 27 of 27; `ledger.py check` problems 0.
 
 ## Checks at first build (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 27 of 27; `mk_coverage.py` 26 of 26.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 27 of 27.
 
 2026-10-26 (final follow-up sweep): the ceiling-precision block's sample sizes corrected: 38,200 against 3,100 omitted the power factor; at 80% power and alpha 0.05 it is about 300,000 against 24,600 (ratio 12.2 unchanged). Eval statistics section 7 now carries the example.
 
@@ -76,4 +74,4 @@ What changed and why:
 
 The growth on The paper is the two stage step lists (about 530 words) less the moved Figure 1 paragraph; the lists carry the hero's old caption and the step-by-step reading of Table 1, which the prose then reads in full. The replay's lists replace a caption that changed every step and was readable only while it played. Header: "Reading: 25 min, plus 2 in closed details." from `reading.json`.
 
-Ledger: 265 units (core 246, depth 9, owned 4, volatile 2, fat 4); `ledger.py check` problems 0. `mk_coverage.py` 26 of 26; `recompute.py` 27 of 27.
+Ledger: 265 units (core 246, depth 9, owned 4, volatile 2, fat 4); `ledger.py check` problems 0. `recompute.py` 27 of 27.

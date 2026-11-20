@@ -18,7 +18,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 2. **The topic's shared `FACTS.md`** and the known findings in your brief. Never contradict them; append what you verify, and copy it into your own `src/facts.md`.
 3. **The siblings already built**, and the paper pages in `technical_knowledge_base/whats_new/papers/` on the same mechanism. Where a live toy or animation exists (DPO, GRPO, LoRA, NF4, ZeRO, pipeline, RoPE, DDPM, CLIP), link it and build what is missing.
 4. **The paper pages' verified facts**, not the old page's: they carry corrections.
-5. **The old Notion page this child reuses**, if any, saved verbatim: unverified notes, the floor of what to carry ([migrate-or-fold.md](migrate-or-fold.md)).
+5. **The existing page this child replaces**, if any: a floor of facts to carry or correct ([migrate-or-fold.md](migrate-or-fold.md)).
 
 ## Who owns what
 - **Do not repeat the root.** Link its grid, axis sections and lab tabs by name: a Notion link to the root, naming the tab ("see the root's Diffusion lab").
@@ -45,7 +45,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 - **Variation (programming-languages, 2026-10-05)**: one page per language holding several parts, with a part bar ("Start here" plus parts) and per-part tabs, because Khalid wanted one Notion page per language with all parts' content kept.
 
 ## What makes a child page good
-- **Research beyond the old page.** The old page is the floor: every important fact carried (the knowledge ledger, `src/ledger.json`; `src/coverage.json` on older pages). Each claim is checked against primary sources: papers, model cards, `config.json` files, library code at pinned versions with `file:line`, vendor docs. Corrections go in visible boxes; what cannot be sourced is marked unconfirmed.
+- **Research beyond the existing page.** It is the floor: every important fact carried (the knowledge ledger, `src/ledger.json`). Each claim is checked against primary sources: papers, model cards, `config.json` files, library code at pinned versions with `file:line`, vendor docs. Corrections go in visible boxes; what cannot be sourced is marked unconfirmed.
 - **Real data over illustrative data**: real logits from a small open model, a real layer's weights, a real chat template on real conversations, real configs from many families, real `slurmctld` logs, real `EXPLAIN ANALYZE` plans. Small extracts go in `src/inputs/` (under 1 MB each); large downloads stay in scratch.
 - **Toys when they show a mechanism.** A toy is welcome when:
   - it makes a mechanism visible;
@@ -62,7 +62,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
   - the same noise through each sampler.
 
 ## Size and time
-- **Page size**: about **1 MB**, images as small WebP data URIs; say why if more.
+- **Page size**: about **1 MB**, images as small WebP files in `img/`; say why if more.
 - **Reading time**: judged per page, not budgeted ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)). Measure it, state it with the closed blocks counted apart, and record why that length is right in `src/README.md`.
 - **Children of one topic** run several at once ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)). A child that depends on a sibling's results reads that sibling's handoff note (`handoff_<sibling>.md`), or waits for it.
 
@@ -75,7 +75,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 ## Report back
 - What you built and the runs made.
 - Sources, check results and reading time.
-- Old-page corrections and coverage counts.
+- Corrections to the existing page.
 - Sibling mentions to wire.
 - Suggested changes for the root (the root fix list), for siblings and for `FACTS.md`.
 - Runs still pending, with their commands and time estimates.
@@ -88,8 +88,5 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 - **2026-10-04** (benchmarks): reading times quoted in siblings go stale; update them at the wiring pass.
 - **2026-10-14** (rag): when an upstream lab's run is found flawed (a prompt silently replaced by the default), every child that used it recomputes its dependent comparisons after the rerun.
 - **2026-10-15** (jax): a child can find an error in the root's lab ("steps as large as lr" was 2.3e-10 against 2.0e-5). Measure it and send it to the root fix list rather than repeating the root's claim.
-- **2026-10-17** (generative): check peak memory on one item before looping a pretrained model; an fp32 VAE round trip peaked at 9.9 GB. Run long GPU work as a queued script with a finish list, so the page can be completed after the runs ([../evidence/resource-safety.md](../evidence/resource-safety.md)).
 - **2026-10-17** (generative): two children measuring the same thing differently (SigLIP 2 outlier token positions) must reconcile before publishing; preprocessing is the usual cause.
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

@@ -3,11 +3,7 @@
 This folder is the video of the page one level up. Follow the `explainer-video` skill (`.claude/skills/explainer-video/SKILL.md` and `workflow.md`) from the repo root; it decides the steps, the narration (Chatterbox Turbo, `narration/narrate.py`) and the checks.
 
 ## HyperFrames reference (vendored, read by path)
-The HyperFrames skills this workflow uses are vendored in `.claude/skills/explainer-video/vendor/` and are not slash commands:
-- `hyperframes/SKILL.md`: entry point and routing; `references/brief-format.md` for `BRIEF.md`.
-- `faceless-explainer/SKILL.md` and `scripts/`: the workflow followed for a page video. Run scripts by their real path: `node <repo>/.claude/skills/explainer-video/vendor/faceless-explainer/scripts/<name>.mjs`.
-- `hyperframes-core` (composition contract), `hyperframes-animation` (blueprints, easing), `hyperframes-creative` (frame presets, design), `hyperframes-cli` (CLI commands), `media-use` (sound effects only).
-Other HyperFrames skills were removed as unused; see `.claude/skills/explainer-video/hyperframes.md` to install one when a video needs it.
+The HyperFrames skills this workflow uses are vendored in `.claude/skills/explainer-video/vendor/` and are not slash commands; which one does what: `.claude/skills/explainer-video/hyperframes.md`. Run the faceless-explainer scripts by their real path (`workflow.md`, step 7).
 
 ## Commands (run in this folder)
 ```bash

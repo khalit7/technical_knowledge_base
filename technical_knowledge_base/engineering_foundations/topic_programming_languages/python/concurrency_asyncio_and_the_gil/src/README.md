@@ -20,7 +20,7 @@ Order after a rerun: `sh pa/run_all.sh`, `sh pb/run_all.sh` (it ends with the bu
 | `pb/build_data.py`, `pb/run_all.sh`, `pb/check_embed.py` | `src/pb/` | trimmed; `run_all.sh` walks up to `topic_programming_languages` for the root's shared data generator (`src/rosetta/data/gen_chat.py`, read-only) |
 | `parts/20_read_d.html`, `20_read_e.html`, `27_js_cg_ft.js` | `40_tab_pb_read_g.html` (sections 9 and 11), `42_js_pb_read_d.js`, `42_tab_pb_lab.html` and `44_js_pb_lab.js` (Runtime lab parts 1, 2, 4 and 5) | |
 | `parts/26_js_cg_loop.js`, `23_js_cg_util.js` | `36_js_pa_loop.js`, `41_js_pb_util.js` | `26_js_cg_loop.js` replaced by `31_js_sc_loop.js` on 2026-11-07 |
-`pa/coverage.json` and `pb/coverage.json` are the old-Notion-page checks, trimmed to the claims about threads, the GIL, processes, free-threading and asyncio. `a2_trace.py`'s docstring now names the stepper on this page instead of the old Event loop tab (the output is unchanged).
+`a2_trace.py`'s docstring now names the stepper on this page instead of the old Event loop tab (the output is unchanged).
 
 ## Departures from the topic-child shape, and why
 - **No lab tabs.** The Event loop tab explained one mechanism, so its stepper sits inline in section 2. The Runtime lab's parts 1, 2, 4 and 5 were tables of every run: each now sits in a closed block beside the claim it backs (scaling chart and table, the lost-update table inside the race prediction's answer, the subinterpreter runs, the wheel survey). Part 3 (the JIT) went to the internals sibling.

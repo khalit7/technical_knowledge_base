@@ -55,7 +55,7 @@ Why 34 minutes is right: the page teaches ten mechanisms across five allocators 
 335 units: core 249, depth 53, fat 33. 324 were drafted from the old page by `ledger.py init`; 11 were added by hand for the new figures and content (`note`: "added in the 2026-10-24 rebuild"). Script-drawn text (hero, ladder, pymalloc figure) has its key in a static caption. No unit is labelled `owned:` (nothing moved to another page) or `volatile`.
 
 ## Departures from the method
-Child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`), with the topic's own additions: OSTEP chapter map (closed), measured runs beside every mechanism, predict-then-reveal drills and interview rehearsal (closed). The two simulators are checked against the code they port (OSTEP's homework; PyTorch's allocator source) and sit inline. The cycle-collector run is on the Mac, not in the Linux VM, and says so beside it. No `live.md` or `coverage.json`: the page is new, there was no old Notion text.
+Child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`), with the topic's own additions: OSTEP chapter map (closed), measured runs beside every mechanism, predict-then-reveal drills and interview rehearsal (closed). The two simulators are checked against the code they port (OSTEP's homework; PyTorch's allocator source) and sit inline. The cycle-collector run is on the Mac, not in the Linux VM, and says so beside it.
 
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.

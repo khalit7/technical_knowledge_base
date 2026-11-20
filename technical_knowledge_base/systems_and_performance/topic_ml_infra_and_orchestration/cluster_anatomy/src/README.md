@@ -6,7 +6,7 @@
 - `check/check_ui.mjs` (from the repo root: `node <this> <page folder> [shots dir]`): puppeteer, every tab and control at 390 px dark and 920 px light, every explorer design and level, all 25 route pairs and every hop of the message path, every step of the job stage; no errors, NaN, undefined, null or sideways scroll; the page's sizing JS equals Python on 27 cases.
 - `check/check_stages.mjs` (from the repo root, a few minutes): the 2026-11-06 rollout checks, see the last section.
 - `check/check_embed.py` (from `src/`): the page embeds exactly `out/expected.json`, 28 prose numbers agree with the data, privacy grep over the folder.
-- `facts.md`: the verified facts and sources (copy of what was appended to the topic's shared FACTS file). `viz_ideas.md`: visuals built and rejected. `coverage.md`: no old page.
+- `facts.md`: the verified facts and sources (copy of what was appended to the topic's shared FACTS file). `viz_ideas.md`: visuals built and rejected.
 
 Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md`, organised by the cluster's own levels (node, scale-up domain, networks and control nodes, rack to cluster, storage, power) rather than by mechanisms; departures: no old page to cover, and no measured bandwidths (the toy clusters have no GPUs or RDMA: section 8 says what transfers). Numbers reused from Interconnects and scaling (NVLink 450, NIC 50, PCIe 63 GB/s; DeepSeek Table 5 latencies) and Power, cooling and reliability (10.2, 14.3, about 120 kW) so the pages agree.
 
@@ -39,7 +39,7 @@ Why about 22 minutes is right: the page covers six physical levels plus the cont
 2026-10-26 (final follow-up sweep): the login-node definition links SSH section 13 (cluster workflows: bastion, keys, multiplexing, tunnels).
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `ca-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs and no change to `recompute.py` or `out/expected.json`: every scene draws from `window.CA`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `ca-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs and no change to `recompute.py` or `out/expected.json`: every scene draws from `window.CA`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

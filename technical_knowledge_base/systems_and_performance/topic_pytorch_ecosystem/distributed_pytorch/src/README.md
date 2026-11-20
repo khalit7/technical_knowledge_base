@@ -1,6 +1,6 @@
 # Source of "Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP"
 
-Child 3 of Topic: pytorch-ecosystem. Goes one level below the parent's Reading section 7 and its Distributed lab tab, on the same running example, which every script imports unchanged from `../../src/model/`; the lab's helpers (flight-recorder reader, memory profiler timeline) are imported by path from `../../src/dist/common.py`. The old page's text is `../../src/read/old/distributed_pytorch.md`; every claim is accounted for in `coverage.md`.
+Child 3 of Topic: pytorch-ecosystem. Goes one level below the parent's Reading section 7 and its Distributed lab tab, on the same running example, which every script imports unchanged from `../../src/model/`; the lab's helpers (flight-recorder reader, memory profiler timeline) are imported by path from `../../src/dist/common.py`.
 
 ## Rebuild
 
@@ -93,7 +93,7 @@ Sibling and neighbour reading times in Further reading set to each page's header
 
 ## The 2026-11 rollout: split layout, five 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `dpt-tab`) and `build.sh` (it writes the em-dash it looks for as bytes). No new runs: every scene draws from `window.DPT` (`inputs/` via `build_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `dpt-tab`) and `build.sh` (it writes the em-dash it looks for as bytes). No new runs: every scene draws from `window.DPT` (`inputs/` via `build_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

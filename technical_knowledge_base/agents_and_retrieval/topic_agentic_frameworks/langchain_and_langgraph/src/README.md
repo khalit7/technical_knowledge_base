@@ -21,7 +21,6 @@
 4. `sh build.sh`, then `python3 check_page.py`, `node check_stages.mjs` (2026-11-06, updated 2026-11-19: Figs. 1 and 2 and the interrupt stepper play in view at 1400, 920 and 390 px and step to their end in every mode with one list item per step, nothing moves under reduced motion, the crash widget does not play, every split is two columns at 1400) and, from the repository root, `node <page>/src/check_controls.mjs <page>/index.html` (every control at 390 dark and 920 light, card screenshots into `.shots/`). `check_page.py`: data part regenerates identically and is embedded; every recording's result text, tokens and cost appear once; each cost reproduces as input x $1 + output x $5 per MTok (Haiku 4.5 list price, no cache use); prose numbers match data (2026-11-06: also Fig. 1's step list: run A's times, calls, cost, 7 checkpoints and 19 writes); no em-dash or private string anywhere in the folder.
 
 ## Inputs
-- `live.md` the old Notion page (fetched read-only 2026-10-06; same as the parent's saved copy). `coverage.json` maps every old claim.
 - `inputs/research.md` primary-source checks of the old page and history (by a research helper, 2026-10-06).
 - `inputs/version_diffs.json` default recursion limit and feature presence in the 0.6.11, 1.0.0, 1.1.0 and 1.2.0 wheels.
 

@@ -30,7 +30,6 @@ Ids and classes use the `vl-` prefix.
 | `inputs/release_v0.2*.md`, `inputs/pr_51726.txt` | Release-note highlights and the PR behind the batch-token correction, fetched 2026-10-08. |
 | `check_ui.mjs`, `shots.mjs`, `check_data.py` | Puppeteer check: the two 2D animations play once in view and the recorded stepper does not (inverted 2026-11-12 from the old never-autoplay check), then every control and every stepper step (390 dark, 920 light); element screenshots; the page embeds exactly the built data and prose numbers match it (including the stepper and time-series lines written as static text). |
 | `check_stages.mjs` | The 2026-11-06 rollout checks: the three stages and the two 2D animations play once in view, step to the end with one list item per step, stop off screen and under reduced motion; the stepper widget stays put; 13 two-column splits at 1400 px; scene labels do not collide at 1400 px; every number in the three step lists recomputed from `VL_STEP` and the free-queue model (whose queues must equal test_evict's assertions). |
-| `coverage.md` | Every claim of the old page: verified, corrected, unconfirmed or moved. |
 | `viz_ideas.md` | Visuals built and rejected. |
 | `ledger.json` | The knowledge ledger of the 2026-10-23 rebuild (`python3 html_utils/ledger.py check`: problems 0). |
 
@@ -39,7 +38,6 @@ Rebuild: `python3 -I stepper/build_trace.py`, `python3 -I knob/build_knob.py <ra
 `sh html_utils/checkpage.sh technical_knowledge_base/systems_and_performance/topic_inference_and_serving/vllm`.
 
 ## Departures from the method
-No `src/live.md`: the old page is already saved verbatim by the root (`../src/read/old/vllm.md`) and `coverage.md` maps it.
 The stepper records the real engine rather than reusing the root's harness with a fake model runner, because a real model
 gives real text in every block and a real chat template (which exposed the Qwen3 multi-turn cache miss).
 
@@ -90,7 +88,7 @@ V1/V2 toggle, multi-LoRA knobs). Fat units carry a `note`. No unit is `owned:`: 
 code, and the generic concepts were already linked rather than taught.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`,
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`,
 `21_js_rd_common.js` (autoplay on view; replaces the never-autoplay copy), `99_js_tabs.js` (key `vl-tab`). The page's `#t-read .an-ctl` rules skip
 `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. Removed: `23_js_vl_hero.js` (the static hero) and `23_js_vl_fq.js` (the
 static free-queue diagram), both replaced by stages.

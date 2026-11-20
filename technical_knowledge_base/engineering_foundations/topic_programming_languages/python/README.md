@@ -12,4 +12,4 @@ Child pages (each folder here):
 - `cpython_internals_and_performance/`: Python: CPython internals and performance
 - `typing_packaging_and_toolchain/`: Python: typing, uv, packaging and the toolchain
 
-Replaces the old written pages "Python: zero to expert" (this Notion page, retitled) and "Python: staying current (3.12 to 3.15)"; their claims were checked in `src/old_pages/coverage_part1.json` and `coverage_part2.json`, and the corrections now sit on the child that owns each subject. No databases or video.
+Replaces the old written pages "Python: zero to expert" (this Notion page, retitled) and "Python: staying current (3.12 to 3.15)"; the corrections now sit on the child that owns each subject. No databases or video.

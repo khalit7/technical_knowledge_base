@@ -1,6 +1,6 @@
 # DeepSeekMath (GRPO): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py`, `mk_coverage.py`, `check_page.mjs`, `build.sh`), via the DPO page's copies (`90_js_tabs` replaced by the skill template `99_js_tabs` on 2026-10-25); `svgparse.py` is the InstructGPT page's.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py`, `check_page.mjs`, `build.sh`), via the DPO page's copies (`90_js_tabs` replaced by the skill template `99_js_tabs` on 2026-10-25); `svgparse.py` is the InstructGPT page's.
 
 ## Tabs
 
@@ -23,19 +23,19 @@
 
 ## Files
 
-- `save_live.py` (Notion fetch from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1, v2, v3 to `inputs/paper_v*.txt`; tables to `inputs/table_*.txt`), `mk_tables.py` (`tables.json`), `decode_figs.py` + `svgparse.py` (`inputs/figs/*.svg` to `inputs/figs.json`).
+- `extract_paper.py` (arXiv HTML v1, v2, v3 to `inputs/paper_v*.txt`; tables to `inputs/table_*.txt`), `mk_tables.py` (`tables.json`), `decode_figs.py` + `svgparse.py` (`inputs/figs/*.svg` to `inputs/figs.json`).
 - `parts/22_js_toy.js`: the toy engine (policy MLP, critic, data, SFT, every method's gradient coefficients, exact evaluation, Maj@K, Pass@K); runs in the browser and in node.
 - `toy_sweep.mjs` (node, about 5 minutes; run it in the background): the base model (`parts/_gen_toy.js`) and every toy number the page quotes (`inputs/toy.json`). `mk_toydata.py` slims it into `parts/_gen_toydata.js` with the decoded figures and the check result.
 - `check_engine.mjs` then `uv run --with torch python check_engine.py`: `model/check_engine.json` (PASS). The intermediate `model/engine_case.json` (1.5 MB) is regenerated and gitignored.
 - `recompute.py`: derived numbers about the paper's evidence (corpus ratios, Table 5 deltas, standard errors, Figure 5 gaps, memory from `inputs/hf_config_rl.json`, GAE weights, zero-signal shares) to `inputs/recompute.json`.
 - `heldout_trial.mjs`: the abandoned held-out split, kept as evidence.
 - `inputs/`: paper text (three versions), tables, figure SVGs, `repo_README.md` (MIT code), `hf_config_rl.json`, `later_extracts.txt` (quoted lines of every later work cited).
-- `check_page.mjs`: every control in both themes and widths, the default training run (must reproduce the sweep), the three animations stepped, no frame before a click, every closed block opened. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs`: every control in both themes and widths, the default training run (must reproduce the sweep), the three animations stepped, no frame before a click, every closed block opened.
 - `ledger.json` (knowledge ledger) and `label_ledger.py` (labels it against the built page); `reading.json` holds the header's minutes, measured with `html_utils/audit_pages.mjs`. `parts/14b_js_hero.js`: the hero, static.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 246 KB. `check_page.mjs`: 414 actions, 0 problems; the default run (all eight methods, 400 steps) takes about 34 s in headless Chrome and reproduces `toy_sweep.mjs` at 168 checkpoints to 5e-5 (the sweep stores 4 decimals). `check_engine.py`: PASS (2.2e-16). `mk_coverage.py`: 63 of 63.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 246 KB. `check_page.mjs`: 414 actions, 0 problems; the default run (all eight methods, 400 steps) takes about 34 s in headless Chrome and reproduces `toy_sweep.mjs` at 168 checkpoints to 5e-5 (the sweep stores 4 decimals). `check_engine.py`: PASS (2.2e-16).
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -64,7 +64,7 @@ Why about 23 minutes is right: the page owns four things a reader needs (the cor
 255 units: core 227, depth 18, owned 6, volatile 4, fat 0. 248 drafted by `ledger.py init` from the page as committed before the pass; 7 added (core sentence, hero, new terms, three owner links, the biases sentence). Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, 255 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 414 actions, 0 problems; the default run reproduces `toy_sweep.mjs` at 168 checkpoints to 5e-5; no frame before a click. `mk_coverage.py`: 63 of 63. The toy engine is unchanged, so `check_engine.py` was not rerun.
+`checkpage.sh`: tabs 5, 255 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 414 actions, 0 problems; the default run reproduces `toy_sweep.mjs` at 168 checkpoints to 5e-5; no frame before a click. The toy engine is unchanged, so `check_engine.py` was not rerun.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

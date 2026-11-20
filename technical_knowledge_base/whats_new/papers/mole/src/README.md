@@ -27,7 +27,7 @@
 - **Connections**: the standing gap ("no AI security topic page") is closed; the paper now links Agent security.
 - **Never autoplays** (superseded 2026-11-13 for the stages; still true of the daily audit widget): `makeAnim` waits on its first frame until the reader acts (also after a monitor switch); `check_page.mjs` uses DOM clicks for tabs, scrolls the daily audit (`aud`) into view and fails on any frame drawn before a click, checks the hero is drawn, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `mole-tab`, with `data-to` scrolling that opens a closed block holding the target).
 - **No real image**: nothing physical to show, and the paper's Figure 1 is already redrawn; the arXiv licence of the paper was not needed.
-- **Takeaway softened** (card, `paper.json`, `live.md`): the old line said "a model's stated refusal does not predict whether it actually declines", which the paper never measures (refusal and completion correlate across models, Spearman -0.73; what fails is "never refusing means completing"), and gave the 72% without the preamble that declares the sandbox harmless and asks the model not to refuse. The new line states both, gives 24 of 45 for the best monitor, and notes single runs on few positives. The Notion property still carries the old line.
+- **Takeaway softened** (card, `paper.json`): the old line said "a model's stated refusal does not predict whether it actually declines", which the paper never measures (refusal and completion correlate across models, Spearman -0.73; what fails is "never refusing means completing"), and gave the 72% without the preamble that declares the sandbox harmless and asks the model not to refuse. The new line states both, gives 24 of 45 for the best monitor, and notes single runs on few positives. The Notion property still carries the old line.
 - **Length judgement**: Reading core 23 min before (5,284 words) and 22 after (5,157), plus 5 in closed details (1,115 words, from 1; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes and the softened takeaway half a minute; the moves took out more. What stays is core: five research questions, each with numbers, and an evidence section with four corrections from the released data (elicitation preamble, 600-character clip, held-out refit, main text against tables) that no other page carries. Other tabs unchanged (Run 3, Tables 8, Further reading 3).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 257 units; core 221, depth 27, owned 2, volatile 2, fat 5; `ledger.py check` problems 0.
 - **Source extracts**: em-dashes in `inputs/paper_v1.txt` (68), `inputs/tables_v1.txt` (60) and `inputs/examples.json` (25) replaced with `--`; the two author emails in `paper_v1.txt` replaced with [email removed]. `extract_paper.py` and `mk_example.py` now do both on extraction; `tables.json`, `20_example.js` and `recompute.json` are byte-identical after the change. Addresses inside the simulator's released data (the fictional accounts and outside addresses the agents were given) are kept: they are part of what the agent was told.
@@ -58,11 +58,10 @@ The growth is the two step lists that explain the stages (about 520 words); no k
 Ledger: 267 units (core 231, depth 27, owned 2, volatile 2, fat 5); keys re-pointed for units 21, 22, 23, 42, 63, 95, 96, 98 and 200, ten units added for the numbers the step lists state; `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems; `verify_layout.mjs` problems 0; `mk_coverage.py` 32 of 32.
+`checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems; `verify_layout.mjs` problems 0.
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (32 items from `live.md`, all verified against the built page).
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `tables_v1.txt`, `anchors.txt`. `decode_figs.py`: figure values from the vector PDFs of the arXiv e-print (needs `uv run --with pymupdf`; the e-print is not kept), including Figure 3's bars from its rectangles.
 - `mk_tables.py`: `tables.json` from the extracted tables, the decoded figures and two passages of the text.
 - `compute_features.py`: the released audit events (Hugging Face `forgelab/mole`, not kept: 89 to 94 MB per corpus) rolled up into `inputs/features_<split>.json` (integer counts per account-day, plus labels, groups and cohorts from the repository's bootstrap files). Done for `gpt53_single_day` and `gpt53_multiday`.
@@ -75,4 +74,4 @@ Ledger: 267 units (core 231, depth 27, owned 2, volatile 2, fat 5); keys re-poin
 
 ## Checks (3 October 2026; rerun 25 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (264 actions; JS monitors match Python exactly; nothing moves before a click); `mk_coverage.py` 32 of 32; `ledger.py check` problems 0.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (264 actions; JS monitors match Python exactly; nothing moves before a click); `ledger.py check` problems 0.

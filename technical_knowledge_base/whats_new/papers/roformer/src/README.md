@@ -28,14 +28,13 @@
 - Toy model: `train.py` (task, six variants, training, `export` to `parts/20_model_data.js` with 6-bit weights and accuracies by position for full attention, a 32-token window and Position Interpolation), `check_forward.py` (the JavaScript forward pass in `parts/22_js_model.js` against PyTorch on the quantised weights; needs node). `model/` keeps the quantised checkpoints `*_q.pt` that `check_forward.py` loads, the logs, `report.json`, `check_forward.json` and the configuration sweep's logs. The float checkpoints are not kept: `uv run --with torch --with numpy python train.py` recreates them in about 4 minutes (2 threads), then `... train.py export` and `... check_forward.py`.
 - `check_page.mjs` (from the repo root with node): every control in light 1400 and 920 and dark 390, the in-browser test, the Then and now animation stepped, autoplay of every stage and animation, text at least 11 px, no NaN or errors. `check_stages.mjs`: the 2026-11-06 motion and layout rules for the three stages and the 2D animation, and the step lists' numbers.
 - Scenes: `31_js_sc_hero.js`, `32_js_sc_shift.js`, `33_js_sc_decay.js` (renderer `25_js_s3.js`); each exposes its numbers (`window.__hero`, `__shift`, `__decay`) for `check_stages.mjs`.
-- `mk_coverage.py` writes `coverage.json` (every fact of `live.md` and where the page carries it) and verifies it against the built page.
-- `save_live.py` copied the Notion fetch verbatim from the session transcript into `live.md`; `extract_paper.py` turned the arXiv HTML into `inputs/paper_v5.txt` and `inputs/table_S4_T*.txt`.
+- `extract_paper.py` turned the arXiv HTML into `inputs/paper_v5.txt` and `inputs/table_S4_T*.txt`.
 - `inputs/`: the paper text and tables, `v1_extract.txt` and `v2_extract.txt` (the earlier versions' experiment sections, from pdftotext), `related_extracts.txt` (EleutherAI, Barbero et al., BERT's code and Appendix A.2), `later_extracts.txt` (PaLM, GPT-NeoX-20B, LLaMA, Llama 3, Qwen2-VL, DeepSeek-V2, PI, YaRN, ALiBi, Llama 4), `hf_configs.jsonl`, `hf_glue_dev.txt`, `recompute.json`.
 - `viz_ideas.md`: the visualisations chosen and rejected, with scores.
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 275 KB (118 KB of it the six models' weights, logs and per-position accuracies). `node src/check_page.mjs`: 244 actions, 0 problems in light 920 and dark 390 (both animations stepped, the in-browser test run). `check_forward.py`: PASS (identical predictions on 1,160 sequences across the six variants and the window and PI options, logits within 4.8e-4, attention within 1.1e-5). `mk_coverage.py`: 49 of 49 items verified.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 275 KB (118 KB of it the six models' weights, logs and per-position accuracies). `node src/check_page.mjs`: 244 actions, 0 problems in light 920 and dark 390 (both animations stepped, the in-browser test run). `check_forward.py`: PASS (identical predictions on 1,160 sequences across the six variants and the window and PI options, logits within 4.8e-4, attention within 1.1e-5).
 
 ## Light pass, 2026-10-25 (teaching contract)
 
@@ -46,11 +45,11 @@
 - **Length**: core 19 min before (4,414 words) plus 1 closed, 18 after (4,209) plus 4 closed; other tabs 14 min, unchanged. The new top section is paid for by what moved into details. What remains is the paper's argument (problem, rotation, the shift test on trained weights, spectrum, decay, linear attention, results and the evidence judgement), which this page owns; the toy, tables and Then and now tabs are tools used across the page and are unchanged apart from links.
 - **Ledger** (`ledger.json`): 276 units, core 187, depth 75, owned 6, fat 8 (old reading-time line, tab labels, five sentence-split fragments, the old animation-manners line); `ledger.py check` problems 0.
 
-Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 282.9 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 244 actions, 0 problems (including the no-autoplay checks); `check_forward.py` PASS; `mk_coverage.py` 49 of 49.
+Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 282.9 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 244 actions, 0 problems (including the no-autoplay checks); `check_forward.py` PASS.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`; `99_js_tabs.js` from the template with the storage key `rf-tab`, plus the page's rule that a `data-to` link opens the closed block holding its target. `11_js_ui.js` is Mamba's copy (its `makeAnim` has the motion rules of `RD.anim`: autoplay once half in view, pause off screen, stop for good on any control or at the last step, nothing under reduced motion, an `ol.sx` per mode); `21_js_rd_common.js` is not used. `build.sh` finds the repository root by path instead of asking git.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`; `99_js_tabs.js` from the template with the storage key `rf-tab`, plus the page's rule that a `data-to` link opens the closed block holding its target. `11_js_ui.js` is Mamba's copy (its `makeAnim` has the motion rules of `RD.anim`: autoplay once half in view, pause off screen, stop for good on any control or at the last step, nothing under reduced motion, an `ol.sx` per mode); `21_js_rd_common.js` is not used. `build.sh` finds the repository root by path instead of asking git.
 
 What changed and why:
 - **Three 3D stages** (one scene file each), all driven by the page's own arithmetic or model:
@@ -75,6 +74,6 @@ What changed and why:
 
 The growth is the step lists. Then and now's captions were drawn by script and invisible to the audit; now written out (about 470 words). In Reading, the hero, shift and decay lists replace the old hero caption and the shift animation's script-drawn captions, and add the decay mechanism (why the bound falls, and one Gaussian draw that does not decay), which the page previously asserted in a sentence and a closed derivation. Nothing was cut but repetition. Header: "Reading: 22 min, plus 4 in closed details." (`reading.json`).
 
-Ledger: 292 units (core 203, depth 75, owned 6, fat 8); 16 added (5 for facts new or formerly script-only in the Reading lists, 11 for the Then and now steps); keys re-pointed on units 66, 71, 72, 194, 195, 226 and 242 (each marked `rekeyed`). Owned units 160 to 163, 275 and 276 still pass at the owner. `ledger.py check`: problems 0. `mk_coverage.py`: 49 of 49.
+Ledger: 292 units (core 203, depth 75, owned 6, fat 8); 16 added (5 for facts new or formerly script-only in the Reading lists, 11 for the Then and now steps); keys re-pointed on units 66, 71, 72, 194, 195, 226 and 242 (each marked `rekeyed`). Owned units 160 to 163, 275 and 276 still pass at the owner. `ledger.py check`: problems 0.
 
 Checks (2026-11-13): `checkpage.sh` 5 tabs, emdash 0, errbox 1, clipped 0, fail=0; `check_stages.mjs` (new: three stages and one 2D animation at 1400 and 920 light and 390 dark, autoplay, list lengths, off-screen and reduced motion, and the step lists' numbers against the page's computations) problems 0; `check_page.mjs` (now 1400 and 920 light, 390 dark; asserts autoplay instead of forbidding it; opens closed blocks) problems 0; `verify_layout.mjs` problems 0. `check_forward.py` was not rerun: the model files are unchanged.

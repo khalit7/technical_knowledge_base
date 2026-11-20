@@ -61,7 +61,7 @@ The added 738 words are the three step lists (16 items): the two figures they re
 
 # Google DeepMind: Gemini and Gemma, interactive page (v3)
 
-`visual.html` replaces all the text of the Notion page "Google DeepMind: Gemini and Gemma" (https://app.notion.com/p/3c65c17b0d0d8173a0aafcb27cf7a5f3, child of Topic: llm-landscape). It is meant to be the only source of information on the page. `coverage.json` shows where it carries each fact of the old text, and every specific figure links inline to its source.
+`visual.html` replaces all the text of the Notion page "Google DeepMind: Gemini and Gemma" (https://app.notion.com/p/3c65c17b0d0d8173a0aafcb27cf7a5f3, child of Topic: llm-landscape). It is meant to be the only source of information on the page. Every specific figure links inline to its source.
 
 ## Build
 
@@ -116,6 +116,5 @@ Set `SEL='#id'` to screenshot one element. The screenshots are in `shots/`.
 
 - `viz_ideas_2.md`: round 2 candidates; ideas 6 and 7 are built (note: its "α about 0.79" for Gemma at γ = 4 recomputes to 0.774, which the page shows).
 - `viz_ideas.md`: the candidates, how they scored, where each one went, and what was rejected.
-- `live.md` and `live_before_delete.md`: the page text as fetched on 1 October 2026. The old embed's signed S3 query string has been shortened.
 
 Overlap fix (19 October 2026): the Gemma tab's batching section no longer derives the touched-experts formula E(B) = n[1 − (1 − k/n)^B]; it points to Mixture of experts section 8 (3fd5c17b0d0d81fda06bf955af7c2b58) and keeps Gemma's own numbers (the back-solved P_shared and P_expert, the chip peaks, the crossovers, the calculator).

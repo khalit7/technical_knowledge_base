@@ -21,12 +21,12 @@
 ## Files
 
 - `build.sh`: runs `recompute.py`, `mk_paper.py`, `mk_results.py`, assembles `parts/`, expands the link macros, fails on an unexpanded macro or an em-dash.
-- `save_live.py` copied the Notion fetch verbatim into `live.md`. `extract_paper.py` turned the arXiv HTML (v2 and v1) into `inputs/paper_v*.txt` and `inputs/table_*.txt`; `mk_tables.py` turns those into `tables.json` (values as printed, no retyping).
+- `extract_paper.py` turned the arXiv HTML (v2 and v1) into `inputs/paper_v*.txt` and `inputs/table_*.txt`; `mk_tables.py` turns those into `tables.json` (values as printed, no retyping).
 - `decode_figs.py` (with `svgparse.py`, copied from the InstructGPT page) decodes the three figure SVGs in `inputs/figs/` into `inputs/figs.json`.
 - `recompute.py`: parameter recount from `inputs/hf_configs.json`, table sums and averages, the Table 8/Table 4 column check, Figure 1 against Table 9, gaps and size ratios, noise bounds, Figure 2 counts, LLM2Vec's budget (`inputs/llm2vec_extract.txt`), the compute line. Writes `inputs/recompute.json`.
 - `paper.json`: metadata, headline numbers, verdict, resources, connected KB pages; `mk_paper.py`: card, Further reading, `window.PAPER`.
 - Toy suite: `grammar.py` (the toy world; `parts/21_js_lang.js` mirrors it), `train.py` (`pretrain`, `cross`, `evalgen`, `finetune`, `export`), `run_all.sh` (the whole pipeline, in order, in the background), `check_forward.py` (JS against PyTorch on the shipped weights), `overlap.py` (test prompts against the training stream), `mk_results.py` (`model/*.json` into `parts/_gen_results.js`). `model/` keeps the small size's float checkpoints (`s_*.pt`, which `export` reads), the shipped quantised ones (`ship_*_q.pt`, which `check_forward.py` loads) and every JSON result and log (about 700 KB). The middle and large checkpoints (4.3 MB) are left out; `run_all.sh` regenerates them. `build.sh` needs only the JSON files.
-- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped, text at least 11 px, no NaN or errors, no sideways scroll, every closed block opened. Since 2026-11-13 it asserts that `ox` and `gx` play when scrolled into view (the 2026-10-25 never-autoplay check is inverted). `check_stages.mjs`: the 2026-11-06 layout and motion checks (below). `label_ledger.py` labels `ledger.json`; `reading.json` holds the header's reading time (measured with `html_utils/audit_pages.mjs`, written by hand). `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
+- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped, text at least 11 px, no NaN or errors, no sideways scroll, every closed block opened. Since 2026-11-13 it asserts that `ox` and `gx` play when scrolled into view (the 2026-10-25 never-autoplay check is inverted). `check_stages.mjs`: the 2026-11-06 layout and motion checks (below). `label_ledger.py` labels `ledger.json`; `reading.json` holds the header's reading time (measured with `html_utils/audit_pages.mjs`, written by hand).
 
 ## The toy, as built (measured; numbers from `model/*.json`)
 
@@ -47,7 +47,7 @@ What changed and why:
 - **Closed**: ModernBERT's block in full; the three phases' data lists (the phase chart carries the shape); the five differences from ModernBERT (one line stays open); the GLUE sweep and retrieval script; Table 2's sum against the text and the README; loading the models (software versions, Hub names) and the derived GPU utilisation.
 - **Volatile**: mmBERT (the follow-up) and the repository's "TODO" quick-start moved into one dated closed block, "Since the paper (sources read 3 October 2026)".
 - **No autoplay**: `makeAnim` in `11_js_ui.js` no longer starts on scroll or on a mode change (both `ox` in Reading and `gx` in the toy tab); `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `seq_vs_seq-tab`, keeps `data-to` scrolling). The page has no `21_js_rd_common.js`.
-- **Takeaway softened** (`paper.json`, hence `_gen_card.html`, and the Takeaway line in `live.md`): "compute-matched" became "size, data, data order and recipe held fixed", and "single runs" was added; "does not close either gap" was wrong in two places by the paper's own Table 9: the decoder-from-encoder is level with the decoder on generation up to 68M (it trails only from 150M up), and on retrieval the encoder-from-decoder ends within noise of the encoder at 17M (above it by 0.08) and 1B (0.11 behind). live.md's "an order of magnitude larger" is corrected to about 2.7x. The Notion property itself is unchanged (Khalid's).
+- **Takeaway softened** (`paper.json`, hence `_gen_card.html`): "compute-matched" became "size, data, data order and recipe held fixed", and "single runs" was added; "does not close either gap" was wrong in two places by the paper's own Table 9: the decoder-from-encoder is level with the decoder on generation up to 68M (it trails only from 150M up), and on retrieval the encoder-from-decoder ends within noise of the encoder at 17M (above it by 0.08) and 1B (0.11 behind). The old Takeaway's "an order of magnitude larger" is corrected to about 2.7x. The Notion property itself is unchanged (Khalid's).
 - No author emails were found in this page's saved sources.
 - Header: "Reading: 22 min, plus 2 in closed details."
 
@@ -66,7 +66,7 @@ Why about 22 minutes is right: the paper's argument has more parts than most (th
 238 units: core 216, depth 16, owned 3, volatile 2, fat 1. 232 drafted by `ledger.py init` from the page before the pass; 6 added (core sentence, hero, terms, three owner links). Fat: the old animation-manners line. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 348 actions, 0 problems (including no movement before a click and every closed block opened; the in-browser test of all four toy models run). `mk_coverage.py`: 49 of 49 (keys updated for the takeaway, the header format and one shortened sentence). Page 299,824 bytes.
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 348 actions, 0 problems (including no movement before a click and every closed block opened; the in-browser test of all four toy models run). Page 299,824 bytes.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -95,4 +95,4 @@ The growth is the step lists that explain the two stages and the two step animat
 Ledger: 243 units (core 221, depth 16, owned 3, volatile 2, fat 1); 5 added for the two stages and the static `ox` step lists; 2 re-keyed (61: "the conversion helps retrieval more (step 3"; 80: "figure 1 is rebuilt on the right from table 9"); `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems (`ox` and `gx` play on view; the in-browser test of the four toy models run). `check_stages.mjs`: 12 stages and animation modes over three widths, 0 problems. `html_utils/verify_layout.mjs`: problems 0. `mk_coverage.py`: 49 of 49. Model, weights and `check_forward.py` untouched (not rerun).
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 384 actions, 0 problems (`ox` and `gx` play on view; the in-browser test of the four toy models run). `check_stages.mjs`: 12 stages and animation modes over three widths, 0 problems. `html_utils/verify_layout.mjs`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).

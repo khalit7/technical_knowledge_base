@@ -5,7 +5,7 @@ Child page of Topic: llm-training-and-post-training (storage key `align-tab`). B
 ## Build and checks
 `python3 recompute.py` (writes `parts/20_js_data.js` and `inputs/derived.json`), then `sh build.sh` (writes `../index.html`; `fill.py` writes the SFT sample statistics into the prose as static text). The header's reading time is written by hand from `html_utils/audit_pages.mjs`. Checks: `sh html_utils/checkpage.sh <page folder>`, `node src/check_stages.mjs` (the five 3D stages and the 2D push animation: autoplay on view, one step-list item per step, mode switches replay, nothing moves off screen or under reduced motion, splits two columns at 1400 px, and every number in the step lists recomputed in JavaScript from the page's data), `node src/check_pair.mjs` (the pair toy's JS against `recompute.py`, the loss-mask rules, every loss of the pair stage, the static figures, the tree), `python3 html_utils/ledger.py check <page folder>`.
 
-Data: `mk_lengths.py` (network; `uv run --no-project --with tokenizers python mk_lengths.py`) samples the Tulu 3 SFT mixture and tokenizes the example conversation; outputs in `inputs/`. `inputs/research_*.md` are the verified source notes. `live.md` is the old Notion page; `coverage.json` maps every fact in it (historical; `ledger.json` now governs).
+Data: `mk_lengths.py` (network; `uv run --no-project --with tokenizers python mk_lengths.py`) samples the Tulu 3 SFT mixture and tokenizes the example conversation; outputs in `inputs/`. `inputs/research_*.md` are the verified source notes.
 
 ## Parts
 | Tab | Parts |
@@ -45,7 +45,7 @@ A real before/after of one prompt across stages (OLMo 2 1B base, SFT, DPO and In
 Khalid's decision: the DPO-family animation lives on this page. The DPO paper page's Then-and-now card (the push -dL/dh on one pair against its margin, for unlikelihood, DPO, the SLiC hinge, IPO, cDPO and SimPO, with each loss's outcome on that page's toy after 4,000 steps) now sits inline in section 5, after the pair animation and before the family table: the claim it proves is why DPO never stops pushing while a target (IPO) or a hinge does. Ported to this page's RD.anim stepper (`parts/27_js_lfx.js`, no autoplay, a push or loss view), with a prediction prompt and its answer. Data: `mk_lfx_data.py` copies the six long runs' outcomes from the DPO page's generated `_gen_toy.js` into `parts/26z_js_lfx_data.js` (the DPO page still owns and checks that toy). `check_pair.mjs` now steps both views, checks the counters against the data, and includes the card in the autoplay check. Ledger: 4 units added. Reading 25 to 26 min core.
 
 ## 2026-11-10: the split layout and five 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (added to `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `align-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (added to `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `align-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -18,7 +18,6 @@
 - **"Tables" tab renamed "The paper's figures, rebuilt".** The paper's results are all figures; the numbers come from the vector SVGs (decoded, not read by eye) and only Tables 2 and 6 are printed tables.
 - **No Then and now tab**: the paper is three weeks old. Concurrent work (Semi-OPD, OPD collapse, RIDE) is in Why it matters and Further reading, each with its arXiv link.
 - **No code card**: nothing is released; Further reading points to the Thinking Machines recipe the study tests.
-- **Coverage runs against the paper's claims**: the row's old body was a one-line placeholder.
 
 ## Corrections and findings beyond the paper's text
 
@@ -30,16 +29,16 @@
 
 ## Files
 
-- `save_live.py` (the Notion fetch, copied verbatim from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_*.txt`; em-dashes and emails scrubbed), `inputs/anchors.txt` (every section, figure, table and equation anchor; `build.sh` refuses unknown `ax:` links).
+- `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_*.txt`; em-dashes and emails scrubbed), `inputs/anchors.txt` (every section, figure, table and equation anchor; `build.sh` refuses unknown `ax:` links).
 - `decode_figs.py` with `svgparse.py` (copied from the InstructGPT page): Figures 1, 3, 5, 6 and 26 from the vector SVGs into `inputs/figs.json` (the SVGs are fetched to scratch; the command is in the docstring). `mk_tables.py`: `tables.json` (Tables 2 and 6 and Appendix A.12 transcribed and checked in reading order against the extracted text, plus the decoded figures). `recompute.py`: `inputs/recompute.json`, 24 claims checked against the figures, Table 6 means and medians, Theorem C.2's formula, the D.5 amplification cap, counts.
 - `parts/22_js_toy.js`: the toy engine (world, both students, exact KL gradients, pi_lambda with the D.5 safeguards, batch and exact expected semi-gradients, total-variation distance, Adam with clipping, exact evaluation); runs in the browser and in node.
 - `toy_sweep.mjs` (node, seconds): every toy number (`inputs/toy.json`, `parts/_gen_toydata.js`); `build.sh` runs it.
 - `check_engine.mjs` then `uv run --no-project --with torch --with numpy python check_engine.py`: `model/check_engine.json` (PASS, max difference 2.2e-16 against torch 2.14.1). `model/engine_case.json` is regenerated and gitignored.
-- `check_page.mjs` (from the repo root with node): every control in both themes and widths, the four before/after modes stepped to the end, the in-browser sweep against the record, reduced motion. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs` (from the repo root with node): every control in both themes and widths, the four before/after modes stepped to the end, the in-browser sweep against the record, reduced motion.
 
 ## Checks (19 October 2026)
 
-See the agent report; rerun `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/on_policy_or_off_policy_learning`, `node .../src/check_page.mjs` and `python3 mk_coverage.py` after any change.
+See the agent report; rerun `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/on_policy_or_off_policy_learning` and `node .../src/check_page.mjs` after any change.
 
 ## Light pass to the teaching contract (2026-10-26)
 
@@ -48,11 +47,11 @@ See the agent report; rerun `sh html_utils/checkpage.sh technical_knowledge_base
 - **Moved into closed blocks**: Theorems C.1, C.2 and Corollary C.3 with their constants (a one-sentence summary stays in the Reading flow); what this page's toy adds (in the evidence section); the concurrent work of the same weeks (Semi-OPD, OPD collapse, RIDE) into one dated block, "Same weeks, beyond the paper (read 19 October 2026)".
 - **Never autoplays**: `makeAnim` in `11_js_ui.js` (the fixed version shared with the other paper pages) waits on its first frame until the reader presses play or steps, also after a mode switch; tabs from the skill template (`99_js_tabs.js`, key `opd-tab`). `check_page.mjs` fails on any frame of the before/after animation drawn before a click in both themes (it already checked reduced motion), checks the hero is drawn, and opens every closed block.
 - **No real image**: nothing physical to show, and the hero redraws the paper's grid from its decoded figure.
-- **Takeaway softened** (card, `paper.json`, `live.md`): scoped to 1B students on about 100-token answers with three seeds; reverse KL favours student rollouts only at the lower learning rate (at the higher one off-policy reverse KL scored 49% against on-policy's 35%); forgetting and sparsity follow the learning rate; the RLVR result rests on one RL seed; long traces untested. The Notion property, saved in `live.md` before this pass, read: "In controlled strong-to-weak distillation, the token-level KL direction, not who wrote the rollouts, shapes performance and coverage: forward KL is robust to rollout policy, reverse KL favours student rollouts, and the on-policy generalisation edge does not reliably survive later RLVR." It credits the KL direction alone where the learning rate matters as much, and states reverse KL's preference without its sign flip; Notion still carries it.
+- **Takeaway softened** (card, `paper.json`): scoped to 1B students on about 100-token answers with three seeds; reverse KL favours student rollouts only at the lower learning rate (at the higher one off-policy reverse KL scored 49% against on-policy's 35%); forgetting and sparsity follow the learning rate; the RLVR result rests on one RL seed; long traces untested. The Notion property, before this pass, read: "In controlled strong-to-weak distillation, the token-level KL direction, not who wrote the rollouts, shapes performance and coverage: forward KL is robust to rollout policy, reverse KL favours student rollouts, and the on-policy generalisation edge does not reliably survive later RLVR." It credits the KL direction alone where the learning rate matters as much, and states reverse KL's preference without its sign flip; Notion still carries it.
 - **Source extracts**: `extract_paper.py` already wrote em-dashes as `--` and redacted emails (six in `inputs/paper_v1.txt`); a scan of the folder found no em-dash or email left.
 - **Length judgement**: Reading core 23 min before (5,325 words) and 23 after (5,332), plus 2 in closed details (513 words, from 154; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 2 minutes; folding the derivation, the toy note and the dated news took out as much. What stays is core: the two knobs, the grid and its result, the gradient argument in one paragraph plus its live card, the spectrum, coverage and RLVR, the robustness checks and an evidence section that narrows the claim. Other tabs unchanged (Move the rollout policy 5, Figures 7, Further reading 2). Visuals inline: 4 before, 5 after (the hero; the old 2 × 2 table, which the audit did not count as a visual, was folded into it).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 290 units; core 268, depth 13, volatile 5, owned 4; `ledger.py check` problems 0.
-- **Checks (26 October 2026)**: `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (273 actions; in-browser sweep within 5.0e-5 of the record); `mk_coverage.py` 42 of 42. `check_engine.py` not rerun: the toy engine (`22_js_toy.js`) is unchanged.
+- **Checks (26 October 2026)**: `checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (273 actions; in-browser sweep within 5.0e-5 of the record). `check_engine.py` not rerun: the toy engine (`22_js_toy.js`) is unchanged.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -75,4 +74,4 @@ What changed and why:
 
 The growth is the Fig. 1 step list (about 650 words), a new explanation: what the rollout policy and the divergence each do, on real toy numbers, which the old before/after card showed one tab away with a script-drawn caption. Nothing was cut. Header: "Reading: 26 min, plus 2 in closed details." from `reading.json`.
 
-Ledger: 299 units (core 277, depth 13, owned 4, volatile 5); 9 added for the step list; keys re-pointed on units 28 and 106 (text split by the layout), 226 (the sweep's heading) and 232 to 234 (the before/after card, now a pointer). `ledger.py check` problems 0. `mk_coverage.py` 42 of 42.
+Ledger: 299 units (core 277, depth 13, owned 4, volatile 5); 9 added for the step list; keys re-pointed on units 28 and 106 (text split by the layout), 226 (the sweep's heading) and 232 to 234 (the before/after card, now a pointer). `ledger.py check` problems 0.

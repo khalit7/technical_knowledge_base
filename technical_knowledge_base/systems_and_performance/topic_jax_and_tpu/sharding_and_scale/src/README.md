@@ -50,7 +50,6 @@ node check_stages.mjs [shots dir]   # 3D stages and animations: autoplay on view
 Large outputs stay in `$JX_SCRATCH/ss/` (HLO dumps after propagation, multi-process logs, the GSPMD paper PDF and its text).
 
 ## Departures from the child-page method
-- No `src/live.md`: the old Notion text was already saved verbatim by the root's Reading agent (`../../src/read/old/sharding.md`); corrections are in `coverage.md`.
 - Pipeline, MoE, propagation and multi-process were tabs until 2026-10-23; each explains one mechanism, so they are now Reading sections 8, 9, 3 and 12, with their tables and code in closed blocks.
 - The Mesh designer overlaps in purpose with Distributed Training's Layout calculator (GPU clusters); this one is TPU slices, JAX mesh axes and the torus placement rule, with its byte formulas checked against compiled programs.
 
@@ -85,7 +84,7 @@ Why 38 minutes is right: the page now carries, inline, everything that used to s
 
 ## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `jx-ss-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `SS` (`out/*.json` via `runs/ss_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `jx-ss-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `SS` (`out/*.json` via `runs/ss_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

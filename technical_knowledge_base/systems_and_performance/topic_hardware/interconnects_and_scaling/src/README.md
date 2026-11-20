@@ -12,7 +12,6 @@ Child of Topic: hardware (page prefix `ic`, storage key `ic-tab`). Built 2026-10
 - `check/check_page.mjs`: puppeteer, every tab and control at 390 px dark and 920 px light; no errors, NaN, undefined or sideways scroll; the page's JS simulator and fabric model equal the Python cases; screenshots of every Reading card (each topology mode, RDMA stepper first and last step, the three photos) to `../.shots/own/`; a fresh page scrolled to each 2D animation confirms it plays by itself (inverted on 2026-11-12 from the old never-autoplay check).
 - `check/check_stages.mjs` (from the repo root, a few minutes): the 2026-11-06 rollout checks, see the last section.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`).
-- `live.md`, `coverage.json`: the old Notion page verbatim and its 46-fact coverage (2026-10-05; historical, superseded by the ledger).
 - Images: `../img/` (three WebP files, credits in `../img/CREDITS.md`).
 
 ## Parts (2026-10-23)
@@ -56,7 +55,7 @@ Why about 30 minutes is right: the page now owns four subjects other pages used 
 - No GPU cluster was available: cluster numbers are vendor or independent figures, kept apart; the laptop measurement validates the model's shape (step counts, crossover), not cluster bandwidths.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `ic-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs and no change to `recompute.py` or `out/expected.json`: every scene draws from `window.IC` and the numbers sections 2, 3 and 5 already state.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `ic-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs and no change to `recompute.py` or `out/expected.json`: every scene draws from `window.IC` and the numbers sections 2, 3 and 5 already state.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

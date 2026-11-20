@@ -30,16 +30,14 @@ Core reading for the old Reading plus the two lab tabs was about 37 minutes; it 
 `ledger.json`: 346 units from the pre-rebuild page; core 215, depth 93, volatile 19 (in the dated readings block), fat 19, owned 0. `python3 ../../../../html_utils/ledger.py check` reports problems 0. Keys were drafted from each unit's numbers and names and checked by hand; units drawn by script carry keys written into captions.
 
 ## Files
-- `live.md`: old Notion page verbatim (fetched; no child pages, databases, video or embed).
 - `fetch_redux.py` (MMLU-Redux 2.0, needs pyarrow), `fetch_arc.py` (ARC tasks), `fetch_items.py` (HF samples), `save_excerpts.py` (text windows of every primary source into `inputs/excerpts/`).
 - `tables.py`: transcribed published tables (MMLU-Redux T2, HLE-Verified T2, SimpleQA T3, MMLU-Pro T3, HLE tools pairs, HLE-Diamond) and the hero's and physics bar's published values (HERO, PHYS).
 - `recompute.py`: 54 checks and every derived number into `inputs/recompute.json`. `mk_data.py`: `parts/11_js_data.js` (`window.KR`).
-- `mk_coverage.py` -> `coverage.json` (109 facts of live.md: 90 carried, 18 corrected, 1 superseded; each located in the built HTML).
 - `check_ui.mjs`: every control at 390 dark and 920 light (702 actions), plus value checks (SimpleQA F, toy grader, ARC rules, solver, RHAE presets) and the no-autoplay check. `shots.mjs`: screenshots of each visual into `../.shots/parts/`.
 - `ledger.json`: the knowledge ledger (teaching contract).
 - `viz_ideas.md`: ranked ideas.
 
-Rebuild: `python3 recompute.py && python3 mk_data.py /path/to/redux_cache && sh build.sh && python3 mk_coverage.py` (mk_data works without the cache via `inputs/redux_seq.json`).
+Rebuild: `python3 recompute.py && python3 mk_data.py /path/to/redux_cache && sh build.sh` (mk_data works without the cache via `inputs/redux_seq.json`).
 
 ## 2026-11-09: split layout, three 3D stages, explained and autoplaying step lists (the 2026-11-06 rollout)
 - **Templates** `02_split.html`, `25_js_s3.js` (renderer v2) and `99_js_tabs.js` (key `kr-tab`) copied unchanged; `build.sh` cats `02_split.html` after `01_head.html` (its em-dash check already writes the character as bytes). The page's `.an-ctl` rules no longer reach the stage bars (`:not(.stg-bar)`). `KU.anim` (never autoplayed) is gone: no 2D step animation is left.

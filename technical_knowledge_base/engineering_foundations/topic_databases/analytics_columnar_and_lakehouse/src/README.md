@@ -2,7 +2,7 @@
 
 `sh build.sh` writes `../index.html` from `parts/` (same scheme as the root and siblings: 01_head, 10_header, 20_read_*.html, 3x_tab_*.html, every *.js in its own script, 99_js_tabs.js last). `python3 build_data.py` turns `inputs/*.json` into `parts/22_js_data.js`; `python3 recompute.py` writes `recompute_out.json`; `node src/check_page.mjs` (from the repo root) clicks every control at 390 dark and 920 light and compares the page's numbers with recompute_out.json.
 
-Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page), rebuilt 2026-10-24 to the teaching contract (below). Page prefix `an`, storage key `an-tab`. Tabs: Reading, Parquet lab, Further reading. `coverage.json` lists what this page took over from the root at first build; `ledger.json` is the knowledge ledger of the 2026-10-24 rebuild.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page), rebuilt 2026-10-24 to the teaching contract (below). Page prefix `an`, storage key `an-tab`. Tabs: Reading, Parquet lab, Further reading. `ledger.json` is the knowledge ledger of the 2026-10-24 rebuild.
 
 ## Measurements (`measure/`, all run 2026-10-04 on an Apple M1 Pro, 16 GB, shared with other jobs; each under 20 minutes)
 Run from a scratch directory outside the repo with `AN_DATA=<dir>`; Postgres uses `AN_PORT` (default 54373) and refuses a port already in use.

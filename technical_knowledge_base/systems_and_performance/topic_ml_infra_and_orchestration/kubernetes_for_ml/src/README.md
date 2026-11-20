@@ -1,6 +1,6 @@
 # Kubernetes for ML page: sources, scripts and runs
 
-Built 2026-10-16; rebuilt 2026-10-24 to the teaching contract (editing plus source reading, no new cluster runs). Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page), organised by the path of a job through Kubernetes (control loop, Jobs, scheduler, devices, RDMA networking, placement, gangs, Kueue, JobSet, operators, serving, storage). Departures: no old page to cover (`coverage.md`); the parent's Scheduling and Failure labs own the Kueue deadlock fix, borrowing, reclaim and node failures, so they are linked, not rebuilt.
+Built 2026-10-16; rebuilt 2026-10-24 to the teaching contract (editing plus source reading, no new cluster runs). Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page), organised by the path of a job through Kubernetes (control loop, Jobs, scheduler, devices, RDMA networking, placement, gangs, Kueue, JobSet, operators, serving, storage). Departures: no old page to cover; the parent's Scheduling and Failure labs own the Kueue deadlock fix, borrowing, reclaim and node failures, so they are linked, not rebuilt.
 
 ## Rebuild
 ```
@@ -63,7 +63,7 @@ Why 32 minutes is right: the core lost about 9 minutes of listings, line referen
 2026-10-26 (final follow-up sweep): the scheduling-cycle caption links Containers and isolation section 12 for what requests and limits become on the node (cgroup files, QoS and `oom_score_adj`), which this page does not teach.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `km-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs; no change to `recompute.py`, `make_data.py` or `out/`: every scene draws from `window.KM`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `km-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs; no change to `recompute.py`, `make_data.py` or `out/`: every scene draws from `window.KM`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

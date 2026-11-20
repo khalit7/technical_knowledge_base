@@ -20,12 +20,11 @@
 
 ## Files
 
-- `build.sh`, `mk_paper.py` (where_label extended for Table 2.1, Table H.1 and Appendix names; URLs in resource notes become links), `save_live.py`, `extract_paper.py`, `parts/01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js` (its `makeAnim` removed on 2026-11-13, unused since Fig. 2 became a stage): from the reference folder via T5; `99_js_tabs.js` is the explainer-page template (storage key `gpt3-tab`, plus `data-to` scrolling that opens a closed block).
+- `build.sh`, `mk_paper.py` (where_label extended for Table 2.1, Table H.1 and Appendix names; URLs in resource notes become links), `extract_paper.py`, `parts/01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js` (its `makeAnim` removed on 2026-11-13, unused since Fig. 2 became a stage): from the reference folder via T5; `99_js_tabs.js` is the explainer-page template (storage key `gpt3-tab`, plus `data-to` scrolling that opens a closed block).
 - `paper.json`, `tables.json` (19 tables cell by cell from the arXiv HTML v4, by `mk_tables.py`), `parse_h1.py` (Table H.1 raw rows to `inputs/table_h1_raw.json`).
 - `recompute.py`: parameter recount, 6ND compute, data-mix epochs, Chinchilla interpolation, Table H.1 structured with categories and nominal chance, the Figure 1.3 aggregate and gap, the fit-on-smaller-models residuals, Table C.1 recomputed, the second draw, binomial standard errors, every text-against-table check and the arithmetic checks quoted in the text. Writes `inputs/recompute.json`.
 - `count_tokens.py` (needs `uv run --with tiktoken`): the Figure 2.1 prompt in r50k_base tokens, `inputs/fig21_tokens.json`.
 - `check_released_data.py`: the released arithmetic sets against §3.9.1, `inputs/released_data_checks.json`.
-- `mk_coverage.py`: `coverage.json`, 80 items from `live.md`, all verified against the built page.
 - `check_page.mjs` (node, from the repo root): every control in light 920 and dark 390, text at least 11 px. `check_stages.mjs`: the 3D stages and the split layout (2026-11-13).
 - `inputs/`: `paper_v4.txt` and `table_*.txt` (arXiv v4 extracts), `table_h1_raw.json`, `later_extracts.txt` (quotes from Chinchilla, InstructGPT, Zhao, Min, Olsson, Schaeffer, Wei, PaLM, Gopher, LLaMA, Llama 3, the OpenAI API post via the Wayback Machine, OpenAI's deprecations page, the NeurIPS 2020 awards page, the arXiv history), `openai_gpt3_repo_README.md`.
 
@@ -50,9 +49,9 @@
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: tabs 4, 207.5 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 468 actions, 0 problems. `mk_coverage.py`: 80 of 80 verified. Em-dashes appear only in the verbatim source extracts under `inputs/` (the paper's own text), as in the other paper folders.
+`sh html_utils/checkpage.sh <folder>`: tabs 4, 207.5 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 468 actions, 0 problems. Em-dashes appear only in the verbatim source extracts under `inputs/` (the paper's own text), as in the other paper folders.
 
-Rechecked 2026-10-24 after the light pass: `checkpage.sh` tabs 4, 213.0 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 464 actions, 0 problems (including the no-autoplay check); `mk_coverage.py` 80 of 80.
+Rechecked 2026-10-24 after the light pass: `checkpage.sh` tabs 4, 213.0 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 464 actions, 0 problems (including the no-autoplay check).
 
 ## 2026-10-26: in-context learning owned by Test-time compute and reasoning
 Khalid's decision: in-context learning and the few-shot protocol are owned by Test-time compute and reasoning (section 10). This page keeps its own results and method (the scaling of few minus zero, Figure 2.1 before/after, task by task) and now links there from New terms, "Why call it learning" and Connections.

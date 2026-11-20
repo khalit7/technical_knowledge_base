@@ -23,7 +23,7 @@ node check_stages.mjs <screenshot folder>                 # the four 3D stages a
 - `scripts/ar_gen.py`, `scripts/s_pending.py`, `scripts/run_pending.sh`: the generator runs still to make (bench lock; ports 8360 and 8361), with time estimates; `s_post.py` turns them into `data/pending.json`, which the page reads (nulls render as dashed pending boxes).
 - `build_data.py`: makes `parts/22_ar_data.js` (window.AR) and `facts.json` (prose numbers written `@@key@@` in the parts).
 - `check_data.py`: data embedded exactly, every prose number from facts, cross-checks against the root's outputs and the production child's timing, pending list, privacy.
-- `coverage.md`: the old page claim by claim. `viz_ideas.md`: visuals built and rejected. `live.md`: the old page verbatim.
+- `viz_ideas.md`: visuals built and rejected.
 - `inputs/`: none needed (sources are the root's runs and the shared data).
 
 ## Sources read at pinned versions

@@ -12,4 +12,4 @@ Copied with `cp -R` from the language page's `src/tb/` (Part 2 of the old JavaSc
 ## Snippet directives
 `// run: no|always`, `// check: no`, `// cfg: {json merged into compilerOptions}`, `// cmd: ...`, `// file: name`, `// nm: eslint6`, `// data: chat`. Helper files: `code/<name>__<file>`. Directive lines are removed before compiling, so line numbers in errors match the page.
 
-`coverage.json` and `viz_ideas.md` here are the old Part 2's records (the old Notion page's facts and where they went; the visuals built and rejected), kept as provenance.
+`viz_ideas.md` here is the old Part 2's record (the visuals built and rejected), kept as provenance.

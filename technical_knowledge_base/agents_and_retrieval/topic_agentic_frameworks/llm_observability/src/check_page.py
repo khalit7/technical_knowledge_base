@@ -71,8 +71,6 @@ for root, dirs, files in os.walk(folder):
             continue
         if f in ("redact_common.py",):
             continue
-        if f == "live.md":  # the old Notion page, verbatim; it names the knowledge base's owner in its own text
-            continue
         if chr(0x2014) in t:
             fails.append("em-dash in " + os.path.relpath(p, folder))
         found = [x for x in R.leaks(t) if not x.endswith("@mycompany.com")]  # a regex example quoted from the redaction README

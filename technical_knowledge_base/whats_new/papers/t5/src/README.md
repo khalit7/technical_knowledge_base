@@ -20,7 +20,7 @@
 
 ## Files
 
-- `build.sh`, `mk_paper.py`, `mk_coverage.py`, `save_live.py`, `extract_paper.py`, `01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`: from the reference folder (build lists and coverage items changed).
+- `build.sh`, `mk_paper.py`, `extract_paper.py`, `01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`: from the reference folder (build lists changed).
 - `paper.json` (metadata, headline numbers, verdict, resources, connections), `tables.json` (Tables 1, 2 and 4 to 15 from the arXiv HTML, printed precision kept; built by `mk_tables.py`), `parse_t16.py` (Table 16, the appendix's every-score table, to `inputs/table16.json`).
 - `recompute.py`: the five sizes' parameters from their configurations, the baseline's parameter split and cross-attention share, token budgets and repeats, the span-length helper and per-512 lengths, relative-position buckets, the averages, bold marks against the stated two-standard-deviation rule, main tables against Table 16, Table 15's scaling gains, and every gap in standard deviations quoted in "How much of this to believe". Writes `inputs/recompute.json`.
 - `check_core.mjs` (node, from the repo root): the JS port against its invariants and against `recompute.py`. Writes `inputs/check_core.json`.
@@ -38,7 +38,7 @@
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: tabs 4, 210 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 550 actions, 0 problems. `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78 items verified.
+`sh html_utils/checkpage.sh <folder>`: tabs 4, 210 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 550 actions, 0 problems. `check_core.mjs`: PASS.
 
 ## The 2026-10-24 light pass (teaching contract)
 
@@ -66,7 +66,7 @@ Why about 21 minutes is right: Reading now holds what took 22.1 core minutes acr
 203 units: core 177, depth 14, owned 6, volatile 1, fat 5. 190 drafted by `ledger.py init`; 13 added (core sentence, hero, new terms, six owner links, four units for the script-drawn tables with keys in static captions). `ledger.py check`: problems 0.
 
 ## Checks (24 October 2026)
-`checkpage.sh`: tabs 3, 217 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 550 actions, 0 problems (including no movement before a click). `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78 (four keys updated for the reworded baseline bullets and the header).
+`checkpage.sh`: tabs 3, 217 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 550 actions, 0 problems (including no movement before a click). `check_core.mjs`: PASS.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -93,4 +93,4 @@ The growth is the step lists that now explain the two stages: the audit counts a
 Ledger: 211 units (core 184, depth 14, owned 6, volatile 1, fat 6). Re-pointed 42 (the arch note), 149 and 150 (the span note, "Step 5" became "Step 6"); 152 (the old "stops when off screen" motion line) is now fat; 8 units added for the stages' step lists. `ledger.py check`: problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stage runs (three widths; the span stage in all three modes), 0 problems. `check_core.mjs`: PASS. `mk_coverage.py`: 78 of 78. `html_utils/verify_layout.mjs`: problems 0.
+`checkpage.sh`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 12 stage runs (three widths; the span stage in all three modes), 0 problems. `check_core.mjs`: PASS. `html_utils/verify_layout.mjs`: problems 0.

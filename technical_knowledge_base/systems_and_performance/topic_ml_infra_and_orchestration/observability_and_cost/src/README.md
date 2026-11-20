@@ -28,7 +28,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (build copied from the
 | `inputs/` | source extracts read 2026-10-16 (DCGM fields, cluster utilisation studies, buy vs rent, Prometheus/Kueue/Slurm metrics, published monitoring practice) and `page_inputs.json` |
 | `check/check_data.mjs`, `check/check_ui.mjs` | data and prose checks (static tables and captions against the data and `recompute.json`, the decoder table against the engine, the cost chart's inputs against recompute); every control at 390 dark and 920 light |
 | `ledger.json` | the knowledge ledger (`python3 html_utils/ledger.py check`) |
-| `facts.md`, `viz_ideas.md`, `coverage.md` | verified facts, visual ideas, old-page note |
+| `facts.md`, `viz_ideas.md` | verified facts, visual ideas |
 
 Rerun (from the repo root, scratch = the session scratchpad's `mi` folder): `sh <scratch>/../inf/guard.sh`; `S=<scratch> sh src/scripts/oc_up.sh`; under the kind lock `K=<scratch>/k.sh SHARED=<scratch>/shared/k8s OUT=<scratch>/oc/kind sh src/scripts/oc_kind.sh base slow hang queue`; under the slurm lock `OUT=<scratch>/oc/slurm sh src/scripts/oc_slurm.sh`; `python3 src/scripts/oc_record.py http://127.0.0.1:19090 <t0> <t1> <out>`; `S=<scratch> sh src/scripts/oc_down.sh`; scrub into `runs/`; `python3 scripts/make_data.py && python3 scripts/recompute.py && sh build.sh`; `node <page>/src/check/check_data.mjs <page>`.
 
@@ -67,7 +67,7 @@ Why 24 minutes is right: the page owns ten things a GPU-fleet operator needs (th
 2026-10-24 topic close: hero title, caption, aria label and core sentence softened (each meter usually reads at most the one above; tensor activity and MFU measure differently) and section 4 gained a paragraph on why tensor activity is not a bound on MFU (recompute, busy is not peak, FP8 against a BF16 peak); links to Fault tolerance name sections 3, 5, 8 and 9 ("Goodput: name every lost second"); the flight recorder links Distributed PyTorch section 11 and Launching section 8; the dashboard's "Metrics explainer" pointer now says Reading, section 2; Further reading: training root 27 to 22, "straggler replay" to stragglers.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `oc-tab`). `build.sh` now writes the em-dash it greps for as bytes. No new runs. One data change: `scripts/make_data.py` adds `ckpt_s` (checkpoint saves, seconds after Kueue's Admitted, from rank 0's log) to each `OC.gp` run; everything else in `15_js_oc_data.js` regenerated identically.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `oc-tab`). `build.sh` now writes the em-dash it greps for as bytes. No new runs. One data change: `scripts/make_data.py` adds `ckpt_s` (checkpoint saves, seconds after Kueue's Admitted, from rank 0's log) to each `OC.gp` run; everything else in `15_js_oc_data.js` regenerated identically.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

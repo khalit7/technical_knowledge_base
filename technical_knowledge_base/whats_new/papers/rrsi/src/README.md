@@ -20,7 +20,6 @@
 
 ## Files
 
-- `save_live.py`: copies the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (30 items, this paper's own, verified against the built page).
 - `extract_paper.py`: arXiv HTML v2 to `inputs/paper_v2.txt`, `inputs/tables_v2.txt`, `inputs/anchors.txt`. `decode_figs.py`: Figures 1 and 4 from the vector PDFs of the arXiv e-print to `inputs/figs.json` (run with `uv run --with pymupdf`).
 - `mk_runs.py`: the released run records (`regularized-rsi.com/data/evolution.js`, 1.25 MB, not kept) to the compact `inputs/runs.json` the page ships (96 KB).
 - `mk_tables.py`: `tables.json`. (`mk_hero.py` and `parts/03a_hero.svg.html`, the static hero, were removed on 2026-11-13; they are in git history.) `recompute.py`: 53 checks, noise estimates, the rule replay, token spend, toy defaults, to `inputs/recompute.json`.
@@ -29,7 +28,7 @@
 
 ## Checks (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `check_sim.mjs` PASS; `recompute.py` 53 checks, 40 reproduce, 13 do not (each shown on the page); `mk_coverage.py` 30 of 30.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `check_sim.mjs` PASS; `recompute.py` 53 checks, 40 reproduce, 13 do not (each shown on the page).
 
 ## The 2026-10-26 light pass (teaching contract)
 
@@ -39,7 +38,7 @@ What changed and why:
 - **Closed** (`details.more`): how the page was built; the toy's calibration; what the critic did in the released records (an open sentence keeps the one outright rejection); the old-summary note on the pruner; the eight-benchmark table (an open sentence names the suites and graders); Table 6's four decisions; protocol arithmetic and smaller slips; the detailed bullets of What it takes to use this (one open paragraph).
 - **No volatile block**: nothing on the page is dated follow-up news.
 - **No autoplay**: `makeAnim` patched as on Dream-RSI (waits on step 1 until the reader presses play or steps); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `rrsi-tab`), keeping the `data-to` scroll target. `check_page.mjs` now fails if either animation draws a frame before a click (with the predict reveals open) and opens every closed block.
-- **Takeaway scoped** (`paper.json`, so the card; `live.md`'s property line; `mk_coverage.py`): "+14.1 in distribution, +4.7 out of distribution, 30% fewer tokens, the first evidence" became Table 2's trade (43.6 against 39.7 and 40.3; 36% fewer tokens than unregularised, still 55% more than H0), all six held-out splits up by 1.8 to 4.7, single runs within about one standard error, and the +14.1 placed as an evolve-set gain with a secondary policy from an earlier procedure. The old wording is quoted in `takeaway_note`. The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json`, so the card): "+14.1 in distribution, +4.7 out of distribution, 30% fewer tokens, the first evidence" became Table 2's trade (43.6 against 39.7 and 40.3; 36% fewer tokens than unregularised, still 55% more than H0), all six held-out splits up by 1.8 to 4.7, single runs within about one standard error, and the +14.1 placed as an evolve-set gain with a secondary policy from an earlier procedure. The old wording is quoted in `takeaway_note`. The Notion property needs the same edit.
 - `extract_paper.py` now writes `--` for em-dashes and redacts emails (the saved extracts had neither). Header: "Reading: 23 min, plus 6 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -57,7 +56,7 @@ Why about 23 minutes is right: the top (about 300 words) went in and about 1,150
 297 units: core 248, depth 45, owned 2, volatile 0, fat 2 (a sentence-splitter fragment and the old autoplay note). 287 drafted by `ledger.py init` from the page before the pass; 10 added. `ledger.py check`: problems 0.
 
 ## Checks (26 October 2026)
-`checkpage.sh`: tabs 4, about 277 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 1,228 actions, 0 problems (no frame before a click). `check_sim.mjs` PASS. `mk_coverage.py` 30 of 30.
+`checkpage.sh`: tabs 4, about 277 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 1,228 actions, 0 problems (no frame before a click). `check_sim.mjs` PASS.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 

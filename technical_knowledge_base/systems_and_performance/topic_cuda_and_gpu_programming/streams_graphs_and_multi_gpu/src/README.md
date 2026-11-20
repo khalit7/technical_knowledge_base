@@ -7,9 +7,9 @@
 - `m1/metal_launch.py`: 200 dependent kernels on the M1 Pro GPU four ways (wait each, queued, one command buffer, indirect command buffer replay); `m1/metal_concurrency.py`: 8 one-threadgroup kernels on one queue, eight queues, one concurrent encoder; `m1/run3.sh` runs both and the MPS script 3 times. Outputs in `m1/out/`.
 - `inputs/`: excerpts kept as evidence (Megatron-LM's CUDA_DEVICE_MAX_CONNECTIONS comments, DeepEP's README on dropping NVSHMEM, DeepSeek-V3's 20-of-132-SMs sentences).
 - `recompute.py`: parses every raw output, medians, the launch model fitted to NVIDIA's 2019 figures, the copy-pipeline model and the training-step model; writes `out/data.json` and `parts/22_js_sg_data.js` (window.SG). `fill_sgv.py` writes data values into every `data-sgv` element of the Reading parts; `check_embed.py` verifies the page embeds exactly `out/data.json`, the 79 tagged values match, and nothing private leaks. `check/check_page.mjs`: puppeteer, every control (closed blocks opened) at 390 px dark and 920 px light, every stage plays once scrolled into view (inverted 2026-11-12), the page's step model against the Python one, the launch model against NVIDIA's figures, stage end states. `check/check_stages.mjs` (run as `node src/check_stages.mjs` from the page folder, about 3.5 minutes): see the 2026-11-06 rollout below. `check_embed.py` also looks up the login and host names at run time and fails if either appears anywhere in the page folder. `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`).
-- `viz_ideas.md`: visuals built and rejected. `coverage.json`: the root's and siblings' claims this page had to reconcile (no old page existed).
+- `viz_ideas.md`: visuals built and rejected.
 
-Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md`. Departures: no `live.md` (a new page, no old Notion text).
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md`. Departures: a new page, no old Notion text.
 
 ## The 2026-10-23 rebuild to the teaching contract
 - **Top**: the core sentence (a step's time is the sum of what does not overlap; overlap hides the smaller of two things), a new static hero (one step in series with its three waits numbered, against the same work overlapped, illustrative), "You need", new terms. The "in one screen" table and the provenance paragraph are closed blocks.
@@ -34,7 +34,7 @@ Why about 30 minutes is right: the page teaches eight tools a GPU programmer use
 374 units: core 265, depth 92, fat 17 (each with a `note`), none owned elsewhere or volatile. 366 were drafted by `ledger.py init`; 8 were added by hand for script-rendered lists and charts and for the new managed-memory, hero and async-TP units (section "added by hand"). Units of the removed Step timeline tab are labelled with tab "t-read (was t-step)".
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuda-sg-tab`). No new runs: every scene draws from the page's own models and data.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuda-sg-tab`). No new runs: every scene draws from the page's own models and data.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -39,7 +39,7 @@ Numbers (inputs/results.json, model/*.json):
 
 ## Files
 
-`paper.json`, `tables.json`, `mk_paper.py` (card, Further reading, `window.PAPER`), `recompute.py` (every derived number, `inputs/recompute.json`), `train.py`, `prep_data.py`, `mk_results.py`, `model/*.json` (run logs, small; no checkpoints are saved), `check_page.mjs` (every control, both themes and widths, animations stepped), `mk_coverage.py` (51 items from `live.md`), `save_live.py`, `extract_paper.py`, `inputs/` (paper text and table extracts, recompute and results JSON), `viz_ideas.md`.
+`paper.json`, `tables.json`, `mk_paper.py` (card, Further reading, `window.PAPER`), `recompute.py` (every derived number, `inputs/recompute.json`), `train.py`, `prep_data.py`, `mk_results.py`, `model/*.json` (run logs, small; no checkpoints are saved), `check_page.mjs` (every control, both themes and widths, animations stepped), `extract_paper.py`, `inputs/` (paper text and table extracts, recompute and results JSON), `viz_ideas.md`.
 Parts (99_js_tabs.js is the explainer-page template, storage key `sl-tab`, plus `data-to` scrolling that opens a closed block): `00_top`, `01_css` (reference CSS plus a few additions), `02_split` (template), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`, `_gen_data.js`, `_gen_runs.js`; JS `10_js_common`, `11_js_ui` (shared; makeAnim with the 2026-11-06 motion rules, from the Chinchilla page), `25_js_s3` (template, renderer v2), `13_js_read`, `23_js_run`, `24_js_tables`, `25_js_then`, `31_js_sc_hero`, `32_js_sc_lnd` (the two scenes), `99_js_tabs`. `check_stages.mjs` checks the stages and animations (after Chinchilla's). `label_ledger.py` labels `ledger.json`; `reading.json` holds the measured reading time for the header.
 
 ## Light pass, 2026-10-24 (teaching contract)
@@ -53,9 +53,9 @@ Parts (99_js_tabs.js is the explainer-page template, storage key `sl-tab`, plus 
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 174 KB. `node src/check_page.mjs`: 236 actions, 0 problems (both themes and widths, every control, both animations stepped and played). `mk_coverage.py`: 51 of 51 items verified. Reading time of The paper tab: 16 minutes (the old page said 8; the paper page owns every detail, and the toy and table material is in other tabs).
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 174 KB. `node src/check_page.mjs`: 236 actions, 0 problems (both themes and widths, every control, both animations stepped and played). Reading time of The paper tab: 16 minutes (the old page said 8; the paper page owns every detail, and the toy and table material is in other tabs).
 
-Rechecked 2026-10-24 after the light pass: `checkpage.sh` 5 tabs, 182.1 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 236 actions, 0 problems (including the no-autoplay checks); `mk_coverage.py` 51 of 51.
+Rechecked 2026-10-24 after the light pass: `checkpage.sh` 5 tabs, 182.1 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 236 actions, 0 problems (including the no-autoplay checks).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -81,4 +81,4 @@ The growth is the step lists that now explain the two stages and the two animati
 Ledger: 271 units (core 226, depth 38, owned 3, fat 4); 23 added for the two stages' step lists and captions and the three animation lists; unit 245 rewritten for the new hero; keys of units 79 ("play both runs in the animation"), 202 ("the paper's allocation rule drove the models of 2020") and 207 ("why the exponents differed") re-pointed; `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 5, 242 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 272 actions, 0 problems. `check_stages.mjs`: 12 stages and animations checked (three widths), 0 problems. `verify_layout.mjs`: problems 0. `mk_coverage.py`: 50 of 51 (the Takeaway property line was already missing before this pass: the card's "In one line" no longer carries "6+ orders of magnitude"). `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 5, 242 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 272 actions, 0 problems. `check_stages.mjs`: 12 stages and animations checked (three widths), 0 problems. `verify_layout.mjs`: problems 0. `ledger.py check`: problems 0.

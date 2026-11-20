@@ -49,7 +49,7 @@ claude -p invocations in all: 31 recorded sessions, 15 token-count and summary c
 
 ## Departures from the method
 - No real image: the subject is a mechanism, not a physical object, and the one canonical figure (lost in the middle) belongs to Agentic retrieval.
-- No `live.md` or `coverage.json`: a new page with no old Notion text. The parent root's section 3 and Trace and context lab are the floor; this page links their numbers (13,242-token startup, 184-token CLAUDE.md, the Loop lab's 0 cache reads) rather than repeating them, and carries everything new (forced compaction, cache placement, policies, skills, subagents, needles) with its own runs.
+- The parent root's section 3 and Trace and context lab are the floor; this page links their numbers (13,242-token startup, 184-token CLAUDE.md, the Loop lab's 0 cache reads) rather than repeating them, and carries everything new (forced compaction, cache placement, policies, skills, subagents, needles) with its own runs.
 - Three lab tabs rather than one: each holds a different kind of evidence (a rules simulator, recorded sessions, graded calls).
 - The needle tests are small (one haystack, few seeds) and say so; the published benchmarks are on the Long-context benchmarks page, linked.
 

@@ -7,7 +7,7 @@
 - `py/`: Numba CUDA in the simulator and `compile_ptx`, CuPy RawKernel, `torch.utils.cpp_extension.load_inline`, run in the container; outputs (and the failures, which are the point) in `py/out/`.
 - `occ.py`: the occupancy port (from the root's port of `cuda_occupancy.h`) plus the block-size suggestion and launch bounds. `recompute.py`: parses every raw output, medians, derived numbers, the toy race reference; writes `out/data.json` and `parts/22_js_pm_data.js` (window.PM).
 - `check_embed.py`: the page embeds exactly `out/data.json`; 50 tagged prose numbers equal the data; no private paths, login name or hostname (looked up at run time). `check/check_stages.mjs` (from the repo root, about 4 minutes): the 2026-11-06 rollout checks, see below. `check/check_page.mjs`: puppeteer, every control at 390 px dark and 920 px light, animation end states against the data, the inline occupancy figure against the ptxas presets, the error stepper, the planner's JS against NVIDIA's header values (1,155 of 1,155), the 3D stages' numbers, and that the animations play once scrolled into view.
-- `live.md`: the old Notion page verbatim (copied from the root's `src/read/old/01_programming_model.md`, fetched 2026-10-05); `coverage.json`: its 37 facts with verdicts. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 ## The 2026-10-23 rebuild to the teaching contract
 Editing only, no new runs. What changed and why:
@@ -33,7 +33,7 @@ Why 30 minutes is right: the page owns ten mechanisms (host/device and the async
 Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md`. Departures: the Reading tab is long (30 minutes core, see above) because the reader has never written a kernel and this page owns the programming model; physical SM details, divergence and latency hiding are linked to GPU architecture and the root rather than repeated. One standalone tab only (Launch planner); the other visuals belong inline next to the text they explain.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuda-pm-tab`). The page's own `#t-read .an-ctl` rules now skip `.stg-bar`, so a stage's control bar keeps the template's single row. No new runs: every scene draws from `window.PM` (`out/data.json`, unchanged) and the occupancy port `window.PMOCC`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuda-pm-tab`). The page's own `#t-read .an-ctl` rules now skip `.stg-bar`, so a stage's control bar keeps the template's single row. No new runs: every scene draws from `window.PM` (`out/data.json`, unchanged) and the occupancy port `window.PMOCC`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

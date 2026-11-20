@@ -19,7 +19,7 @@
 5. `spread/`: moved from the parent topic's `src/harness/` on 2026-10-24 with the "Same model, many harnesses" content. `spread/recompute.py <mmlu_test.parquet>` writes `parts/25_js_hn_0data.js` (without the parquet the two micro averages come out NaN; the committed part was copied from the parent, generated with it). `spread/repro_mmlu_knobs.py` is the 200-item offline reproduction (see `spread/README.md`). `parts/26_js_hn_cases.js` is the parent's `32_js_harness_cases.js` unchanged.
 6. Checks: `node src/check_stages.mjs [shotdir]` from the repo root (the rollout checks: the three stages and Fig. 3 play once in view, step lists match step counts, off-screen and reduced-motion stillness, the GSM8K widget never moves, splits, and every number in the step lists against what the scenes compute, `window.HXN`); `node src/check_ui.mjs [shotdir]` (every control at 390 dark and 920 light, the GSM8K widget still on its scoring step after three seconds, Fig. 3 playing in view, the cases and the bench) and `sh html_utils/checkpage.sh`; `python3 html_utils/ledger.py check`.
 
-`live.md` is the old Notion page (fetched 22 Sep 2026); `coverage.json` maps its facts (older format, kept); `ledger.json` is the current knowledge ledger.
+`ledger.json` is the current knowledge ledger.
 
 ## The 2026-10-24 rebuild: what changed and why
 - **Top**: the core idea in one sentence (a score is the output of a chain of harness decisions) and a static hero drawing that chain with the measured effect of each link (`29_js_hero.js`); You need and New terms. The old "In one screen" table kept its design columns; versions and status moved to one compact dated table in section 7.

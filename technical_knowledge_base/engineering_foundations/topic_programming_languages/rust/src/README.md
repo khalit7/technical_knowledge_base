@@ -36,7 +36,7 @@ The Python side of the enums child's hero (four mistakes plain Python catches on
 `sh html_utils/checkpage.sh <page>`: fail=0, emdash 0, errbox 1, clipped 0. `node src/ra/check.mjs`: 160 interactions at each size, nothing changes without input, 34 embedded outputs match, data and lab match, 3 of 3 predictions have exactly one right answer. `python3 html_utils/ledger.py check <page>`: problems 0. Every Notion id linked is in `pages.json`.
 
 ## 2026-11-07: split layout, a 3D map (renderer v2), explained and autoplaying steps (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `rust-es-tab`).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `rust-es-tab`).
 
 **Sections** (Reading tab; Further reading unchanged):
 | Section | Layout | Visual | Step list |

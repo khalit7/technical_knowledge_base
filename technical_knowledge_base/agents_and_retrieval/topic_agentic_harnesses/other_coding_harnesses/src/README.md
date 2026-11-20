@@ -1,6 +1,6 @@
 # Other coding harnesses: source notes
 
-Page: `../index.html`, built by `sh build.sh` from `parts/`. Child of Topic: agentic-harnesses. Replaces the old Notion page "Open-source harnesses" (3c65c17b0d0d819fa3cefdcd2ccff2f7) and absorbs "TO DELETE: OpenAI and Google harnesses" (3c65c17b0d0d810380c0d932d132c7b6); both saved verbatim in `live.md` (fetched read-only on 2026-10-06; neither had child pages, databases or a video).
+Page: `../index.html`, built by `sh build.sh` from `parts/`. Child of Topic: agentic-harnesses. Replaces the old Notion page "Open-source harnesses" (3c65c17b0d0d819fa3cefdcd2ccff2f7) and absorbs "TO DELETE: OpenAI and Google harnesses" (3c65c17b0d0d810380c0d932d132c7b6); both fetched read-only on 2026-10-06 (neither had child pages, databases or a video).
 
 ## Tabs (since the 2026-10-24 rebuild)
 - **Reading** (`20_read.html` top and styles, `20_read_a` to `20_read_h` sections 1 to 7, runs and the Versions table, `20_read_i` Depth, `20_read_z` close; JS `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `hoth-tab`), `22_js_rd_boundary.js` the section 1 before/after, `25_js_oc_vis.js` every SVG figure and the repository-map stepper).
@@ -31,11 +31,10 @@ Recorded 2026-10-06 on the running example (`textstats`, two planted bugs; task 
 - `build_data.py` writes `parts/19_js_data_runs.js` and `19_js_data_map.js`; `derive_ends.py` writes `19_js_data_ends.js` (one letter per model call: acted, error, silent no-op, prose, side call, subagent; asserts the counts the prose states).
 - `check_numbers.py`: prose numbers against recordings and inputs, embedded recordings equal the files, privacy strings, em-dashes.
 - `check_ui.mjs`: clicks every control at 390 dark and 920 light, checks that nothing has moved before the reader acts, and saves element screenshots of each figure.
-- `make_coverage.py` writes `coverage.json` (every fact of `live.md`, where it went or why dropped).
 - `viz_ideas.md`: visuals built and rejected.
 
 ## Verification
-Claims of the two old pages were checked one by one against primary sources (vendor docs, release notes, GitHub API, PyPI, arXiv) on 2026-10-06; openai.com pages, which refuse direct fetches, were read through a text-extraction reader. Results are in the Reading tab's Corrections section and `coverage.json`.
+Claims of the two old pages were checked one by one against primary sources (vendor docs, release notes, GitHub API, PyPI, arXiv) on 2026-10-06; openai.com pages, which refuse direct fetches, were read through a text-extraction reader. Results are in the Reading tab's Corrections section.
 
 ## Notes added after the runs
 - `run/proxy.py` is afsame's logging proxy (frameworks root) with two changes: SSE responses stream through, and every upstream request is serialised. The serialisation was added after Gemini CLI's 60-second header timeout and retries overlapped two long prompts and crashed the shared MLX server once (logged in the scratchpad's MLX_SERVER.md); the Gemini run on the page is the rerun.

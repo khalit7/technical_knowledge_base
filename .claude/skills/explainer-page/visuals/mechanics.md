@@ -45,12 +45,12 @@ Step captions, explanations, legends with more than a word or two, and long axis
 ## Motion manners
 - **Reduced motion:** read `matchMedia('(prefers-reduced-motion: reduce)')`; nothing moves by itself, start paused and move one step at a time without tweening; particles show their end state with a step control.
 - **Pause off screen:** an `IntersectionObserver` on the card plus `document.hidden` plus `card.offsetParent!==null` (hidden tab) gate every timer and `requestAnimationFrame` loop.
-- **Autoplay on view** (Khalid, 2026-11-06; replaces the 2026-10-23 never-autoplay rule): an animation or 3D stage plays its steps by itself once at least half of it is on screen in the visible tab, about 3.5 to 5.5 s per step so the step's explanation can be read; the step list on the left highlights along. Leaving the screen pauses it and coming back resumes it. It stops for good when the reader takes any control (a step in the list, back, forward, the scrubber, play or pause) or reaches its last step. `RD.anim` and `S3.stage` in the templates do this.
+- **Autoplay on view** (Khalid, 2026-11-06): an animation or 3D stage plays its steps by itself once at least half of it is on screen in the visible tab, about 3.5 to 5.5 s per step so the step's explanation can be read; the step list on the left highlights along. Leaving the screen pauses it and coming back resumes it. It stops for good when the reader takes any control (a step in the list, back, forward, the scrubber, play or pause) or reaches its last step. `RD.anim` and `S3.stage` in the templates do this.
 - **Widgets never autoplay**: a long replay whose outcome the reader drives (seeds, a learning rate, a 500-episode curve) is a widget, `RD.anim({..., auto:false, start:<step>})`, with no step list, opening on an informative frame and explained by the paragraph on its left ([animation-types.md](animation-types.md), type 15, Long replays).
 - **Controls** on every animation: play and pause, step back and forward, scrubber, speed. `RD.anim` in [../build/templates/21_js_rd_common.js](../build/templates/21_js_rd_common.js) does all of this; reuse it or copy it into a tab's own core file.
 - Mode toggles reset the animation to step 0 with the new step count (`anim.reset(n)`, `S3.stage(...).list(id)`) and replay it: the one exception to "stops for good on a reader control", since the reader asked to see the other mode.
 
-## The split layout (standing rule, 2026-11-06)
+## The split layout
 Every section that has a visual is two columns; a section without one is full width ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)). Copy [../build/templates/02_split.html](../build/templates/02_split.html) into `src/parts/` (it is CSS only) and wrap each such section:
 ```html
 <div class="s3sp"><div class="s3R"><div id="stg-x"></div></div><div class="s3L">      <!-- an animated or 3D stage: the stage first, so on a phone it sits at the top and stays under the nav -->
@@ -62,11 +62,11 @@ Every section that has a visual is two columns; a section without one is full wi
 ```
 - At 1100 px and wider `.s3sp` is a grid (left `minmax(0,1fr)`, right `minmax(0,1.15fr)`), the page widens to 1380 px while the open tab holds a split, and the right column's content is sticky under the section nav (`top:58px`; the stage's height follows the scene's shape, capped by the window).
 - **A 2D animation in a split** uses `RD.anim({..., list:'sx-x'})`: the `ol.sx` on the left gets the same marking, clicks and `aria-current` as a 3D stage's list; `reset(n,'sx-other')` swaps the list on a mode toggle and replays. Put the card first in `.s3R` (so on a phone it sits at the top of its section) and, when it is compact (about 320 px tall or less at 390 px), give it the class `s3stick` so it stays under the nav while its steps are read.
-- Text outside a split (full-width sections) is capped at 52em on the widened page, so lines stay readable; the rule is in `02_split.html` (2026-11-06: before it, full-width paragraphs ran to about 1,340 px).
+- Text outside a split (full-width sections) is capped at 52em on the widened page, so lines stay readable; the rule is in `02_split.html`.
 - Sticky offsets are 50 px on phones and 58 px from 1100 px up (under the section nav, which is about 48 px tall).
 - Several sections can share one split when one visual serves them (Problem and Idea share the recurrence-against-attention stage on the trial page); a section with two visuals stacks them in the right column or splits into two sections.
 - Size charts in the right column from its measured width as usual; they redraw when the tab opens.
-- **Class collisions (2026-11-06 lesson):** older pages already define `.sp`, `.split`, `.kv`, `.chips` and similar (so the template's are `.s3chips`, `.s3q`, `.s3k`, `.s3v`); the `s3` prefix exists because the trial page's `.sp` picked up 13.5 px prose and a border and its `.split` became a two-column grid at 390 px. Before adding a class, grep the page's CSS for it.
+- **Class collisions:** older pages already define `.sp`, `.split`, `.kv`, `.chips` and similar, so the template's layout classes carry the `s3` prefix. Before adding a class, grep the page's CSS for it.
 
 ## Scope everything with a prefix
 - Each tab (and each agent) has a short prefix (`df`, `fw`, `vl`, `sc`). Element ids, classes, data attributes and global names carry it: `#df-cfg`, `.fw-box`, `window.FW`, `window.FWD`.

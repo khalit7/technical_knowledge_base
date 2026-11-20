@@ -51,7 +51,6 @@ Why 27 minutes is right: the static prose of the core is about the same length a
 256 units: core 223, depth 25, fat 8. 237 were drafted by `ledger.py init` from the old page; 10 record what was absorbed from other pages (section "absorbed", `where` empty: they live here); 9 record the new figures (section "new figure").
 
 ## Files kept from the earlier build
-- `live.md`: the old Notion text, verbatim (fetched 2026-10-03). `coverage.json`, `mk_coverage.py`: where every fact in it went (the 2026-10-03 accounting; `ledger.json` is the current one).
 - `inputs/extracts.txt`: quoted lines from the sources fetched for this page.
 - `viz_ideas.md`: candidates scored, chosen and rejected.
 
@@ -60,7 +59,7 @@ Overlap fix (19 October 2026, still in force): every section ends with an "Imple
 2026-10-26 (final follow-up sweep): links to retired paper tabs now name sections (ZeRO's Communication #s-comm, Megatron-LM's f and g operators #s-mlp); the DeepSeek card and the pipeline note name its Training systems and Serving sections; ZeRO, Megatron-LM and DeepSeek card times set to their headers; ledger units 205 and 206 re-keyed.
 
 ## 2026-11-10: the split layout and ten 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `dist-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `dist-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

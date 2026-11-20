@@ -2,7 +2,7 @@
 
 Parts: `parts/20_read.html` (styles, In one screen, Axis 1, Axis 2), `20_read_b.html` (Axis 3, Axis 4), `20_read_c.html` (Machinery, How we got here, Common mistakes, Choosing a path, closes the tab), `21_js_rd_common.js` (RD helpers and the step-animation controller), `22_js_rd_grid.js` (stage x axis grid and its 32 cell paragraphs), `23` to `28` (one script per visual), `39_tab_more.html`. Element ids are prefixed `rd-`; CSS is scoped under `#t-read`.
 
-Checks: `python3 src/read/recompute.py` (every derived number and the KL-leash simulation), `node src/check_read.mjs` (clicks every control and steps every animation at 390 dark and 920 light; screenshots in `../.shots/rd-*.png`). Coverage of the old page: `src/coverage.md`; the old page verbatim: `src/live.md`.
+Checks: `python3 src/read/recompute.py` (every derived number and the KL-leash simulation), `node src/check_read.mjs` (clicks every control and steps every animation at 390 dark and 920 light; screenshots in `../.shots/rd-*.png`).
 
 ## Visuals, and why each earns its place
 

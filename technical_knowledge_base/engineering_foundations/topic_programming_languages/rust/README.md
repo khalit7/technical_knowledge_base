@@ -12,4 +12,4 @@ Child pages (each folder here):
 - `pyo3_python_extensions/`: Rust: speeding up Python with PyO3 and maturin
 - `async_services_and_clis/`: Rust: async with tokio, services with axum, and CLIs
 
-All runs on an Apple M1 Pro, 2026-10-05 (rustc 1.99.0). Replaces the old written page "Rust: zero to expert" (this Notion page, retitled); its claims were checked (`src/ra/coverage.json` and the children's copies) and the corrections sit on the page that owns each subject. No databases or video.
+All runs on an Apple M1 Pro, 2026-10-05 (rustc 1.99.0). Replaces the old written page "Rust: zero to expert" (this Notion page, retitled); the corrections sit on the page that owns each subject. No databases or video.

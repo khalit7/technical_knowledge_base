@@ -6,7 +6,6 @@ Data scripts (outputs committed in `inputs/`, big inputs never):
 - `delta_probe.py`: needs the two SmolLM2-135M `model.safetensors` files (base and Instruct, 269 MB each) downloaded to a scratch folder; `uv run --no-project --with numpy python delta_probe.py <base> <instruct>` writes `inputs/delta_probe.json`.
 - `peft_counts.py`: `uv run --no-project --with torch --with transformers --with peft --with accelerate python peft_counts.py` writes `inputs/peft_counts.json` (the PEFT library's own trainable counts, empty models from `inputs/configs.json`).
 - `inputs/biderman2024_tables.txt`, `inputs/slora_tables.txt`: tables cut from the arXiv HTML pages; `inputs/abstracts.txt`: arXiv abstracts of the method papers; `inputs/research_notes.md`: the other verified quotes with URLs.
-- `live.md` is the old Notion page (fetched 2026-10-03, last edited 2026-09-22); `coverage.json` maps every fact in it.
 
 Parts (2026-11-10): `01_head.html`, `02_css.html`, `02_split.html` (template), `10_header.html`, `20_read_a/b/c.html` (Reading), `30_tab_count.html` + `30_js_count.js`, `39_tab_more.html`; JS `20_js_data.js` (generated), `21_js_rd_common.js` (template: plays once in view), `22_js_pf.js` (the PF helpers), `23_js_hm.js` (heatmap), `24_js_bd.js` (Biderman chart, static), `25_js_s3.js` (renderer v2, template), `26_js_dr.js` (DoRA, RD.anim with a step list), `26_js_sl.js` (S-LoRA bars), `27_js_hero.js` (hero), scenes `28_js_sc_lora.js`, `28_js_sc_sv.js`, `28_js_sc_where.js`, `28_js_sc_mem.js`, `28_js_sc_serve.js`, `99_js_tabs.js` (template, storage key `peft-tab`). Checks also: `node <page folder>/src/check_stages.mjs [shots dir]` (the stages and the DoRA figure: autoplay, step lists, last steps, off-screen and reduced-motion stillness, splits, the step lists' static numbers against the data, independent recomputes).
 
@@ -38,7 +37,7 @@ Shape: built from the brief (no method file for deep-dive child pages), like the
 
 
 ## 2026-11-10: the split layout and five 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (in `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js` (it already carries the page's old extras: `onResize`, `svg`, `t`, `seg`, the nav highlight), `99_js_tabs.js` (key `peft-tab`). `build.sh` now writes the em-dash test as `ED=$(printf ...)` and expands `{{text|#s-...}}` as in-page links (before, `#s-mem` and the like opened as external links).
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (in `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js` (it already carries the page's old extras: `onResize`, `svg`, `t`, `seg`, the nav highlight), `99_js_tabs.js` (key `peft-tab`). `build.sh` now writes the em-dash test as `ED=$(printf ...)` and expands `{{text|#s-...}}` as in-page links (before, `#s-mem` and the like opened as external links).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

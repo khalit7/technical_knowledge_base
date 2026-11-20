@@ -26,7 +26,7 @@
 - `paper.json`, `mk_paper.py` (from the reference, plus the verdict line, a configurable run link and appendix anchor labels).
 - Toy model: `parts/21_js_gen.js` is the image generator, used by the page and, through `gen_data.js` (node), to write the training data, so drawn images are exactly the training distribution. `train.py` (ViT per Eq. 1 to 4, BiT-style ResNet, sweep, export), `check_forward.py` (JS forward pass against PyTorch), `mk_runs.py` (logs to `parts/_gen_runs.js`). `model/runs/*.json` are the logs; `model/*_q.pt` the shipped quantised checkpoints; `model/report.json`, `model/check_forward.json`.
   - `node gen_data.js $DATA 64000`, then `DATA=$DATA uv run --with torch --with numpy python train.py sweep` (about 2.5 minutes per run on a laptop CPU when it is not shared; torch is never added to pyproject.toml), `... train.py export`, `... check_forward.py`.
-- `check_page.mjs` (from the reference, adapted: canvas drawing, the patch query, the fresh-image test, the `vx` and `tn` animations). `mk_coverage.py` writes `coverage.json`.
+- `check_page.mjs` (from the reference, adapted: canvas drawing, the patch query, the fresh-image test, the `vx` and `tn` animations).
 - `inputs/`: `paper_v2.txt` and `table_*.txt` (extracted by `extract_paper.py` from the arXiv HTML v2), `anchors.txt`, `later_abstracts.txt` (arXiv API abstracts of the later papers cited), `modern_extracts.txt` (lines quoted from LLaVA, Qwen-VL, InternVL, Qwen2-VL, ALIGN, ViViT, AST), `recompute.json`.
 - `viz_ideas.md`: the visualisations chosen and rejected, with ids P-vit.k.
 
@@ -46,7 +46,7 @@ ViT without position embeddings, 64,000 images: 99.2%. The direction of §4.3 re
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 280 KB. `node .../src/check_page.mjs`: 314 actions, 0 problems (both themes and widths, every control, both animations stepped, the fresh-image test). `check_forward.py`: PASS (300/300 same answers per model, logits within 2.2e-5, attention within 6e-7). `mk_coverage.py`: 65 of 65 items verified. `node .../src/shot_frames.mjs` writes paused mid-animation frames to `../.shots/f-*.png`.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 280 KB. `node .../src/check_page.mjs`: 314 actions, 0 problems (both themes and widths, every control, both animations stepped, the fresh-image test). `check_forward.py`: PASS (300/300 same answers per model, logits within 2.2e-5, attention within 6e-7). `node .../src/shot_frames.mjs` writes paused mid-animation frames to `../.shots/f-*.png`.
 
 ## The 2026-10-24 rebuild (teaching contract, light pass for papers)
 
@@ -72,7 +72,7 @@ Why about 20 minutes is right: the paper page owns every detail of the paper and
 247 units: core 214, depth 25, owned 4 (position-table resizing at Vision encoders, key "bicubically"; BEiT and MAE at Contrastive and self-supervised learning, "beit 2021, mae 2021"; DiT conditioning at Latent diffusion and DiTs, "adaln-zero conditioning"; MHA at Attention variants), fat 4 (the old reading-time crumb, the tab names, the old reduced-motion sentence, a bullet heading replaced). 237 drafted by `ledger.py init`, 10 added by hand for the new top, charts, the dated block and the owner links. Keys were proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and checked by hand where the prose changed.
 
 ## Checks (2026-10-24)
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 292 KB. `check_page.mjs`: 314 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 65 of 65 (needles updated for the reading-time line, ALIGN and the fine-tuning trick wording). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 292 KB. `check_page.mjs`: 314 actions, 0 problems (with the no-autoplay check). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -100,4 +100,4 @@ The growth is the step lists: the old animations' captions lived in JavaScript, 
 Ledger: 258 units (core 225, depth 25, owned 4, fat 4); 11 added (the hero, the two stage lists and the Then and now steps, now static text), 4 rekeyed (40 and 41, the stage's intro and toggle; 208, the Then and now intro inside its split; 100, whose old key ran into "16 minus"); `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 260 actions, 0 problems. `check_stages.mjs`: 12 stages and animations (three widths; both modes of the ViT-against-ResNet stage), 0 problems. `mk_coverage.py`: 65 of 65. `ledger.py check`: problems 0. Model and weights untouched; `check_forward.py` not rerun (the forward pass only gained a returned field, `y`).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 260 actions, 0 problems. `check_stages.mjs`: 12 stages and animations (three widths; both modes of the ViT-against-ResNet stage), 0 problems. `ledger.py check`: problems 0. Model and weights untouched; `check_forward.py` not rerun (the forward pass only gained a returned field, `y`).

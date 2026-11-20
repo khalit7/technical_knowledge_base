@@ -4,7 +4,7 @@ Root of the topic (storage key `dc-tab`). Built 2026-10-14 to 16 by tab agents (
 
 ## 2026-11-09: split layout, one 3D stage (renderer v2), explained and autoplaying animations (layout rollout)
 
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all nine children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `dc-tab`). `build.sh` writes the em-dash test as bytes. Replaced parts are kept in `read/retired/parts_2026-11-09/`.
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after all nine children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `dc-tab`). `build.sh` writes the em-dash test as bytes. Replaced parts are kept in `read/retired/parts_2026-11-09/`.
 
 **Reading tab** (anchors `rd-s0` to `rd-s12`, `rd-hero`, `rd-worth`, `rd-lin-card`, `rd-page-card`, `rd-smol-card`, `rd-calc-card`, `rd-mis`, `rd-iq` unchanged; `rd-hero` is now the split that holds Fig. 1):
 | Section | Layout | Visual | Step list |

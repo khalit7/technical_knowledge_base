@@ -8,6 +8,6 @@ Owner files (since the map rebuild of 2026-10-24, `../README.md`): `../parts/20_
 3. `sh ../build.sh`; `python3 check_embed.py` (page embeds exactly the recordings; prose numbers match them; no secrets or local addresses); `node check_read.mjs` from the repo root (every animation step and mode, sliders, details, tab links at 390 dark and 920 light); `shot.mjs` for single screenshots.
 
 ## Notes
-- `old/`: the old root and ten children, verbatim (`save_old.py` extracts them from the session transcript). `coverage.md`: every old fact as verified, corrected, unconfirmed or child. `sources/`: RFC index extract and source-check notes.
+- `sources/`: RFC index extract and source-check notes.
 - No model is called anywhere; the MCP host's next model request is built in the Messages API shape and labelled.
 - 2026-10-05 to 2026-10-23 the Reading tab was a from-zero overview of about 63 minutes; once the children were rebuilt it became a map of 33 minutes (`../README.md`).

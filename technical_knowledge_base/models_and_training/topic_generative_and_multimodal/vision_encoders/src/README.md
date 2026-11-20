@@ -22,7 +22,7 @@ node check_stages.mjs <dir>     # the five 3D stages and the dense stepper (see 
 ```
 Models: the root's CLIP B/32 and SigLIP 2 B/16 loaders, plus facebook/dinov2-base, facebook/dinov2-with-registers-base and facebook/vit-mae-base pinned in `runs/ve_env.py`. Large arrays stay in `GM_SCRATCH/ve/`; `out/` holds the small recorded results.
 
-Notes: `facts.md` (every verified fact and measurement), `viz_ideas.md` (ideas built and rejected), `coverage.md`, `inputs/published.json` (numbers transcribed from papers), `inputs/configs/` (config.json files and revisions).
+Notes: `facts.md` (every verified fact and measurement), `viz_ideas.md` (ideas built and rejected), `inputs/published.json` (numbers transcribed from papers), `inputs/configs/` (config.json files and revisions).
 
 ## The 2026-10-24 rebuild to the teaching contract
 What changed and why (`.claude/skills/explainer-page/teaching/teaching-contract.md`; brief from the rollout of 2026-10-23):

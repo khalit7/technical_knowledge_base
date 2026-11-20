@@ -15,7 +15,7 @@ Files:
 - `check_page.mjs [shots dir]`: drives every control (the gate menu, Shazeer toggles, slope figure, atlas, real-model tab) in headless Chrome, light 920 px and dark 390 px, fails on script errors, NaN, undefined or Infinity, and saves close-ups to `../.shots/x-*.png`. The stages and the motion rules are checked by `check_stages.mjs`.
 - `check_stages.mjs [shots dir]` (from the repository root, about 5 minutes): the three 3D stages in every mode at 1400 and 920 px light and 390 px dark: autoplay on view, replay on a mode switch, one step-list item per step, last steps, stillness off screen and under reduced motion, splits two columns only from 1100 px, the 52 numbers written in the step lists (`data-fd`, `data-dr`, `data-gf` spans) against what the scenes compute, and four independent recomputes; writes mid-step screenshots.
 - `mk_fold.py`: the points and fits of Fig. 1 (`inputs/fold.json`, `parts/20_js_fold.js`; under a second, `python3 src/mk_fold.py`).
-- `coverage.json`: every fact of `live.md` and where the page carries it. `viz_ideas.md`: ranked ideas.
+- `viz_ideas.md`: ranked ideas.
 
 ## The 2026-10-24 rebuild to the teaching contract
 Editing only, no new runs (`.claude/skills/explainer-page/teaching/teaching-contract.md`).
@@ -45,7 +45,7 @@ Why about 22 minutes is right: the core grew by under a minute although about 60
 - 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1); root card's mention of "activations and normalisation compared" updated to the rebuilt root.
 
 ## 2026-11-10: the split layout and three 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `02_css.html` in `build.sh`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `af-tab`). The page no longer has any `RD.anim` animation: both 2D animations became 3D stages.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (after `02_css.html` in `build.sh`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `af-tab`). The page no longer has any `RD.anim` animation: both 2D animations became 3D stages.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -34,7 +34,7 @@ Why 24 minutes: the Reading tab now only maps, compares and defines. About a fif
 Child reading times updated (Multi-agent patterns 27, LLM observability 30 plus 9, Gateways and routing 34) on the child cards and in Further reading; no gloss changed. Two SVG labels that clipped at 390 px in Linux Chromium fonts were fixed: the checkpoint-tree legend in `32_js_c_dur.js` shortens on a phone, and the last time tick in `33_js_d_sim.js` is end-anchored.
 
 ## 2026-11-06: split layout, 3D stages (renderer v2), explained and autoplaying animations (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the six children were done. Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `af-tab`).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the six children were done. Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `af-tab`).
 
 **Reading tab.**
 - *The idea*: the static HTML hero became the 3D stage `stg-hero` (`26_js_sc_hero.js`, Fig. 1): the agent loop with your app and its tools, then one block per step (the orchestration plate, checkpoints and memory, two workers, the gateway in front of three providers, a trace of spans, the vendor's box around the loop), flows on every path data takes. A map, not a measurement: no numbers are drawn. Its seven-item step list carries every owner link the old figure carried.

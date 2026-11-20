@@ -54,7 +54,7 @@ Core time fell only from 39.9 to 36.5 minutes counting the Layout explorer that 
 320 units: core 224, depth 59, fat 37, owned 0, volatile 0. Fat units carry a `note` with the reason.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `tg-tab`). No new runs: every scene draws from `parts/22_js_data.js` (`window.TGD`, unchanged) and `TG_ARCH` (`32_js_cfg.js`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `tg-tab`). No new runs: every scene draws from `parts/22_js_data.js` (`window.TGD`, unchanged) and `TG_ARCH` (`32_js_cfg.js`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

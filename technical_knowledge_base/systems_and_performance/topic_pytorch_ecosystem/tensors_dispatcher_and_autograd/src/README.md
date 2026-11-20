@@ -32,7 +32,7 @@ Everything except `timing.json` is deterministic, except where the page says oth
 - `build_data.py` writes `parts/22_tda_data.js`; `check_data.py` checks the embedding equals the inputs and every prose number is in the data (or a listed constant with its reason).
 - `check_controls.mjs` clicks every control at 390 px dark and 920 px light and checks nothing moves by itself under reduced motion; `check_stages.mjs` checks the four 3D stages (play when scrolled into view, step to the end, one list item per step, nothing moves under reduced motion, no redraws off screen, splits are two columns at 1400 px) and that the three widgets never play by themselves; `shot_el.mjs` screenshots single Reading elements for review (run all three from the repo root).
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`).
-- `viz_ideas.md`, `coverage.md`.
+- `viz_ideas.md`.
 
 ## Tabs and parts (rebuilt 2026-10-23 to the teaching contract)
 
@@ -92,7 +92,7 @@ Why 24 minutes is right: the core now carries exactly the three machines this pa
 
 ## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. No new runs: every scene draws from `window.TDA` (`inputs/` via `build_data.py`, unchanged). `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplays on view), `05z_errbox.js.html`, `99_js_tabs.js` (storage key `tda-tab` kept) and `build.sh` are the skill templates, copied unchanged on 2026-11-12. `28_tda_rd_hero.js` (the static hero) was deleted; the 2D view/copy stepper (`23_tda_rd_ten.js`) and the two-situation walker (`24_tda_rd_dsp.js`) were removed from their files, each replaced by a stage.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). No new runs: every scene draws from `window.TDA` (`inputs/` via `build_data.py`, unchanged). `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplays on view), `05z_errbox.js.html`, `99_js_tabs.js` (storage key `tda-tab` kept) and `build.sh` are the skill templates, copied unchanged on 2026-11-12. `28_tda_rd_hero.js` (the static hero) was deleted; the 2D view/copy stepper (`23_tda_rd_ten.js`) and the two-situation walker (`24_tda_rd_dsp.js`) were removed from their files, each replaced by a stage.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

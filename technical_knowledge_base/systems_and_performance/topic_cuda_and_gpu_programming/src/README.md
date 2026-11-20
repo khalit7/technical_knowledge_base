@@ -3,7 +3,7 @@
 Root of the topic (storage key `cuda-tab`). Built 2026-10-05 by a team of tab agents (`read/`, `sim/`, `compile/`, `lab/` each have their own README); rebuilt on 2026-10-23 at the topic close, after its eight children were rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), with the method of `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`. Editing only, no new runs. Examples followed: the inference and training roots.
 
 ## Build and check
-- `sh build.sh` writes `../index.html` from `parts/`. Children read `sim/out/data.json`, `lab/out/data.json`, `compile/` (the `kb-gpu-lab:1` image) and `read/old/`: keep those paths.
+- `sh build.sh` writes `../index.html` from `parts/`. Children read `sim/out/data.json`, `lab/out/data.json`, and `compile/` (the `kb-gpu-lab:1` image): keep those paths.
 - `sh html_utils/checkpage.sh <this page>`: tabs 5, emdash 0, errbox 1, clipped 0, fail=0 (2026-10-23).
 - `python3 html_utils/ledger.py check <this page>`: problems 0.
 - From `src/`: `python3 -I read/check/check_embed.py` (41 tagged prose numbers), `python3 -I sim/code/check_embed.py`, `python3 -I compile/check_embed.py`, `node sim/code/check_js.mjs` (from `sim/`), `node lab/check/check_js.mjs`. From the repo root: `node <src>/read/check/check_read.mjs <shots>`, `node <src>/sim/code/check_ui.mjs`, `node <src>/lab/check/check_page.mjs <shots>` (all clean on 2026-10-23).
@@ -53,7 +53,7 @@ Why about 25 minutes: the root now holds only the map, the definitions every chi
 - Child ledgers re-keyed where a key had captured a stale reading time.
 
 ## 2026-11-12: split layout, a 3D hero (renderer v2), explained and autoplaying animations (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the eight children were rebuilt in the same rollout. Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `cuda-tab`).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the eight children were rebuilt in the same rollout. Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `cuda-tab`).
 
 **Reading tab.**
 - *The idea* (`#rd-s0`): split with the new stage `stg-hero` (`parts/26_js_sc_hero.js`), replacing the HTML stack hero: one kernel's life in ten steps, one per owner: the call on the CPU, the four sources of a kernel, PTX and SASS into a fat binary, the stream, the grid landing on the SMs, warps of 32 (one split by a branch), the memory ladder, tensor cores, several GPUs, the profiler's timeline. The camera moves in close for the steps about one part. Driven by `RDC` (the softmax runs, 166 GB/s, the divergence ratio 1.86, the vector add's 12 registers, 8,192 blocks, the H100 SXM figures the page cites); counts drawn (11 SMs, 6 HBM stacks, 4 warps, 2 GPUs) are labelled illustrative. The step list `sx-hero` carries what the old boxes said, and each item links the owning child's own figure (`#stg-...`) instead of re-teaching it. "You need", the new terms and the evidence labels moved to a full-width section `#rd-need` under it. Two prose keys added to `read/code/summarize.py` (`sm_rows`, `sm_ms1`); `22_js_rd_data.js` is unchanged.

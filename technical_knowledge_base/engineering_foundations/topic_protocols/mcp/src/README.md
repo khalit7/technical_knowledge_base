@@ -27,7 +27,7 @@ Page prefix `rd` (Reading), storage key `mcp-tab`. Built 2026-10-05; rebuilt 202
 | `39_tab_more.html` | Further reading |
 
 ## Recordings (`lab/`, unchanged)
-`sh lab/run_all.sh <scratch dir>` re-runs them (about 3 minutes; venvs with mcp 2.3.0 and 1.30.0, a throwaway CA from `../../src/wire/make_ca.sh`, ports 30710 to 30761) and redacts `lab/out/` (`redact.py`). Scripts: `ckpt_server.py` (the running example, both eras), `replicas.py` + `lb_proxy.py`, `transports.py` + `tcp_tap.py` + `tee_stdio.py`, `compat.py` and its servers and clients, `auth_run.py` + `auth_as.py` + `auth_mcp.py`, `wire_checks.py`. `gen_data.py` turns `lab/out/*.json` into `parts/22_js_data.js`. `live.md` is the old Notion page as fetched; `coverage.json` maps its facts (2026-10-05).
+`sh lab/run_all.sh <scratch dir>` re-runs them (about 3 minutes; venvs with mcp 2.3.0 and 1.30.0, a throwaway CA from `../../src/wire/make_ca.sh`, ports 30710 to 30761) and redacts `lab/out/` (`redact.py`). Scripts: `ckpt_server.py` (the running example, both eras), `replicas.py` + `lb_proxy.py`, `transports.py` + `tcp_tap.py` + `tee_stdio.py`, `compat.py` and its servers and clients, `auth_run.py` + `auth_as.py` + `auth_mcp.py`, `wire_checks.py`. `gen_data.py` turns `lab/out/*.json` into `parts/22_js_data.js`.
 
 ## Checks
 - `python3 check_embed.py`: the page embeds the current data; 14 prose numbers recomputed from `lab/out/`; no private or secret-like text.

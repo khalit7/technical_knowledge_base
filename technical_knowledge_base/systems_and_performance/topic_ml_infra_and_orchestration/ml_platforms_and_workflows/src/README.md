@@ -22,7 +22,7 @@ Apple M1 Pro, macOS native, CPU, shared machine; own venv in scratch (`inputs/ve
 ## Checks
 `python3 -B scripts/gen_data.py` (replays the promotion gate and asserts it matches the server's alias), `python3 -B scripts/check_data.py` (page embeds exactly the generated data; prose numbers exist in and agree with the data), `node scripts/check_ui.mjs <absolute repo root> ../index.html <shots dir>` (every control at 390 dark and 920 light, closed blocks opened; card screenshots; since 2026-11-12 the two 2D animations must play once in view with normal motion and stay still under reduced motion), `node <page>/src/check/check_stages.mjs [shots dir]` from the repo root (the rollout checks, below), `sh html_utils/checkpage.sh <folder>` from the repo root.
 
-Facts: `facts.md` (also appended to the topic's shared FACTS.md under "mp"). Visual ideas: `viz_ideas.md`. Coverage: `coverage.md`.
+Facts: `facts.md` (also appended to the topic's shared FACTS.md under "mp"). Visual ideas: `viz_ideas.md`.
 
 ## The 2026-10-24 rebuild to the teaching contract: what changed and why
 This page owns ML platforms and workflows (OWNERS.md): experiment tracking, pipelines and orchestration engines, model registries, lineage and reproducibility, feature stores in brief, managed platforms. Kubernetes and Ray are their siblings' and are only named. No new runs; the new sections are sourced from vendor documentation read on 2026-10-24.
@@ -54,7 +54,7 @@ None added. The subject is software; the one physical-looking candidate (an MLfl
 2026-10-24 topic close: Further reading training-root time 27 to 22 (the Ray link carries no time; the 30 min beside it is Launching's and is right); ledger key 317 updated.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `mp-tab`). No new runs; `gen_data.py` reproduces `15_js_mp_data.js` byte for byte; every scene draws from `window.MP`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `mp-tab`). No new runs; `gen_data.py` reproduces `15_js_mp_data.js` byte for byte; every scene draws from `window.MP`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

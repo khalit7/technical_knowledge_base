@@ -41,7 +41,7 @@ All runs on an Apple M1 Pro (16-core GPU, 16 GB), shared with other agents, betw
   number in the prose is a fact in data.json, filled into `<span data-f>`.
 - `recompute.py`: recomputes the derived numbers independently and checks them against data.json;
   `check_data.py`: the page embeds data.json unchanged and every placeholder has a fact.
-- `coverage.md`: what was carried from the parent and what was corrected. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 ## The 2026-10-23 rebuild: what changed and why
 - **Top**: the core idea in one sentence and a new static hero (`23_js_sd_hero.js`: four tokens as four target passes against one draft-and-verify step, time to scale under stated illustrative costs). The four "in one screen" cards were restatements and are gone; "You need" and a new-terms list replace the prerequisites line.
@@ -76,7 +76,7 @@ Why about 28 minutes is right: the Reading tab now carries what three tabs did (
 2026-10-26 (final follow-up sweep): the MTP row of the drafter table adds GLM-5's acceptance length (2.76 against 2.55 for DeepSeek-V3.2) and GLM-5.2's 4.56 to 5.47, linking Zhipu: GLM. The Leviathan Table 4 recompute and the Gemma 4 drafter preset stay on the Google page, which this page links.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`, which closes `<head>`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplay on view), `99_js_tabs.js` (key `sd-tab`). `build.sh` now writes the em-dash detector's character as bytes. Removed: `23_js_sd_hero.js` (the static 2D hero) and `28_js_sd_tree.js` (the 2D chain-against-tree animation), replaced by Figs. 1 and 5. No new runs: the four scenes draw the page's own recorded data or its H100 cost model, and expose what they compute as `window.SD_STG`; `check_stages.mjs` checks every number quoted in the four step lists against it.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`, which closes `<head>`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplay on view), `99_js_tabs.js` (key `sd-tab`). `build.sh` now writes the em-dash detector's character as bytes. Removed: `23_js_sd_hero.js` (the static 2D hero) and `28_js_sd_tree.js` (the 2D chain-against-tree animation), replaced by Figs. 1 and 5. No new runs: the four scenes draw the page's own recorded data or its H100 cost model, and expose what they compute as `window.SD_STG`; `check_stages.mjs` checks every number quoted in the four step lists against it.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

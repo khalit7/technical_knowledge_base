@@ -10,15 +10,14 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 - **Predict-then-reveal drills** where intuition usually fails ("will this recompile?", "which sampler wins at 4 steps?"). Give options, a skip link, and a reveal that runs or shows the real result. Two or three per page or tab is typical.
 - **Common mistakes, real ones, only when they teach** something the core does not already show. Real error messages, real bad outputs and real misconfigurations from the runs, not invented ones. Examples: SD 1.5's VAE without its scaling factor; a sampling loop without `no_grad` reaching 20 GB; `sbatch --export` killing `slurmd`.
 - **Interview questions are optional**, in a closed `<details>` block when they add a design angle the page lacks ("shard a 70B model on a v5p pod: what mesh and why").
-- **A picture for every core idea, chosen by what the concept is** ([teaching-contract.md](teaching-contract.md)): a static diagram for structure, a stepper for a process, an animation only when the change is the point, a before/after when a method replaced another, a 3D stage when the concept has spatial structure ([../visuals/animation-types.md](../visuals/animation-types.md), [../visuals/three-d.md](../visuals/three-d.md)). Visuals sit in the right column beside the text that uses them (split layout); a section without one is full width.
-- **3D only where depth teaches**: every 3D stage passes the test in [../visuals/three-d.md](../visuals/three-d.md) (a flat figure or the step list alone would not teach it as fast or as robustly); a 3D map of named boxes, a pipeline drawn in depth or a stage whose steps mostly fade boxes is redrawn flat.
+- **A picture for every core idea, chosen by what the concept is**, in the split layout, 2D by default ([teaching-contract.md](teaching-contract.md) is the rule; [../visuals/animation-types.md](../visuals/animation-types.md) the catalogue).
 - **Real code that ran.** Code shown on the page is the script that produced the numbers (kept in `src/`), with its real output pasted and scrubbed.
 - **Map to what he knows**: the PyTorch counterpart, the Python reference, the training job ([../understand/reader.md](../understand/reader.md)).
 - **It looks good** (Khalid, 2026-10-29: "a page that looks visually good is easier to read"). Looks are part of teaching, not polish: a clear heading scale, comfortable line length, cards that separate a visual from the prose, visuals that fill their frame. The template's theme gives the page; [../visuals/mechanics.md](../visuals/mechanics.md) ("How a visual should look") gives the visuals.
 
 ## Evidence on the page
 - **Every specific fact is sourced inline** and dated; derived numbers show their formula; illustrative inputs are labelled ([../evidence/sourcing.md](../evidence/sourcing.md)).
-- **Measured results say where** ("measured on Apple M1 Pro (MPS)", "Docker Desktop VM, shared machine") and **what transfers** to a datacenter GPU or a real cluster, and what does not.
+- **Measured results say where and what transfers** ([../evidence/local-runs.md](../evidence/local-runs.md), Labels).
 - **"Not run here"**, with the reason, for anything quoted but not run (cost, hardware, time).
 - **Corrections in visible boxes** (Correction, Checked, Unconfirmed), never silently rewritten. A page that corrects its own lab or an old claim says so.
 - **"Defaults reproduce X (source), independently or by construction"** beside any tool whose defaults land on a published figure, and a plain "does not reproduce" box where they do not.
@@ -41,7 +40,6 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 - A step list repeated in the paragraph beside it; the step list is the explanation.
 - A table and a figure showing the same data twice, or a figure duplicated from another page (link to its owner, `technical_knowledge_base/OWNERS.md`).
 - A number that appears only inside a figure: every figure number is also in the caption, the text or a closed data table.
-- Price-history, business-ledger, training-bill or compute-across-generations tabs, unless the page truly centres on them (Khalid removed them from DeepSeek).
 - Rebuilding what a sibling, the root or a paper page already animates: link it and build what is missing.
 - Long idle prose on history. A lineage stays only when the order explains the design, and then short.
 - Writing below the reader: re-teaching what he already knows, wind-ups, recaps of the section just read.
@@ -55,5 +53,3 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 6. Is the reading time measured and stated, with the per-page length judgement in `src/README.md`?
 7. Do the checks pass ([../build/checks.md](../build/checks.md)), and have you looked at the screenshots?
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

@@ -47,7 +47,7 @@ Why 35 minutes is right: the page owns fourteen mechanisms (address spaces, the 
 397 units: core 256, depth 134, fat 7. 385 were drafted from the old page by `ledger.py init` (one per sentence; keys were matched to a five-word or longer phrase of the rebuilt page, then 60 were keyed by hand); 12 were added by hand for script-rendered tables and the new visuals (section "added 2026-10-24"). Fat units carry a `note`.
 
 ## Departures from the child-page method
-No `live.md` or `coverage.json`: the page is new, there was no old text. Measurements replace the "real data" of the training pages (real runs of the mechanisms on a real kernel). Things that need privileges, a GPU, a newer kernel or NUMA (memory.high throttling, hugetlbfs pools, PSI, zswap, MGLRU, cudaHostAlloc, x86 IPIs) are taught from sources and tagged "not run here".
+Measurements replace the "real data" of the training pages (real runs of the mechanisms on a real kernel). Things that need privileges, a GPU, a newer kernel or NUMA (memory.high throttling, hugetlbfs pools, PSI, zswap, MGLRU, cudaHostAlloc, x86 IPIs) are taught from sources and tagged "not run here".
 
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.

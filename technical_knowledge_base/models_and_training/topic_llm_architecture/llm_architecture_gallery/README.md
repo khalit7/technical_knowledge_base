@@ -9,4 +9,4 @@ What it is: which released open models made which architectural choices (what ea
 
 Tabs: Reading (five released stacks in 3D as the hero, the model-by-choice matrix, then each delta as a 3D stage on real configs beside its cross-model figure, in the split layout); Decode a config (any config's fields, what each sets, the cache arithmetic, a layer-by-layer animation); Compare architectures (all models' strips and cache, a scatter between the card's convention and the windows-credited cache, a diff); Further reading.
 
-How it is built: `src/README.md`. Visuals built and rejected: `src/viz_ideas.md`. Old-page coverage and corrections: `src/coverage.md`.
+How it is built: `src/README.md`. Visuals built and rejected: `src/viz_ideas.md`.

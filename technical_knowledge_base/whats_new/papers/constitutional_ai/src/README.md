@@ -25,9 +25,8 @@
 - `paper.json` (card, verdict, resources, connections; `authors_full` lists all 51 authors in Further reading), `mk_paper.py` (copied from the LoRA page: card with verdict; no `tables.json` needed; Further reading).
 - `fetch_repo.sh <cache>` downloads the supplementary repository (about 4.6 MB, kept out of the repo); `mk_data.py <cache>` measures it and writes `inputs/repo_stats.json` (every number the page quotes about the release), `inputs/repo_extract.json` (what the page embeds) and `parts/_gen_cai.js` (`window.CAI`). The refusal classifier and boilerplate regexes are at its top.
 - `recompute.py`: every derived count (SL sequences and steps, PM and RL totals, Elo and binomial standard errors, logit of the clamp bounds) into `inputs/recompute.json`.
-- `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt` (with anchor markers). `save_live.py <transcript>`: the Notion fetch, verbatim, to `live.md`.
+- `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt` (with anchor markers).
 - `inputs/later_work_abstracts.txt` (arXiv abstracts of the later papers cited) and `inputs/later_work_notes.txt` (quoted lines from the Anthropic, Hugging Face and GitHub pages, and the hh-rlhf count).
-- `mk_coverage.py`: `coverage.json`, every fact of `live.md` with where the page carries it, verified against the built page.
 - `check_page.mjs` (run from the repo root with node): every control in light 920 and dark 390, both animations stepped end to end, the grid clicked, the default refusal count asserted (HH RLHF 386), text at least 11 px, no NaN, errors or sideways scroll; screenshots `../.shots/x-*.png`.
 
 ## Parts
@@ -67,7 +66,7 @@ Why about 18 minutes is right: the added top (core sentence, hero and its captio
 229 units: core 185, depth 27, owned 6, volatile 9, fat 2. 219 drafted by `ledger.py init`; 10 added (core sentence, hero, new terms, Figure 2, six owner links). Fat: the old reading-time line and the old animation-manners line. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems (including no movement before a click and every closed block opened; default refusal count HH RLHF 386). `mk_coverage.py`: 52 of 52 (the reading-time item's keys updated).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems (including no movement before a click and every closed block opened; default refusal count HH RLHF 386).
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -91,4 +90,4 @@ The growth is the two step lists that now explain the stage (about 500 words, mo
 Ledger: 243 units (core 199, depth 27, owned 6, volatile 9, fat 2); 14 added for the stage's two step lists; keys of units 27, 29, 32, 35 (Idea and Stage 1 wording), 166, 168 (Replay) and 178 (Count) re-pointed to the reworded sentences; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0. `mk_coverage.py`: 52 of 52. `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0. `ledger.py check`: problems 0.

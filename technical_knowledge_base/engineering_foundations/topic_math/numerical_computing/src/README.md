@@ -21,9 +21,6 @@ Shared: `20_js_fp.js` (exact emulation of float64, float32, TF32, bfloat16, floa
   - `inputs/nan_demo.py`: the naive softmax NaN, `detect_anomaly`, the fused loss. Output `inputs/nan_demo.out`.
 - Library source at a pinned version: `inputs/pytorch_v2.14.1/excerpts.txt` (logsumexp, BCE with logits, log_sigmoid, softplus, softmax kernel, GradScaler defaults, LayerNorm and RMSNorm eps, Welford) and the notes `randomness.md`, `numerical_accuracy.md`, `amp.md`. OFP8 spec text extract: `inputs/ofp8_spec_extract.txt` (fetched through the Wayback Machine; opencompute.org blocks scripts).
 
-## Coverage
-A new page: `coverage.json` lists the 11 root mentions and old-child facts it now owns or links (9 carried and rechecked, 2 owned by Linear algebra).
-
 ## Departures from the child method
 No "what is in production now" section by that name: production practice is spread through sections 8 to 11 (PyTorch determinism settings, the fused losses' real source, GradScaler and autocast defaults, measured on a real model). The FP8 and 4-bit material is deliberately short and linked, because the Quantization and precision page owns it. Page size is about 335 KB, slightly over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page): about 120 KB is MathML for about 620 formulas.
 

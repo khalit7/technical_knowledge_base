@@ -63,7 +63,7 @@ The added 1,120 words are almost all the four step lists (25 items). The old ani
 
 # OpenAI: GPT family, interactive page (v3)
 
-`visual.html` replaces all the text of the Notion page "OpenAI: GPT family" (https://app.notion.com/p/3c65c17b0d0d814abf90d5b9e567d72f, child of Topic: llm-landscape). It is meant to be the only source of information on the page. `coverage.json` shows where it carries each fact of the old text (or why a claim was corrected), and every specific figure links inline to its source. The page has no child pages, databases or videos; its only block besides text is the old embed, which this file replaces.
+`visual.html` replaces all the text of the Notion page "OpenAI: GPT family" (https://app.notion.com/p/3c65c17b0d0d814abf90d5b9e567d72f, child of Topic: llm-landscape). It is meant to be the only source of information on the page. Every specific figure links inline to its source. The page has no child pages, databases or videos; its only block besides text is the old embed, which this file replaces.
 
 ## Build
 
@@ -94,7 +94,6 @@ The added 1,120 words are almost all the four step lists (25 items). The old ani
 ## Other files
 
 - `viz_ideas.md`: candidates, scores, data and formulas with URLs, contradictions found, what the methodology lacked.
-- `live.md`, `live_before_delete.md`: the page as fetched on 1 October 2026 (signed embed URL shortened).
 - `src/`: fetched sources (docs markdown, ARC Prize, model card text, configs, press) used to check claims.
 
 ## 2026-11-16: Astra section, visual considered and not added

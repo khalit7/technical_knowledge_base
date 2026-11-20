@@ -10,7 +10,7 @@ Root of the topic (storage key `eval-tab`). Built 2026-10-04; rebuilt on 2026-10
 
 ## 2026-11-09: split layout, one 3D stage (renderer v2), explained and autoplaying animations (layout rollout)
 
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all seven children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `eval-tab`, unchanged). Replaced parts were kept in `read/retired/parts_2026-11-09/`; retired parts were deleted on 2026-11-18 (in git history).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after all seven children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `eval-tab`, unchanged). Replaced parts were kept in `read/retired/parts_2026-11-09/`; retired parts were deleted on 2026-11-18 (in git history).
 
 **Reading tab** (section anchors `rd-top`, `rd-one`, `rd-who`, `rd-cal`, `rd-stat`, `rd-fail`, `rd-choose`, `rd-pages`, `rd-hero`, `rd-att-card`, `rd-ci-card` unchanged; new `rd-terms`, `rd-fail-t`):
 | Section | Layout | Visual | Step list |
@@ -73,4 +73,4 @@ Why about 15 minutes is right: the root now only maps (hero, layers, cards), com
 313 units: core 195, owned 79 (LLM-as-judge 49, Eval harnesses 23, Human evaluation and annotation 3, Agent and trajectory evaluation 2, the physics re-grading paper page 2), fat 39, problems 0. 302 drafted by `ledger.py init` from the page before the close; 11 added by hand for script-rendered text of the retired and moved widgets. Fat units carry a `note` (navigation, stale child times, headings, widget instructions, the framing of moved tabs); no substantive unit is fat.
 
 ## Old sources kept
-`live.md` (the Notion page fetched 2026-10-04) and `coverage.md` (its facts mapped to the 2026-10-04 build; section names there are the old ones). `read/` keeps the reading checks and `recompute.py`.
+`read/` keeps the reading checks and `recompute.py`.

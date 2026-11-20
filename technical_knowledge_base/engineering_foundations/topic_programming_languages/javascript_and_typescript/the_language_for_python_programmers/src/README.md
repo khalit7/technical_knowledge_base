@@ -15,7 +15,7 @@ Order after a rerun: `sh ja/run_all.sh`, `python3 ja/gen.py`, `sh build.sh`, `no
 | `ja/gen.py`, `ja/run_all.sh` | `src/ja/` | trimmed (no loops, timeline, SSE, start-up or rosetta data, so no path walks up to the topic root); classes now `jl-`; `[[outc:]]` and `[[units:]]` markers added |
 | `ja/tpl/20_read_b.html` to `20_read_e.html` | `30_tab_ja_read_b.html`, `_c`, `_d`, and section 15 of `_h` | Part 1 sections 2 to 8 and 15, rewritten to the teaching contract |
 | `ja/tpl/31_tab_play_a.html`, `32_js_jl_play.js` | `32_tab_ja_play.html`, `36_js_ja_play.js` | the JS playground, renamed to `jl-` and `t-play` |
-| `ja/coverage.json`, `ja/versions.txt` | `src/ja/` | coverage trimmed to this page's claims; versions kept whole |
+| `ja/versions.txt` | `src/ja/` | kept whole |
 | `check_controls.mjs` | `src/ja/check_ui.mjs` | finds the repo with `git rev-parse --show-toplevel` |
 New here: the hero, the "What differs from Python" table, the live double probe, the UTF-16 units figure, the `==` triangle, the copy and closure figures, the `this` table, the module boxes, the V8 tier stepper over the recorded trace, and the shape bars (from the recorded n2 numbers). No new external facts; one new link (Node's ESM docs, checked 200 on 2026-10-26).
 

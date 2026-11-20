@@ -22,7 +22,6 @@ Shape: a child page of Topic: rag-and-retrieval (method `.claude/skills/explaine
 nomic-ai/modernbert-embed-base (late chunking) and opensearch-project/opensearch-neural-sparse-encoding-doc-v3-distill (learned sparse), under the download lock, sha256 checked against the Hub; the Python packages of the own env.
 
 ## Notes
-- `live.md` is the old Notion page saved verbatim (read only); `coverage.md` lists every claim with its verdict.
 - `viz_ideas.md` lists the visuals built and rejected.
 
 ## The 2026-10-24 rebuild to the teaching contract

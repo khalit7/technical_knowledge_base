@@ -22,12 +22,12 @@
 - `mk_paper.py`: card, Further reading, `parts/_gen_data.js` (`window.PAPER`, including the figure points).
 - Toy: `parts/22_js_toy.js` is the engine (runs in the page and in node). `toy_sweep.mjs` runs eight seeds (about 20 s) and writes `model/toy_results.json`, `model/toy_summary.json` and `parts/_gen_toydata.js`. `check_engine.mjs` then `uv run --with torch python check_engine.py` replays 60 Adam steps in PyTorch from the engine's own weights and batches (`model/check_engine.json`: losses within 7e-16, weights within 1.2e-16, a merge within 1.2e-16; PASS).
 - `check_stages.mjs` (since 2026-11-13, after OLMo 2's; from the repo root): splits two columns at 1400; both stages at 1400 light, 920 light and 390 dark (play on view, one list item per step, last step, a control stops autoplay, flows stop off screen); reduced motion; 32 step-list numbers against the data the stages draw (`window.WSM_MERGE`, `window.WSM_RV`) and the static Fig. 2 numbers against the script's.
-- `check_page.mjs` (run from the repo root with node): every control in light 920 and dark 390, the animation stepped in both modes, the default live run reproducing the stored seed, text at least 11 px, no NaN or errors. `mk_coverage.py`: 49 facts of `live.md`, all verified in the built page. `save_live.py` copied the Notion fetch verbatim from the session transcript.
+- `check_page.mjs` (run from the repo root with node): every control in light 920 and dark 390, the animation stepped in both modes, the default live run reproducing the stored seed, text at least 11 px, no NaN or errors.
 - `inputs/external_extracts.txt`: the lines quoted from the Ling 2.0 report, Hägele et al., DeepSeek-V3 and Llama 3, and the code search.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_engine.py`: PASS. `mk_coverage.py`: 49 of 49.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_engine.py`: PASS.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -37,7 +37,7 @@ What changed and why:
 - **Closed**: the convex/concave correction, the concurrent-work comparison, the model and training settings (one setup sentence stays open), MoE load balancing and weight spectra, and the table and text slips (one summary bullet stays open in How much to believe).
 - **Volatile**: Ling 2.0's adoption quote moved from Why it matters into one dated closed block, "Since the paper (dated: checked 25 October 2026)"; the Ling 2.0 evidence in How much to believe and What it takes stays.
 - **No autoplay**: `makeAnim` patched (the river-valley animation waits on its first frame until play or a step; a mode toggle pauses); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `wsm-tab`, plus `data-to` scrolling). `check_page.mjs` fails if the animation draws a frame before a click, and opens every closed block. The live training already waited for its button.
-- **Takeaway softened** (paper.json, so the card, and `live.md`): "proves ... algebraically equivalent to LR decay" became "applies a synthetic decay schedule to the updates (exact for the updates taken, only approximately a run that really decayed)", the paper's own assumption in §3.1 and what the toy measures; "beats a matched WSD anneal by ~1.3 points" became "about 1 point (+1.28 best against best, +1.18 at matched tokens, one run per arm)", since the 1.28 compares a merge at 425B with WSD at 400B; "EMA merging the worst" became "EMA the weakest merge" (EMA still scores above the decay in Table 3). The Notion property needs the same edit.
+- **Takeaway softened** (paper.json, so the card): "proves ... algebraically equivalent to LR decay" became "applies a synthetic decay schedule to the updates (exact for the updates taken, only approximately a run that really decayed)", the paper's own assumption in §3.1 and what the toy measures; "beats a matched WSD anneal by ~1.3 points" became "about 1 point (+1.28 best against best, +1.18 at matched tokens, one run per arm)", since the 1.28 compares a merge at 425B with WSD at 400B; "EMA merging the worst" became "EMA the weakest merge" (EMA still scores above the decay in Table 3). The Notion property needs the same edit.
 - Author emails in `inputs/paper_v2.txt` redacted, and `extract_paper.py` now redacts emails. Header: "Reading: 17 min, plus 2 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -54,7 +54,7 @@ Why about 17 minutes is right: the page owns one short paper's whole argument (t
 195 units: core 177, depth 15, owned 2, volatile 1, fat 0. 186 drafted by `ledger.py init` from the page before the pass; 9 added (core sentence, hero, new terms, two owner links, four script-drawn table facts keyed to their captions). Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 251 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 235 actions, 0 problems; the default run reproduces seed 1 below 1e-5; no frame before a click. `mk_coverage.py`: 49 of 49. The toy engine is unchanged, so `check_engine.py` was not rerun.
+`checkpage.sh`: tabs 4, 251 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 235 actions, 0 problems; the default run reproduces seed 1 below 1e-5; no frame before a click. The toy engine is unchanged, so `check_engine.py` was not rerun.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -81,4 +81,4 @@ The growth is the two step lists (Fig. 1 carries what the hero drew in script pl
 Ledger: 204 units (core 186, depth 15, owned 2, volatile 1). Nine added for the step lists and the owner links; keys re-pointed on units 32 (calculator sentence), 50 (Algorithm 1's merge step), 62 and 63 (the river figure), 77 (Figure 3 sentence); 188 re-described. Owned units 190 and 191 unchanged and passing. `ledger.py check`: problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 229 actions, 0 problems (default run reproduces seed 1 below 1e-5). `check_stages.mjs`: 6 stage runs, 32 step-list numbers, 0 problems. `mk_coverage.py`: 49 of 49. `verify_layout.mjs`: only "visuals outside a split" on the tables tab (kept full width on purpose).
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 229 actions, 0 problems (default run reproduces seed 1 below 1e-5). `check_stages.mjs`: 6 stage runs, 32 step-list numbers, 0 problems. `verify_layout.mjs`: only "visuals outside a split" on the tables tab (kept full width on purpose).

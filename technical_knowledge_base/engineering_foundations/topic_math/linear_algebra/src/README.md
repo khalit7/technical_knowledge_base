@@ -18,7 +18,7 @@ Shared: `20_js_la.js` (2x2 closed forms, Jacobi eigen and SVD for 3x3), `20_js_d
 - `inputs/la_gpt2.py` made `inputs/gpt2_la.json` offline (`uv run --no-project --with torch --with transformers --with pyarrow`, 2 threads, about 7 min; log in `inputs/la_gpt2.log`).
 
 ## Coverage
-`live.md` is the old page (copy of the root's saved fetch); `coverage.json` (made by `mk_coverage.py`) maps its 66 facts; the matrix-calculus facts are in `handoff_matrix_calculus_and_backprop.md`.
+The old page's matrix-calculus facts are in `handoff_matrix_calculus_and_backprop.md`.
 
 ## The 2026-10-24 rebuild to the teaching contract
 - **Top**: the core idea in one sentence, a static hero (A = [[3, 0], [4, 5]] as rotate, stretch, rotate, with rank, spectral norm, condition number and the rank-1 error read off the last panel), "You need", new terms; the old summary table is a closed reference block.

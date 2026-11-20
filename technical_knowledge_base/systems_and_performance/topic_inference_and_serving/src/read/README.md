@@ -20,8 +20,6 @@ Spine: follow one chat request through a serving engine, then a thousand. Runnin
 | `check_data.py` | The page embeds exactly `out/rd_data.json`; the measured facts equal the Engine bench's; 30 numbers written in the prose and 9 hand-derived ratios agree with the data. |
 | `check_ui.mjs` | Puppeteer (headless shell): every animation in every mode stepped forward and back, every range value, every predict button, details opened, at 390 px dark and 920 px light; fails on page errors, NaN/undefined/Infinity/null, sideways scroll or wide elements; screenshots each card to the folder given. |
 | `inputs/arxiv_abstracts.txt` | Abstracts of the 20 arXiv papers cited (export.arxiv.org API, 2026-10-08), the source of each paper number quoted. |
-| `old/` | The old root and its six children, saved verbatim from Notion (read-only fetch, 2026-10-08): `root.md`, `vllm.md`, `sglang.md`, `local_serving.md`, `nvidia_triton_trtllm_dynamo.md`, `inference_techniques.md`, `model_formats.md`. |
-| `coverage.md` | Every claim of the old root: verified, corrected or unconfirmed, with source, date and where the Reading carries it. |
 | `viz_ideas.md` | Visuals built and rejected. |
 
 Rebuild: `python3 -I recompute.py`, `sh ../build.sh`, `python3 -I check_data.py`, `node check_ui.mjs <shots dir>`, and from the

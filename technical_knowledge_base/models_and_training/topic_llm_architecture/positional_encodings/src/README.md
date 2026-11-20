@@ -55,7 +55,6 @@ The core reading of the subject fell from about 56 minutes (Reading plus the two
 - `past/past_eval.py` -> `past/out/past.json`: per-position loss on the long_context sibling's 24 windows of 2,048 tokens (its numbers reproduced to 4 decimals), RoPE scalings at inference including the temperature split and two misconfigurations, the running sequence at 8 offsets with greedy text. CPU.
 - `probe/probe.py` -> `probe/out/probe.json`: permutation test, position probe, the layout bug. CPU.
 - (`check_page.mjs` of the 2026-10-03 build was removed: it targeted the old ids.) `check_stages.mjs`: the stages and step lists (above). `check_controls.mjs`: clicks every control at 390 px dark and 920 px light and checks reduced motion. `check_data.py`: the page embeds exactly the recorded outputs, and the static prose numbers match them.
-- `live.md`, `save_live.py`: the old Notion text (fetched 2026-10-03, Notion's copy dated 2026-09-20). `mk_coverage.py` -> `coverage.json` (68 of 68 old facts found in the new page, corrections noted); `coverage.md` lists corrections, moves and the Gallery material carried.
 - `inputs/`: config.json files fetched 2026-10-03 (mirrors where gated), `t5_base_relative_bias.json`, `code_extracts.py` (the 2026-10-03 verbatim extracts; the page now quotes transformers 5.20.1 through `code/`).
 - `facts.md`: verified facts of this page (also appended to the topic's shared FACTS.md under `pe`).
 

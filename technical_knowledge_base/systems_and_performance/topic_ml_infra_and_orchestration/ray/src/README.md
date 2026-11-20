@@ -33,7 +33,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (copied from the root'
 | `check/check_ui.mjs` | every control at 390 dark and 920 light; card screenshots |
 | `check/check_stages.mjs` | the rollout checks: stages and 2D animations autoplay, step lists, reduced motion, splits, label overlaps, step-list numbers against `RY` |
 | `check/wide.mjs` | finds elements wider than the viewport |
-| `facts.md`, `viz_ideas.md`, `coverage.md` | verified facts, visual ideas built and rejected, old-page coverage note |
+| `facts.md`, `viz_ideas.md` | verified facts, visual ideas built and rejected |
 
 Rerun everything (about 4 minutes of Ray, under the ray lock): `sh scripts/ry_run.sh <scratch> <root src/data> <evidence dir>`; then `sh scripts/ry_run.sh ... <dir2> procs train` on a fresh cluster for the Train runs (the first pass leaves spill IO workers on w1 that make Ray Train run out of memory); scrub into `runs/` with the root's `src/data/scrub.py`; `python3 scripts/make_data.py`; `sh build.sh`; `python3 check/check_data.py`; from the repo root `node .../check/check_ui.mjs <index.html> <shots dir>` and `sh html_utils/checkpage.sh <this folder>`.
 
@@ -66,7 +66,7 @@ Why 28 minutes is right: the page owns Ray Core (tasks, actors, objects, ownersh
 2026-10-24 topic close: Further reading time for Alignment fixed (23 to 25); ledger key 350 updated.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `ry-tab`). No new runs; `ry_data.json` unchanged.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `ry-tab`). No new runs; `ry_data.json` unchanged.
 
 | Section | Layout | Visual | Step list |
 |---|---|---|---|

@@ -31,7 +31,7 @@ Large intermediates (retrieval contexts, the no-prefix query vectors, llama-serv
 - Facts read from siblings: `../../vector_indexes/src/facts.json` (tombstone work), the root's Pipeline lab generator records (`pip_gen_summary.py`).
 
 ## Departures from the child-page method
-No old page existed, so there is no `live.md` or `coverage.json` (see `coverage.md`). Operational failures have no published figure to reproduce; the waterfall's defaults reproduce this page's own end-to-end run and the cost calculator's defaults the Reading's worked example. See `viz_ideas.md`.
+No old page existed. Operational failures have no published figure to reproduce; the waterfall's defaults reproduce this page's own end-to-end run and the cost calculator's defaults the Reading's worked example. See `viz_ideas.md`.
 
 ## The 2026-10-24 rebuild to the teaching contract
 - **Top:** the core sentence (after launch a RAG system is judged on freshness, leaks, latency and cost, and the fixes that hold live in the index and the search, not the prompt), a new static hero (`25_prd_hero.js`: the write path and the read path sharing one index, the access filter highlighted inside the search, one request's measured end-to-end time and its worked-example cost drawn to scale), You need, new terms. The six "ideas that carry the page" cards and the "two paths" prose became the hero and its caption (labelled fat in the ledger).

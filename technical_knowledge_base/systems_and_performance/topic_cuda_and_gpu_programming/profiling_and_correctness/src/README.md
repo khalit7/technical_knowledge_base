@@ -12,7 +12,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (same assembly as the 
 - `code/summarize.py`: everything the page shows -> `out/data.json` and `parts/22_js_data.js` (`window.PCD`).
 - `check/check_embed.py`: the page embeds exactly `out/data.json`; 10 plain-text prose claims recomputed; privacy scan. `check/check_page.mjs` (from the repo root): every control at 390 px dark and 920 px light (timeline-shape rows, stall pairs, every closed block opened, the workbench), errors, NaN, sideways scroll, every `data-v` number equal to its data value, and (since 2026-11-10) every stage playing once in view. `check_embed.py` also checks the static formats table and the new plain-text numbers (atomics, FP8, Sobel occupancy) against the data.
 - `inputs/doc_quotes.txt`: every documentation quote with URL and date; `inputs/triton_do_bench.txt`: the do_bench source read; `inputs/cited_metrics.txt`.
-- `live.md`: the old Notion page verbatim (copy of the parent's `read/old/05_profiling.md`, fetched 2026-09-22; re-fetched 2026-10-05, unchanged); `coverage.json`: its 38 claims with verdicts (3 corrected, 2 dropped). `viz_ideas.md`.
+- `viz_ideas.md`.
 
 Parts (since 2026-10-23): `20_read.html` (wrapper, CSS, nav), `20_read_a` (core idea, hero loop, you need, new terms, provenance block, section 1), `20_read_b` to `20_read_e` (sections 2 to 5), `20_read_f` (section 6, closed depth), `02_split.html`, `21_js_rd_common.js` and `25_js_s3.js` (skill templates), `22_js_data.js` (generated), `23_js_charts.js` (MC charts, copied), `24_js_fp.js` (float model), `25` Fig. 1 numbers, `26` benchmark charts, `27` profiler trace, `27b` six timeline shapes, `28` the report pairs, Fig. 2 numbers and metric anatomy, `28b` warp stalls and occupancy, `29` numerics charts and Fig. 3 numbers, `29b` the dot-product workbench (closed block in section 5; was the Numerics lab tab), `30` fills prose numbers, `31_*` Report reader, `39_tab_more.html`, `40` to `42` the three scenes, `99_js_tabs.js` (template, storage key `cuprof-tab`).
 
@@ -43,7 +43,7 @@ Why 25 minutes is right: the page owns four tools and a method (timing, timeline
 318 units: core 218, depth 64, fat 35, volatile 1 (Hyperloom, owned by the 2026-09-14 tech news issue; a dated sentence stays in the closed agents block). 303 drafted by `ledger.py init`; 15 added by hand for the hero, new visuals, script-drawn tables and the absorbed units. Fat units carry a `note`.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-10
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuprof-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still equal to `out/data.json`) and the page's float16 model (`24_js_fp.js`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cuprof-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still equal to `out/data.json`) and the page's float16 model (`24_js_fp.js`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

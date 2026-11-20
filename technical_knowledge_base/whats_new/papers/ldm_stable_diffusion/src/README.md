@@ -1,6 +1,6 @@
 # Latent Diffusion Models (Stable Diffusion) paper page: source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81bb98adc0daf8462cb6, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Then `sh html_utils/checkpage.sh <folder>`, `node <folder>/src/check_page.mjs` and `node <folder>/src/check_stages.mjs` from the repo root, and `python3 mk_coverage.py` here.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81bb98adc0daf8462cb6, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Then `sh html_utils/checkpage.sh <folder>`, `node <folder>/src/check_page.mjs` and `node <folder>/src/check_stages.mjs` from the repo root.
 
 ## Tabs
 
@@ -13,7 +13,7 @@
 | Further reading | `t-more` | Generated from `paper.json`. |
 
 ## Files
-- `live.md`: the Notion row page as fetched 2026-09-20 (`save_live.py`). `inputs/`: arXiv HTML v2 text and tables (`extract_paper.py`), `tables_parsed.json` (`parse_tables.py`, with bold flags), `code/` (CompVis configs, the beta schedule, the SD README extract, licences), `later_extracts.txt` (GLIDE, DiT, SDXL, SD3, FLUX, Sora and abstracts), `recompute.json`.
+- `inputs/`: arXiv HTML v2 text and tables (`extract_paper.py`), `tables_parsed.json` (`parse_tables.py`, with bold flags), `code/` (CompVis configs, the beta schedule, the SD README extract, licences), `later_extracts.txt` (GLIDE, DiT, SDXL, SD3, FLUX, Sora and abstracts), `recompute.json`.
 - `paper.json`, `tables.json` (`mk_tables.py`), `recompute.py` (every derived number and the 18 checks), `mk_paper.py` (card, Further reading, data; `where_label` extended for appendix anchors).
 - Toy: `toy.py` (data, checker, autoencoder, UNet with cross-attention, τθ, schedule, DDIM), `train.py` (`ae <f>`, `dm <name>`, `eval`), `run_all.sh` (the whole training queue), `export.py` (per-row quantised weights to `parts/20_model_data.js`, quantisation report), `check_forward.py` + `check_forward.mjs` (JS against PyTorch on the shipped weights). Logs, reports and checkpoints in `model/` (`model/old_c16/`: the first, too narrow autoencoder, kept for the record).
   Rerun, in the background: `AES=4 DMS="f4 pix" AE_STEPS=5000 DM_STEPS=7000 sh run_all.sh` (about 12 minutes for the autoencoder, 4 for the latent model, 15 for the pixel model at 2 threads), then `sh run_long.sh` (the f = 4 model again for 28,000 steps, about the pixel model's training time, 14 minutes; then `train.py eval`, about 10 minutes), then `SHIP_AE=4 ... export.py 8`, `SHIP_AE=4 ... check_forward.py 8` (writes `model/check_ref.json`, 1.2 MB, not kept), `node check_forward.mjs`, `python3 recompute.py`, `sh build.sh`. Prefix each Python step with `OMP_NUM_THREADS=2 uv run --with torch --with numpy python`.
@@ -40,7 +40,7 @@
 The checker scores 99.7% on 1,000 real images; the f = 4 autoencoder reconstructs at 31.6 dB PSNR and keeps the checker's verdict on 91.8% of test images. JS against PyTorch on the shipped weights: every network output within 3.1e-5, the 20-step guided chains end within 3.1e-5 with the same checker verdict. Single run, one seed per model.
 
 ## Checks (3 October 2026)
-`sh html_utils/checkpage.sh <folder>`: 5 tabs, 381 KB, emdash 0, errbox 1, clipped 0, fail=0. `node <folder>/src/check_page.mjs`: 306 actions, 0 problems. `python3 mk_coverage.py`: 58 of 58 items verified. `recompute.py`: 18 checks of the paper's numbers, 9 hold, 9 flagged (the inconsistencies the page reports). `check_forward.mjs`: PASS within 3.1e-5.
+`sh html_utils/checkpage.sh <folder>`: 5 tabs, 381 KB, emdash 0, errbox 1, clipped 0, fail=0. `node <folder>/src/check_page.mjs`: 306 actions, 0 problems. `recompute.py`: 18 checks of the paper's numbers, 9 hold, 9 flagged (the inconsistencies the page reports). `check_forward.mjs`: PASS within 3.1e-5.
 
 ## The 2026-10-24 rebuild (teaching contract, light pass for papers)
 
@@ -49,7 +49,7 @@ The checker scores 99.7% on 1,000 real images; the f = 4 autoencoder reconstruct
 - **No autoplay**: `makeAnim` in `11_js_ui.js` (the fixed copy RAG uses) waits on step 1 for `ldx` and `thx`; `check_page.mjs` fails if either draws a frame in 1.5 s on screen before any click. The toy chains are still computed when the animation first scrolls into view (a progress bar, no motion of the figure). The page keeps its own `90_js_tabs.js` and `makeAnim` instead of the templates' `99_js_tabs.js` and `RD.anim`.
 - **Closed blocks** (depth, not lost): rescaling the latent (the 0.18215); the text encoder and layout tokens; the cross-table inconsistencies (one open sentence keeps the finding); video and audio latent models (dated, October 2026).
 - **Owners linked**: classifier-free guidance's mechanism at Diffusion from zero (one sentence on what this paper did with it stays); the modern latent stack at Latent diffusion and diffusion transformers.
-- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`); `mk_coverage.py` now looks for that line.
+- Header: "Reading: N min, plus M in closed details." from `reading.json` (the rendered-DOM count of `html_utils/audit_pages.mjs`).
 
 ## Length judgement
 | | Before (audit 2026-10-23) | After (2026-10-24) |
@@ -65,7 +65,7 @@ Why about 20 minutes is right: the page owns every detail of the paper and its e
 181 units, drafted from the committed page before the rebuild: core 165, depth 12, owned 1 (classifier-free guidance at Diffusion from zero, key "extrapolating from the unconditional prediction"), fat 3 (the old reading-time crumb, the tab names, the old reduced-motion sentence). Keys proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and set by hand for one unit.
 
 ## Checks (2026-10-24)
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 387 KB. `check_page.mjs`: 306 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 58 of 58. `recompute.py`: 18 checks, 9 hold, 9 flagged (unchanged). `ledger.py check`: problems 0. Model, weights and `check_forward` untouched.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 387 KB. `check_page.mjs`: 306 actions, 0 problems (with the no-autoplay check). `recompute.py`: 18 checks, 9 hold, 9 flagged (unchanged). `ledger.py check`: problems 0. Model, weights and `check_forward` untouched.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -94,4 +94,4 @@ The growth is the step lists: the two stages' fourteen steps (about 600 words) a
 Ledger: 223 units (core 206, depth 13, owned 1, fat 3). 42 added (the hero intro and its seven steps, the provenance line, the sixteen chain-list items, the f-sweep intro and seven steps, the eight Then and now stretches, the Generate widget note); units 159, 161 and 162 re-keyed (the Then and now intro and count line were reworded; 162 now keys on What survived, since its old key was the removed "Play, or step with the arrows" line). `ledger.py check` problems 0.
 
 ## Checks (2026-11-13)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 330 actions, 0 problems. `check_stages.mjs`: 12 stages and animations checked, 0 problems. `mk_coverage.py`: 58 of 58. `ledger.py check`: problems 0. Model, weights and `check_forward` untouched.
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 330 actions, 0 problems. `check_stages.mjs`: 12 stages and animations checked, 0 problems. `ledger.py check`: problems 0. Model, weights and `check_forward` untouched.

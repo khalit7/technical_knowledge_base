@@ -40,7 +40,7 @@ Session transcripts the runs wrote under the home directory were measured (`reco
 - `recompute.py`: every number into `data/numbers.json` (calls deduplicated by message id, cost reproduced from list prices, per-phase costs).
 - `gen_data.py`: `parts/22_js_fsdk_data.js`.
 - `check_page.py`: data part up to date and embedded, exactly the recorded runs, 26 prose numbers recomputed, private-string and em-dash scan.
-- `live.md` (old Notion page verbatim), `coverage.json` (33 claims and their fate), `viz_ideas.md`.
+- `viz_ideas.md`.
 
 ## Pipeline
     python3 redact.py RAW WORK && python3 recompute.py && python3 gen_data.py && sh build.sh && python3 check_page.py

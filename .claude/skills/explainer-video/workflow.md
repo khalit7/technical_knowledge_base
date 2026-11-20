@@ -1,11 +1,11 @@
 # Workflow: from a page to a rendered video
 
 Conventions used below:
-- `<page>` is the page folder (for example `technical_knowledge_base/models_and_training/topic_llm_landscape`); the project is `<page>/video/`.
+- `<page>` is the page folder; the project is `<page>/video/`.
 - `R` is the repo root: `R="$(git rev-parse --show-toplevel)"`.
 - `N="$R/.claude/skills/explainer-video/narration"` (narration scripts and voice projects).
 - `FX="$R/.claude/skills/explainer-video/vendor/faceless-explainer"` (the vendored faceless-explainer skill; its scripts are in `$FX/scripts/`).
-- `VOICE` is `voice_mac` on an Apple Silicon Mac, `voice_cuda` on the NVIDIA machine.
+- `VOICE` is `voice_cuda` on the build machine (NVIDIA GPUs); `voice_mac` exists for an Apple Silicon machine (`narration/install.md`).
 - Unless a step says otherwise, commands run from `<page>/video/`.
 
 Setup must be done once per machine first: `narration/install.md`.
@@ -20,7 +20,7 @@ If the video needs something the page does not say, stop and add it to the page 
 2. Create the project from the repo root, only if `<page>/video/` does not exist yet (init refuses a non-empty folder):
    `npx hyperframes init <page>/video --non-interactive --example=blank --skill=faceless-explainer`
    This writes `hyperframes.json`, `package.json` (which pins `hyperframes@<version>` in its scripts), `meta.json`, `AGENTS.md`, `CLAUDE.md`. Keep the first three; replace both `AGENTS.md` and `CLAUDE.md` with `.claude/skills/explainer-video/templates/project-CLAUDE.md` (the generated ones route to slash-command skills that are vendored or removed here, and contain em-dashes). If init installed any skill (`.agents/` or new entries in `.claude/skills/`), run `sh .claude/skills/explainer-video/scripts/vendor_skills.sh` so `.claude/skills/` again holds only our four skills.
-3. Write `BRIEF.md` straight after init, in the shape of `$R/.claude/skills/explainer-video/vendor/hyperframes/references/brief-format.md`. Defaults for this knowledge base (the worked example's frontmatter is the model):
+3. Write `BRIEF.md` straight after init, in the shape of `$R/.claude/skills/explainer-video/vendor/hyperframes/references/brief-format.md`. Defaults for this knowledge base:
    - `workflow: faceless-explainer`, `flow: automation`, `storyboard: no`, `destination: desktop`, `aspect: 1920x1080`, `language: en`, `audience: "An MSc-level AI engineer (Khalid)"`, `angle:` concept, how-to, listicle or narrative, whichever the page's own shape suggests.
    - `message:` the one sentence the viewer should leave with.
    - `length:` **yours to decide from the content**: as long as the page needs and no longer. The faceless route's sweet spot is 30 to 90 s with a cap near 3 minutes; beyond about three minutes HyperFrames routes to `general-video`, which is not vendored (never used so far): install it first as in `hyperframes.md` "Refreshing", then set `workflow: general-video` and follow it, keeping every other step here.
@@ -30,8 +30,8 @@ If the video needs something the page does not say, stop and add it to the page 
 
 ## 3. Design, script, storyboard
 Follow faceless-explainer Steps 2 to 4 (read the references they name):
-- **Design (`frame.md`).** Pick one preset from `$R/.claude/skills/explainer-video/vendor/hyperframes-creative/frame-presets/` that fits the topic, then `node "$FX/scripts/build-frame.mjs" --preset <name> --hyperframes .`. Proceed when it exits 0. The worked example used Broadside (ink-black and fire-orange registers, heavy lowercase display type, mono chrome).
-- **Script (`SCRIPT.md`).** One line per frame. Write for the ear: short sentences, one idea per sentence, numbers spoken as words a listener parses ("six hundred billion total, twenty-seven billion active"), acronyms the voice can say. Voice header: `**Voice:** Chatterbox Turbo default voice (local)`, plus a one-line voice direction (the example: "Calm, precise, peer to peer. An engineer briefing another engineer; no hype.").
+- **Design (`frame.md`).** Pick one preset from `$R/.claude/skills/explainer-video/vendor/hyperframes-creative/frame-presets/` that fits the topic, then `node "$FX/scripts/build-frame.mjs" --preset <name> --hyperframes .`. Proceed when it exits 0.
+- **Script (`SCRIPT.md`).** One line per frame. Write for the ear: short sentences, one idea per sentence, numbers spoken as words a listener parses ("six hundred billion total, twenty-seven billion active"), acronyms the voice can say. Voice header: `**Voice:** Chatterbox Turbo default voice (local)`, plus a one-line voice direction (for example "Calm, precise, peer to peer. An engineer briefing another engineer; no hype.").
 - **Storyboard (`STORYBOARD.md`).** Frontmatter `duration:` from the brief and `music: none`. For every frame: `scene`, `voiceover` (identical to the script line), `duration` (estimate for now), `transition_in`, `src`, `type`, `beat`, `blueprint` if one fits, `focal`, `roles`, `sfx`, `narrativeRole`, `keyMessage`, then a time-coded shot sequence (Scene 1, 2, ...) whose every reveal is tied to the words that say it ("on 'sixty-two point seven percent in the standard harness' bar one grows to 62.7%"). Add the `## Video direction` block. Search the catalog before inventing a named look: `npx hyperframes catalog --query "<look>" --json`.
 - **Teach.** Sequence by narrative, not page order: hook, the frame or mechanism, the evidence, the payoff, and a closing line the viewer can reuse. Prefer before and after of one input, a quantity that visibly changes, a callback to an earlier frame.
 - **Re-check every fact against the page now**, line by line against your fact list: names, numbers, dates, qualifiers. Fix the script before any audio exists; audio is the expensive part to redo.
@@ -53,7 +53,7 @@ It transcribes each file with `npx hyperframes transcribe --model small.en`, com
 `python3 "$N/check_takes.py" narration_lines.tsv assets/voice --write --fix "KV cash=KV cache" [--fix ...]`
 It writes one `voices` entry per frame (`frame`, `path`, `duration_s` from ffprobe, `words` with `start` and `end`) and keeps existing `sfx` and `bgm` entries. `--fix "heard=meant"` corrects the caption spelling of mishearings (multi-word fixes keep the original timings); run it from `video/` because it writes `audio_meta.json` in the current folder. When re-voicing, copy the old file first (step 9).
 
-Then fetch the sound effects named in the storyboard: `node "$FX/scripts/audio.mjs" fetch-sfx --storyboard ./STORYBOARD.md --hyperframes .`. Keep `music: none` in the storyboard (narration plus no BGM). Keep sfx quiet under the voice (the example uses volume 0.35).
+Then fetch the sound effects named in the storyboard: `node "$FX/scripts/audio.mjs" fetch-sfx --storyboard ./STORYBOARD.md --hyperframes .`. Keep `music: none` in the storyboard (narration plus no BGM). Keep sfx quiet under the voice (about volume 0.35).
 
 ## 7. Build to the real voice
 In faceless-explainer's order, every script run from its real path `"$FX/scripts/..."`:
@@ -64,10 +64,10 @@ In faceless-explainer's order, every script run from its real path `"$FX/scripts
 5. `node "$FX/scripts/assemble-index.mjs" --storyboard ./STORYBOARD.md --hyperframes .`
 6. `node "$FX/scripts/transitions.mjs" inject --storyboard ./STORYBOARD.md --hyperframes .` and `node "$FX/scripts/transitions.mjs" verify --storyboard ./STORYBOARD.md --index ./index.html`
 
-**Real-path rule.** Always start these scripts as `node <repo>/.claude/skills/explainer-video/vendor/faceless-explainer/scripts/<name>.mjs`, the real folder. Never through a symlink (for example an `.agents/skills/...` path or a linked skills folder): a script started through a symlinked path can exit silently without doing its work. If `.agents/` appears after a skills update, run `scripts/vendor_skills.sh` (see `hyperframes.md`).
+**Real-path rule** (the one home for it). Always start these scripts as `node <repo>/.claude/skills/explainer-video/vendor/faceless-explainer/scripts/<name>.mjs`, the real folder. Never through a symlink (for example an `.agents/skills/...` path or a linked skills folder): a script started through a symlinked path can exit silently without doing its work. If `.agents/` appears after a skills update, run `scripts/vendor_skills.sh` (see `hyperframes.md`).
 
 ## 8. Check and render
-1. `npx hyperframes lint` and `npx hyperframes check`: no errors. Known false positives, do not chase them:
+1. `npx hyperframes lint` and `npx hyperframes check`: no errors. Known false positives (the one home for them), do not chase them:
    - `text_box_overflow` of about 1 to 4 px on caption words (`#caption-word-*`, `.caption-line`): the caption pill's snug line-height lets heavy glyphs spill into its own padding. Act only when it names a frame element (`#el-NN-*`).
    - an overlap flag on tightly stacked display lines, when the snapshot shows nothing actually touching.
 2. Snapshot several moments per frame (`npx hyperframes snapshot --at <times>`), open the contact sheet and the images, and confirm that what is on screen at each moment is what the voice is saying then, that every number carries its qualifier, that nothing is cut off, and that no em-dash slipped in.
@@ -79,7 +79,7 @@ Use when the frames are right but the narration changes (new backend, fixed line
 1. Copy the current `audio_meta.json` to `audio_meta.old.json` (the old word times are the warp's input).
 2. Regenerate and check the lines (steps 4 to 6).
 3. For each frame, align old and new words (normalise text, match with `difflib.SequenceMatcher` on the word lists) and collect pairs `[old_start, new_start]` for matched words, starting with `[0, 0]` and ending with `[old_frame_duration, new_frame_duration]`. Keep pairs strictly increasing in both columns.
-4. Append a warp script to the frame's template, after the script that registers its timeline. The worked example's block (tagged `data-voice-warp`):
+4. Append a warp script to the frame's template, after the script that registers its timeline, tagged `data-voice-warp`:
    ```html
    <script data-voice-warp>
    (function () {
@@ -97,7 +97,7 @@ Use when the frames are right but the narration changes (new backend, fixed line
 5. Set each frame's duration and its clip durations in `index.html` (and `STORYBOARD.md`) to the new lengths; `audio.mjs sync-durations` handles the storyboard.
 6. Rebuild captions (`captions.mjs build`), re-run assemble and transitions if durations moved, then step 8 in full.
 
-## Lessons from the worked example (`topic_llm_landscape/video/`)
+## Lessons from the last worked example (`topic_llm_landscape/video/`, removed; in git at commit 3e04148d2)
 - One concept angle beats coverage: the page maps 20 labs, the video teaches the frame the page uses to read them (shared skeleton, then two bets) and lands a benchmark caveat as the payoff of that same frame.
 - Eight frames of 5 to 20 s each made about 90 s; each frame has one focal element and a time-coded scene list tied to words.
 - Qualifiers are part of the visual: two bars labelled by harness, a bracket naming the gap, a small mono footnote for the secondary numbers.

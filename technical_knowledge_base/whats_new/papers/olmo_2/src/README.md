@@ -15,7 +15,6 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v3 to `inputs/paper_v3.txt` and `inputs/table_*.txt` (v1 and v2 were also extracted to compare; v1's Table 9 is where the text's 10.6 and 10.3 come from).
 - `extract_figs.py` (`uv run --with pymupdf python extract_figs.py [unpacked source]`): downloads the arXiv e-print (not kept) and reads Figures 1 to 5 and 7 to 11 from the vector PDFs in `figures/`, calibrated on each axis's tick marks (residuals recorded). Writes `olmo2_figs_full.json` in the temp folder (about 7 MB, not kept) and `inputs/fig1_points.json`.
 - `mk_curves.py` (`uv run --with numpy python mk_curves.py`): the page's curve data `parts/_gen_curves.js` (12-bit envelopes per step bin, rolling mean and 7σ line, every vertex at 4σ or more with its z-score) and `inputs/spike_scores.json` (the spike score under the paper's definition and the variants).
@@ -25,7 +24,6 @@
 - `build.sh`: runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, assembles `parts/` (each JS part in its own script, tab wiring last, the error box), expands the link macros, fails on an em-dash or an unexpanded macro, fills the reading times. Needs `parts/_gen_curves.js` (run `extract_figs.py` and `mk_curves.py` first if it is missing).
 - `check_page.mjs` (from the repo root: `node technical_knowledge_base/whats_new/papers/olmo_2/src/check_page.mjs`): every control in light 920 and dark 390, the spike replay stepped and played, the replay and the 3D stage playing once in view, text at least 11 px, no NaN, no sideways scroll; mid-animation shots to `../.shots/x-*.png`.
 - `check_stages.mjs` (since 2026-11-13, after Llama 3 Herd's): splits two columns at 1400; the stage (Fig. 1, in all three model modes) and the spike replay at 1400 light, 920 light and 390 dark (play on view, one list item per step, last step, flows stop off screen); reduced motion; 44 step-list numbers against the data the stage draws (`window.OLMO_PIPE`, built from `window.PAPER`). `shot_parts.mjs` screenshots the predict reveals and charts.
-- `mk_coverage.py`: `coverage.json`, every fact of `live.md` with where the page carries it, verified against the built HTML.
 - `inputs/`: paper text and table extracts, the four released `config.json` files, `hf_refs_extract.json` (checkpoint branches, pulled when the Ai2 OLMo lab page was built), `qwen25_extract.txt`, `fig1_points.json`, `spike_scores.json`, `recompute.json`.
 - `viz_ideas.md`: ideas built and rejected (rows `P-olmo_2.*` for the log).
 
@@ -43,7 +41,7 @@ What changed and why:
 - **Closed**: the two token-count disagreements, the parameter recount and z-loss coefficient, the tokenizer, the pretraining code filters (into the sources block), why the text says +10.6, the post-training hyperparameters, the two clusters, the throughput tricks (one summary sentence stays open), and every table-and-text disagreement (one summary paragraph stays open in How much to believe).
 - **Volatile**: Olmo 3 moved to one dated closed block, "Since the paper (dated: checked 25 October 2026)".
 - **No autoplay** (superseded by the 2026-11-13 rollout below): `makeAnim` patched (the recipe animation and the spike-detector sweep wait on their first frame until play or a step; a mode toggle pauses); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `olmo2-tab`, plus `data-to` scrolling). `check_page.mjs` fails if either animation draws a frame before a click, and opens every closed block.
-- **Takeaway softened** (paper.json, so the card, and `live.md`): "post-norm" is the paper's output (reordered) norm; "Tulu 3 RLVR" is the whole Tülu 3 post-training; "Pareto-frontier" became "on or near the compute frontier of open-weights peers, by estimated (6ND) FLOPs", since the frontier is drawn on 6ND estimates with models of unknown compute left out, and Figure 1 misplaces two points. The Notion property needs the same edit.
+- **Takeaway softened** (paper.json, so the card): "post-norm" is the paper's output (reordered) norm; "Tulu 3 RLVR" is the whole Tülu 3 post-training; "Pareto-frontier" became "on or near the compute frontier of open-weights peers, by estimated (6ND) FLOPs", since the frontier is drawn on 6ND estimates with models of unknown compute left out, and Figure 1 misplaces two points. The Notion property needs the same edit.
 - **Kept as tabs**: Replay the stability fixes (a lab used from every ablation pair), the tables, Further reading.
 - **No real image**: the paper is CC BY 4.0, but every figure the page relies on (1 to 5, 7 to 11) is already rebuilt from its vector PDF; the subject has no physical object.
 - The contact email in `inputs/paper_v3.txt` redacted, and `extract_paper.py` now redacts emails. Header: "Reading: 26 min, plus 10 in closed details." from `reading.json`.
@@ -62,7 +60,7 @@ Why about 26 minutes is right: this is a long report with four deep dives, and t
 313 units: core 242, depth 65, owned 5, volatile 1, fat 0. 301 drafted by `ledger.py init` from the page before the pass; 12 added (core sentence, hero, new terms, five owner links, four script-drawn table facts with keys in their captions). Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 313 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 466 actions, 0 problems; no frame before a click. `mk_coverage.py`: 83 of 83. `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 4, 313 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 466 actions, 0 problems; no frame before a click. `ledger.py check`: problems 0.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -84,6 +82,6 @@ What changed and why:
 
 The growth is explanation that was script-drawn before and so not counted: Fig. 1's eight steps (about 330 words, trimmed where the three-stage overview or Post-training already says it), the spike replay's three steps (about 150 words), the card titles (about 90), and the initialisation paragraph moved out of a closed block (about 110, so closed time fell). Nothing was cut but the motion notes the new rules replaced. Header: "Reading: 29 min, plus 10 in closed details." (`reading.json`). Ten pages quote the old 26 minutes (`check_times.py` lists them); the lead runs `check_times.py --fix`.
 
-Ledger: 325 units (core 254, depth 64, owned 5, volatile 1, fat 1). 12 added (Fig. 1's steps, the cosine-cut quote, the norm links, three card titles, the replay's steps). Keys re-pointed on units 20 and 21 (the Fig. 1 sentence), 35 (the diagram sentence), 62 (the initialisation paragraph, now open, depth to core), 84 (Figure 5's title), 132 (Table 9's sentence), 228 (the Replay intro) and 237 (the replay's motion note); unit 25 (the old "starts paused" note) is now fat. `ledger.py check`: problems 0. `mk_coverage.py`: 83 of 83.
+Ledger: 325 units (core 254, depth 64, owned 5, volatile 1, fat 1). 12 added (Fig. 1's steps, the cosine-cut quote, the norm links, three card titles, the replay's steps). Keys re-pointed on units 20 and 21 (the Fig. 1 sentence), 35 (the diagram sentence), 62 (the initialisation paragraph, now open, depth to core), 84 (Figure 5's title), 132 (Table 9's sentence), 228 (the Replay intro) and 237 (the replay's motion note); unit 25 (the old "starts paused" note) is now fat. `ledger.py check`: problems 0.
 
 Checks (13 November 2026): `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems (44 step-list numbers); `verify_layout.mjs` problems 0.

@@ -15,7 +15,6 @@ Built 2026-10-06 by the personal_agents page agent (prefix hpers). `sh build.sh`
 - Known bug left visible: with the gate off, the `remember` tool has no implementation and answers "error: unknown tool" (said on the page).
 - `build_data.py` -> `parts/30_js_data.js` (recordings plus `old_claims.json`); memory answers graded by a keyword rule, every answer read by hand.
 - `check.py`: page embeds exactly the built data; every hand-written number about the recordings matches; the Gate designer preset reproduces all 45 recorded gate-on decisions; privacy grep.
-- `old_claims.json` and `coverage.json`: the old page (`live.md`, verbatim) claim by claim: 39 claims, 20 verified, 15 corrected, 4 unconfirmed.
 
 ## Sources
 Research notes with quotes and URLs were gathered on 2026-10-06 from primary sources: docs.openclaw.ai (v2026.9.8), github.com/openclaw/openclaw (SECURITY.md, GitHub API), NousResearch/hermes-agent at tag v2026.9.24 (commit f97608f), NVD and GitHub advisories, the original incident reports (Ethiack, depthfirst, Bitsight, SecurityScorecard, Wiz, Koi, VirusTotal, AFP, Bloomberg), Meta's Muse posts, NVIDIA, Anthropic's September 2026 threat report, OWASP.
@@ -26,7 +25,7 @@ Research notes with quotes and URLs were gathered on 2026-10-06 from primary sou
 - Data file is about 170 KB, so the page is about 296 KB, near the 300 KB guide of the time (retired 2026-10-17).
 
 ## Computer-use capture (2026-10-24)
-`cu/form.html` is a fake garage booking form. `node <page>/src/cu/capture.mjs` (from the repo root) renders it in headless Chrome at 600 x 440, records the button boxes, the click point (centre of "Thu 8 Oct, 10:00"), Chrome's accessibility tree (flattened, a ref per node), then shows a cookie banner and records what lies under the same point (`elementFromPoint`): the banner moves the layout 49 px and the point lands on "Thu 8 Oct, 08:30". Screenshots go to `out/*.png` and are converted with `cwebp -q 80` to `../img/cu_plain.webp` and `../img/cu_banner.webp` (10 and 13 KB; credits in `../img/CREDITS.md`). `cu/make_cu_data.py` writes `parts/22_js_cu_0data.js`. A run takes a few seconds.
+`cu/form.html` is a fake garage booking form. `node <page>/src/cu/capture.mjs` (from the repo root) renders it in headless Chrome at 600 x 440, records the button boxes, the click point (centre of "Thu 8 Oct, 10:00"), Chrome's accessibility tree (flattened, a ref per node), then shows a cookie banner and records what lies under the same point (`elementFromPoint`): the banner moves the layout 49 px and the point lands on "Thu 8 Oct, 08:30". Screenshots go to `out/*.png` and are converted with `cwebp -q 80` to `../img/cu_plain.webp` (10 KB; credits in `../img/CREDITS.md`). `cu/make_cu_data.py` writes `parts/22_js_cu_0data.js`. A run takes a few seconds.
 
 ## Rebuild of 2026-10-24 (teaching contract)
 **What changed and why.**

@@ -58,13 +58,13 @@ Why 27 minutes is right: the page covers three codebases plus the others, and it
 347 units: core 247, depth 69, fat 31. 332 drafted by `ledger.py init`; 15 added by hand for script-rendered visuals (keys written into their static titles and captions) and for the two new units (Saxml, which to start from). Fat units carry a note.
 
 ## Departures from the method
-A child page with three subjects (three codebases) rather than one mechanism: the Reading tab follows MaxText's five boxes and then Tunix and Levanter. The labs are the three the brief asked for. No `live.md`: the page is new (no old Notion text).
+A child page with three subjects (three codebases) rather than one mechanism: the Reading tab follows MaxText's five boxes and then Tunix and Levanter. The labs are the three the brief asked for. The page is new (no old Notion text).
 
 2026-10-26 (final follow-up sweep): the PEFT and LoRA paper card quotes their headers (22 and 21 min) instead of "about 30 min each".
 
 ## The 2026-11 rollout: split layout, two 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `jx-lc-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: both scenes draw from `LC` (`out/*.json` via `build_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `jx-lc-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: both scenes draw from `LC` (`out/*.json` via `build_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

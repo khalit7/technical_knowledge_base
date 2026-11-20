@@ -17,7 +17,7 @@ Checks (run from src/ unless noted):
 - From the repo root: `node <page>/src/check_stages.mjs [shots dir]` (about 4 minutes): the rollout checks, see the 2026-11-10 section. `sh html_utils/checkpage.sh <page>`; `python3 html_utils/ledger.py check <page>`.
 
 ## 2026-11-10: the split layout and three 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Every Reading section with a visual is a split (text left, visual right, sticky); sections without one stay full width.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Every Reading section with a visual is a split (text left, visual right, sticky); sections without one stay full width.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|
@@ -78,6 +78,6 @@ Why 19 minutes is right: the core now carries what this page owns (scaling, the 
 229 units: core 135, depth 75, owned 4 (placement, logit controls, qk-clip and the "RMSNorm everywhere" trend, all carried by Normalisation, residuals and stability), fat 15. 220 were drafted by `ledger.py init` from the 2026-10-19 page; 9 record content added in this rebuild.
 
 ## Older history
-Overlap fix (19 October 2026): the transformer side moved to "Normalisation, residuals and stability" (3fd5c17b0d0d8163b50dc5e9d9240e89). The placement toy (`parts/21_js_toy.js`, `checks/toy_*`) and `real/real_streams.py` were started by an earlier agent and reused after checking. `live.md` is the old Notion text; `coverage.json` maps every fact in it (it predates the ledger); `inputs/extracts.txt` holds verbatim source quotes; `viz_ideas.md` the scored choices.
+Overlap fix (19 October 2026): the transformer side moved to "Normalisation, residuals and stability" (3fd5c17b0d0d8163b50dc5e9d9240e89). The placement toy (`parts/21_js_toy.js`, `checks/toy_*`) and `real/real_streams.py` were started by an earlier agent and reused after checking. `inputs/extracts.txt` holds verbatim source quotes; `viz_ideas.md` the scored choices.
 
 - 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; Classical ML, Kimi).

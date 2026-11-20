@@ -3,12 +3,10 @@
 `sh build.sh` writes `../index.html` (it runs `mk_tables.py`, `recompute.py` and `mk_paper.py` first). Then:
 - `python3 check_sim.py`: runs `parts/20_js_sim.js` through node against an independent NumPy implementation of Eqs. 7, 16 and 24 to 28 (15 cases, worst relative difference about 1e-13); writes `inputs/check_sim.json`.
 - `python3 locomo_stats.py <locomo10.json>`: lag buckets, sizes and the answer-word overlap counted from LoCoMo's released data (download command in the script's docstring; the file is not kept); writes `inputs/locomo_stats.json`.
-- `python3 mk_coverage.py`: `coverage.json`, every fact of `live.md` checked against the built page.
 - `node src/check_page.mjs [shots dir]` from the repo root: every control in both themes and widths.
 
 | File | What |
 |---|---|
-| `live.md` | the Notion row page as fetched (saved by `save_live.py`) |
 | `paper.json` | headline card, verdict, resources, KB links |
 | `tables.json` | Tables 2 to 5 transcribed at printed precision (`mk_tables.py` from `inputs/table_*.txt`) |
 | `recompute.py` | every derived number: means, question-weighted means, standard-error bounds, F1 levels, parameter counts, decay figures, the 19 claim checks; writes `inputs/recompute.json` |
@@ -30,7 +28,7 @@ What changed and why:
 - **Closed**: the write rules in full (Eqs. 7, 16, 24 to 28, initialisations; one sentence on the shared decay stays open), the training setup table and the LoCoMo split inference, Table 4 against the text, the OpenClaw and Hermes specifics, and the bullets of What it takes to use this (one summary sentence stays open).
 - **Volatile**: none found; the page has no dated follow-up news.
 - **No autoplay**: `makeAnim` patched as on the EnvHarness page (both step animations wait on step 1; a mode change resets paused); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `tpm-tab`). `check_page.mjs` now fails if an animation draws a frame before a click, opens every closed block, and runs Chrome as `headless: 'shell'`.
-- **Takeaway softened** (paper.json, so the card, `live.md` and `mk_coverage.py`'s item): "so writes and reads are differentiable" and "all six adapters positive at 10x" became: only the read adapters are trained, the write projections stay random; all six above zero at 10x, but the rate is clipped at zero and the baseline is zero by construction; at 1x three of six make answers worse than no adapter; net +1.8 to +6.3 F1 over 6.44 at 10x. The Notion property needs the same edit.
+- **Takeaway softened** (paper.json, so the card): "so writes and reads are differentiable" and "all six adapters positive at 10x" became: only the read adapters are trained, the write projections stay random; all six above zero at 10x, but the rate is clipped at zero and the baseline is zero by construction; at 1x three of six make answers worse than no adapter; net +1.8 to +6.3 F1 over 6.44 at 10x. The Notion property needs the same edit.
 - The author's email in `inputs/paper_v1.txt` is redacted and em-dashes in the extracts are `--`; `extract_paper.py` now does both. Header: "Reading: 18 min, plus 3 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -47,7 +45,7 @@ Why about 18 minutes is right: the core gained the sentence, hero and terms (abo
 234 units: core 202, depth 23, owned 4, volatile 0, fat 5. 220 drafted by `ledger.py init` from the page before the pass; 14 added (top, the four owner links, script-drawn charts keyed to their static captions). Fat: one wind-up and four citation fragments. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 155 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 214 actions, 0 problems (no frame before a click). `check_sim.py`: worst relative difference 9.5e-14. `mk_coverage.py`: 27 of 27.
+`checkpage.sh`: tabs 4, 155 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 214 actions, 0 problems (no frame before a click). `check_sim.py`: worst relative difference 9.5e-14.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -70,4 +68,4 @@ The growth is the step lists: the method explorer's card and both animations' ca
 
 Ledger: 237 units (core 205, depth 23, owned 4, volatile 0, fat 5); keys re-pointed on units 30 ("Fig. 1 attaches each method"), 32 ("Delegated or explicit read.") and 230 (the explorer card, now Fig. 1's list); three units added for the new step lists. `ledger.py check`: problems 0.
 
-Checks (2026-11-13): `checkpage.sh` 4 tabs, about 198 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems; `check_sim.py` worst relative difference 1.1e-13; `mk_coverage.py` 27 of 27; `verify_layout.mjs` 0 problems.
+Checks (2026-11-13): `checkpage.sh` 4 tabs, about 198 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 0 problems; `check_stages.mjs` 0 problems; `check_sim.py` worst relative difference 1.1e-13; `verify_layout.mjs` 0 problems.

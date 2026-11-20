@@ -7,7 +7,7 @@
 - `fetch_data.py`: downloads raw data to a cache outside the repo (MMLU-Redux 2.0 rows for six subjects, Open LLM Leaderboard v1 per-question details for 18 models, MT-Bench human judgments, HelpSteer2 disagreements). `mk_data.py <cache>` writes the extracts in `inputs/` (`audit.json`, `agree.json`); `inputs/northcutt.json` is Northcutt et al. Tables 1 and S1, transcribed from arXiv HTML v4.
 - `recompute.py` recomputes every derived number into `recompute.json`; `check_page.mjs` clicks every control at 390 px dark and 920 px light, steps both 3D stages through every mode, and compares the page's JavaScript (`HE_CHECK`) against `recompute.json` (567 comparisons, 0 mismatches).
 - `check_stages.mjs` (run from the repository root; 2026-11-09): both stages play once scrolled into view, stop redrawing off screen, never move under reduced motion, reach their last step with one step-list item per step in every mode, and every number in the step lists equals what the scenes compute (`window.ESS`); splits are two columns at 1400 px only.
-- `coverage.json`: every fact of the inherited gold-label text and the root mentions this page owns, with where it is carried or how it was corrected. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 
 Shape (before the 2026-10-24 rebuild): Part B (child page) of `.claude/skills/explainer-page/page-kinds/topic-child.md`, ordered by the life of a label (decide, design, staff, measure agreement, interpret disagreement, control quality, build gold, audit gold, find errors, preference data). Departure: two labs instead of one, because agreement and auditing are separate mechanisms each with its own released data.
 

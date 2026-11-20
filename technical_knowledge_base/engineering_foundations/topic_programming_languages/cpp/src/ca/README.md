@@ -33,4 +33,4 @@ Apple's ASan does not start on macOS 27. `lib.sh` writes both wrappers.
 ## What moved out (2026-10-26)
 The language examples (`code/lang/` except `features.cpp`, their `l_*` outputs, the lifetime traces `lt_*`, the timings
 `t_*`, `steps/30_timing.sh`) are on the ownership and classes children, each with its own trimmed copy of this folder.
-`coverage.json` (the old pages' claims, checked) and `viz_ideas.md` stay as provenance.
+`viz_ideas.md` stays as provenance.

@@ -32,8 +32,8 @@
 - `build.sh`: runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, assembles `parts/`, expands the link macros, fails on an unexpanded macro or an em-dash.
 - `paper.json` (card, verdict, resources, connections, anchor labels: this paper's HTML numbers tables by figure environment, so `S4.T5` is Table 4), `mk_paper.py` (from the ZeRO folder, plus the `labels` override).
 - `mk_tables.py` writes `tables.json` (Tables 1 to 7 transcribed, printed precision). `recompute.py` writes `inputs/recompute.json`: Table 1 margins and their standard errors, Table 2 deltas, Table 4 sums, Table 6 learned-minus-frozen and minus-BM25 cell by cell, hot-swap counts of 82, Appendix G parameter and index arithmetic.
-- `save_live.py` copied the Notion fetch verbatim into `live.md`; `extract_paper.py` turned the arXiv HTML v4 into `inputs/paper_v4.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the abstracts of the later papers quoted in Then and now and Why it matters, plus three Atlas passages.
-- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped through every step and question, text at least 11 px, no NaN or errors, no sideways scroll. `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
+- `extract_paper.py` turned the arXiv HTML v4 into `inputs/paper_v4.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the abstracts of the later papers quoted in Then and now and Why it matters, plus three Atlas passages.
+- `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, both animations stepped through every step and question, text at least 11 px, no NaN or errors, no sideways scroll.
 
 ## Parts
 
@@ -64,7 +64,7 @@ Why about 17 minutes is right: the page owns every detail of the paper and its e
 199 units: core 176, depth 16, owned 3 (HNSW at Vector indexes, key "hnsw read in hnswlib and faiss"; bi-encoder training at Embedding models, "with in-batch negatives as dense passage retrieval used them"; the naive RAG pipeline at the topic root, "naive rag embeds the question, takes the top k and generates"), fat 4 (the old reading-time crumb, the tab names, the section nav, the old reduced-motion sentence). 192 drafted by `ledger.py init`, 7 added by hand. Keys proposed by a script (a 4 to 6 word window of each unit found in the built page; depth when found only inside closed blocks) and checked by hand where the prose changed.
 
 ## Checks (2026-10-24)
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 284 KB. `check_page.mjs`: 1,958 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 53 of 53. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 284 KB. `check_page.mjs`: 1,958 actions, 0 problems (with the no-autoplay check). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -90,4 +90,4 @@ The growth is the step lists: the old animation captions and the hero's labels l
 Ledger: 202 units (core 179, depth 16, owned 3, fat 4); 3 added for the stages (keys "one learned weight per token, the signed bars", "the gradient's path, not its values", "bar heights are probabilities, to scale"); 1 re-keyed (162, "rag's pipeline has four parts", since the stepper card now sits between the Then and now heading and its first sentence). `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0 (332 KB, up from 287 KB: the renderer and two scenes). `check_page.mjs`: 1,904 actions, 0 problems. `check_stages.mjs`: 12 stages and animations (three widths; both modes and all four questions of the marginalisation stage), 0 problems. `mk_coverage.py`: 53 of 53. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0 (332 KB, up from 287 KB: the renderer and two scenes). `check_page.mjs`: 1,904 actions, 0 problems. `check_stages.mjs`: 12 stages and animations (three widths; both modes and all four questions of the marginalisation stage), 0 problems. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).

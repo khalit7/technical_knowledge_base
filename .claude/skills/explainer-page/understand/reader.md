@@ -3,7 +3,7 @@
 Every page in this knowledge base is written for one reader. Read this before planning any topic, paper or child page.
 
 ## Who he is
-- An ML, AI and research engineer whose main interest is **training models**, who wants to be really good at his job. He reads the pages in Notion, on a laptop and on a phone.
+- An ML, AI and research engineer whose main interest is **training models**, who wants to be really good at his job. He reads the pages on the reading site, on a laptop and on a phone.
 - He learns best when he is **taught**, not briefed: define every term, give the intuition and a picture first, follow one running example, then the detail and the evidence. His words (2026-10-04): "you should be teaching me, I don't know what I don't know, so I can't make decisions about what to include".
 - He distrusts unverified material: "don't trust the current content". Old Notion pages are notes to verify, not truth.
 - He likes **animations**, above all before/after on the same input (his favourite is the DeepSeek MLA explainer: one input stepped through the new method and, with a toggle, through the method it replaced). See [../visuals/animation-types.md](../visuals/animation-types.md).
@@ -19,12 +19,12 @@ Every page in this knowledge base is written for one reader. Read this before pl
 | Software engineering, system design | has served a model; has not built a backend API, used SQL in depth or run a service in production | start from what a server, a request, a database are |
 | Databases | has not used SQL databases in depth | SQL from zero |
 | Protocols, inference and serving | "use them, never studied" | from zero, starting from what he already runs |
-| GPUs, CUDA | never written a kernel; no NVIDIA GPU access | simulators, published numbers, compiled output read on the Mac |
+| GPUs, CUDA | never written a kernel | real kernels and profiles can run on the build machine's GPUs under the bench lock |
 | Agents | uses Claude Code; agents taught from what an agent loop is | traces from his Claude subscription (`claude -p`), never an API key |
 | RL, RAG, data curation, JAX, ML infra, generative and multimodal | from zero | from zero, all four goals |
 | Operating systems | reads OSTEP; wants processes, memory, OS APIs, concurrency with an ML focus | systems-programmer depth plus ML practice, targeted Linux source reads |
 
-His machine: an Apple M1 Pro laptop with 16 GB of memory (MPS GPU, shared by every agent), Docker Desktop when he approves it, no CUDA GPU. Resource rules: [../evidence/resource-safety.md](../evidence/resource-safety.md).
+The build machine and its resource rules: [../evidence/resource-safety.md](../evidence/resource-safety.md).
 
 ## The opening questions for every new topic
 Ask these once, in one message, as short multiple-choice questions with a recommended default. Do not start building until they are answered. For a paper or a single child page under an existing root, the reader rules below already apply and usually no questions are needed.
@@ -36,16 +36,16 @@ Ask these once, in one message, as short multiple-choice questions with a recomm
    3. **judge and debug** (read failures, logs and papers' ablations critically);
    4. **interviews and design** (design questions with trade-offs he can explain).
 3. **Evidence allowed.** What may run, and where:
-   - Mac, local only: open models, public data, no paid APIs or keys (the default);
-   - Docker (he starts Docker Desktop and sizes its VM; the sandbox cannot);
-   - the shared Mac GPU (MPS), one GPU job at a time;
+   - local only: open models, public data, no paid APIs or keys (the default);
+   - Docker, only when he approves it;
+   - the GPUs, one GPU job at a time under the bench lock;
    - his Claude subscription through `claude -p` for agent traces;
    - news: short, verified and in context only.
 4. **Children.** How free you are with the old child pages: reuse, restructure, retitle, merge or retire (so far always "same freedom as before; propose with the root").
 5. **Placement and overlap.** Which section the root goes under (for example Systems and performance), and, when live pages in *other* topics already cover part of it (search `technical_knowledge_base/pages.json` titles and folder names first), what happens to them: link them from the new root (the default), fold one in and retitle the old one "TO DELETE: ...", or deepen the existing page instead of making a new root. See [../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md).
-6. **Review.** Review the root before it is published, or publish straight to Notion and review there; publish each child as it passes checks, or hold for review.
+6. **Review.** Review the root before it is published, or publish straight to the site and review there; publish each child as it passes checks, or hold for review.
 
-"Mac local only" means: anything that runs on this Mac (CPU, and MPS one GPU job at a time under the bench lock), open models and public data, no paid APIs or keys. Choose the machine-mode block in [../orchestration/briefs/common.md](../orchestration/briefs/common.md) from it: GPU if any lab needs MPS, CPU only otherwise, containers only if he allowed Docker.
+"Local only" means: anything that runs on the build machine (CPU, and one GPU job at a time under the bench lock), open models and public data, no paid APIs or keys. Choose the machine-mode block in [../orchestration/briefs/common.md](../orchestration/briefs/common.md) from it: GPU if any lab needs the GPU, CPU only otherwise, containers only if he allowed Docker.
 
 Ask a topic-specific question only when the decision is genuinely his: a split into two roots (agentic harnesses and frameworks: "two roots, sharp split"), one page per language instead of eleven parts, whether Docker may run, which topic comes next.
 
@@ -65,11 +65,6 @@ Ask a topic-specific question only when the decision is genuinely his: a split i
 ## Standing preferences (apply without asking)
 - **Roots are short.** A root is an intuitive overview plus definitions, about 15 to 30 minutes of Reading; depth lives on child pages. Flag a longer root to him ([../page-kinds/topic-root.md](../page-kinds/topic-root.md)).
 - **No usage caps.** Never shrink agent work or runs to save his Claude subscription usage. Keep runs purposeful; waste (idle waits, sleep loops) is what to cut.
-- **Completeness over disk.** Widen experiments rather than trim them for disk, raise the topic's disk budget, and clean finished scratch regularly.
-- **Cheap runs over expensive ones.** Keep cheap runs that show a mechanism, a failure or a before/after. Before any run over about an hour, ask what he learns that the published number does not; if little, cite the published result and say "not run here" ([../evidence/local-runs.md](../evidence/local-runs.md)).
-- **Do not crash the Mac.** A kernel panic on 2026-10-15 wiped the scratchpad ([../evidence/resource-safety.md](../evidence/resource-safety.md)).
+- **Cheap runs over expensive ones** ([../evidence/local-runs.md](../evidence/local-runs.md)); machine safety and disk: [../evidence/resource-safety.md](../evidence/resource-safety.md).
 - **Methods are suggestions.** The shapes in [../page-kinds/](../page-kinds/) record what he approved, not templates. Depart where the content needs it and say why in `src/README.md`.
-- **Agents.** About four at a time. A multi-agent Workflow only with his explicit opt-in ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

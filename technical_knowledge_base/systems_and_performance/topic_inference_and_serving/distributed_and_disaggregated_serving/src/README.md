@@ -30,7 +30,7 @@ Rebuild: `python3 -I recompute.py; (cd pd && python3 -I pd_sim.py); python3 -I g
 - Everything else (Dynamo, NIXL, llm-d, GAIE, TensorRT-LLM, Triton, KServe, Ray, papers, DeepSeek, DeepEP, NVIDIA link specs): GitHub releases API, READMEs, docs and arXiv abstracts, read 2026-10-09 and 2026-10-10, URLs inline on the page; notes in the shared scratch research file (not committed).
 
 ## Departures from the method
-No `src/live.md`: the old page was already saved by the parent (`../../src/read/old/nvidia_triton_trtllm_dynamo.md`); `coverage.md` checks it claim by claim. The page is wider than the old one (parallelism and disaggregation from zero, as the parent's section 11 planned), so the NVIDIA products became one section (8) of ten.
+The page is wider than the old one (parallelism and disaggregation from zero, as the parent's section 11 planned), so the NVIDIA products became one section (8) of ten.
 
 ## The 2026-10-23 rebuild to the teaching contract
 Editing and moving only; one small addition to `recompute.py` (`mem`: the planner's per-GPU memory split at TP 1 and TP 2, for the section 1 figure; every other value in `out/calc.json` unchanged). No new runs.
@@ -58,7 +58,7 @@ Why 31 minutes is right: the page teaches five distinct ways to spread serving, 
 347 units: core 228, depth 86, fat 30, owned 3 (Megatron's column/row split and head division, at Distributed Training). 340 drafted by `ledger.py init` from the 2026-10-19 build; 7 added by hand for the new figures and the script-rendered section 7 table.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `dd-tab`), `05z_errbox.js.html`. The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. No new runs and no change to `recompute.py`, `gen_data.py` or the data: every scene draws from `window.DDC` (planner numbers), and its step-list numbers are checked against it.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `dd-tab`), `05z_errbox.js.html`. The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. No new runs and no change to `recompute.py`, `gen_data.py` or the data: every scene draws from `window.DDC` (planner numbers), and its step-list numbers are checked against it.
 
 New parts: `40_js_sc_00lib.js` (shared GPU board, labels, the fade rule), `40_js_sc_hero.js` (Fig. 1), `41_js_sc_rt.js` (Fig. 2), `42_js_sc_tp.js` (Figs. 3a and 3b), `43_js_sc_ep.js` (Fig. 5), `44_js_sc_pd.js` (Fig. 6), `45_js_sc_stack.js` (Fig. 8). Removed from `23_js_dd_figs.js`: the SVG hero, the router slider chart and the EP layer drawing (each replaced by a stage). `23_js_dd_split.js`: the four-way decode step is now seven explained steps (layout x users) with `#sx-split`, its two mode toggles and caption gone. `24_js_dd_pd.js` (Fig. 7) and the EPLB stepper in `32_js_ep.js` are widgets (`auto:false`, opening on their last frame): long replays whose outcome the reader drives.
 

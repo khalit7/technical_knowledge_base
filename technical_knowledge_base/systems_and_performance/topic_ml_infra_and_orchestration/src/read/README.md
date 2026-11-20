@@ -6,4 +6,4 @@ Parts (since the 2026-10-24 rebuild): `../parts/20_read.html` (styles, nav, the 
 - `recompute.py` -> `out/expected.json`: every simulated or derived number (backfill schedules, Llama 3 MTBF scaling, Young intervals, checkpoint sizes, the checkpoint timeline).
 - `check_read.mjs`: the page's numbers equal `expected.json`, prose spans included, and the reading time matches the word count. `check_ui.mjs`: every control at 390 px dark and 920 px light, no errors, NaN, undefined or sideways scroll. Run both from the repo root: `node <script> <index.html> [expected.json | shots dir]`.
 - `sources.md`: every external fact with its source and date. `inputs/openai_k8s_7500_extract.txt`: the quoted passages of OpenAI's 2021 post.
-- `todo.md`: numbers still to come from the labs. `coverage.md`: what to do when Notion is back. `viz_ideas.md`: visuals built and rejected.
+- `todo.md`: numbers still to come from the labs. `viz_ideas.md`: visuals built and rejected.

@@ -8,4 +8,4 @@ Copied from the Python language page's `src/pb/` on 2026-10-26 and trimmed to th
 | `interp/` | threads vs processes vs subinterpreters; the sys.path mistake; NumPy refusing to load in a subinterpreter |
 | `pack/` | PyPI wheel-tag survey of 25 compiled packages (`wheels.py`); the orjson free-threaded build failure |
 
-`versions.txt` lists every tool of the original Part 2 run (some were used only by material now on the sibling pages). `coverage.json`: the old Notion page's claims on these subjects.
+`versions.txt` lists every tool of the original Part 2 run (some were used only by material now on the sibling pages).

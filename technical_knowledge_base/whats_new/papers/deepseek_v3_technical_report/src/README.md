@@ -31,9 +31,8 @@
 - `mk_tables.py`: `tables.json` from `inputs/table_*.txt`.
 - `recompute.py`: parameters from `inputs/hf_config.json`, the bill, FLOPs and utilisation, MTP arithmetic, communication arithmetic, win counts, the text checks; writes `inputs/recompute.json`.
 - `fp8_sim.py`: the reference FP8 simulator (exact doubles, no transcendental functions, so JS and Python agree bit for bit); writes `inputs/fp8_sim.json` (about 25 s). `check_fp8.mjs` (node, from `src/`) runs `parts/12_js_fp8core.js` against it and writes `inputs/check_fp8.json`.
-- `save_live.py` copied the Notion fetch into `live.md`; `extract_paper.py` turned the arXiv HTML v2 and v1 into `inputs/paper_v2.txt`, `inputs/paper_v1.txt`, `inputs/table_*.txt` and `inputs/anchors_v2.txt`; `save_extracts.py` wrote `inputs/external_extracts.txt` (README, planetbanatt, Llama 3.1 model card and paper, NVIDIA H100, Transformer Engine, DeepGEMM).
+- `extract_paper.py` turned the arXiv HTML v2 and v1 into `inputs/paper_v2.txt`, `inputs/paper_v1.txt`, `inputs/table_*.txt` and `inputs/anchors_v2.txt`; `save_extracts.py` wrote `inputs/external_extracts.txt` (README, planetbanatt, Llama 3.1 model card and paper, NVIDIA H100, Transformer Engine, DeepGEMM).
 - `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, the accumulation animation stepped through every mode and option (and playing once scrolled into view), the scaling widget never moving by itself, text at least 11 px, no NaN or errors, no sideways scroll. `check_stages.mjs` (since 2026-11-12, after DDPM's): both 3D stages and the accumulation animation at 1400 light, 920 light and 390 dark, play on view, step lists, reduced motion, and the numbers in the stages' step lists against what the scenes compute. `shoot.mjs` screenshots one element for review.
-- `mk_coverage.py`: writes and verifies `coverage.json` against `live.md` (77 items).
 - `ledger.json` (knowledge ledger) and `label_ledger.py` (labels it against the built page); `reading.json` holds the header's minutes, measured with `html_utils/audit_pages.mjs`.
 
 ## Parts
@@ -70,7 +69,7 @@ Why about 29 minutes is right: The paper plus the two lab tabs was 33.9 minutes 
 329 units: core 263, depth 45, owned 8, volatile 5, fat 8. 319 drafted by `ledger.py init` from the page as committed before the pass; 10 added (core sentence, hero, V2 inheritance note, new terms, all-to-all diagram, two prediction prompts, three owner links). Fat: links and intros of the two removed tabs, an animation-manners line, two sentence fragments. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 3, 190 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 308 actions, 0 problems (no frame before a click). `check_fp8.mjs`: 283 numbers compared, 0 mismatches. `mk_coverage.py`: 77 of 77.
+`checkpage.sh`: tabs 3, 190 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 308 actions, 0 problems (no frame before a click). `check_fp8.mjs`: 283 numbers compared, 0 mismatches.
 
 2026-10-26 (final follow-up sweep): Further reading notes (paper.json) no longer name the merged Check the bill tab; they point at the Reading tab's bill section.
 

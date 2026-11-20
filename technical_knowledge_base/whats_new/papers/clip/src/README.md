@@ -23,13 +23,12 @@
 ## Files
 
 - `build.sh` (from the reference; HTML and JS lists edited; closed `<details>` counted apart in the reading time; checks every `ax:` link and margin label against `inputs/anchors.txt`). Runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, `mk_runs.py`.
-- `save_live.py`: copies the Notion fetch verbatim from the agent transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `inputs/table_*.txt` and `inputs/anchors.txt`. `inputs/figure_labels.json`: values printed as labels on Figures 2, 4, 5, 7, 9 and 13 and Figure 3's pseudocode, transcribed from the arXiv HTML figure files (no curve read).
 - `mk_tables.py`: parses Tables 1, 2, 8 to 14, 16 to 20 into `tables.json`. `recompute.py`: Figure 5 from Tables 10 and 11, Figure 8's correlation, Figures 10 and 11's counts and margins, Figure 7's mean and median, Figure 2's ratios, Figure 9's range, Table 1 ratios, Table 2 gains, Table 16 changes and the ObjectNet reconciliation, the text-encoder parameter count, GPU-days, 405 years; writes `inputs/recompute.json`.
 - `paper.json`, `mk_paper.py` (from the reference, plus an override map for anchors the arXiv HTML numbers out of step: `S7.T4` is Table 3, `A1.F22` is Table 11; appendix letters to F).
 - Toy model: `parts/21_js_gen.js` is the toy web's generator (images and captions), used by the page and, through `gen_data.js` (node), to write the training data, so the page draws exactly the training distribution. `train.py` (the six runs, `export`, `probe`), `check_forward.py` (JS against PyTorch: PASS), `overlap.py` (test against training), `mk_runs.py` (logs to `parts/_gen_runs.js`). `model/runs/*.json` are the logs, `model/clip_q.pt` the shipped quantised weights, `model/report.json`, `model/probe.json`, `model/check_forward.json`, `model/overlap.json`. Checkpoints in `model/ck/` are not needed by the page.
   - `node gen_data.js $DATA 120000`, then `DATA=$DATA uv run --with torch --with numpy python train.py sweep` (about 30 minutes in all on a shared laptop CPU, 2 threads; torch is never added to pyproject.toml), `... train.py export`, `... train.py probe`, `... check_forward.py`, `DATA=$DATA uv run --with numpy python overlap.py`.
-- `check_page.mjs` (from the reference, adapted: the class sets and prompts, the word-shuffle and unknown-word checks, search, the fresh-image test, the four animations). `mk_coverage.py` writes `coverage.json`.
+- `check_page.mjs` (from the reference, adapted: the class sets and prompts, the word-shuffle and unknown-word checks, search, the fresh-image test, the four animations).
 - `inputs/`: `paper_v1.txt`, `table_*.txt`, `anchors.txt`, `figure_labels.json`, `later_abstracts.txt` (arXiv API abstracts of 22 later papers), `modern_extracts.txt` (quoted lines from LLaVA, the Stable Diffusion README, the OpenCLIP README, ALIGN, Fang et al., CapPa, SigLIP, the CLIP model card and licence), `recompute.json`.
 - `viz_ideas.md`: the visualisations chosen and rejected, ids P-clip.k.
 
@@ -49,7 +48,7 @@ Zero-shot with "a photo of a {class}", float weights (the shipped 6-bit model: 8
 
 ## Checks (2 October 2026)
 
-See the agent's report; `sh html_utils/checkpage.sh <folder>` and `node .../src/check_page.mjs` are the two checks, `check_forward.py` the model check, `mk_coverage.py` the coverage check (88 of 88 items verified).
+See the agent's report; `sh html_utils/checkpage.sh <folder>` and `node .../src/check_page.mjs` are the two checks, `check_forward.py` the model check.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -78,7 +77,7 @@ Why about 25 minutes is right: the audit counts the pseudocode and every predict
 320 units: core 210, depth 96, owned 7, volatile 2, fat 5. 310 drafted by `ledger.py init`; 10 added (core sentence, hero, new terms, six owner links, the script-drawn tables). `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, 299 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 778 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 88 of 88 (the reading-time and Problem keys updated). The model and its JS are unchanged, so `check_forward.py` was not rerun.
+`checkpage.sh`: tabs 5, 299 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 778 actions, 0 problems (including no movement before a click and every closed block opened). The model and its JS are unchanged, so `check_forward.py` was not rerun.
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -106,4 +105,4 @@ The growth is the step lists: the old animations' captions lived in JavaScript, 
 Ledger: 323 units (core 213, depth 96, owned 7, volatile 2, fat 5); 3 added for the stages, 8 rekeyed (41, 42, 44, 45, 92, 94, 95, 280) where an animation caption or footnote became a step or was reworded; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 716 actions, 0 problems. `check_stages.mjs`: 18 stages and animations (three widths; both modes of the objective and zero-shot stages), 0 problems. `mk_coverage.py`: 88 of 88. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 716 actions, 0 problems. `check_stages.mjs`: 18 stages and animations (three widths; both modes of the objective and zero-shot stages), 0 problems. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).

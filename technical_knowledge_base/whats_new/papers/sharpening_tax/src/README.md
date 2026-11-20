@@ -1,6 +1,6 @@
 # Sharpening Tax in Post-Training: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row had no old body ("Being built in the technical_knowledge_base repository."), no child pages, databases or video, so coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs` (replaced on 2026-10-26 by the skill template `99_js_tabs.js`), `mk_paper.py`, `build.sh`) via the SA-MRPO page's copies; `check_page.mjs` and `mk_coverage.py` rewritten for this paper.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row had no old body ("Being built in the technical_knowledge_base repository."), no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs` (replaced on 2026-10-26 by the skill template `99_js_tabs.js`), `mk_paper.py`, `build.sh`) via the SA-MRPO page's copies; `check_page.mjs` rewritten for this paper.
 
 ## Tabs
 
@@ -31,18 +31,18 @@
 
 ## Files
 
-- `save_live.py` (the Notion fetch, verbatim, from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_*.txt`; anchors listed in `inputs/anchors.txt`).
+- `extract_paper.py` (arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_*.txt`; anchors listed in `inputs/anchors.txt`).
 - `inputs/outcomes_42cells.csv.gz`: the authors' released per-task counts (github.com/changdaeoh/sharpening-tax, commit 789ae06c82728dc40f4f80e855d0f972eff1e5c6, `data/outcomes_42cells.csv.gz`, sha256 116b5dae...0ee3, CC BY-NC 4.0, 165 KB). `mk_data.py` checks the hash.
 - `mk_tables.py` (tables.json, read from the extracts, PDF numbering), `mk_data.py` (needs numpy, in the repo's .venv: `inputs/replay.json`, `parts/_gen_cells.js`, the Figure 7 split check, the Appendix C.1 aggregate crossovers), `recompute.py` (`inputs/recompute.json`: every check shown in the tables tab).
 - `parts/22_js_toy.js`: the toy engine (browser and node). `toy_sweep.mjs` (node, about 2 s): every toy number (`inputs/toy.json`, `parts/_gen_toydata.js`). `inputs/authors_toy_output.txt`: the authors' toy run unmodified (numpy, 5 seeds), transcribed into tables.json.
 - `check_toy.mjs` then `<python with numpy> check_toy.py <checkout of the authors' repo at 789ae06c>`: the engine against the authors' functions on fixed inputs (`model/toy_case.json`, `model/check_toy.json`: PASS; probabilities and gradients within 2.2e-16).
-- `check_page.mjs` (from the repo root with node; set CHROME_PATH if needed): every control in both themes and widths, every animation and stage playing once scrolled into view, the two-sampler animation stepped in both modes with mid-move screenshots, all 42 replayed cells against Table 7, the live toy run against the sweep for all 10 seeds, prose numbers against the data, reduced motion. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs` (from the repo root with node; set CHROME_PATH if needed): every control in both themes and widths, every animation and stage playing once scrolled into view, the two-sampler animation stepped in both modes with mid-move screenshots, all 42 replayed cells against Table 7, the live toy run against the sweep for all 10 seeds, prose numbers against the data, reduced motion.
 - `check_stages.mjs` (from the repo root with node, about 4 minutes): the 2026-11-06 layout and motion rules and the step lists' numbers (see the 2026-11-13 section).
 - `parts/31_js_sc_tasks.js`: Stage 1, the 3D scene; `parts/25_js_s3.js` and `parts/02_split.html`: the templates, unchanged.
 
 ## Checks (19 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 297 KB. `check_page.mjs`: 0 problems. `check_toy.py`: PASS. `mk_coverage.py`: 43 of 43. Measured on a Linux cloud container (4 CPUs, no GPU); everything here is deterministic CPU work.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 297 KB. `check_page.mjs`: 0 problems. `check_toy.py`: PASS. Measured on a Linux cloud container (4 CPUs, no GPU); everything here is deterministic CPU work.
 
 ## The 2026-10-26 light pass (teaching contract)
 
@@ -54,7 +54,7 @@ What changed and why:
 - **Volatile**: none beyond the card's version line; arXiv still lists only v1 (checked 26 October 2026).
 - **Tabs kept**: Replay the 42 cells, Train with PTGS and the tables are tools with several controls each, used by the trust section; none explains a single mechanism.
 - **No autoplay**: `makeAnim` patched as on DSec (the polarisation and two-sampler animations wait for a click; a mode switch pauses on step 1); `90_js_tabs.js` replaced by the template `99_js_tabs.js` (storage key `st-tab`, keeping `data-to`). `check_page.mjs` fails if an animation draws a frame before a click, audits every closed block opened, and no longer clicks Play after a mode switch.
-- **Takeaway scoped** (`paper.json` takeaway and new `takeaway_note`, the card, the Takeaway in `live.md`, `mk_coverage.py`): "because post-training pushes tasks to the extremes" became "with tasks polarising" (the paper shows the two together, observationally); the 26-of-42 count now names the decoding set-up it depends on; PTGS's evidence is stated (five runs, two grid games, tax reductions within noise). The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json` takeaway and new `takeaway_note`, the card): "because post-training pushes tasks to the extremes" became "with tasks polarising" (the paper shows the two together, observationally); the 26-of-42 count now names the decoding set-up it depends on; PTGS's evidence is stated (five runs, two grid games, tax reductions within noise). The Notion property needs the same edit.
 - Source extracts already had author emails as "[email removed]" and no em-dashes; `extract_paper.py` already enforced both.
 
 ## Length judgement

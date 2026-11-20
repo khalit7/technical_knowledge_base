@@ -18,7 +18,7 @@
 - **The live ingredient is a simulator, not a toy model** (the method's "systems" row). A trained model would teach nothing here; the claim is about memory allocation, which can be simulated exactly from the paper's rules (§6.1) and its own length distributions.
 - **The block-table animation sits inline in Reading**, not on its own tab, because it is the explanation of §4.3 and §4.4 and uses the paper's own figures' numbers.
 - **"Then and now" kept** (the method treats it as optional): the paged KV cache became the standard layout, and the paper's swap path has since been removed from vLLM, which a reader of the paper should know.
-- **Reading is long (about 25 minutes against the old page's 11; 24 core plus 6 closed after the 2026-10-25 pass)**: the paper page owns every detail of the paper plus the evidence section; the old summary's facts are all carried (`coverage.json`).
+- **Reading is long (about 25 minutes against the old page's 11; 24 core plus 6 closed after the 2026-10-25 pass)**: the paper page owns every detail of the paper plus the evidence section; the old summary's facts are all carried.
 
 ## Files
 
@@ -29,8 +29,6 @@
 - `sim.py`: the KV cache simulator (rules in its docstring); `parts/12_js_sim.js` is a line-for-line port, and `inputs/sim_check.json` holds the default runs the check compares (270 numbers, identical).
 - `check_stages.mjs` (from the repo root, 2026-11-13): the 3D stage and the two 2D animations at 1400 light, 920 light and 390 dark (autoplay once in view, one list item per step in every mode, a mode switch replays, a reader control stops autoplay for good, flows stop off screen, last step reached), every split two columns at 1400, reduced motion, and 174 numbers and events: the hero's step list against Table 1, Figure 2, Figure 13a and the simulator's averages, and every admission, finish and preemption the toy's stretch lists name against the simulator's trace.
 - `check_page.mjs` (from the repo root: `node technical_knowledge_base/whats_new/papers/pagedattention/src/check_page.mjs`): simulator and curve crossings against Python, then every control at 920 light and 390 dark, both animations stepped end to end with mid-animation screenshots to `../.shots/x-*.png`, text under 11 px, NaN/undefined, errors, sideways scroll.
-- `mk_coverage.py`: 61 facts of `live.md` with where the page carries each, verified against the built page; writes `coverage.json`.
-- `save_live.py`: copied the Notion fetch verbatim into `live.md`.
 - `inputs/later_extracts.txt`: the quoted lines from later sources (blogs, READMEs, release notes, TGI, TensorRT-LLM, SGLang, vAttention, Sarathi-Serve, llm-d), fetched 2026-10-03.
 
 ## Corrections to the old summary
@@ -44,7 +42,7 @@
 
 ## Checks (3 October 2026)
 
-`sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/pagedattention`: tabs 5, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: simulator 270 numbers and curve crossings 558 numbers identical to Python; 614 actions, 0 problems. `mk_coverage.py`: 61 of 61 verified. Page about 227 KB.
+`sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/pagedattention`: tabs 5, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: simulator 270 numbers and curve crossings 558 numbers identical to Python; 614 actions, 0 problems. Page about 227 KB.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -72,11 +70,11 @@ Why about 24 minutes is right: the paper has more distinct method pieces than mo
 283 units: core 243, depth 27, owned 6, volatile 5, fat 2. 271 drafted by `ledger.py init` from the page before the pass; 12 added (core sentence, hero, terms, three moved charts, six owner links). Fat: the two old animation-manners lines. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: simulator and curve crossings identical to Python; 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 61 of 61 (the reading-time item's keys and the batching key updated).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: simulator and curve crossings identical to Python; 0 problems (including no movement before a click and every closed block opened).
 
 ## The 2026-11-13 layout rollout (split layout, a renderer v2 stage, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `pagedattention-tab`). `21_js_rd_common.js` is not used: the page's own `makeAnim` (`11_js_ui.js`) is the rollout copy from Latent Context LMs (step lists per mode, autoplay on view, stops for good on a control, `data-playing`), plus two additions: a per-step duration (`durOf`) and the step's raw progress passed to `draw`, so a step can play a stretch of frames. `12_js_sim.js` gained one option, `snapAt` (record one iteration's layout for the stage; no count changes, `check_page.mjs` still finds all 270 numbers identical to `sim.py`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `pagedattention-tab`). `21_js_rd_common.js` is not used: the page's own `makeAnim` (`11_js_ui.js`) is the rollout copy from Latent Context LMs (step lists per mode, autoplay on view, stops for good on a control, `data-playing`), plus two additions: a per-step duration (`durOf`) and the step's raw progress passed to `draw`, so a step can play a stretch of frames. `12_js_sim.js` gained one option, `snapAt` (record one iteration's layout for the stage; no count changes, `check_page.mjs` still finds all 270 numbers identical to `sim.py`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|
@@ -117,4 +115,4 @@ The growth is the step lists. On The paper, the hero's list (about 350 words, pl
 
 Ledger: 293 units (core 253, depth 27, owned 6, volatile 5, fat 2); 10 added (the stage, its provenance and bill, two block-table list facts, four toy stretch facts); keys re-pointed on 33, 34, 35 (the Oracle question, now a paragraph), 62 (the block-table intro), 69 (the Figure 6 walk-through, now the list), 194, 197, 198, 200 (the Simulate intro and Try line). `ledger.py check`: problems 0.
 
-Checks (13 November 2026): `checkpage.sh` tabs 5, fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems (simulator 270 and crossings 558 numbers identical to Python); `check_stages.mjs` 0 problems; `mk_coverage.py` 61 of 61; `verify_layout.mjs` problems 0.
+Checks (13 November 2026): `checkpage.sh` tabs 5, fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems (simulator 270 and crossings 558 numbers identical to Python); `check_stages.mjs` 0 problems; `verify_layout.mjs` problems 0.

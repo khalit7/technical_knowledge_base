@@ -20,10 +20,9 @@ Scripts as run are in `code/` (they ran from a scratch folder; paths there are r
 ## Pipeline
 1. `python3 redact.py <scratch>/agents/fobs` writes `recordings/` and `data/` (paths to /work; home folder, login name, git identity and any non-example e-mail replaced at run time by `code/redact_common.py`, which contains none of them; Claude Code identity attributes and ids replaced by labels; signatures and rate-limit events dropped). Fails on any leak. No em-dashes occurred in model output.
 2. `python3 gen_data.py` writes `parts/22_js_data.js` from data/, recordings/ and inputs/ only.
-3. `sh build.sh`, then `python3 check_page.py`: data part regenerates identically and is embedded; the run's cost recomputes from its usage and list prices; Langfuse's 1-hour total and the cost metric equal it; the 16% gap equals exactly the 5-minute vs 1-hour cache-write price difference; quoted timings and counts match the recordings; no em-dash or private string in the folder (`live.md` excluded: verbatim old page that names the owner).
+3. `sh build.sh`, then `python3 check_page.py`: data part regenerates identically and is embedded; the run's cost recomputes from its usage and list prices; Langfuse's 1-hour total and the cost metric equal it; the 16% gap equals exactly the 5-minute vs 1-hour cache-write price difference; quoted timings and counts match the recordings; no em-dash or private string in the folder.
 
 ## Inputs
-- `live.md` old Notion page (read-only fetch 2026-10-06). `coverage.json` maps every claim.
 - `inputs/research.md` primary-source checks by a research helper (2026-10-06), with quotes and URLs.
 - `inputs/semconv_cb10b70.json` span types, attributes and levels extracted from the GenAI conventions model at commit cb10b70.
 - Excerpts: tail sampling and redaction processor READMEs at v0.162.0; Claude Code monitoring docs, span attributes.

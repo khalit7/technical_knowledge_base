@@ -7,8 +7,7 @@ How to decide which visuals a page gets, where each goes, and how their numbers 
 - Write down, in one sentence, the question the subject keeps returning to (for Topic: llm-landscape: where the test-time budget goes and what a model costs to serve; for DeepSeek: what it costs to train and serve). A visual is worth building when it makes that question measurable.
 - List the page's existing visuals and outbound links first (and the root's, the siblings' and the paper pages' when building a child), so new ideas do not repeat what exists and the page's own sources become the first places to look.
 - Only then open [animation-types.md](animation-types.md) to pick a form.
-- **Ask whether it must be 3D** ([three-d.md](three-d.md)): 2D is the default. Choose a 3D stage only when depth carries information the reader needs and makes the idea faster or more robust to grasp than a flat figure; if a flat diagram or the step list alone would teach the same as fast, draw it flat. Never 3D for looks. Curves, scatters, heatmaps and tables stay 2D.
-- **Every visual goes in the right column of its section** (the split layout, [../teaching/teaching-contract.md](../teaching/teaching-contract.md)); a section without one is full width.
+- 2D or 3D, and where it sits (the split layout): [../teaching/teaching-contract.md](../teaching/teaching-contract.md) is the rule.
 
 ## 2. The two most valuable kinds
 1. **Recompute a published figure with one movable parameter.** Rebuild a number the source reports from its formula and configuration, let the reader move one input, and land the defaults on the published value (Long context's KV-cache calculator tab rebuilds KV memory for any config; the LLM architecture root's Config calculator does parameters and FLOPs per token).
@@ -36,7 +35,7 @@ Subtract build cost. Ties go to the visual that links to more of the page's othe
 Pages that are not about mechanisms fit the scoring poorly: categorical facts (licences per checkpoint) become a checker or matrix read verbatim; on a data page the table is the main visual and keeps every field; a breadth page puts many small subjects on the same axes with an evidence column; a news issue earns one index visual (the week strip) plus a visual only where a headline hides a mechanism.
 
 ## 4. Placement follows scope
-Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is the Reading flow**: a visual that proves a claim sits beside that claim, in the right column of its section (split layout). The audit of 2026-10-23 found the strongest animations of most pages one click away in lab tabs while the Reading tab described them in words.
+Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is the Reading flow**: a visual that proves a claim sits beside that claim, in the right column of its section (split layout).
 - **Own tab** when the visual answers "across all of X, how does Y change" (every model, every release, every config), or is a lab with several sections and controls.
 - **Inside Reading** when it explains one mechanism at the moment the text introduces it.
 - **Inside an existing tab** when it shares that tab's axis.
@@ -45,22 +44,14 @@ Every page has the same frame: **Reading** first (the explanation interleaved wi
 - Each fact is said once, where it is owned, and linked from elsewhere (`{{text|#t-tab}}` between tabs, `{{text|n:<id>}}` to other pages).
 
 ## 5. Numbers traced, not trusted
-The HTML is the only content of the page, so every number in a visual is treated like a citation.
-- Trace each figure to the source that first states it and record the link when you read it.
+Every number in a visual is sourced and labelled as [../evidence/sourcing.md](../evidence/sourcing.md) says (independently or by construction, disagreements shown, tables over prose).
 - **Recompute every proposed visual in a short script before proposing it** (`src/recompute.py` or the tab's own script). That is how DeepSeek V4-Flash's compute came out at 12% against the stated 10%; the tab shows the gap as an exposed assumption instead of hiding it.
-- Label every number: published, measured (with the machine), derived (with the formula), illustrative, or unconfirmed.
-- Say whether a default reproduces a figure **independently or by construction** (a split that matches because one input was back-solved from it is by construction).
-- When two primary figures disagree, show both with the arithmetic behind each rather than picking silently. Check a source's rounding before calling a mismatch a contradiction; check a paper's tables for internal arithmetic; when text and table disagree, quote the table and say so.
-- Headline ratios with unstated accounting (per layer against whole model) are shown under each accounting, naming the one that reproduces the headline.
 - The page's JavaScript is checked against the script (same inputs, same outputs) as part of [../build/checks.md](../build/checks.md).
 
 ## 6. Never mix figure kinds on one axis
 - Never join two metrics a source reports one after the other (monthly tokens across surfaces, then API tokens per minute): separate series, saying when each stops.
-- Never splice benchmark or index versions; record the version and date beside every score; launch-day and current figures are separate panels.
+- Launch-day and current figures are separate panels; a leaderboard re-run in place is two dated readings; speeds and latencies are dated measurements, not facts.
 - Measured-here results and published results sit apart and are labelled; vendor figures and independent measurements are visibly distinguished.
-- Compare compute only at matched precision, stating dense or sparse on both sides; dollars, GPU-hours and FLOPs stay on separate axes unless a stated rate converts them.
-- Speeds and latencies are dated measurements, not facts; a leaderboard re-run in place is two dated readings.
-- Read values printed as labels on a figure (labelled "read from figure"), or decode vector figures calibrated on their gridlines; never read curves by eye.
 
 ## Where ideas come from (in this order)
 Primary papers and reports (arXiv HTML, their tables and figures: the quantity the authors chose to plot is a hint); model cards and config files; official code repositories (diagrams of system behaviour, formula tables, small algorithms that port exactly); changelogs and pricing pages; visual explainers (to avoid copying them and to see which ideas readers find hard); interactive explainers and playbooks (interaction patterns that work: calculators, schedule tables, transformer explainers); analysts and trackers for independent series (Epoch AI, Artificial Analysis, METR, LMArena); videos last, for metaphors. Always search for critiques of the topic's best-known claims: a widespread misconception makes a good visual.

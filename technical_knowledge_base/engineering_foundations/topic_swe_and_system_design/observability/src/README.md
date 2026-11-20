@@ -17,7 +17,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (the fail-safe build).
 - `python3 recompute.py`: the SRE workbook's figures (one error found: the low-traffic "1,000x" burn rate is 100x), the alert engine (`alertlab.py`) on 7 incidents x 5 SLOs, the demo figures. ALL OK.
 - `node <this folder>/check_ui.mjs` from the repo root: every control at 390 dark and 920 light and the alert lab's JavaScript against `recompute_out.json` on all 35 runs. problems 0. (Its old "the incident animation is still on step 0 after scrolling to it" assertion was removed on 2026-11-07; `check_stages.mjs` now checks that it plays in view and never moves under reduced motion.)
 - `node <this folder>/check_stages.mjs [shot dir]` from the repo root (2026-11-07): at 1400 light, 920 light and 390 dark the four stages and the incident animation play when scrolled into view, reach their last step (both incident modes) with one list item per step, stop redrawing off screen and never move under reduced motion; splits are two columns at 1400 only; every number in the step lists is checked against `DEMO` (spans, buckets, log lines, sampling counts), `OBS_CARD`, `demo/otelcol.yaml` and the incident captions (`OBS_IX`). problems 0.
-- `python3 html_utils/ledger.py check <page>`: problems 0. `coverage.json` is the 2026-10-04 coverage record (old structure).
+- `python3 html_utils/ledger.py check <page>`: problems 0.
 
 ## 2026-11-07: split layout, four 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
 - **Templates** `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` and `build.sh` copied unchanged (storage key `obs-tab`).

@@ -3,6 +3,6 @@
 Notion: https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb (child of Topic: pytorch-ecosystem, 3c65c17b0d0d8150aa65ca44b6ed2fd5)
 Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/torch_compile/
 
-HTML-only page: `index.html` is the whole page, built by `src/build.sh`. Reuses the old page "torch.compile: Dynamo, AOTAutograd, Inductor", to be retitled; its text (no child pages, databases or video) is kept verbatim in `../src/read/old/torch_compile.md` and accounted for claim by claim in `src/coverage.md`.
+HTML-only page: `index.html` is the whole page, built by `src/build.sh`. Reuses the old page "torch.compile: Dynamo, AOTAutograd, Inductor", to be retitled (no child pages, databases or video).
 
 Tabs: Reading (the three former lab tabs, Graph-break fixer, Partitioner explorer and Compile time and caches, are now inside it, rebuilt 2026-10-23 to the teaching contract; split layout with three 3D stages since 2026-11-12) and Further reading. Every graph, log and timing was recorded with torch 2.14.1 on an Apple M1 Pro (CPU; Triton source generated without a GPU in Docker) on 2026-10-13; Python source quoted from the v2.14.1 tag. See `src/README.md`.

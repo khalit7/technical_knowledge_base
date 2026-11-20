@@ -47,8 +47,6 @@ Why 22 minutes is right: the page now carries everything the contract asks of th
 | `recompute.py` | checks the page's JS metrics against the full runs, the published numbers, the worked example, RAGTruth against the paper, every number quoted in prose, and `paired.json` with its caption numbers | `inputs/` only |
 | `check_page.mjs` | every control at 390 dark and 920 light, the calculator and paired figure against the recorded numbers, the curves against `paired.py`, autoplay of the two 2D animations once in view; element screenshots to `../.shots/` | the built page |
 | `check_stages.mjs` | the 2026-11-06 rollout checks: both stages and both 2D animations play once in view, stop for good on a reader control, never move under reduced motion, have one list item per step; the step lists' numbers equal what the scenes compute (`window.RRES`); splits two columns at 1400 px only; screenshots of every stage step (mid-tween and settled) at 1400 light and 390 dark to the directory given | the built page |
-| `mk_coverage.py` | wrote `coverage.json` (the 2026-10 migration's coverage of the old Notion page; superseded by `ledger.json`) | |
-| `save_live.py` | copied the Notion fetches verbatim into `live.md` (old "RAG evaluation" page) and `live_rag_topic.md` | session transcript |
 
 Reproduction (independent): dense nDCG@10 and R@100 equal MTEB's published all-MiniLM-L6-v2 results to the fourth decimal on all three sets; Lucene-style BM25 lands within 0.004 of Anserini's flat regressions (`inputs/published/`).
 

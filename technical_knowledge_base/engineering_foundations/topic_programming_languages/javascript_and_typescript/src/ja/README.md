@@ -9,7 +9,6 @@ Section anchors other pages can link: `#je-top` (the idea and hero), `#je-s1` ru
 - `outputs/node_versions_diff.txt` is the 2026-10-05 check over the whole old Part 1 (no difference on Node 22.22.2 or 26.10.0); a rerun of the trimmed `run_all.sh` rewrites it for this page's three deterministic examples.
 - `tpl/20_read_*.html`: the Reading sections. `gen.py` expands `[[run:]]`, `[[outc:]]` (output open, script in a closed block), `[[out:]]`, `[[code:]]` and `[[gen:startup|memory|heartbeat|install]]` (static bars drawn from the recorded outputs) and writes `../parts/20_read_*.html`. Never edit those parts by hand.
 - `check_embed.py`: every embedded output equals its file, every output file is on the page, and the bar labels carry the recorded numbers.
-- `coverage.json`: the old written page's claims that this page still carries or points to (trimmed 2026-10-26).
 
 Order: `sh run_all.sh && python3 gen.py && sh ../build.sh && python3 check_embed.py`.
 

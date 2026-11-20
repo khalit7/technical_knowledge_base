@@ -12,7 +12,7 @@ Data scripts (outputs committed in `inputs/`; big inputs and checkpoints never):
 - `real_logits.py`: `HF_HUB_OFFLINE=1 uv run --no-project --with torch --with transformers python real_logits.py` (needs Qwen/Qwen2.5-0.5B-Instruct and openai-community/gpt2 in the Hugging Face cache) writes `inputs/real_logits.json`.
 - `aa_small.py`: first `curl -sL -A "Mozilla/5.0" https://artificialanalysis.ai/models/qwen3-8b-instruct-reasoning -o <scratch>/aa.html`, then `python3 aa_small.py <scratch>/aa.html` writes `inputs/aa_small.json`.
 - `toy/`: the toy experiment. `world.py` (task: routes in a fixed 32-node graph; exact data policy), `train.py` (teacher, then seven student methods x three seeds, about 40 minutes on CPU), `mk_toy.py` (writes `inputs/toy.json`). Curves in `toy/runs/*.json`; checkpoints not committed.
-- `inputs/source_extracts.txt`: quotes behind every constant typed into `recompute.py`, with URLs. `live.md` is the old Notion page (fetched 2026-10-03); `coverage.json` maps every fact in it (2026-10-03); `ledger.json` is the knowledge ledger of the 2026-10-23 rebuild.
+- `inputs/source_extracts.txt`: quotes behind every constant typed into `recompute.py`, with URLs. `ledger.json` is the knowledge ledger of the 2026-10-23 rebuild.
 
 ## Tabs and parts
 | Tab | Parts |
@@ -54,7 +54,7 @@ Why about 20 minutes is right: the page teaches six mechanisms (soft targets and
 2026-10-26 (final follow-up sweep): Whose text adds NeoHorse-1's coarsened reverse KL (student's top-K candidates plus a remainder bin) as a published on-policy variant.
 
 ## 2026-11-10: the split layout and four 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (added to `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `dsl-tab`). `build.sh` already wrote the em-dash test as `ED=$(printf ...)`.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (added to `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `dsl-tab`). `build.sh` already wrote the em-dash test as `ED=$(printf ...)`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

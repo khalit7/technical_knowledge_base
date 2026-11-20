@@ -10,7 +10,7 @@ Child page of Topic: swe-and-system-design (page prefix `dsf`, storage key `dsf-
 - `node check_page.mjs`: clicks every control at 390 dark and 920 light; `node check_stages.mjs` (see 2026-11-07); `node shot_el.mjs <w> <dark|light> t-read <id>` for element screenshots.
 - `python3 ../../../../../html_utils/ledger.py check <page>` from the repo root: the knowledge ledger.
 - Measurement (unchanged): `measure_replication.py` (real Postgres 16.2 primary and streaming replica via the pgserver wheel, about a minute) writes `inputs/replication_local.json`.
-- Older provenance kept: `live.md` (the old Notion page, verbatim), `coverage.json`, `handoff_queues.md`, `handoff_reliability.md`.
+- Older provenance kept: `handoff_queues.md`, `handoff_reliability.md`.
 
 ## 2026-11-07: split layout, four 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
 - **Templates** `02_split.html`, `25_js_s3.js` (renderer v2, as `33_js_s3.js`), `21_js_rd_common.js` and `99_js_tabs.js` (key `dsf-tab`) copied unchanged; `build.sh` cats `02_split.html` after `01_head.html`. The page's `#t-read .an-ctl` rules no longer reach the stage bars (`:not(.stg-bar)`). `22_js_hero.js` and `26_js_fence.js` were removed.

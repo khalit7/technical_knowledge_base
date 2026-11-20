@@ -34,7 +34,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (copied from the root'
 | `check/check_stages.mjs` | the 2026-11-06 rollout checks (see the last section); `no_autoplay.mjs` was removed when the rule became autoplay on view |
 | `parts/02_split.html`, `parts/25_js_s3.js` | skill templates, unchanged: the split layout and the 3D renderer v2 |
 | `parts/40_js_sc_ck.js`, `41_js_sc_el.js`, `42_js_sc_sdc.js` | the three 3D stages (Fig. 1 to 3) |
-| `facts.md`, `viz_ideas.md`, `coverage.md`, `ledger.json` | verified facts, visual ideas, old-page note, knowledge ledger (2026-10-24) |
+| `facts.md`, `viz_ideas.md`, `ledger.json` | verified facts, visual ideas, knowledge ledger (2026-10-24) |
 
 Rerun: `sh scripts/ft_run.sh <scratch> <root src/data> <scratch>/mi/ft/runs` (native, no cluster lock needed; run the scratch guard first), `python3 scripts/ft_save_runs.py <scratch>/mi/ft/runs runs`, `python3 scripts/tax_build.py`, `python3 scripts/rec_build.py`, `<venv>/bin/python scripts/recompute.py`, `python3 scripts/make_data.py`, `sh build.sh`, `python3 check/check_data.py`, then from the repo root `node <this>/check/check_ui.mjs <index.html> <shots dir>` and `sh html_utils/checkpage.sh <page folder>`.
 
@@ -71,7 +71,7 @@ Why 35 minutes is right: the page teaches nine linked subjects (failure rates, f
 2026-10-24 topic close: section 5's managed-versions block links ML platforms and workflows section 10 (SageMaker against HyperPod); section 9 points to Observability and cost section 5 for the fleet goodput values (Meta's ETTR, Google's scheduling goodput, the value of one point), which stay there as metering; Further reading names Ray's Ray Train section, not the removed Train failure replay tab.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `ft-tab`). `build.sh` now writes the em-dash it greps for as bytes. No new runs; no change to `ft_data.json`, the scripts or the inputs: every scene draws from `window.FT`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `ft-tab`). `build.sh` now writes the em-dash it greps for as bytes. No new runs; no change to `ft_data.json`, the scripts or the inputs: every scene draws from `window.FT`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

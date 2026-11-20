@@ -12,7 +12,7 @@ The essentials page of the Python language (page prefix `es`, storage key `pyes-
 - `merge_ledger.py`: how `ledger.json` was made from the master ledger (below).
 
 ## What was removed
-With plain `rm` on 2026-10-26: `src/pa/` (Part 1: code, outputs, templates, generator, checks), `src/pb/` (Part 2: runs, data, checks) and every old file in `src/parts/` (part bar, Start here, both parts' tabs and scripts). Each child holds a trimmed copy of what it uses (see its `src/README.md`). Kept: `old_pages/coverage_part1.json` and `coverage_part2.json`, the checks of the two old Notion pages (the concurrency child has trimmed copies). Outside this folder, `rust/src/rs/run_all.sh` still reads `python/src/pa/code/a2_trace.py` and `a3_fanout.py`; those scripts now live in `concurrency_asyncio_and_the_gil/src/pa/code/` (reported for the Rust page's agent; not edited here).
+With plain `rm` on 2026-10-26: `src/pa/` (Part 1: code, outputs, templates, generator, checks), `src/pb/` (Part 2: runs, data, checks) and every old file in `src/parts/` (part bar, Start here, both parts' tabs and scripts). Each child holds a trimmed copy of what it uses (see its `src/README.md`). Outside this folder, `rust/src/rs/run_all.sh` still reads `python/src/pa/code/a2_trace.py` and `a3_fanout.py`; those scripts now live in `concurrency_asyncio_and_the_gil/src/pa/code/` (reported for the Rust page's agent; not edited here).
 
 ## Shape and departures
 - Top: the core sentence, a static hero (three frames, one per line of `y = x; y.append(3); z = x + [4]`: names, the object with its type and reference count, the special method looked up on the type, with the bytecode instruction; the real run in a closed block), "You need" (only everyday Python), new terms.
@@ -35,7 +35,7 @@ The "Integer caching" drill (and Float arithmetic, the two async drills and the 
 `sh html_utils/checkpage.sh <page>`: fail=0, emdash 0, errbox 1, clipped 0. `python3 html_utils/ledger.py check <page>`: problems 0. Every Notion id linked is in `pages.json`.
 
 ## 2026-11-07: split layout, a 3D hero (renderer v2), the children's figures linked (layout rollout)
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `pyes-tab`). `01_head.html` kept (it carries the `kb-look` block).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `pyes-tab`). `01_head.html` kept (it carries the `kb-look` block).
 
 **Sections** (Reading tab; Further reading unchanged):
 | Section | Layout | Visual | Step list |

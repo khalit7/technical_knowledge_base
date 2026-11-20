@@ -1,6 +1,6 @@
 # Page kind: a topic root (`Topic: *`)
 
-The root page of a topic: an intuitive overview, the comparisons and the definitions needed to follow them, and the map to its child pages. A suggestion, not a template: take the shape the content needs and say why in `src/README.md`. [../teaching/teaching-contract.md](../teaching/teaching-contract.md) governs; the 2026-10-23 audit found roots twice as long as their children because they re-taught them.
+The root page of a topic: an intuitive overview, the comparisons and the definitions needed to follow them, and the map to its child pages. A suggestion, not a template: take the shape the content needs and say why in `src/README.md`. [../teaching/teaching-contract.md](../teaching/teaching-contract.md) governs.
 
 Reference roots:
 - `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/`: from zero, five labs, a model map, nine children;
@@ -48,7 +48,7 @@ None of these is mandatory; each earns its place by answering a question the Rea
 - **Further reading**, last: children in reading order with times, the data tabs, neighbouring topics, papers and the best outside resources, timed and dated.
 
 ## Size
-Root pages run to about **1.5 MB** (the old 300 KB limit is gone). Budget each lab's embedded data from the start; on the generative root, labs were asked to keep data near 120 KB once the page reached 1.42 MB. If the root still runs over, move bulky data (trajectory frames, full matrices) to the child that owns the subject. Never cut knowledge to meet a size. Images are small WebP or PNG data URIs.
+Root pages run to about **1.5 MB**. Budget each lab's embedded data from the start; on the generative root, labs were asked to keep data near 120 KB once the page reached 1.42 MB. If the root still runs over, move bulky data (trajectory frames, full matrices) to the child that owns the subject. Never cut knowledge to meet a size. Images are small WebP files in `img/` ([../teaching/teaching-contract.md](../teaching/teaching-contract.md), Images).
 
 ## How a root is built
 A team of agents, one per tab ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)):
@@ -61,22 +61,16 @@ A team of agents, one per tab ([../orchestration/topic-pipeline.md](../orchestra
 Each tab agent owns only its own part files: CSS scoped under its tab id, ids prefixed, renders registered in `window.TAB_RENDER` ([../build/scaffold.md](../build/scaffold.md)).
 
 ## Publishing a root
-Commit and push like any page (`sync-kb-github`). Its Notion page has child pages, so its link line is written with `update_content`, never `replace_content`, keeping every `<page>` tag and any video. An old narrated video describes the old page: leave it, and tell Khalid it is his to delete.
+Like any page: the `sync-kb-github` skill (its Notion page has child pages, so only small `update_content` edits there).
 
 ## Lessons (dated)
 - **2026-10-01**: build folded-in tabs in parallel and write the Reading tab last, by one hand, from their drafts; give the build script per-tab slots.
 - **2026-10-02**: SVG labels drawn at a fixed width clip at phone width. Lay charts out by the measured container width and put long captions in HTML (`clipcheck.mjs` catches it).
 - **2026-10-03** (training topic): when the children are stages or techniques, compare them on shared axes with a stage x axis grid. The "compare everything" tabs became recipes, a price list and a calculator. Reconcile shared facts at assembly (the Reading tab and the Price list disagreed on what Thomson Reuters' $40M covered; the sourced reading won).
 - **2026-10-04** (rl): a root gives intuition, one or two visuals per idea and a Go deeper link per section. Hands-on depth (a tabular-RL lab) belongs to children; cut material is kept in `src/for_children/`.
-- **2026-10-04** (swe): on a topic he is new to, decide the spine, tabs and children yourself and present them as a teaching plan with reasons; teach from zero; treat the old page as unverified notes ([../understand/reader.md](../understand/reader.md)).
 - **2026-10-04** (evaluation and benchmarks): two neighbouring topics stay separate when they answer different questions; write down which page owns which subject and link both ways.
 - **2026-10-05** (programming-languages): a root about skills can be a philosophy-first design space. Python is the reference column; each axis gives the choice, the value it comes from, its cost and the false friends for a Python programmer.
 - **2026-10-05**: when copying a scaffold's `01_head.html`, change its `<title>` (four pages shipped with the root's title).
 - **2026-10-06** (agents): two roots on adjacent subjects take a sharp split. Harnesses: how a complete agent works, plus products. Frameworks: the building blocks. Link, do not repeat.
-- **2026-10-14** (rag): never `git add -A` over the topic while agents work (a commit swept in a map agent's unfinished files). Stage explicit paths.
-- **2026-10-15** (jax): `page_finalize.py` on a root folder commits everything under it, including children's in-progress `src/`. Publish the root before children start, or check what it swept.
-- **2026-10-15** (data curation): the GPU queue was cut to cheap runs that teach. Dropped runs cite the published result with "not run here".
 - **2026-10-17** (generative): set lab data budgets early (page 1.42 MB after five labs). A Reading tab written before the labs needs a final pass that fills every TODO from recorded outputs and applies the corrections the children found (guidance interval, autoguidance, model names).
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

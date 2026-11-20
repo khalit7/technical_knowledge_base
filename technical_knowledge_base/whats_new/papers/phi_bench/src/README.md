@@ -22,12 +22,10 @@
 ## Files
 
 - `build.sh`: runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, assembles `parts/`, expands the link macros, fails on an em-dash or unexpanded macro.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper.txt`, `inputs/table_*.txt`, `inputs/anchors.txt`. `decode_figs.py` (with `svgparse.py`, from the InstructGPT page): Figures 6, 7 and 8 to `inputs/figs.json`.
 - `inputs/`: `task_catalog.json`, `tasks_index.json`, `scoring.md`, `gh_readme.md`, `a3_task.toml`, `a3_manifest_extract.json` (fetched from the GitHub repository on 2026-10-03), `agent_timeouts.json` (from all 85 `task.toml` files), `lb_bench.json`, `lb_iter.json` (from faibench.org, generated 2026-08-15).
 - `mk_tables.py`: `tables.json`. `recompute.py`: 44 checks and every derived number, to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (34 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the replay stepped for every model; since 2026-11-13 it asserts that the replay plays once scrolled into view (it used to forbid it).
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, and the numbers of the static step lists (`sx-fmt`, `sx-cat`, `sx-rp-*`) against the page's data (`window.PHIFMT`, `window.PHICAT`, `window.PHIRUN`).
 - `parts/31_js_sc_fmt.js`, `parts/32_js_sc_cat.js` (2026-11-13): the two 3D scenes on the template renderer `parts/25_js_s3.js`; `parts/02_split.html` the split layout (template, unchanged).
@@ -39,14 +37,14 @@
 - **Owned elsewhere, now linked** (what this paper did kept here): MoE dispatch, balancing and capacity (Mixture of experts; the iteration study now names the levers in one sentence), honest timing (Profiling, benchmarking and correctness), the same-model harness spread (Agentic benchmarks), standard errors and paired comparisons (Evaluation statistics).
 - **Moved into closed blocks**: provenance and the corrections to the first summary; the three construction routes in detail (one summary sentence stays); what "speed-up" means per task and why anchors need recalibrating. The industry news under Why it matters (OpenAI's agent-workdays, AMD ROCm 10.0 Skills and Hyperloom) went to one dated closed block, "Industry context, September 2026".
 - **Never autoplays**: `makeAnim` waits on step 1 until the reader presses play or steps (also after a mode switch); the replay's caption says so. `check_page.mjs` scrolls the replay into view and fails on any frame drawn before a click, clicks tabs through the DOM, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `phi-tab`; `90_js_tabs.js` removed).
-- **Takeaway softened** (`paper.json`, so the card, `live.md` and `mk_coverage.py`): "resolves 36.53%" was a mean reward in which matching the expert scores zero, not tasks resolved; "Hardware and Edge collapsing to 5.4%" rests on 3 tasks and the 5.4% is Qwen3.7 Max's; "repository-scale work far harder than kernels" is now LHI 22 to 45% below KFC for every model; "longer reasoning budgets not reliably helping" is now best at max but not monotone, three models on 30 tasks; the behaviours come from a case study of one task and three models. Kimi K3 and Qwen3.8-Max are 0.39 points apart. The Notion property itself is Khalid's to change.
+- **Takeaway softened** (`paper.json`, so the card): "resolves 36.53%" was a mean reward in which matching the expert scores zero, not tasks resolved; "Hardware and Edge collapsing to 5.4%" rests on 3 tasks and the 5.4% is Qwen3.7 Max's; "repository-scale work far harder than kernels" is now LHI 22 to 45% below KFC for every model; "longer reasoning budgets not reliably helping" is now best at max but not monotone, three models on 30 tasks; the behaviours come from a case study of one task and three models. Kimi K3 and Qwen3.8-Max are 0.39 points apart. The Notion property itself is Khalid's to change.
 - **Length judgement**: Reading core 23 min before (5,391 words) and 24 after (5,421; 23.4 against 23.6 minutes), plus 0 then 2 in closed details (`audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes and the moves took out as much. The rest is core: the page's value is the reading of the reward scale and the evidence audit (selection rules, task counts per category, the mislabelled effort figure) beside the benchmark's method. Other tabs unchanged (Replay 2.3, Score 2.2, Tables 5.0, Further reading 2.5).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 277 units; core 258, depth 11, owned 5, volatile 1, fat 2 (the old header line and the old autoplay note); `ledger.py check` problems 0.
 - Source extracts: em-dashes replaced with `--` in `inputs/` (paper.txt, scoring.md, gh_readme.md, a3_task.toml, task_catalog.json, lb_bench.json, lb_iter.json, a3_manifest_extract.json; JSON kept valid, the built page unchanged); two author emails in `inputs/paper.txt` replaced with "[email removed]"; `extract_paper.py` now does both on extraction and `mk_tables.py` turns " -- " in the leaderboard blurb into ": " as it did the long dash.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 44 of 44; `mk_coverage.py` 34 of 34.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 44 of 44.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -70,4 +68,4 @@ What changed and why:
 
 The growth is the two stage step lists (about 450 words) that explain the stages and absorb the widget's bullets, and the replay's stretch lists, which replace a caption that changed every round and was readable only while it played. Two paragraphs that the stages now carry were shortened (the Hardware and Edge corrections, the package note under Three formats). Header: "Reading: 25 min, plus 2 in closed details." from `reading.json`.
 
-Ledger: 285 units (core 266, depth 11, owned 5, volatile 1, fat 2); `ledger.py check` problems 0. `mk_coverage.py` 34 of 34; `recompute.py` 44 of 44.
+Ledger: 285 units (core 266, depth 11, owned 5, volatile 1, fat 2); `ledger.py check` problems 0. `recompute.py` 44 of 44.

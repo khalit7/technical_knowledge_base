@@ -14,5 +14,4 @@ Copied unchanged from the C++ page's `src/cb/` (Part 2 of the old combined page)
 - Not run: Instruments/xctrace (hung even for `xctrace version`), `sample` (could not attach), Linux perf (not Linux). The page says so and shows `/usr/bin/time -l` counters instead.
 - `mmap` run 1 found the 512 MB test file evicted from the page cache (major faults, 0.9 s); runs 2 and 3 were warm. Kept and shown.
 - llama.cpp excerpts from the pinned commit 8e1642198dcd4e408f8776222d6ae31b74d01187 (`code/llama_excerpts.sh`).
-- `coverage.json` is the 2026-10-05 migration record of the old Notion page "C++: zero to expert"; its "Reading N" refers to the old Part 2 numbering (old 4 pages, 10 allocation, 11 profiling, 12 ABI, 13 GPU are now 4, 3, 10, 11, 12; old 14 "Common mistakes" was folded into the core and the In one screen table).
 - The hardware root's Roofline lab copies the medians of `out/roof_*.txt` into its own `src/roof/code/gen_data.py`; if these runs are redone, update it.

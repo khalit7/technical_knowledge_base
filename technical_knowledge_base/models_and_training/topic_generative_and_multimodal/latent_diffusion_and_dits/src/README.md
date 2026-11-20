@@ -44,7 +44,7 @@ Why 32 minutes is right: the page owns ten mechanisms (latents, U-Net, text enco
 - `tiny/`: `flops.py` (`out_flops.json`: FLOPs per pass of TinyUNet and TinyDiT at patch 8, 4, 2), `train_dit.py` (the Flow lab's recipe with TinyDiT; checkpoints `GM_SCRATCH/ckpt/ld_dit_*.pt`; `out/train_dit_*.json`), `sample_dit.py` (the Flow lab's Euler sampler and scoring: `out/tiny_scores.json`, `out/tiny_strips.npz`), `run_tiny.sh` (the queue under the bench lock).
 - `sources/find_lines.py`: locates every quoted source line by pattern (asserts one match) into `inputs/source_lines.json`.
 - `inputs/`: `published.json` (paper numbers used: DiT Table 4, PixArt, SD3, SDXL, cards), `source_lines.json`, `cfg_flux2_klein_4b_transformer.json`, `cfg_dit_xl2_256_transformer.json`, `dit_size_error.txt` (the real error quoted in Mistakes). Other configs are read from the root's `src/map/inputs/`.
-- `check_page.mjs`, `check_data.py`; `facts.md` (verified facts, also in the topic's shared FACTS file under "ld"); `sources.md`; `viz_ideas.md`; `coverage.md`.
+- `check_page.mjs`, `check_data.py`; `facts.md` (verified facts, also in the topic's shared FACTS file under "ld"); `sources.md`; `viz_ideas.md`.
 
 ## Runs (measured on Apple M1 Pro, 2026-10-17)
 
@@ -55,7 +55,7 @@ Why 32 minutes is right: the page owns ten mechanisms (latents, U-Net, text enco
 
 ## Departures from the method
 
-- No old page to cover (new page; Notion disconnected): `coverage.md` lists the brief's requirements and where each is.
+- No old page to cover (new page; Notion disconnected).
 - Many counts for gated or very large models (SD3, FLUX.1, Qwen-Image 20B) come from instantiating configs on the meta device instead of running them; each count is checked against a public total, and the page says so.
 - Page size about 0.7 MB (images of the cross-attention runs as WebP data URIs and 8-bit maps), over the 300 KB guideline of the time (retired 2026-10-17) and under the topic's 1 MB limit.
 

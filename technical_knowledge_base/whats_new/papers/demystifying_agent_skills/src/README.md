@@ -27,7 +27,6 @@
 - `recompute.py`: every derived number and check, written to `inputs/recompute.json` and shown in the checks table.
 - `mk_example.py`: Appendix A.3 and B.1/B.2 verbatim into `parts/20_example.js` (braces escaped for the build).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (70 items from `live.md`, verified against the built page).
 - `check_stages.mjs` (from the repo root): the 2026-11-06 layout and motion checks (splits, both stages and the replay play in view and step to the end, one list item per step, reduced motion, the step lists' numbers against `PAPER`).
 - `parts/31_js_sc_hero.js`, `parts/32_js_sc_ret.js`: the two 3D scenes; `parts/25_js_s3.js` and `parts/02_split.html` are the templates, unchanged.
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the replay stepped in all three arms, 11 px text, NaN, errors, sideways scroll.
@@ -35,7 +34,7 @@
 
 ## Checks (3 October 2026)
 
-See the reply in the build log: `checkpage.sh` fail=0, `check_page.mjs` 0 problems, `mk_coverage.py` 70 of 70.
+See the reply in the build log: `checkpage.sh` fail=0, `check_page.mjs` 0 problems.
 
 ## Light pass, 2026-10-25 (teaching contract)
 
@@ -43,9 +42,9 @@ See the reply in the build log: `checkpage.sh` fail=0, `check_page.mjs` 0 proble
 - **Owned elsewhere** (OWNERS.md): what a skill is and progressive disclosure link Claude Code (one sentence kept); the design effect formula links Evaluation statistics (the page keeps its own 1 + 5ρ for six triples per task).
 - **Moved into closed `<details>`** (nothing deleted but fat): the provenance note (how the paper reached the knowledge base), the route.ts detail under the replay, the skill-creator prompt card, the taxonomy's construction and its 12 modes (one open paragraph keeps judge, categories, agreement and the paired triple), the four inconsistencies, and a dated block "Later, as of 25 October 2026" (SkillsBench's 87 tasks; code still unreleased at the last check). In the Tables tab, Tables 9, 10, 12, 13 with Figure 4 and the checks table are closed blocks.
 - **No autoplay** (superseded on 2026-11-13, see below): `makeAnim` (11_js_ui.js) waits on step 1 until play or a step, also after an arm switch; `check_page.mjs` fails if the replay draws a frame when scrolled into view or after an arm switch, and opens every closed block before auditing a tab. Tabs use the template (`99_js_tabs.js`, storage key `das-tab`). Header: "Reading: 22 min, plus 4 in closed details." (`reading.json`; `build.sh` no longer counts closed blocks).
-- **Takeaway corrected** (paper.json, live.md, so the card): the old line said "first mechanistic account" and "because skills act as procedural anchors" and "retrieval precision decouples from downstream success". Now: +6.06 over workflow memory on 528 paired Codex runs with one trial per arm (Gemini on Terminal-Bench-Pro reverses), not clearly above raw (+2.84), the anchoring shares as one judge's labels, and the precision fall as a metric that mostly counts skills opened. Why it matters says "early controlled account". The headline stat's unit is now "of skill mechanism labels" (§5.1), not "of skill runs". The Notion property itself still has the old wording.
+- **Takeaway corrected** (paper.json, so the card): the old line said "first mechanistic account" and "because skills act as procedural anchors" and "retrieval precision decouples from downstream success". Now: +6.06 over workflow memory on 528 paired Codex runs with one trial per arm (Gemini on Terminal-Bench-Pro reverses), not clearly above raw (+2.84), the anchoring shares as one judge's labels, and the precision fall as a metric that mostly counts skills opened. Why it matters says "early controlled account". The headline stat's unit is now "of skill mechanism labels" (§5.1), not "of skill runs". The Notion property itself still has the old wording.
 - **Length**: Reading core 5,337 words (23 min) plus 0 closed before; 5,155 (22 min, including about 450 words of new top) plus 820 closed (4) after. Tables tab 1,642 open before, 418 open plus 1,229 closed after. Replay tab unchanged (3 min). The core stays near its length because the ledger is almost all core: four research questions, each with its numbers and the evidence judgement that corrects them.
-- **Ledger** (`ledger.json`, drafted from the committed page, labelled by `label_ledger.py`): 277 units, core 252, depth 19, owned 3, volatile 1, fat 2; `ledger.py check` problems 0. `mk_coverage.py`: three items updated; 70 of 70.
+- **Ledger** (`ledger.json`, drafted from the committed page, labelled by `label_ledger.py`): 277 units, core 252, depth 19, owned 3, volatile 1, fat 2; `ledger.py check` problems 0.
 - Privacy: the task author's email in `inputs/.../task.md` is redacted; the paper text's one long dash is saved as `--`; `extract_paper.py` now does both. `test@example.com` in the task's simulator is a placeholder and stays.
 
 Rechecked 2026-10-25: `checkpage.sh` 4 tabs, 175 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 202 actions, 0 problems.
@@ -59,7 +58,7 @@ What changed and why:
   - `32_js_sc_ret.js`, Result 4: 100 candidate skill cards around one task, the gold skill, near-duplicates tinted; Arm 1 at k = 5 and k = 100, Arm 2, Arm 3 for Codex and Gemini (cards each agent touches light up, flows to them), and success at k = 5 against k = 100 as bars on plinths. Precision and success are the paper's (Table 4 averages, Table 15 per agent); the counts of skills touched are this page's derived recall ÷ precision at k = 100 (mean of the three pools: Codex 13, Gemini 93; ranges 8 to 22 and 88 to 95). Which cards are touched and where they sit is illustrative. Its step list replaces the old "As pools grow" bullets and the confusable-distractors paragraph (same numbers, same wording where keys needed it).
 - **Kept 2D**: the replay (a Gantt timeline on a millisecond axis), the scheduler, the Table 1 difference panels, failure-mode bars, no-hint lines, transfer bars, the predict reveals, the design-effect slider and every table: curves, intervals and grouped bars read best flat.
 - **Motion**: `makeAnim` (11_js_ui.js) replaced by the agora page's version, which follows `RD.anim`: plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, marks `data-playing`, binds one `ol.sx` per arm (filled by `12_js_ex.js` from the same step texts) and replays on an arm switch. The per-step caption box is gone: the step lists explain each step, and the card keeps the quoted excerpt and the timeline (the excerpt's words are no longer repeated in the caption). `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `das-tab`; this page keeps its one-line extra that opens the closed block a `data-to` link points into, which the template lacks). `check_page.mjs` now asserts the replay plays in view and replays on an arm switch (it used to forbid both), and opens the reading tab first.
-- **Other edits**: one-line "what to notice" titles on the four Reading charts; a link to the context engineering page in Connections; the unused `#hx` CSS removed; `mk_coverage.py` needles for four Result 4 items follow the new wording.
+- **Other edits**: one-line "what to notice" titles on the four Reading charts; a link to the context engineering page in Connections; the unused `#hx` CSS removed.
 
 ## Length judgement (2026-11-13)
 | | Before (audit, pre-pass) | After |
@@ -72,4 +71,4 @@ What changed and why:
 
 The growth is the step lists that explain the two stages and the replay. The audit counts all three arms' replay lists, two of them hidden at any time (317 words), so a single pass reads about 25 minutes. The hero's list carries the numbers the old bar hero showed; the retrieval list replaces prose rather than adding to it. No knowledge was cut.
 
-Ledger: 282 units (core 257, depth 19, owned 3, volatile 1, fat 2); 5 added for the stages; 7 rekeyed (79, 113, 137, 138, 139, 165, 242) where the wording moved into a step list or beside a chart; `ledger.py check` problems 0. `mk_coverage.py`: 70 of 70.
+Ledger: 282 units (core 257, depth 19, owned 3, volatile 1, fat 2); 5 added for the stages; 7 rekeyed (79, 113, 137, 138, 139, 165, 242) where the wording moved into a step list or beside a chart; `ledger.py check` problems 0.

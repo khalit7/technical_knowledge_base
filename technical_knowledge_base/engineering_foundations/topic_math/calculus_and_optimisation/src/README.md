@@ -19,7 +19,7 @@
 - `check_stages.mjs [shots dir]` (2026-11-06, from Storage engines and indexes): at 1400 light, 920 light and 390 dark, every 3D stage and the 2D animation plays when scrolled into view, steps to its last step with one list item per step, flows stop off screen, splits are two columns at 1400 (lab included); under reduced motion nothing moves.
 
 ## Coverage
-The knowledge ledger `ledger.json` is the current record (see below). `live.md` is the old page (copy of the root's saved fetch); `coverage.json` (made by `mk_coverage.py`) maps its 95 facts (14 owned by matrix_calculus_and_backprop, written out in `handoff_matrix_calculus_and_backprop.md`; 5 corrected); its section ids are those of the 2026-10-05 build.
+The knowledge ledger `ledger.json` is the current record (see below). The old page's 14 facts owned by matrix_calculus_and_backprop are written out in `handoff_matrix_calculus_and_backprop.md`.
 
 ## The 2026-10-24 rebuild to the teaching contract
 - **Top**: the core sentence; a new static hero (`26_js_rd_new.js`): the real one-weight logistic loss at \(w_0 = 1.5\) with the tangent, the gradient-descent step-penalty parabola and the true-curvature parabola, and where each method lands (1.920, 2.518; optimum 3.551; recomputed in `recompute.py` as `hero_*`); "You need" (eigenvalues, positive definite) and where matrix calculus, optimisers in practice and numerics live; eight new terms; the old one-screen table is a closed reference block.

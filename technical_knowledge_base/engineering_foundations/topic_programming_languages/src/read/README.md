@@ -12,8 +12,6 @@ Shape: the root is organised as a design space, philosophy first (coordinator's 
 
 ## Notes
 
-- `old/`: the old root and seven children, plus Topic: cuda-and-gpu-programming, saved verbatim from read-only Notion fetches by `save_old.py`.
-- `coverage.md`: every checkable old claim marked verified, corrected, unconfirmed or child.
 - `cuda_overlap.md`: what C++ material belongs here versus the CUDA topic.
 - `sources/`: text extracts of every primary source cited (fetched 2026-10-05 by `fetch_src.py`; large pages trimmed to the lines used).
 - `code/repo_langs/`: GitHub linguist byte counts for 24 repositories.

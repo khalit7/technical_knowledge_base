@@ -21,9 +21,9 @@
 - `recompute.py`: every derived number (GLUE averages, gains, parameter recounts from `inputs/hf_configs.json`, pretraining arithmetic, Table 5 effects, Figure 5 decoded, binomial standard errors of the Table 1, 5 and 8 gaps from `inputs/glue_sizes.json`). Writes `inputs/recompute.json`.
 - `grammar.py`: the toy language (copied in `parts/21_js_lang.js`). `train.py`: `pretrain` (bert, nonsp, ltr; checkpoints in `model/`), `finetune` (the sweep: 5 variants, 2 tasks, 4 labelled-set sizes, 3 seeds, learning rate picked on dev; toy Figure 5), `seed2` (bert and nonsp pretrained again with seed 8 and fine-tuned at 128 and 512 labels on both tasks), `export` (6-bit weights into `parts/20_model_data.js`, quantised accuracy in `model/report.json`). Run with `uv run --with torch --with numpy python train.py <cmd>` in the background; 2 threads.
 - `check_forward.py`: the JS forward pass against PyTorch on the shipped weights (`model/check_forward.json`). `overlap.py`: test-set overlap with pretraining and labels (`model/overlap.json`). `mk_results.py`: fine-tuning and seed2 results into `parts/_gen_results.js`.
-- `save_live.py` copied the Notion fetch verbatim into `live.md`; `extract_paper.py` turned the arXiv HTML v2 into `inputs/paper_v2.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from RoBERTa, ModernBERT and Ettin.
+- `extract_paper.py` turned the arXiv HTML v2 into `inputs/paper_v2.txt` and `inputs/table_*.txt`; `inputs/later_extracts.txt` holds the quoted lines from RoBERTa, ModernBERT and Ettin.
 - `check_page.mjs` (from the repo root with node): every control in light 920 and dark 390, the Then and now stepper playing on view and stepped, text at least 11 px, no NaN or errors, no sideways scroll. `check_stages.mjs`: the 2026-11-06 layout and motion checks (below).
-- Layout and motion parts: `02_split.html`, `25_js_s3.js` (renderer v2), `99_js_tabs.js` (storage key `bert-tab`) and `05z_errbox.js.html` are the skill's templates, unchanged; `11_js_ui.js`'s `makeAnim` is the paper pages' autoplaying controller (as on Agora). Scenes: `31_js_sc_hero.js`, `32_js_sc_mlm.js`, `33_js_sc_emb.js`, `34_js_sc_nsp.js`; `12_js_hero.js` now holds only the Results chart. `mk_coverage.py`: writes and verifies `coverage.json` against `live.md`.
+- Layout and motion parts: `02_split.html`, `25_js_s3.js` (renderer v2), `99_js_tabs.js` (storage key `bert-tab`) and `05z_errbox.js.html` are the skill's templates, unchanged; `11_js_ui.js`'s `makeAnim` is the paper pages' autoplaying controller (as on Agora). Scenes: `31_js_sc_hero.js`, `32_js_sc_mlm.js`, `33_js_sc_emb.js`, `34_js_sc_nsp.js`; `12_js_hero.js` now holds only the Results chart.
 
 ## The toy, measured
 
@@ -57,7 +57,7 @@ Why about 19 minutes is right: this page owns every detail of the paper and its 
 254 units: core 217, depth 30, owned 2 (descendants at Families and objectives, key "ELECTRA"; BEiT and MAE at Contrastive and self-supervised learning, key "BEiT"), fat 5 (the old reading-time crumb, tab names, section nav, a subheading replaced by its summary line, a motion-manners sentence). 247 drafted by `ledger.py init`, 7 added by hand for the new top, chart, owner links and the dated block. Keys were proposed by a script (a 4 to 7 word window of each unit found in the built page) and checked by hand where the prose changed.
 
 ## Checks (2026-10-24)
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 281 KB. `check_page.mjs`: 390 actions, 0 problems (with the no-autoplay check). `mk_coverage.py`: 56 of 56 (the reading-time needle now looks for "Reading: "). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 281 KB. `check_page.mjs`: 390 actions, 0 problems (with the no-autoplay check). `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched.
 
 ## The 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -86,4 +86,4 @@ The growth is the step lists that explain the four stages and the stepper: the a
 Ledger: 258 units (core 221, depth 30, owned 2, fat 5); 4 added for the stages, 4 rekeyed (24, 27, 29, 52) where a caption became a step; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 396 actions, 0 problems. `check_stages.mjs`: 21 stages and animations (three widths; the leak stage in all three modes), 0 problems. `mk_coverage.py`: 56 of 56. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 396 actions, 0 problems. `check_stages.mjs`: 21 stages and animations (three widths; the leak stage in all three modes), 0 problems. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).

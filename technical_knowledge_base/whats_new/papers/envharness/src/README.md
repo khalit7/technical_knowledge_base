@@ -26,13 +26,12 @@
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
 - `parts/31_js_sc_stack.js`, `parts/32_js_sc_rig.js` (2026-11-13): the two 3D scenes, on the template renderer `parts/25_js_s3.js`; both run the engine below on page load and expose `window.ENVSTACK` and `window.ENVRIG`, which `check_stages.mjs` compares with the numbers their step lists state.
 - `parts/14_js_world.js`: the engine of the live tab (port of the released classes, the toy household, the scripted policy); `parts/15_js_run.js` its UI. `check_world.mjs` (node, from `src/`): 12 engine checks.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (53 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, four component presets stepped end to end, the validation buttons, the three reveals; since 2026-11-13 it asserts that every stage and animation plays once scrolled into view (it used to forbid it).
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, and the stage step lists' numbers against the engine.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `check_world.mjs` 12 of 12; `recompute.py` 76 of 77 hold as printed (the exception is the released configs against Table 8, a finding); `mk_coverage.py` 53 of 53.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `check_world.mjs` 12 of 12; `recompute.py` 76 of 77 hold as printed (the exception is the released configs against Table 8, a finding).
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -42,7 +41,7 @@ What changed and why:
 - **Closed**: Table 1 (the hero carries the analogy), the released code's class names, interface, Bridges and sandboxing, the designer's system-prompt rules, the split definitions, the components and skills of rounds 1 to 3 (one sentence stays open), the representative Chain skills, the per-model average-steps reading, the Table 13 Contract and skill example, the smaller evidence points, and the future-work list.
 - **Volatile**: none found; the page holds no dated follow-up news (the same-month papers in Why it matters and Connections are context, not news).
 - **No autoplay**: `makeAnim` patched as on the WSM page (the episode animation in Wrap a world yourself waits on its first step; changing a control resets to step 1 paused); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `envharness-tab`, plus `data-to` scrolling). `check_page.mjs` fails if the animation draws a frame before a click, and opens every closed block.
-- **Takeaway softened** (paper.json, so the card, and `live.md`): "beating static and generated environments for skill learning and GRPO RL and still scaling where they flatten" became the measured statement: above original-environment skills on all five benchmarks (+1.0 to +9.0 points, mostly within three-run noise), above generated environments where one exists, GRPO RL 3 of 4 metrics with one run per arm, and in Figure 5 the original environments gaining as many tasks as EnvHarness after the first 100 (only the generated ones flatten). The Notion property needs the same edit.
+- **Takeaway softened** (paper.json, so the card): "beating static and generated environments for skill learning and GRPO RL and still scaling where they flatten" became the measured statement: above original-environment skills on all five benchmarks (+1.0 to +9.0 points, mostly within three-run noise), above generated environments where one exists, GRPO RL 3 of 4 metrics with one run per arm, and in Figure 5 the original environments gaining as many tasks as EnvHarness after the first 100 (only the generated ones flatten). The Notion property needs the same edit.
 - Em-dashes in the saved extracts (`inputs/paper_v1.txt`, `inputs/tables_v1.txt`, two release YAMLs) written as `--`; `extract_paper.py` now does this and redacts emails (none were present). Header: "Reading: 24 min, plus 4 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -59,7 +58,7 @@ Why about 24 minutes is right: the paper has a framework (three components, thei
 332 units: core 298, depth 30, owned 4, volatile 0, fat 0. 315 drafted by `ledger.py init` from the page before the pass; 17 added (core sentence, hero, new terms, four owner links, ten script-drawn tables keyed to their static headings). Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 209 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 386 actions, 0 problems (no frame before a click). `check_world.mjs`: all engine checks pass. `mk_coverage.py`: 53 of 53.
+`checkpage.sh`: tabs 4, 209 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 386 actions, 0 problems (no frame before a click). `check_world.mjs`: all engine checks pass.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -87,4 +86,4 @@ The growth is the two step lists (about 760 words) that explain the stages; the 
 Ledger: 341 units (core 307, depth 30, owned 4, volatile 0, fat 0); `ledger.py check` problems 0.
 
 ## Checks (13 November 2026)
-`checkpage.sh`: tabs 4, about 263 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 9 stages and animations over three widths, 0 problems. `verify_layout.mjs`: problems 0. `check_world.mjs`: all engine checks pass. `mk_coverage.py`: 53 of 53. `recompute.py` unchanged.
+`checkpage.sh`: tabs 4, about 263 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 9 stages and animations over three widths, 0 problems. `verify_layout.mjs`: problems 0. `check_world.mjs`: all engine checks pass. `recompute.py` unchanged.

@@ -36,7 +36,7 @@ node runs/check_stages.mjs <dir> # the 2026-11-06 rollout: stages and grouped an
 ```
 peft 0.21.2 (needed by diffusers' LoRA loader) was installed with `uv pip install --target GM_SCRATCH/dz/pylib peft --no-deps`, not into the shared venv. Large outputs (strips as .npz, full-size SD PNGs, the two checkpoints) are in `GM_SCRATCH/dz/`; `out/` holds the small recorded results and 256-pixel WebP thumbnails. `make_data.py` could not be rerun on 2026-10-24 (the scratch strips were gone), so window.DZ is unchanged and one sentence in it that pointed at a removed tab is corrected through `DZX.txt` (see `make_data_more.py`).
 
-Notes: `facts.md` (every verified fact and measurement), `viz_ideas.md`, `coverage.md`, `ledger.json`, `inputs/published.json` (numbers transcribed from 20 papers with table and page).
+Notes: `facts.md` (every verified fact and measurement), `viz_ideas.md`, `ledger.json`, `inputs/published.json` (numbers transcribed from 20 papers with table and page).
 
 ## The 2026-10-24 rebuild: what changed and why
 Rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`). OWNERS.md makes this page the owner of diffusion from zero: the forward process, the denoiser and its target, the training loss, samplers, guidance and schedules. The old page assumed the root's Diffusion lab had taught the first half; it now teaches it.

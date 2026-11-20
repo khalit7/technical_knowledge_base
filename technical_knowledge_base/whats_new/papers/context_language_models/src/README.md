@@ -1,7 +1,6 @@
 # src: Context Language Models (arXiv 2609.37725)
 
 `sh build.sh` writes `../index.html` (it runs `mk_tables.py`, `recompute.py` and `mk_paper.py` first, and refuses to build if an `ax:` link or margin label names an anchor that is not in `inputs/anchors.txt`). Then, from the repo root:
-- `python3 technical_knowledge_base/whats_new/papers/context_language_models/src/mk_coverage.py`: `coverage.json`, every item checked against the built page.
 - `node technical_knowledge_base/whats_new/papers/context_language_models/src/check_page.mjs [shots dir]`: the JS replay and turn calculator against `recompute.py`, reduced motion, then every control and the animation in both themes and widths (set `CHROME_PATH` if puppeteer's own browser is missing).
 - `node technical_knowledge_base/whats_new/papers/context_language_models/src/check_stages.mjs [shots dir]`: the 3D stage and the replay widget at three widths and under reduced motion, and the stage's step list against the engine (2026-11-12).
 - `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/context_language_models`.
@@ -9,17 +8,14 @@
 Rebuilding the inputs (not needed to build the page):
 - `python3 extract_paper.py <arXiv HTML>`: `inputs/paper_v1.txt`, `inputs/tables_v1.txt` (v1 is the only version as of 19 October 2026); `inputs/anchors.txt` as in its docstring.
 - `uv run --no-project --with pymupdf python decode_figs.py <e-print>/figures`: `inputs/figs.json`, Figures 2, 5 and 19 read from the vector PDFs of the arXiv e-print (commands in the docstring). The label-only figures (8, 9, 11, 14, 15, 16, 27, 28) were transcribed from their printed labels into `mk_tables.py` and `recompute.py`.
-- `save_live.py <transcript>`: `live.md`, the Notion row as fetched on 19 October 2026 (properties plus a one-line placeholder body).
 
 | File | What |
 |---|---|
-| `live.md` | the Notion row as fetched (the body was a placeholder, so coverage runs against the paper's claims) |
 | `paper.json` | headline card, verdict, resources, KB links |
 | `tables.json` | Tables 1 and 2, Figures 2, 5, 19 (decoded), 8, 9, 11, 14, 27, 28 (printed labels) (`mk_tables.py`) |
 | `recompute.py` | Appendix C's cost model (Eq. 7 to 9) and Figure 16, every abstract percentage, Figure 19 against Figure 5, standard errors the paper omits, and the illustrative replay (the same algorithm as `parts/23_js_run.js`); 64 checks, written to `inputs/recompute.json` |
 | `reading.json` | the header's reading minutes, measured with `html_utils/audit_pages.mjs` after a build |
 | `ledger.json`, `label_ledger.py` | the knowledge ledger and its labeller (2026-10-26) |
-| `coverage.json` | 32 items (the row's Takeaway, current and as fetched, and the paper's own claims), all found; the placeholder body dropped with its reason |
 
 ## Shape, and departures from .claude/skills/explainer-page/page-kinds/paper.md
 
@@ -42,7 +38,7 @@ What changed and why:
 - **Closed**: the prior-work families system by system, the four ContextBench tasks, the released harness's file layout, the released FLOPs metric against the paper's, the evolution loop's budget and splits, the RL run's hyperparameters and hardware, SCR on the linear-attention layers, Table 1 problem by problem, and the settings that disagree (an open pointer stays).
 - **Volatile**: one dated closed block in Why it matters, "Since the paper (checked 26 October 2026)": arXiv still v1 (checked that day) and the README's harness ports (read 19 October).
 - **No autoplay**: `makeAnim` patched as on DSec (the replay waits for a click; a mode switch pauses on step 1); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `clm-tab`, keeping `data-to`). `check_page.mjs` now fails if an animation draws a frame before a click and audits every closed block opened.
-- **Takeaway scoped** (`paper.json` takeaway and new `takeaway_note`, the card, the Takeaway in `live.md`, `mk_coverage.py`): the earlier wording said CLMs beat harness-side context management at lower cost zero-shot without limits. The new one says the zero-shot gain holds with a strong model on BrowseComp-Plus (a tie on TerminalBench 2.1, single runs, calculated FLOPs) and not with the 9B model, and that after RL the clear gain is cost. The Notion property needs the same edit.
+- **Takeaway scoped** (`paper.json` takeaway and new `takeaway_note`, the card): the earlier wording said CLMs beat harness-side context management at lower cost zero-shot without limits. The new one says the zero-shot gain holds with a strong model on BrowseComp-Plus (a tie on TerminalBench 2.1, single runs, calculated FLOPs) and not with the 9B model, and that after RL the clear gain is cost. The Notion property needs the same edit.
 - `inputs/paper_v1.txt`: its one redacted author email now reads "[email removed]" (and `extract_paper.py` writes that); it had no em-dashes.
 
 ## Length judgement
@@ -83,4 +79,4 @@ The growth is the new One trajectory section: its intro and seven-step list (abo
 Ledger: 275 units (core 248, depth 18, owned 4, volatile 3, fat 2); 9 added (the stage's intro and seven steps, the widget paragraph); unit 80 ("click the rollouts ...") and the added unit for the script-drawn Reading charts re-pointed after "below" became "on the card"; unit 147's derived key moved to another run of its words. `ledger.py check`: problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (202 KB). `check_page.mjs`: 0 problems (the JS replay and calculator agree with `recompute.py`). `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0 (the replay's "check autoplay" lines are the widget, as intended). `mk_coverage.py`: 32 of 32. `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (202 KB). `check_page.mjs`: 0 problems (the JS replay and calculator agree with `recompute.py`). `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0 (the replay's "check autoplay" lines are the widget, as intended). `ledger.py check`: problems 0.

@@ -1,6 +1,6 @@
 # Dream-RSI: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d813ba021d805ba80ef54, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the JIT-Agent page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `11_js_ui.js`, `check_page.mjs`, `mk_coverage.py` with its item list replaced, the CSS).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d813ba021d805ba80ef54, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the JIT-Agent page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `11_js_ui.js`, `check_page.mjs`, the CSS).
 
 ## Tabs
 
@@ -21,7 +21,6 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the agent transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `tables_v1.txt`, `anchors_v1.txt`.
 - `decode_figs.py`: Figures 3(b), 4, 5 and 6 from the arXiv HTML's vector SVG to `inputs/figs.json` (transform composition, tick-mark calibration, residuals reported).
 - `fetch_extracts.py`: verbatim extracts of SimpleTES (Supplementary Table 16, Table 1 rows, default budget), the project page, the README, the repository file list and the Hugging Face ranking to `inputs/extracts.txt` (em dashes in sources marked, not kept).
@@ -31,14 +30,13 @@
 - `check_score.py`: the page's port of v2's score against the released code (`--released <clone>` refreshes `inputs/score_released.json`; the build compares and writes `inputs/check_score.json`).
 - `decode_figs.py ... v2` wrote `inputs/figs_v2.json` (harness, PACEvolve and the v2 redraws).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (25 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, both animations stepped for every task and world.
 - `check_stages.mjs` (from the repo root with node, 2026-11-13): the layout and motion rules at 1400 light, 920 light and 390 dark, and the hero step list's numbers against the simulator (`window.LOOPDATA`).
 - `parts/31_js_sc_loop.js` (2026-11-13): the hero stage; `parts/25_js_s3.js`, `02_split.html`, `05z_errbox.js.html` and `99_js_tabs.js` are the skill's templates (storage key `drsi-tab`). `mk_hero.py` and `parts/03a_hero.svg.html` were removed (in git history).
 
 ## Checks (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 27 of 31 printed claims reproduce (1 partly, 3 do not); `check_sim.py` PASS; `mk_coverage.py` 25 of 25.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 27 of 31 printed claims reproduce (1 partly, 3 do not); `check_sim.py` PASS.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -50,7 +48,7 @@ What changed and why:
 - **Volatile**: one dated closed block, "Since the paper (dated: checked 25 October 2026)", inside What it takes to use this: the code release (google-research/dream-rsi, Apache 2.0, 6 October; not yet checked against the text), arXiv v2 (6 October: Pareto hypervolume objective, M = 4, a harness task, a history ablation, PACEvolve; v1 headline numbers unchanged), and the Hugging Face upvote readings. The method and evidence sections point to it where v2 answers a v1 gap.
 - **Trimmed**: the third paragraph of Why it matters (it repeated Connections); the Agora comparison softened to match the Agora page (concentration on one lineage, the intervention untested).
 - **No autoplay**: `makeAnim` patched as on Terminal-Universe; `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `drsi-tab`), keeping the `data-to` scroll target. `check_page.mjs` fails if either animation draws a frame before a click and opens every closed block.
-- **Takeaway scoped** (paper.json with a new `takeaway_note`, so the card, `live.md` and `mk_coverage.py`; `mk_paper.py` prints the note): "competitive or better ... at substantially lower discovery cost across" three domains became one run per setting, savings in several settings with their matched-performance values, a lost maths task, a Lasso average carried by one dataset, and the uncounted development agent. The Notion property needs the same edit.
+- **Takeaway scoped** (paper.json with a new `takeaway_note`, so the card; `mk_paper.py` prints the note): "competitive or better ... at substantially lower discovery cost across" three domains became one run per setting, savings in several settings with their matched-performance values, a lost maths task, a Lasso average carried by one dataset, and the uncounted development agent. The Notion property needs the same edit.
 - `inputs/paper_v1.txt`: its two em-dashes written as `--`; no author emails were present. `extract_paper.py` now writes `--` and redacts emails; it extracted v2 to `inputs/paper_v2.txt`, `anchors_v2.txt` and `tables_v2.txt` (for the dated block only). Header: "Reading: 24 min, plus 4 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -68,7 +66,7 @@ Why about 24 minutes is right: the core grew by a minute because the top (about 
 304 units: core 278, depth 22, owned 1, volatile 3, fat 0. 292 drafted by `ledger.py init` from the page before the pass; 12 added. Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, about 174 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 938 actions, 0 problems (no frame before a click). `mk_coverage.py`: 25 of 25. `recompute.py` and `check_sim.py` run in the build unchanged.
+`checkpage.sh`: tabs 4, about 174 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 938 actions, 0 problems (no frame before a click). `recompute.py` and `check_sim.py` run in the build unchanged.
 
 ## The 2026-10-26 v2 rewrite (Khalid's decision 12)
 
@@ -78,7 +76,7 @@ The page now follows arXiv v2 (6 October 2026) and the released code. What chang
 - **Ported score next to the toy** (`parts/14_js_simcore.js`: `SIM.sched`, `sweep`, `front`, `Vhv`; the pool gains the fixed policy as a ρ-blind candidate, 505 in all). The toy's ρ schedule is invented (width × (0.4 + 0.6ρ), patience × (0.5 + 0.5ρ), pruning threshold + 0.1(1 − ρ)) and follows the released template's rule. `check_score.py --released <clone>` runs the released code once (3 s on CPU) and stores its outputs in `inputs/score_released.json`; the build reruns `check_score.py` without the clone and compares the page's JS with them: the score function on all 505 candidates (largest difference 2.2e-16); the released `eval.py --beta-sweep` end to end on the page's three default worlds written as released traces, for 10 policies (the released parallel-refine incumbent and nine toy policies written against the released policy API), 150 replays with 0 mismatches in calls, rounds and best and scores to 2.2e-16; and 5 hand-computed frontier cases (exact). The result is in `inputs/check_score.json` and on the page. `check_sim.py` still checks the replay and v1's Eq. 1 against an independent Python port (1,515 pairs).
 - **New visuals:** the area figure of one world (Method), the harness chart (Reading), Table 2 on the ConvDiv curve and PACEvolve's line (Tables), the score toggle and deployment ρ (Dream tab); rows P-dream_rsi.v1 to v5 in `viz_ideas.md`.
 - **Data:** `decode_figs.py` takes a version argument and wrote `inputs/figs_v2.json`; `mk_tables.py` reads the v2 text and adds `pace`, `harness`, `hist` and `config`, and its keys are now by content (`lasso_dyn`, `kern`, `guide`, `behav`) because v2 renumbers the figures. `recompute.py`: 70 checks; 35 of v2's numbers reproduce, 0 partly, 0 do not, 30 added, 5 test v1-only claims (verdict "v1 only"). It found that Figure 3 draws PACEvolve's line above its printed value on three panels.
-- **Takeaway rescoped** (`paper.json` takeaway and takeaway_note, the card, `mk_coverage.py`): v2's objective, and the harness gain without a baseline and selected on its own suite. The Notion property needs the same edit. Venue now "11 pages (v2)".
+- **Takeaway rescoped** (`paper.json` takeaway and takeaway_note, the card): v2's objective, and the harness gain without a baseline and selected on its own suite. The Notion property needs the same edit. Venue now "11 pages (v2)".
 - **Moved into closed blocks:** the four code-text differences, the rest of the code reading, the SimpleTES row provenance, and everything only v1 said.
 
 ## Length judgement (2026-10-26)
@@ -96,7 +94,7 @@ Why about 31 minutes is right: v2 adds a ninth task in a fourth domain (harness,
 316 units: core 277, depth 34, owned 1, volatile 4, fat 0. 304 carried over (72 re-keyed or relabelled by `label_ledger.py`, 14 of them through its KEYS map; units only v1 had now sit in the closed v1 block and label depth), 12 added for v2. Nothing deleted. `ledger.py check`: problems 0.
 
 ## Checks (26 October 2026)
-`checkpage.sh`: tabs 4, about 211 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 970 actions, 0 problems (no frame before a click). `check_score.py` PASS, `check_sim.py` PASS, `mk_coverage.py` 25 of 25. Header "Reading: 31 min, plus 8 in closed details." from `reading.json` (audit 30.6 and 8.1).
+`checkpage.sh`: tabs 4, about 211 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 970 actions, 0 problems (no frame before a click). `check_score.py` PASS, `check_sim.py` PASS. Header "Reading: 31 min, plus 8 in closed details." from `reading.json` (audit 30.6 and 8.1).
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 

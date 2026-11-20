@@ -12,7 +12,7 @@ Files:
 - `check_core.mjs` + `recompute.py`: runs the page's JS on the page's data, then recomputes everything with PyTorch losses and autograd and SciPy (linprog, BFGS, bounded search). `node check_core.mjs && OMP_NUM_THREADS=2 uv run --with torch --with scipy --with numpy python recompute.py` (104 checks, 0 failures; results in `check/`).
 - `check_page.mjs`: drives every control in headless Chrome and steps the outlier stage in both datasets; fails on script errors, NaN, undefined or Infinity, or if the outlier stage does not play when scrolled into view (inverted on 2026-11-10 from the old never-autoplay assertion).
 - `check_stages.mjs` (2026-11-10): the rollout checks at 1400 light, 920 light and 390 dark: every stage plays on view, steps to its last step with one list item per step in every mode, stops redrawing off screen, never moves under reduced motion; every static number in the step lists equals what the scenes compute; a few recomputed independently; splits are two columns at 1400 only; writes mid-step shots to the directory given (about 4.5 minutes).
-- `ledger.json`: the knowledge ledger of the 2026-10-24 rebuild (`python3 html_utils/ledger.py check`). `coverage.json`: every fact of `live.md` and where the page carries it (2026-10-03). `viz_ideas.md`: ranked ideas.
+- `ledger.json`: the knowledge ledger of the 2026-10-24 rebuild (`python3 html_utils/ledger.py check`). `viz_ideas.md`: ranked ideas.
 
 ## The 2026-10-24 rebuild to the teaching contract
 What changed and why:
@@ -45,7 +45,7 @@ Why about 27 minutes is right: the core grew by 2.5 minutes overall while the pa
 Khalid's decision: Probability owns maximum likelihood as the recipe; this page owns each loss and its behaviour, including what prediction minus target in the logit means; Calculus owns the derivation steps. Absorbed from Calculus section 2: the table of canonical pairings and their logit gradients (identity, sigmoid, softmax with hard and soft targets, Poisson), the generalised-linear-model statement (mean minus target), and squared error on a sigmoid going silent (203 times smaller at z = -6). The regression section's Gaussian NLL derivation is now one sentence and a link to Probability section 7 (ledger unit 17 relabelled owned:). Ledger: 4 units added. Reading 27 to 28 min core.
 
 ## 2026-11-10: the split layout and four 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `02_css.html`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `lf-tab`). The 2D outlier animation (`25_js_anim.js`, the page's only `RD.anim`) was replaced by a 3D stage and deleted; every other 2D figure is a reader-driven widget (no autoplay, no step list). `build.sh` writes the em-dash check as bytes.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (after `02_css.html`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `lf-tab`). The 2D outlier animation (`25_js_anim.js`, the page's only `RD.anim`) was replaced by a 3D stage and deleted; every other 2D figure is a reader-driven widget (no autoplay, no step list). `build.sh` writes the em-dash check as bytes.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -23,4 +23,4 @@ No API key was set in the environment, so no real model was called. `run_all.sh`
 - Node 24's default stream `highWaterMark` is 65,536 bytes; ignoring `write()`'s return value queued the whole 2 MB response in memory.
 
 ## Departures from the child-page method
-One part of a page with a part bar: no separate Further reading tab (the Reading ends with "Further reading for Part 3"); no `src/live.md` of its own (the old Notion pages are saved in the root's `src/read/old/`; the facts this part owns are in `coverage.json`).
+One part of a page with a part bar: no separate Further reading tab (the Reading ends with "Further reading for Part 3").

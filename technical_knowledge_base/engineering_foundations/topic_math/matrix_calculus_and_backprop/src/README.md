@@ -12,7 +12,7 @@ Numbers, in order:
 
 Measurements (`inputs/measure/`, scripts beside their JSON outputs; PyTorch 2.14.1, JAX 0.11.2, NumPy 2.5.3, Apple silicon, 2 CPU threads): `graph.py` (the real grad_fn graph), `cost.py` (FlopCounterMode; first timing run), `timing2.py` (interleaved timing, final run in `timing2.json`), `prof.py` (per-op profiler), `memtl.py` (MPS allocator timeline per op), `savedops.py`, `hvp.py`, `jaxdemo.py`, `tiny_autograd.py`, `custom_fn.py`. Source quotes with locations: `inputs/sources_quotes.md`. Pinned PyTorch source lines are linked at tag v2.14.1.
 
-Old material: `live.md` holds the inherited sections of the old Linear algebra and Calculus and optimisation pages verbatim; `coverage.json` maps each fact (2026-10-05); `ledger.json` is the knowledge ledger of the 2026-10-24 rebuild; `handoff_*.md` record what went to siblings.
+Old material: `ledger.json` is the knowledge ledger of the 2026-10-24 rebuild; `handoff_*.md` record what went to siblings.
 
 ## Parts (2026-10-24)
 | Part | What |

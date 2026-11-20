@@ -23,7 +23,7 @@ Prefix `va` (ids `va-*`; tab-local prefixes `pc-`, `rq-`), container class `vap`
 - `calc/count_meta.py` (parameters of seven configs and one FlopCounterMode pass on meta tensors: `out/meta.json`), `calc/recompute.py` (every preset number: `out/recompute.json`).
 - `sources/find_lines.py`: locates every quoted source line and snippet by pattern (one match each) into `inputs/source_lines.json`; `sources/research_*.md`: research notes with URLs, sections and quotes (fetched 2026-10-17; quotes used on the page were re-checked against the arXiv HTML).
 - `inputs/`: `vcfg_*` (diffusers configs of seven video models), `video_models.json` (presets with sources), `source_lines.json`, `arxiv_extra.json` (v1 dates and titles).
-- `check_page.mjs`, `check_data.py`; `facts.md`; `sources.md`; `viz_ideas.md`; `coverage.md`; `ledger.json` (the knowledge ledger).
+- `check_page.mjs`, `check_data.py`; `facts.md`; `sources.md`; `viz_ideas.md`; `ledger.json` (the knowledge ledger).
 
 ## Runs (measured on Apple M1 Pro, CPU only, 2026-10-17)
 
@@ -34,7 +34,7 @@ Prefix `va` (ids `va-*`; tab-local prefixes `pc-`, `rq-`), container class `vap`
 
 ## Departures from the method
 
-- No old page to cover (new page; Notion disconnected): `coverage.md` lists the brief's requirements and where each is.
+- No old page to cover (new page; Notion disconnected).
 - Overview depth, research-heavy: no video or audio generator was run (the brief: cheap demos only); the measured parts are the codecs, one video VAE and the counts.
 - No real images (2026-10-24): every subject here is a mechanism, which a drawing on the page's own data explains better; the real objects the page needs (spectrograms, decoded frames, audio) are its own measured data. Paper figures were not embedded (the video papers' figures are not openly licensed for reuse, and the redrawn diagrams carry the same structure).
 - Page size about 0.8 MB because of the audio players and spectrograms, over the 300 KB guideline of the time (retired 2026-10-17) and under the topic's 1 MB limit.

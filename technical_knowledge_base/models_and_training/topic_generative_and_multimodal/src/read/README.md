@@ -4,7 +4,7 @@ Parts: `parts/20_read.html` (tab wrapper, CSS, section nav), `20_read_a.html` to
 
 Files here:
 - `make_read_data.py`: writes `read_data.json` (the embedded Fashion-MNIST image and the lab numbers) and regenerates `parts/22_js_rd_data.js`. `python3 make_read_data.py <fashion-mnist raw folder>` the first time; `python3 make_read_data.py --js` after editing `lab` in the JSON.
-- `todo.md`: lab numbers still to fill, by key. `coverage.md`: the old Notion page check, pending (Notion disconnected).
+- `todo.md`: lab numbers still to fill, by key.
 - `fid_bias.py` and `fid_bias.out`: the FID small-sample demonstration, shown since 2026-11-16 on Evaluating generative models section 3 (run with the topic venv's Python, CPU).
 - `check_read.mjs`: clicks every control at 390 px dark and 920 px light, checks errors, NaN, sideways scroll, measures reading time. `node check_read.mjs <shots dir>`.
 - `check_data.py`: checks that the built page embeds exactly `read_data.json` and that every lab number in it matches `src/data/smoke/*.json`, and that the FID demo output is pasted verbatim.

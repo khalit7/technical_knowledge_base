@@ -24,7 +24,7 @@ Order after a rerun: `sh tl/run_all.sh` (needs the toolchain described in `tl/RE
 ## Provenance (copied with `cp -R` from the language page's `src/`, which was left unchanged)
 | Here | From the language page | What |
 |---|---|---|
-| `tl/code`, `tl/outputs`, `tl/versions.txt`, `tl/coverage.json` | `src/tl/` | unchanged: every program and every recording, including the ones only the dropped tabs used (`g2_mcp_client.json`, `c1_agent_loop.json`) |
+| `tl/code`, `tl/outputs`, `tl/versions.txt` | `src/tl/` | unchanged: every program and every recording, including the ones only the dropped tabs used (`g2_mcp_client.json`, `c1_agent_loop.json`) |
 | `tl/gen.py` | `src/tl/gen.py` | new markers `outc`, `predictc`, `outd`, `coded`, `gen`; static figures; `window.TL` trimmed to the stream and cancellation data |
 | `tl/run_all.sh` | `src/tl/run_all.sh` | finds `chat.jsonl` by walking up to `topic_programming_languages` |
 | `tl/check/check_ui.mjs`, `check_embed.py` | `src/tl/check/` | single-level tabs, repo found with `git rev-parse --show-toplevel`, screenshots to `.shots/ui`; also fails if an animation moved before the reader acted. `shots.mjs` removed |

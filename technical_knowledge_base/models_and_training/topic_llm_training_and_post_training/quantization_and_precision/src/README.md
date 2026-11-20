@@ -20,7 +20,6 @@ Checks (all rerun on 2026-11-10, all pass):
 - `python3 recompute.py | diff - recompute.txt`: every derived number (unchanged).
 - `node src/check_page.mjs [shots dir]` (from the repo root): every control in 920 px light and 390 px dark with reduced motion, every stage step through its list, the migration explorer, the recipes, NaN/undefined scan, element screenshots.
 - `node src/check_stages.mjs [shots dir]` (from the repo root, about 3 minutes; added 2026-11-10): the four stages play once in view at 1400 and 920 px light and 390 px dark, stop redrawing off screen, never move under reduced motion, step to their last step with one list item per step; scene labels neither overlap nor touch the card edge nor point outside it at 1400 px, on every step and mid-tween; splits two columns at 1400 px only; the step lists' static numbers equal what the scenes compute; a few numbers recomputed independently; the heaviest scene's frame time (about 4.5 ms).
-- `python3 mk_coverage.py`: coverage.json against live.md (112 entries, 0 missing; probes updated for the new wording).
 - `python3 html_utils/ledger.py check <page>` (from the repo root): problems 0.
 
 ## The 2026-10-23 rebuild: what changed and why
@@ -54,13 +53,13 @@ Why 25 minutes is right: the page owns seven things (formats, scaling granularit
 240 units: core 161, depth 64, fat 12, owned 2 (TRACE and KV4-RL on `models_and_training/topic_rl/rl_for_llms`), volatile 1 (Unsloth Dynamic 3.0, `whats_new/tech_news/2026_08_24_tech_news`). 234 drafted by `ledger.py init`, 6 added by hand for script-rendered content (limits table, layer table, W8A8 bars, block counters, explorer presets, block calculator). Fat units carry a `note` (pointers to removed tabs, the old nav, a wind-up).
 
 ## Earlier history
-`live.md` is the old Notion text, verbatim. Overlap fix (19 October 2026): GGUF types are owned by "Local and on-device inference" (3c65c17b0d0d81f7a144fe25d799e811, sections 3 and 4, Quant ladder tab) and the container by "Model formats" (section 4); float bit layouts and the measured loss-scaling mechanics by "Numerical computing for ML" (3f05c17b0d0d81d6af0be4a9a2edba8d, sections 2 to 4 and 11). Facts the owners lacked were moved there first; `mk_coverage.py` probes moved facts in the owner's built page.
+Overlap fix (19 October 2026): GGUF types are owned by "Local and on-device inference" (3c65c17b0d0d81f7a144fe25d799e811, sections 3 and 4, Quant ladder tab) and the container by "Model formats" (section 4); float bit layouts and the measured loss-scaling mechanics by "Numerical computing for ML" (3f05c17b0d0d81d6af0be4a9a2edba8d, sections 2 to 4 and 11). Facts the owners lacked were moved there first.
 2026-10-26 (final follow-up sweep): links to the merged Model formats page now point to Local and on-device inference section 3; its Further reading card removed and the Local card names the file formats.
 
 2026-10-26 (final follow-up sweep, second batch): the FP8 accumulation note links Numerical computing section 5 (why long sums in a narrow accumulator drift).
 
 ## 2026-11-10: the split layout and four 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (as `30_js_s3.js`), `21_js_rd_common.js`, `99_js_tabs.js` (key `quant-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (as `30_js_s3.js`), `21_js_rd_common.js`, `99_js_tabs.js` (key `quant-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|
@@ -92,4 +91,4 @@ The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templ
 
 **Ledger**: 252 units, core 172, depth 65, fat 12, owned 2, volatile 1, problems 0. Six units added by hand for the stages' step lists; nine re-keyed for the new wording (the block and migration animations' captions); 21 Further-reading keys that contained a quoted reading time re-keyed on the words.
 
-**Checks fixed honestly**: `check_page.mjs` no longer asserts that nothing plays (stages autoplay since 2026-11-06; `check_stages.mjs` checks autoplay and reduced motion); `check_visuals.mjs` checks the GPTQ prose in its new wording and Fig. 2's per-tensor step; `mk_coverage.py`'s probe for the Model formats link was stale since the 2026-10-26 sweep (the card had been removed then) and now probes the sentence that replaced it.
+**Checks fixed honestly**: `check_page.mjs` no longer asserts that nothing plays (stages autoplay since 2026-11-06; `check_stages.mjs` checks autoplay and reduced motion); `check_visuals.mjs` checks the GPTQ prose in its new wording and Fig. 2's per-tensor step.

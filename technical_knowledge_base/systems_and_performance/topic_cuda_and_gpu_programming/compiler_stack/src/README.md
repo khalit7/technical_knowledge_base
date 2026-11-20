@@ -23,7 +23,7 @@ Images: `kb-gpu-lab:1` (the parent's, `../../src/compile/image/Dockerfile`: CUDA
 - `check_ui.mjs`: every control in every tab at 390 px dark and 920 px light (no errors, NaN, undefined, sideways scroll), screenshots in `../.shots/`; then a normal-motion pass that scrolls every stepper into view and fails if any moves by itself. `shots.mjs`, `smoke.mjs`, `wide.mjs`: helpers used while building.
 
 ## Departures from the child-page method
-- A new page: no old Notion text, so no `live.md`; `coverage.json` instead records how this page reconciles with the root's section 8 and Compiler explorer.
+- A new page: no old Notion text.
 - No timings of GPU code at all (no NVIDIA GPU, and Metal has nothing to say about ptxas). The only timings are CPU-side: NVRTC compiles and torch.compile's compile latency, labelled with load.
 - The scoreboard decoding is independent reverse engineering (Jia et al.), shown as such, and validated here rather than trusted.
 
@@ -71,7 +71,7 @@ Why about 37 minutes is right: the page covers two complete roads (nvcc and torc
 After the 2026-11-16 pass: 304 units, core 224, depth 37, fat 38, owned 5, problems 0; about 85 re-keyed to the condensed wording, 193 to 195 relabelled depth (moved into a closed block), 207 to 209 and 219 to 243 fat with a `note`.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-10
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cs-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still rebuilt byte for byte from `out/` by `check_embed.py`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cs-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still rebuilt byte for byte from `out/` by `check_embed.py`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

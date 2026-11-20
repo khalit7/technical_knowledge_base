@@ -39,7 +39,7 @@ The audit found 39 minutes of Reading with no visual drawn in it (the decode cha
 Why 31 minutes is right: the page teaches eight kernel patterns that a transformer is built from, each with a measured result, and now also the matmul and softmax progressions it owns (absorbed from the root); the two animated tabs' text (4.4 minutes) moved into the Reading flow, so the like-for-like core fell from 43 to 31 minutes. Every remaining core unit in the ledger is either a mechanism, the number that proves it, or the caveat that keeps the number honest; about a fifth of the core words are widget captions and counters. Provenance, internals of PyTorch and NVIDIA libraries, FA-3 and FA-4 detail and rehearsal are closed.
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
-414 units: core 267, depth 101, fat 46, owned 0, volatile 0. 404 were drafted from the old page by `ledger.py init`; 10 were added by hand for absorbed root-lab numbers, the hero's derived traffic and script-rendered tables now in static text. Fat units carry a `note`. The old `coverage.json` (migration from the Notion page) is kept as history.
+414 units: core 267, depth 101, fat 46, owned 0, volatile 0. 404 were drafted from the old page by `ledger.py init`; 10 were added by hand for absorbed root-lab numbers, the hero's derived traffic and script-rendered tables now in static text. Fat units carry a `note`.
 
 ## Departures from the page-kind shape
 - Matmul comes first, before reductions, because the hero is the matmul ladder and the progression is what this page owns.
@@ -49,7 +49,7 @@ Why 31 minutes is right: the page teaches eight kernel patterns that a transform
 Nothing ran on an NVIDIA GPU. Decoupled look-back was not run (no forward-progress guarantee on Metal). The cause of the S = 8 split-KV slowdown is not established. Why the three-sweep softmax (S2) runs near copy speed (likely cache hits on the 16 KB row) was not profiled.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `wk-tab`). Parts renamed so the load order is explicit: `23_js_rd.js` is `23_js_rd_main.js`; `23_js_rd_hero.js` (the 2D hero) and `24_js_rd_tree1.js` (the 2D tree widget) are removed, their figures now 3D; `24_js_rd_tree0.js` is `24_js_rd_treemodel.js`; `25_js_rd_fa.js` is `24_js_rd_fa.js`. Every script runs after the parts it uses (data 22, models 24, renderer 25, scenes 40 to 43, tabs 99). No new runs.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `wk-tab`). Parts renamed so the load order is explicit: `23_js_rd.js` is `23_js_rd_main.js`; `23_js_rd_hero.js` (the 2D hero) and `24_js_rd_tree1.js` (the 2D tree widget) are removed, their figures now 3D; `24_js_rd_tree0.js` is `24_js_rd_treemodel.js`; `25_js_rd_fa.js` is `24_js_rd_fa.js`. Every script runs after the parts it uses (data 22, models 24, renderer 25, scenes 40 to 43, tabs 99). No new runs.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

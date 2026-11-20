@@ -52,7 +52,6 @@ The core grew back by the Small-n tab (moved in) and the new ranking section, an
 `src/ledger.json`: 286 units (277 drafted by `ledger.py init`, 9 added by hand for script-rendered tables, widgets and the new ranking section): core 211, depth 64, fat 11, owned 0, volatile 0. `python3 html_utils/ledger.py check` prints problems 0.
 
 ## Coverage
-`coverage.json` maps every fact of the old Production page's statistics (handed off in `../../production_eval_engineering/src/handoff_statistics.md`) and the parent root's statistics mentions to where this page carries them, with the corrections.
 
 2026-10-26 (final follow-up sweep): section 7 adds Bowman and Dahl's ceiling example, recomputed: 98% to 98.1% needs about 300,000 items per model against about 24,600 for 80% to 81% (unpaired, alpha 0.05, 80% power; 12.2 times); the Re-grading six physics benchmarks page's 38,200 against 3,100 drops the power factor, which this section says.
 

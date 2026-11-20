@@ -1,6 +1,6 @@
 # Direct Preference Optimization (DPO): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` as in LoRA, `mk_coverage.py`, `check_page.mjs`).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` as in LoRA, `check_page.mjs`).
 
 ## Tabs
 
@@ -22,16 +22,16 @@
 
 ## Files
 
-- `save_live.py` (Notion fetch from the session transcript into `live.md`), `extract_paper.py` (arXiv HTML v1, v2, v3 to `inputs/paper_v*.txt`, tables to `inputs/table_*.txt`), `decode_figs.py` (`inputs/figs/*.svg` to `inputs/figs.json`: ticks matched to labels, markers, polylines, error bars; legend bars dropped).
+- `extract_paper.py` (arXiv HTML v1, v2, v3 to `inputs/paper_v*.txt`, tables to `inputs/table_*.txt`), `decode_figs.py` (`inputs/figs/*.svg` to `inputs/figs.json`: ticks matched to labels, markers, polylines, error bars; legend bars dropped).
 - `parts/22_js_dpo.js`: the toy engine (policy, reference, reward, data, every loss, reward model, PPO, exact evaluation, `makeRunner`); runs in the browser and node.
 - `toy_sweep.mjs` (node, about 16 s): every toy number the page quotes, to `inputs/toy.json`. `check_engine.mjs` then `uv run --with torch python check_engine.py`: PyTorch check, `model/check_engine.json` (PASS, worst 1.9e-13).
 - `recompute.py`: derived numbers about the paper's evidence (n = 256 grid, bar/SE ratio, z-scores, frontier dominance, Table 1 and 2 SEs) to `inputs/recompute.json`. `mk_toydata.py`: `parts/_gen_toy.js`. `mk_paper.py`: card, Further reading, data.
 - `inputs/`: paper text, figure SVGs, `repo_README.md`, `repo_preference_loss.txt` (Apache 2.0 code), `later_extracts.txt` (abstracts and quoted lines of every later work cited), `toy.json`, `figs.json`, `recompute.json`.
-- `check_page.mjs`: every control in both themes and widths, each trainer method to 150 steps, the sweep rerun (exact match), the three animations stepped; since 2026-10-25 it also fails if an animation moves before a click and opens every closed block. `mk_coverage.py`: `coverage.json`.
+- `check_page.mjs`: every control in both themes and widths, each trainer method to 150 steps, the sweep rerun (exact match), the three animations stepped; since 2026-10-25 it also fails if an animation moves before a click and opens every closed block.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 237 KB. `check_page.mjs`: about 400 actions, 0 problems; sweep rerun in the browser in 3.5 s, largest difference 5e-5 (rounding of stored values). `check_engine.py`: PASS. `mk_coverage.py`: 51 of 51.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, about 237 KB. `check_page.mjs`: about 400 actions, 0 problems; sweep rerun in the browser in 3.5 s, largest difference 5e-5 (rounding of stored values). `check_engine.py`: PASS.
 
 ## The 2026-10-25 light pass (teaching contract)
 
@@ -59,7 +59,7 @@ Why about 20 minutes is right: the added top (core sentence, hero caption, terms
 255 units: core 209, depth 34, owned 6, volatile 5, fat 1. 244 drafted by `ledger.py init` from the page before the pass; 11 added (core sentence, hero, terms, the two moved charts, six owner links). Fat: the old animation-manners line. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 410 actions, 0 problems (including no movement before a click and every closed block opened); sweep rerun matches to 5e-5. `mk_coverage.py`: 51 of 51 (the reading-time item's keys and one quoted key updated). `check_engine.py` not rerun: the engine (`22_js_dpo.js`) is unchanged.
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 410 actions, 0 problems (including no movement before a click and every closed block opened); sweep rerun matches to 5e-5. `check_engine.py` not rerun: the engine (`22_js_dpo.js`) is unchanged.
 
 ## 2026-10-26: the loss-family push animation moved to Alignment
 Khalid's decision: the DPO-family animation (the push on a pair against its margin for unlikelihood, DPO, the SLiC hinge, IPO, cDPO and SimPO, with each loss's outcome on this page's toy) moved to Alignment, section 5, beside the claim it proves. `parts/25_js_then.js` was removed (ported there as `27_js_lfx.js`; its toy outcomes are copied from `_gen_toy.js` by that page's `mk_lfx_data.py`, so rerun it there if this toy is regenerated). The Then and now tab keeps the timeline and the what-survived table and links to the animation; this page keeps its derivation, its toy and its long runs. Ledger units 204 to 206 relabelled `owned:` Alignment.
@@ -74,7 +74,6 @@ What changed and why:
 - **Considered and not built**: a value surface over the policy's parameters with the DPO and PPO paths: the toy's policy has 444 logits, not two parameters, so there is no honest 2D surface to draw.
 - **Kept 2D**: the hero (the paper's own figure, a real image), the displacement curves, the implicit-reward scatter, Figure 2 left and the toy sweep (reward against KL), the trainer, sweep and long-run charts, the figures tab's charts and tables, Then and now (a timeline and a table): each is a number on an axis or a table.
 - **Motion**: `makeAnim` removed from `11_js_ui.js` (no 2D step animation remains). `05z_errbox.js.html` and `99_js_tabs.js` are the templates (storage key `dpo-tab`; a `data-to` link opens the closed block that holds its target, or the one just after it, as before). `check_page.mjs` now asserts that both stages play when scrolled into view and steps each through both modes; `check_stages.mjs` (after DeepSeekMath's) checks the split at 1400 px, both stages in both modes at 1400 light, 920 light and 390 dark, flows stopping off screen, reduced motion, and 25 numbers the static step lists state against the data the stages draw.
-- `mk_coverage.py`: the Takeaway item's check updated to the scoped wording now in `paper.json` (it had gone stale with that change; 51 of 51 again).
 
 ## Length judgement (2026-11-13)
 | | Before | After |

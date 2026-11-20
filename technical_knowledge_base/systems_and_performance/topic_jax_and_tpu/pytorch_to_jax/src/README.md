@@ -71,7 +71,7 @@ Why about 25 minutes is right: the core now carries the four state differences w
 
 ## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `pj-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `PJ` (`runs/out/*.json` via `make_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `pj-tab`), `05z_errbox.js.html`. `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `PJ` (`runs/out/*.json` via `make_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

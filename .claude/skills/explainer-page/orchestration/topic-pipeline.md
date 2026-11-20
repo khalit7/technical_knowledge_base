@@ -1,8 +1,8 @@
 # Topic pipeline: building a root and its children with a team of subagents
 
-Purpose: the end-to-end sequence the lead session follows for a new topic (or a full rebuild of an old one) built by subagents, plus the rules that kept ten topics safe, cheap and correct, and a short path for a single page.
+Purpose: the end-to-end sequence the lead session follows for a new topic (or a full rebuild of an existing one) built by subagents, plus the rules that kept ten topics safe, cheap and correct, and a short path for a single page.
 
-The lead plans, briefs, verifies, commits, publishes and keeps the log. Agents research, run, build and check one unit of work each (one tab of the root, or one child page). Everything here was learned on the topics built between 2026-10-03 and 2026-10-17 (training, RAG, data curation, JAX, ML infra, generative and multimodal, and others).
+The lead plans, briefs, verifies, commits, publishes and keeps the log. Agents research, run, build and check one unit of work each (one tab of the root, or one child page).
 
 ## 0. Before anything: is this a team job?
 - A root with labs and several children: yes, follow this file.
@@ -11,32 +11,31 @@ The lead plans, briefs, verifies, commits, publishes and keeps the log. Agents r
 - Never launch the Workflow tool without Khalid's explicit opt-in. Plain subagents (the Agent tool) are fine.
 
 ## 1. Opening questions and the teaching plan
-1. Ask the opening questions in [../understand/reader.md](../understand/reader.md): which topic, his level (usually "from zero"), which of the four goals (build, internals, judge and debug, interviews and design), what evidence is allowed (Mac local only, GPU or CPU only, Docker or not, paid APIs or not), how free you are with the old children (reuse, restructure, retitle, merge, retire), where the root goes and what happens to overlapping live pages in other topics, and how he wants to review. Ask only goals and preferences; decide the curriculum yourself ([../understand/reader.md](../understand/reader.md), "teach, don't ask scope").
-2. If an old Notion root exists, read it and its children read-only and plan the coverage check ([../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md)). The old text is unverified notes: a floor of facts to carry or correct, never the scope.
+1. Ask the opening questions in [../understand/reader.md](../understand/reader.md): which topic, his level (usually "from zero"), which of the four goals (build, internals, judge and debug, interviews and design), what evidence is allowed (local only, GPU or CPU only, Docker or not, paid APIs or not), how free you are with the old children (reuse, restructure, retitle, merge, retire), where the root goes and what happens to overlapping live pages in other topics, and how he wants to review. Ask only goals and preferences; decide the curriculum yourself ([../understand/reader.md](../understand/reader.md), "teach, don't ask scope").
+2. If the topic already has pages, map each to the plan ([../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md)): a floor of facts to carry or correct, never the scope.
 3. Research until you can teach the spine yourself ([../understand/research.md](../understand/research.md)), then write the plan ([../understand/curriculum.md](../understand/curriculum.md)): the spine of the Reading tab, one running example, the labs (one per tab, usually five) plus a tool or model map, and the proposed children with one reason each. Present it; Khalid approves, rewords or drops children. He has often answered "All approved".
-4. Map every old child to a new one. For an old child with no new equivalent, grep the planned pages for its key terms, report what is and is not covered, and ask: rebuild, fold into a new page, or retitle "TO DELETE: ..." (2026-10-17: leaving two unmatched old children untouched looked like a judgment that they were fine; they were not).
 
 ## 2. Scaffold commit
 Create the root's `src/` from [../build/templates/](../build/templates/) as [../build/scaffold.md](../build/scaffold.md) describes: `build.sh`, `parts/01_head.html` (shared CSS), `parts/10_header.html` (title, subtitle with "Data as of <month year>", the tab bar), `21_js_rd_common.js`, the error box, `99_js_tabs.js` with a storage key `{{PREFIX}}-tab`, one placeholder part per tab (`31_tab_<key>.html` ...), Reading placeholders and `39_tab_more.html`. One child folder per approved child with a README (title line, "Notion: pending" or the id, one-line status). Build it once and run `checkpage.sh` on the empty shell. Commit: "Topic: <name> root scaffold and N child folders".
 - Write scaffold loops in `sh`, not zsh, or list names explicitly: zsh does not split words in `for x in $list` and once created one wrongly named placeholder file (2026-10-14).
 
 ## 3. Register the children
-- When Notion is connected: create the new child pages under the root with `notion-create-pages` (parent `page_id` = root id, `allow_async` false, content: the link line from the `sync-kb-github` skill, which works once the page is pushed); reuse an old child's page id where the new child replaces it (it is retitled at publish). Add one `pages.json` entry per child (`path`, exact `title`, `id`, `parent` = root title, `section`, `status` `not_migrated`, `prereqs`) and write the id into its README. `prereqs` is strict: the ids of the pages a reader cannot understand this page's core without (`[]` if none); it drives the home page's learning map ([../../sync-kb-github/site.md](../../sync-kb-github/site.md)), and `python3 html_utils/learning_map.py check` must pass. Commit: "Register the N children of Topic: <name>".
+- When Notion is connected: create each child's Notion link page and `pages.json` entry as the `sync-kb-github` skill says (A new page; an existing page the child replaces keeps its id), and write the id into its README. `python3 html_utils/learning_map.py check` must pass. Commit: "Register the N children of Topic: <name>".
 - When Notion is disconnected: keep "Notion: pending" in the READMEs, tell agents to name siblings in plain text and list those mentions in their reports, and wire links later (step 10). Two topics (ML infra, generative) were built entirely this way on 2026-10-16/17 and registered in one commit when Notion came back.
 
 ## 4. Scratch, scripts and briefs
-- Choose the topic's scratch dir `{{SCRATCH}}/{{PREFIX}}` inside the session scratchpad. Copy [../scripts/guard.sh](../scripts/guard.sh) and [../scripts/lock.sh](../scripts/lock.sh) into one shared tools dir of the scratchpad (the briefs call it `{{TOOLS}}`) so every topic running on the machine shares the same locks. Optionally start a background resource log (load, swap, memory free every minute, with a pid file).
+- Choose the topic's scratch dir `{{SCRATCH}}/{{PREFIX}}` inside the session scratchpad. Copy [../scripts/guard.sh](../scripts/guard.sh) and [../scripts/lock.sh](../scripts/lock.sh) into one shared tools dir of the scratchpad (the briefs call it `{{TOOLS}}`) so every topic running on the machine shares the same locks.
 - Fill the templates: [briefs/common.md](briefs/common.md) (rules every agent on the topic follows), [briefs/tabs.md](briefs/tabs.md) (one entry per root agent: setup, labs, map, read). Save them as `{{SCRATCH}}/{{PREFIX}}_common.md` and `{{PREFIX}}_tabs.md`, and keep a durable copy outside the scratchpad and outside the repo (a reboot wiped the scratchpad on 2026-10-15; the briefs survived only because copies existed elsewhere). The filled briefs contain the scratch path, so they never go in the repo.
 - Launcher prompts stay short: who the agent is, the two files to read in full, which section is theirs, their prefix, what to report. The rules live in the brief, once.
 
 ## 5. Wave 1: setup, Reading and map in parallel
 - **Setup agent** (heavy): builds the shared env (`{{SCRATCH}}/{{PREFIX}}/venv`, Python via uv, `UV_CACHE_DIR` shared), downloads data and models (Hugging Face models in `~/.cache/huggingface`, durable), defines the running example and shared code in the root's `src/data/` (README.md, manifest.json, loaders, tiny models), smoke-tests each model under the bench lock, records versions and licences in `FACTS.md`, and writes `{{SCRATCH}}/{{PREFIX}}/SETUP.md` whose last line is `READY`.
-- **Reading agent** (light): saves the old root and children verbatim (if Notion is up), writes the Reading and Further reading tabs from research, leaves numbered TODOs for lab numbers in `src/read/todo.md`.
+- **Reading agent** (light): writes the Reading and Further reading tabs from research, leaves numbered TODOs for lab numbers in `src/read/todo.md`.
 - **Map agent** (light): the tool or model map tab (status, licence, dates, verified live). If it needs the env for small checks, it scripts them as pending and is resumed after READY; it must never idle waiting for READY (2026-10-14: a map agent idled about 20 minutes).
 - When SETUP.md says READY: verify (privacy grep, file sizes, README reads well), commit `src/data/` with explicit paths.
 
 ## 6. Labs after READY
-- One agent per lab, briefed by its `tabs` entry. At most about four agents at once, at most three doing heavy work (a GPU job counts as one), and only one GPU-bound agent at a time on a GPU topic ([lessons.md](../lessons.md), 2026-10-11 and 2026-10-16). Start CPU or light labs beside the single GPU lab.
+- One agent per lab, briefed by its `tabs` entry. At most about four agents at once, at most three doing heavy work (a GPU job counts as one), and only one GPU-bound agent at a time ([../evidence/resource-safety.md](../evidence/resource-safety.md)). Start CPU or light labs beside the single GPU lab.
 - Order labs so the ones whose recordings others reuse go first (for example the diffusion lab before the flow lab, which compared against its checkpoints).
 - Each lab's report goes into the memory log: the Reading numbers it produced, corrections to other tabs, fixes for `src/data/README.md`. These become the Reading agent's TODO fill and the **ROOT FIX LIST**.
 - Watch the page size as labs land: the root should stay under about 1.5 MB. When it nears the limit, give the remaining labs a data budget (2026-10-17: "each lab at most 120 KB of data") and ask earlier labs to trim.
@@ -57,35 +56,33 @@ One agent with [briefs/fix-pass.md](briefs/fix-pass.md): the ROOT FIX LIST as le
 When all child ids exist, one agent with [briefs/link-wiring.md](briefs/link-wiring.md) turns every plain-text sibling or child mention (root `src/read/links_todo.md`, children's notes and parts, "being built" cards) into `{{text|n:<id>}}`, rebuilds and checks every page. Commit.
 
 ## 11. Publish
-The lead, with the `sync-kb-github` skill: check each page, `page_finalize.py` (commits), `git push` (the site deploys), make sure every page of the topic has its Notion link page (new pages created, reused pages retitled), add the topic's concept owners to `technical_knowledge_base/OWNERS.md`, then `sync_status.py --no-build` must say "Published".
+The lead, with the `sync-kb-github` skill (checks, commit, push, Notion link pages), then adds the topic's concept owners to `technical_knowledge_base/OWNERS.md`.
 
 ## 12. Close
-- Final memory-log line: what is live, commits, reading times (flag a root over 30 minutes or a child over about 45), what Khalid must do (delete an old video, delete "TO DELETE: ..." pages), open items.
+- Final memory-log line: what is live, commits, reading times (flag a root over 30 minutes or a child over about 45), what Khalid must do (delete "TO DELETE: ..." pages), open items.
 - Delete scratch of finished, published work (venvs, large intermediates, `uv cache prune`), keeping what an open fix still needs. Stop containers you started.
 
 ## Lead rules
-- **Never idle.** While agents run, review landed work, write the next brief, verify reports, update the log. Idle gaps over about five minutes expire the prompt cache; on the inference topic this made pages 5 to 9 times more expensive (2026-10-11).
-- **Watch, don't poll.** For a long background job, start one watcher (one background command that exits when a marker such as `ALLDONE` appears in a log, or the Monitor tool with an until-condition) and get on with other work. Never let an agent sit in a sleep loop waiting for a job; let it hand back and resume it with SendMessage when the marker appears.
+- **Never idle; watch, don't poll** ([../evidence/resource-safety.md](../evidence/resource-safety.md), Waiting): while agents run, review landed work, write the next brief, verify reports, update the log; one watcher per long job, and resume the agent with SendMessage when its marker appears.
 - **Stop re-reports.** An agent waiting on a long run tends to send status report after status report, each waking the lead. Tell it: "no more status reports; stop your own watcher (kill only PIDs you started; leave the run going) and end your turn; I will message you at ALLDONE; report once after that" (2026-10-17).
-- **Stage explicit paths.** Never `git add -A` (or `git add` of a whole topic) while agents are working: it sweeps their unfinished files into your commit (2026-10-14). Add only the folders or files you verified.
-- **page_finalize commits only the page's own files** (`index.html`, `README.md`, `src/`) since 2026-10-23, so a root no longer sweeps in its children.
+- **Stage explicit paths.** Never `git add -A` (or `git add` of a whole topic or a root's folder, which holds its children) while agents are working: it once swept a map agent's unfinished files into a commit. Commit with the command in the `sync-kb-github` skill.
 - **Agents never** commit, publish, write to Notion, edit `pages.json`, or edit folders they do not own; they suggest changes in their reports. The lead commits and publishes.
 - **Git one at a time.** Only one process (you or the publish agent) does git operations at any moment; `git pull` before the first commit of a session.
 - **Keep the brief the source of rules.** When an incident teaches a rule, append it (dated) to the common or child brief, message every running agent once, and add it to [../lessons.md](../lessons.md) if it is not topic-specific.
-- **Resource first.** Run `guard.sh` before launching a heavy agent; if it prints HIGH, launch only light work. Check `uptime`, swap and other topics' GPU queues; one GPU job machine-wide across topics.
+- **Resource first.** Run `guard.sh` before launching a heavy agent; if it prints HIGH, launch only light work ([../evidence/resource-safety.md](../evidence/resource-safety.md)).
 
 ## Verify before committing an agent's work
 1. `git status --short` limited to the agent's folder: nothing outside its ownership changed.
-2. Privacy grep on everything to be committed: `grep -rIl -e '/Users/' -e 'Users-' -e '<login name>' -e 'claude-' -e 'glpat' -e 'sk-ant' -e '@' <paths>` and read every hit (emails, scratch paths, hostnames).
-3. `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `ask 0`, `buddy 1`, `clipped 0`; look at the screenshots of the tabs it touched.
+2. Privacy grep on everything to be committed ([../build/checks.md](../build/checks.md), Privacy) and read every hit.
+3. `checkpage.sh` passes ([../build/checks.md](../build/checks.md)); look at the screenshots of the tabs it touched.
 4. No `__pycache__`, `.shots`, MP4s, PDFs or files over about 1 MB; page size within budget.
 5. The report's numbers match the files (spot-check two), and the reading time is stated.
-6. Commit with explicit paths, then note the commit in the memory log.
+6. Commit (`sync-kb-github`), then note the commit in the memory log.
 
 ## Interruptions
 - **Network outage** (API errors such as ENOTFOUND): agents stop. When the network is back, resume each with SendMessage ("the network dropped; continue from where you were; check what your last step finished"). Never start a fresh agent for half-done work: the old one has the context (2026-10-14).
 - **Usage limit**: agents stop mid-turn. After the reset, resume each with SendMessage the same way (2026-10-17).
-- **Notion disconnected**: keep building; ids pending, plain-text sibling mentions, `coverage.md` as "old page not yet compared (Notion disconnected)"; register, wire and publish when it returns.
+- **Notion disconnected**: keep building; ids pending, plain-text sibling mentions; register, wire and publish when it returns.
 - **Reboot**: the scratchpad is gone (envs, models outside `~/.cache`, run outputs, locks). Check `last reboot` before trusting scratch after any gap; rebuild tools and envs from the briefs; re-run only what a page cannot rebuild from its `src/`.
 - **An agent hands back mid-run** (watchdog or its own choice): keep its run going, set one watcher, resume the same agent with its finishing list when the run ends.
 
@@ -93,6 +90,7 @@ The lead, with the `sync-kb-github` skill: check each page, `page_finalize.py` (
 Keep one memory file per topic in Claude's project memory folder (`<prefix>-topic-in-progress.md`, frontmatter type project) and one line in its MEMORY.md index. Add a timestamped line at every event: answers to the opening questions, scaffold and register commits, each agent launched (key and agent id, so it can be resumed), each report's findings, numbers for the Reading and the ROOT FIX LIST items, incidents and the rule they produced, what runs and what is left. A new session must be able to resume the topic from this file alone.
 
 ## Single page (no team)
-- **One child under an existing root:** read the root and siblings, fill [briefs/child.md](briefs/child.md) for one child (or work directly with [../page-kinds/topic-child.md](../page-kinds/topic-child.md)), register the Notion page if new, build, verify as above, publish with `sync-kb-github`, `page_finalize.py`, then add a card and a link on the root and republish it.
-- **One paper:** [../page-kinds/paper.md](../page-kinds/paper.md) directly, or one agent with [briefs/paper-agent.md](briefs/paper-agent.md); publish with `replace_content` (a paper row has no children), `paper_finalize.py`.
-- **Many papers:** one agent per paper with [briefs/paper-agent.md](briefs/paper-agent.md), about four at a time; for each finished page re-run `checkpage.sh` and look at the screenshots, publish it, finalize it, commit. A paper whose `pages.json` status is `not_migrated` but whose folder has an `index.html` was built and not published; one with only a README has not started.
+- **One child under an existing root:** read the root and siblings, fill [briefs/child.md](briefs/child.md) for one child (or work directly with [../page-kinds/topic-child.md](../page-kinds/topic-child.md)), register it if new, build, verify as above, publish with `sync-kb-github`, then add a card and a link on the root and republish it.
+- **One paper:** [../page-kinds/paper.md](../page-kinds/paper.md) directly, or one agent with [briefs/paper-agent.md](briefs/paper-agent.md); publish with `sync-kb-github`.
+- **Many papers:** one agent per paper with [briefs/paper-agent.md](briefs/paper-agent.md), about four at a time; for each finished page re-run `checkpage.sh`, look at the screenshots and publish it with `sync-kb-github`.
+- **Rebuild an existing page** (condense, restructure, re-visualise): one agent per page with [briefs/rebuild-page.md](briefs/rebuild-page.md), a topic's children first (they are the owners), its root last. Then make the topic agree with itself: retire root passages a child now carries (ledger `owned:`), fix child cards and quoted reading times (`python3 html_utils/check_times.py --page <page>`), and stale tab links.

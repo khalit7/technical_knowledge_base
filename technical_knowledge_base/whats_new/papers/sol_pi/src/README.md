@@ -1,6 +1,6 @@
 # SoL-Pi: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81a0bb77f16cbc898bb5, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Since the 2026-11-13 layout rollout `02_split.html`, `25_js_s3.js`, `05z_errbox.js.html` and `99_js_tabs.js` (storage key `sp-tab`) are the skill's templates, and `makeAnim` in `11_js_ui.js` is the RRSI page's version with the autoplay rules (plus an `o.before` hook that rewrites a generated step list before a reset). Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the Dream-RSI page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `11_js_ui.js`, `10_js_common.js`, `check_page.mjs`, `mk_coverage.py` with its item list replaced by this paper's, the CSS).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81a0bb77f16cbc898bb5, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Since the 2026-11-13 layout rollout `02_split.html`, `25_js_s3.js`, `05z_errbox.js.html` and `99_js_tabs.js` (storage key `sp-tab`) are the skill's templates, and `makeAnim` in `11_js_ui.js` is the RRSI page's version with the autoplay rules (plus an `o.before` hook that rewrites a generated step list before a reset). Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the Dream-RSI page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `11_js_ui.js`, `10_js_common.js`, `check_page.mjs`, the CSS).
 
 ## Tabs
 
@@ -28,7 +28,7 @@
 - **Moved into closed blocks**: where the page came from; how the lineages were orchestrated; why only the Opus 5 dollars can be checked (the GPT-5.6 Sol price fit); the swarm's setup and checks; Figure 7 (the mechanisms combined); Action Fusion's four stages in full (one summary paragraph stays); ObservationPack's blog lineage; small blog-paper inconsistencies. The same-week Z.ai GLM-5.3 comparison moved to one dated block "Same week, beyond the paper". Deleted as fat: "Reproducing the search" (restated two evidence bullets), the old header line, the nav as a unit.
 - **Never autoplays**: `makeAnim` waits on its first frame until the reader acts (also after a mode switch, in `11_js_ui.js` and the replay's own mode buttons in `16_js_run.js`); tabs from the skill template (`99_js_tabs.js`, key `sp-tab`, with `data-to` scrolling into closed blocks). `check_page.mjs` uses DOM clicks for tabs, fails on any frame drawn before a click, checks the hero and the add-one chart are drawn, and opens every closed block.
 - **No real image**: nothing physical to show, and the paper's figures are redrawn or decoded from printed labels; the arXiv licence was not checked for reuse because a redraw serves better.
-- **Takeaway softened** (card, `paper.json`, `live.md`): the old line said "at parity" (the score is 2.5 to 2.8 points below Pi, 93.7 to 94.3%), said the loops "discover" the techniques (humans set priors, filtered directions and refactored the code), called the fourth mechanism "delegated reading" (file reads bypass it; only long build and test logs go to a cheaper model), and gave the hourly saving without saying it is derived from two-hour tasks. The new line adds those, and Terminal-Bench 4's 15 against 18. The Notion property still carries the old line.
+- **Takeaway softened** (card, `paper.json`): the old line said "at parity" (the score is 2.5 to 2.8 points below Pi, 93.7 to 94.3%), said the loops "discover" the techniques (humans set priors, filtered directions and refactored the code), called the fourth mechanism "delegated reading" (file reads bypass it; only long build and test logs go to a cheaper model), and gave the hourly saving without saying it is derived from two-hour tasks. The new line adds those, and Terminal-Bench 4's 15 against 18. The Notion property still carries the old line.
 - **Source extracts**: no em-dashes or author emails in `inputs/`; the four `[dash]` markers in `inputs/extracts.txt` became `--`. `extract_paper.py` and `fetch_extracts.py` now replace em-dashes with `--` and emails with `[email removed]` on extraction.
 - **Length judgement**: Reading core 24 min before (5,576 words) and 23 after (5,399), plus 3 in closed details (758 words, from 0; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes; the moves into closed blocks took out about 3. What stays is core: the search as the paper runs it, the four mechanisms with the code's constants, the results on both models and the other tests, the token-against-dollar decomposition, the add-one evidence and an evidence section that changes the reading; no other page carries them. Other tabs unchanged (Replay 4 min, Tables 8, Further reading 3).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 277 units; core 248, depth 22, owned 3, volatile 1, fat 3; `ledger.py check` problems 0.
@@ -48,7 +48,6 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the agent transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `tables_v1.txt`, `anchors_v1.txt`.
 - `decode_figs.py`: printed labels of Figures 6, 7 and 8 from the PDF to `inputs/figs.json` (needs `uv run --with pymupdf` and the PDF in scratch space; the PDF is not kept).
 - `fetch_extracts.py`: short verbatim extracts of the blog, the README, the EdgeBench README and a summary of the Z.ai post to `inputs/extracts.txt`.
@@ -58,10 +57,9 @@
 - `check_occ.mjs`: the page's port (`parts/14_js_occ.js`) against the original TypeScript, to `inputs/check_occ.json` (run by `build.sh`; needs Node 22 with `--experimental-strip-types`).
 - `parts/15_js_sim.js`: the session simulator (plain JS, also loadable by Node).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (35 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the animation stepped in every mode, text at least 11 px, nothing moving before a click, every closed block opened.
 - `parts/13_js_hero.js`: the hero figure and the add-one chart (static). `reading.json`: the measured reading time for the header. `label_ledger.py`: labels `ledger.json`.
 
 ## Checks (3 October 2026; rerun 26 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (1,010 actions; nothing moves before a click); `ledger.py check` problems 0; `check_occ.mjs` PASS (50,000 of 50,000 identical); `recompute.py` 38 reproduce, 1 within rounding, 2 do not; `mk_coverage.py` 35 of 35.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (1,010 actions; nothing moves before a click); `ledger.py check` problems 0; `check_occ.mjs` PASS (50,000 of 50,000 identical); `recompute.py` 38 reproduce, 1 within rounding, 2 do not.

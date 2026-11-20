@@ -21,7 +21,6 @@
 
 ## Files
 
-- `save_live.py`: copied the Notion fetch verbatim from the agent transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 and v2 to `inputs/paper_v*.txt`, `tables_v*.txt`, `anchors_v*.txt`.
 - `decode_figs.py`: Figures 4 and 6 from the vector PDFs in the v2 e-print to `inputs/figs.json` (`uv run --with pymupdf`).
 - `mk_tables.py`: `tables.json` (Tables 1 to 4, Figures 4 and 6), asserting v1 and v2 tables are identical.
@@ -32,14 +31,13 @@
 - `mk_hero.py`: the hero's result bars from `tables.json` (asserts the 14.9, 54.1 and 36.0% cuts), to `parts/_gen_hero.html`.
 - `label_ledger.py`: labels `ledger.json` (see the light pass below).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (42 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the Evo-GDPO animation stepped for every preset and mode; since 2026-11-13 it asserts that the protocol stage plays once scrolled into view (it used to forbid any autoplay).
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, both stage step lists (and the turn stage's second list) against `window.JITTURN` and `window.JITEVO`, and the Evo-GDPO stage against the Score tab's own calculator at its defaults.
 - `parts/31_js_sc_turn.js`, `parts/32_js_sc_evo.js` (2026-11-13): the two 3D scenes on the template renderer `parts/25_js_s3.js`.
 
 ## Checks (3 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 47 of 47 printed numbers; `mk_coverage.py` 42 of 42.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems; `recompute.py` 47 of 47 printed numbers.
 
 ## Light pass, 2026-10-25 (teaching contract)
 
@@ -47,9 +45,9 @@
 - **Owned elsewhere** (OWNERS.md): what a harness is (Topic: agentic-harnesses), GRPO's group advantage (RL for LLMs), DPO (Alignment), binomial standard errors and paired comparisons (Eval statistics): one sentence each kept, linked.
 - **Moved into closed `<details>`** (nothing deleted but fat): provenance and the first summary's framing; how familiar harnesses fit the tuple (v1); Stage I's pair weight; what the release says about its checkpoint; the full benchmark and baseline list; v1's reading of the gains; Figure 4 against Table 2; JIT's own drafting cost; the margins one by one; two training rows against their test cases; the granularity cells; serving the model; every connection (the open text keeps three and points to Further reading); a dated block "Later, as of 25 October 2026" (repository still at ababa06, arXiv still v2). In the Tables tab, Table 4, the noise table, the granularity table and the 68 checks are closed blocks (their anchors still open them from Reading links).
 - **No autoplay**: `makeAnim` waits on step 1 until play or a step, also after a mode switch; `check_page.mjs` fails if the protocol animation draws a frame when scrolled into view or after a switch, and opens every closed block before auditing a tab. Tabs use the template (`99_js_tabs.js`, storage key `jit-tab`). Header: "Reading: 28 min, plus 6 in closed details." (`reading.json`).
-- **Takeaway scoped** (paper.json, live.md, so the card): the old line said a harnessed V4-Flash beats bare GPT-5.6 (true on five of nine benchmarks, not on average, 75.5 against 76.5) and "14.9-54.1% lower cost than fixed harnesses" as if across all nine (it is Table 3's three benchmarks, perhaps without JIT's own drafting); it now also says single runs, the undescribed default scaffold and the DeepPlanning training overlap. Why it matters says "an early attempt", not "the first attempt". The Notion property still has the old wording.
+- **Takeaway scoped** (paper.json, so the card): the old line said a harnessed V4-Flash beats bare GPT-5.6 (true on five of nine benchmarks, not on average, 75.5 against 76.5) and "14.9-54.1% lower cost than fixed harnesses" as if across all nine (it is Table 3's three benchmarks, perhaps without JIT's own drafting); it now also says single runs, the undescribed default scaffold and the DeepPlanning training overlap. Why it matters says "an early attempt", not "the first attempt". The Notion property still has the old wording.
 - **Length**: Reading core 6,551 words (28 min) plus 137 closed before; 6,458 (28 min, including about 500 words of new top) plus 1,298 closed (6) after. Tables tab 2,177 open before, 827 open plus 1,352 closed after. Score tab unchanged (5 min). The core stays near its length because the ledger is almost all core: the paper's method, five result sections with their numbers, and the release audit that changes the reading (DeepPlanning overlap, released model not the evaluated one) all belong to this page and nowhere else.
-- **Ledger** (`ledger.json`, drafted from the committed page): 290 units, core 238, depth 44, owned 4, volatile 1, fat 3; `ledger.py check` problems 0. `mk_coverage.py`: three keys updated; 42 of 42.
+- **Ledger** (`ledger.json`, drafted from the committed page): 290 units, core 238, depth 44, owned 4, volatile 1, fat 3; `ledger.py check` problems 0.
 - Privacy and dashes: no email in any saved source; the 34 long dashes in `inputs/paper_v1.txt`, `paper_v2.txt`, `tables_v1.txt` and `release_extracts.txt` are saved as `--`, and `extract_paper.py` and `fetch_release.sh` now redact emails and convert dashes on any rerun.
 
 Rechecked 2026-10-25: `checkpage.sh` 4 tabs, 255 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 400 actions, 0 problems.
@@ -76,4 +74,4 @@ What changed and why:
 
 The growth is the three stage step lists (about 800 words) that explain the two stages and replace the protocol animation's script-drawn captions and counters (invisible to the word count before), plus one paragraph on what the real Turnstile figure adds. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 32 min, plus 6 in closed details." from `reading.json`.
 
-Ledger: 293 units (core 241, depth 44, owned 4, volatile 1, fat 3); `label_ledger.py` re-keyed units 35, 36, 79, 127 and 133 by hand (`KEYS`: reworded or moved beside a stage or figure) and added three units for the stage lists. `ledger.py check` problems 0. `mk_coverage.py` 42 of 42.
+Ledger: 293 units (core 241, depth 44, owned 4, volatile 1, fat 3); `label_ledger.py` re-keyed units 35, 36, 79, 127 and 133 by hand (`KEYS`: reworded or moved beside a stage or figure) and added three units for the stage lists. `ledger.py check` problems 0.

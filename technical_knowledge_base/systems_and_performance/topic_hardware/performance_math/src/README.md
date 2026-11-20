@@ -8,7 +8,6 @@ Build: `sh build.sh` writes `../index.html` from `parts/`. Everything (recompute
 - `recompute.py`: every derived number, importing the parent's `src/calc/model.py` so the two pages cannot disagree; writes `out/recompute.json`. `code/gen_data.py` writes `parts/24_js_pmd.js`.
 - `check/check_embed.py` (prose numbers), `check/check_page.mjs` (JavaScript against Python, copied parent files unchanged), `check/check_ui.mjs` (every control at 390 px dark and 920 px light), `check/check_stages.mjs` (the three 3D stages: autoplay, steps, reduced motion, labels, step-list numbers; from the repo root, a few minutes).
 - `inputs/`: configs (from the parent), extracts of PaLM, Korthikanti et al., Llama 3 and DeepSeek-V3, and PyTorch's checkpoint docs, with URLs and dates.
-- `live.md`: the old page (copy of the parent's `src/read/old/04_performance_math.md`); `coverage.json` maps its 32 claims.
 - `viz_ideas.md`: visuals built and rejected, with scores.
 
 Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page). Departure: the parent already has the calculator this page's subject would naturally be, so the tabs extend it (a ledger of exact counts, a planner for deadlines and serving cost) and the Reading tab derives and checks rather than computes. No NVIDIA GPU: FLOPs and saved bytes are counted by PyTorch on the meta device (exact, no hardware), utilisation is measured on the M1 Pro GPU, and NVIDIA figures are vendor specs or papers.
@@ -43,7 +42,7 @@ Why 21 minutes is right: the core now carries eight mechanisms (FLOP counting an
 The parent calculator now uses this page's activation count (49h per layer for the 8B plus FP32 logits) instead of 34sbh; `recompute.py` imports `act_bytes_gpt3` for the 34sbh comparison (36.5 GB), the copies `22_js_calcd.js` and `23_js_calcx.js` were recopied, and the two correction boxes say so. Further reading times set to each header.
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `pm-tab`). `build.sh` writes the em-dash detector's character as bytes. No new runs: every scene draws from `window.PMD` (`out/recompute.json`, unchanged) and `window.PMA` (the memory engine, unchanged and still checked by `check/check_page.mjs`).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (after the data and engine parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `pm-tab`). `build.sh` writes the em-dash detector's character as bytes. No new runs: every scene draws from `window.PMD` (`out/recompute.json`, unchanged) and `window.PMA` (the memory engine, unchanged and still checked by `check/check_page.mjs`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

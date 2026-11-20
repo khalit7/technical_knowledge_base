@@ -15,7 +15,7 @@ Order after a rerun: `sh ja/run_all.sh`, `python3 ja/gen.py`, `sh build.sh`, `no
 | `ja/gen.py`, `ja/run_all.sh` | `src/ja/` | trimmed (no drills, start-up or rosetta data, so no path walks up to the topic root); classes now `el-`; `[[outc:]]` marker added |
 | `ja/tpl/20_read_b.html` to `20_read_f.html` | `src/ja/tpl/30_tab_ja_read_e.html`, `30_tab_ja_read_f.html`, `31_tab_ja_loop.html` | Part 1 sections 9 to 11 and the Event-loop stepper tab, rewritten to the teaching contract |
 | `ja/tpl/24_js_el_read.js`, `25_js_el_loop.js` | `34_js_ja_read.js` (timeline and SSE blocks), `35_js_ja_loop.js` | a mode switch resets to step 1 instead of playing; `25_js_el_loop.js` was replaced by `31_js_sc_loop.js` and deleted on 2026-11-07 (below) |
-| `ja/coverage.json`, `ja/viz_ideas.md`, `ja/versions.txt` | `src/ja/` | trimmed to this page (versions kept whole as the toolchain record) |
+| `ja/viz_ideas.md`, `ja/versions.txt` | `src/ja/` | trimmed to this page (versions kept whole as the toolchain record) |
 | `check_controls.mjs` | `src/ja/check_ui.mjs` and the Python concurrency child's check | finds the repo with `git rev-parse --show-toplevel` |
 New here: the hero diagram (`23_js_el_hero.js`; replaced on 2026-11-07 by Fig. 1 in `31_js_sc_loop.js` and deleted), the "What differs from Python's asyncio" table, the limit bars, and two sourced facts checked 2026-10-26 (libuv's pool is 4 threads by default, docs.libuv.org; which crypto and zlib calls use it, nodejs.org "Don't block the event loop"; asyncio logs "Task exception was never retrieved" when the task is garbage-collected, docs.python.org asyncio-dev).
 

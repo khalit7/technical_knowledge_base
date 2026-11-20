@@ -7,5 +7,4 @@ Shape: the spine is "follow one training step down to the silicon" (Llama 3.1 8B
 ## Reproduce
 - `python3 recompute.py` (stdlib only): every derived number, from `inputs/llama31_8b_config.json` (Hugging Face, unsloth mirror of the gated Meta repo), `../roof/out/data.json` (the Roofline lab's M1 Pro measurements) and vendor figures typed with their URLs (fetched 2026-10-05). Writes `out/expected.json` and `../parts/22_js_rd_data.js`.
 - `sh ../build.sh`, then `python3 check/check_prose.py` (the page embeds exactly `out/expected.json`; 38 hand-written numbers match it) and, from the repo root, `node <this folder>/check/check_read.mjs [shots dir]` (every Reading control at 390 px dark and 920 px light: no errors, NaN, undefined or sideways scroll; screenshots per section).
-- `old/`: the old root and its four children, verbatim from read-only Notion fetches. `coverage.md`: verdict on every old claim. `viz_ideas.md`: visuals built and rejected.
 - `inputs/`: the config, a 15-line extract of the A100 whitepaper (tensor core FMA per clock) and of the OCP MX spec's Table 1.

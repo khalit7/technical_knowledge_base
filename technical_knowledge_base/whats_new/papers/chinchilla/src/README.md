@@ -31,7 +31,7 @@
 - **Paper numbers** (`recompute.py`, 77 rows: 45 reproduce, 17 partly, 4 do not, 11 derived): Table 3 against 6ND reproduces except the 67B row (pinned to Gopher's budget); Table A3's Approach 3 column has one exponent misprint (175B: 1.26e24 should be 1.26e25) and two rows 4% off; the text's "over 250×" is 174×; the text's 4.41e24 / 4.2T and 1e25 / 6.8T match neither table; Table A4's FLOP ratios reproduce (five of six within 0.007) only with the embedding and logit terms left out, though Appendix F lists them; MMLU 67.6 reproduces as the unweighted mean of Table A6 but Gopher's comes out 60.6, not 60.0; BIG-bench's unweighted means are 64.5 and 54.4: Gopher's printed 54.4 reproduces, Chinchilla's 65.1 does not; Natural Questions' Gopher 5-shot is 24.5% in Table 9 and 21% in the text; parameter counts reproduce with 13 L d² (an inferred relative-position term), not 12 L d².
 - **Sardana et al.'s examples** (moved to Pretraining's recompute.py on 2026-10-26) reproduce within a few percent with the paper's unrounded constants (13B quality, 2e12 inference tokens: 7.1B, saving 1.6e22 FLOPs, 16%, against their 7B, 1.7e22, 17%); with the rounded constants they move by 10 to 40%.
 
-## Corrections to the old Notion text (all in coverage.json, "Corrected")
+## Corrections to the old Notion text
 
 - Approach 3's exponents are a = β/(α+β) and b = α/(α+β), not the other way round; the rounded constants give 0.452, the 0.46 comes from the unrounded ones.
 - "5B to over 500B tokens": the abstract says 5 to 500B, §1 "over 400B".
@@ -40,12 +40,12 @@
 
 ## Files
 
-`paper.json`, `tables.json` (from `mk_tables.py`, which parses `inputs/table_*.txt` and adds hand-entered rows with sources), `mk_paper.py` (card, Further reading, `window.PAPER` including the points and fits), `recompute.py` (`inputs/recompute.json`), `fit.py` (SciPy refits, `inputs/fit.json`; `uv run --no-project --with numpy --with scipy python fit.py`, a few minutes on 2 threads), `check_fit.mjs` (JS optimiser against SciPy, `inputs/check_fit.json`), `check_page.mjs` (every control, both themes and widths, both animations stepped), `mk_coverage.py` (58 items), `save_live.py`, `extract_paper.py`, `inputs/` (paper text and table extracts, the Besiroglu et al. v2 text, the extracted points, fit and recompute JSON), `viz_ideas.md`.
+`paper.json`, `tables.json` (from `mk_tables.py`, which parses `inputs/table_*.txt` and adds hand-entered rows with sources), `mk_paper.py` (card, Further reading, `window.PAPER` including the points and fits), `recompute.py` (`inputs/recompute.json`), `fit.py` (SciPy refits, `inputs/fit.json`; `uv run --no-project --with numpy --with scipy python fit.py`, a few minutes on 2 threads), `check_fit.mjs` (JS optimiser against SciPy, `inputs/check_fit.json`), `check_page.mjs` (every control, both themes and widths, both animations stepped), `extract_paper.py`, `inputs/` (paper text and table extracts, the Besiroglu et al. v2 text, the extracted points, fit and recompute JSON), `viz_ideas.md`.
 Parts: `00_top`, `01_css` (reference CSS plus a few additions), `02_header`, `03_paper`, `04_run`, `05_tables`, `06_then`, generated `_gen_card`, `_gen_more`, `_gen_data.js`; `02_split` (template); JS `10_js_common`, `11_js_ui` (shared; makeAnim with the 2026-11-06 motion rules), `21_js_fit` (the optimiser, also run by Node), `13_js_read`, `23_js_run`, `24_js_tables`, `25_js_then`, `25_js_s3` (template, renderer v2), `31_js_sc_hero`, `32_js_sc_iso` (the two scenes), `99_js_tabs` (the explainer-page template, storage key `ch-tab`, plus `data-to` scrolling that opens a closed block). `reading.json` holds the measured reading time for the header; `label_ledger.py` labels `ledger.json`.
 
 ## Checks (2 October 2026)
 
-`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 209 KB. `node src/check_page.mjs`: 294 actions, 0 problems. `mk_coverage.py`: 58 of 58 verified. Every arXiv anchor the page links (82) exists in the fetched HTML.
+`sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 5 tabs, 209 KB. `node src/check_page.mjs`: 294 actions, 0 problems. Every arXiv anchor the page links (82) exists in the fetched HTML.
 
 ## Light pass, 2026-10-25 (teaching contract)
 
@@ -57,7 +57,7 @@ Parts: `00_top`, `01_css` (reference CSS plus a few additions), `02_header`, `03
 - **Ledger** (`ledger.json`): 263 units, core 213, depth 44, owned 2, fat 4 (old reading-time line, tab labels, two sentence fragments); script-rendered tables are covered by one unit each with its block's title as the key; `ledger.py check` problems 0.
 - `mk_tables.py`: one escape fixed (`'\\;'` for `'\;'`, the same string) so newer Pythons stop warning.
 
-Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 217.7 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 294 actions, 0 problems (including the no-autoplay checks); `check_fit.mjs` unchanged results; `mk_coverage.py` 58 of 58.
+Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 217.7 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 294 actions, 0 problems (including the no-autoplay checks); `check_fit.mjs` unchanged results.
 
 ## 2026-10-26: inference-aware optimum owned by Pretraining
 Khalid's decision: Pretraining owns Sardana et al.'s inference-aware optimum (it now carries the Eq. 3 objective, the paper's example and caveats). The Then and now card stays as this paper's replay against its own fits and names Pretraining as the owner. Ledger key 210 re-keyed for the added line.
@@ -88,4 +88,4 @@ The growth is the three step lists that now explain the two stages and the anima
 Ledger: 277 units (core 220, depth 44, owned 9, fat 4); 14 added for the stage steps and the animation list, unit 257 rewritten for the new hero, keys of units 25 ("the slider shows how much learning rate") and 189 ("what each fit says to do") re-pointed; `ledger.py check` problems 0.
 
 ## Checks (12 November 2026)
-`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 9 stages and animations (three widths), 0 problems. `mk_coverage.py`: 58 of 58. `ledger.py check`: problems 0.
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 9 stages and animations (three widths), 0 problems. `ledger.py check`: problems 0.

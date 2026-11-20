@@ -9,7 +9,6 @@ Reports:
   PROBLEM     a failed build, a folder missing from pages.json, a manifest entry without a folder
   UNCOMMITTED a page folder with changes not committed (a rebuild that changed index.html shows up here too)
   UNPUSHED    commits on main that are not on origin/main (the site has not got them)
-  NOTION      a page whose Notion page is not yet a link page (pages.json "notion" is not "link")
 and ends "Published: ..." when there is nothing to do. Stdlib only.
 """
 import argparse, json, os, subprocess, sys
@@ -34,18 +33,16 @@ def main():
     if not a.no_build and not (_VENV / "python3").exists():
         sys.exit("run `uv sync` at the repo root first: builds use .venv/bin/python3")
     m = json.loads(MANIFEST.read_text())
-    problems, uncommitted, notion = [], [], []
+    problems, uncommitted = [], []
     for e in m["pages"]:
         d = REPO / e["path"]
         if not d.is_dir():
             problems.append(f"missing folder: {e['path']}")
             continue
         if e.get("status") == "html_only" and not a.no_build:
-            r = subprocess.run(["sh", "src/build.sh"], cwd=d, capture_output=True, text=True, env=BUILD_ENV)
+            r = subprocess.run(["bash", "src/build.sh"], cwd=d, capture_output=True, text=True, env=BUILD_ENV)
             if r.returncode:
                 problems.append(f"build failed: {e['path']}: {r.stderr.strip()[-300:]}")
-        if e.get("notion") != "link":
-            notion.append(e)
     listed = {REPO / e["path"] for e in m["pages"]}
     for f in (REPO / "technical_knowledge_base").rglob("index.html"):
         if f.parent not in listed and "video" not in f.parts:
@@ -70,10 +67,8 @@ def main():
         print(f"UNCOMMITTED {e['path']}  ({e['title']})")
     if unpushed not in ("", "0"):
         print(f"UNPUSHED {unpushed} commit(s) on main: git push")
-    for e in notion:
-        print(f"NOTION {e['path']}  ({e['title']}, https://app.notion.com/p/{e['id']})")
-    if not (problems or uncommitted or notion) and unpushed in ("", "0"):
-        print("Published: every page is committed and pushed (the site deploys from main), and every Notion page is a link page.")
+    if not (problems or uncommitted) and unpushed in ("", "0"):
+        print("Published: every page is committed and pushed (the site deploys from main).")
 
 
 if __name__ == "__main__":

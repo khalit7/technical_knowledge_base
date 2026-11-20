@@ -28,7 +28,7 @@ node check_stages.mjs     # from the repo root (src/check_stages.mjs): every sta
 Checkpoints and large intermediates go to `$JX_SCRATCH/ts/` (not committed).
 
 ## Departures from the child-page method
-No published figure to reproduce: reproductions are internal (hand AdamW vs optax, root agreement, bitwise resumes). Old-page claims and corrections: `coverage.md`; visual choices: `viz_ideas.md`. Porting material is left to the sibling pytorch_to_jax.
+No published figure to reproduce: reproductions are internal (hand AdamW vs optax, root agreement, bitwise resumes). Visual choices: `viz_ideas.md`. Porting material is left to the sibling pytorch_to_jax.
 
 ## The 2026-10-23 rebuild: what changed and why
 - **Top**: the core idea in one sentence ("a JAX training run is one compiled, pure step function applied to a pytree of state ...") and a new static hero (`25_js_ts_hero.js`, drawn at the measured width, stacked below 640 px): grain feeding a batch into the `nnx.jit` step, the model's graphdef (not saved) beside its state, the optimiser's state, metrics, and the orbax checkpoint's four items with dashed arrows from each piece of state. One highlight colour (`--acc`, class `.ts-hl`) marks state throughout. "You need" and six new terms follow; the PyTorch map table stays as the one-screen summary.
@@ -59,7 +59,7 @@ Why 29 minutes is right: the page owns four libraries plus the two older ones a 
 
 ## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `ts-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `TS` (`runs/out/*.json` via `make_data.py`, unchanged). The static 2D hero (`25_js_ts_hero.js`) is gone.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `ts-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: every scene draws from `TS` (`runs/out/*.json` via `make_data.py`, unchanged). The static 2D hero (`25_js_ts_hero.js`) is gone.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

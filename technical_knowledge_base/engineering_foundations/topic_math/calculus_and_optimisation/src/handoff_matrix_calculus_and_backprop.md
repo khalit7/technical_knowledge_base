@@ -1,6 +1,6 @@
 # Hand-off to Matrix calculus and backprop (from Calculus and optimisation for ML, 2026-10-05)
 
-The old "Calculus and optimisation for ML" page (saved verbatim in `live.md`) had a "Chain rule, backprop, VJPs" section and a few mistakes and resources about backprop. They belong to the matrix-calculus page; the calculus page links it instead of repeating them. Verbatim from `live.md` (lines 79 to 96, 220 to 221, 242, 247 to 248), then the checks.
+The old "Calculus and optimisation for ML" page (its text is in git history) had a "Chain rule, backprop, VJPs" section and a few mistakes and resources about backprop. They belong to the matrix-calculus page; the calculus page links it instead of repeating them. Verbatim from `live.md` (lines 79 to 96, 220 to 221, 242, 247 to 248), then the checks.
 
 ## Chain rule, backprop, VJPs
 For a composition $`L = f_k(f_{k-1}(\dots f_1(x)))`$ the chain rule says the Jacobians multiply:

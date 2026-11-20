@@ -1,6 +1,6 @@
 # The teaching contract
 
-**The goal of every page: Khalid understands the subject deeply in the least time.** Every section, visual, tab and sentence is there because it serves that goal; anything that does not is cut or collapsed. This file overrides any older rule in this skill that says a section is mandatory or that a page should be longer. Agreed with Khalid on 2026-10-23 after a full audit of the knowledge base.
+**The goal of every page: Khalid understands the subject deeply in the least time.** Every section, visual, tab and sentence is there because it serves that goal; anything that does not is cut or collapsed. Agreed with Khalid on 2026-10-23.
 
 ## The reader, once more
 An MSc-level AI engineer with production LLM experience ([../understand/reader.md](../understand/reader.md)). Predict-then-reveal is allowed as a one-question pause before a real result (no score, always skippable, at most two or three per page; it sits in the left column with the text), not an assessment. He prefers visuals, and the evidence agrees with him for a different reason: words plus a picture beat words alone for everyone (Mayer's multimedia principle). So every core idea gets **a picture and a short statement**, never only one of them. He reads to understand, not to pass an exam: no quizzes, flashcards or spaced review.
@@ -9,7 +9,7 @@ An MSc-level AI engineer with production LLM experience ([../understand/reader.m
 1. **Top, about two minutes.**
    - **The core idea in one sentence**, the sentence the whole subject hangs on (`curriculum.md` already asks for it; now it is on the page).
    - **One hero figure** that the rest of the page elaborates: the picture you would draw on a whiteboard first.
-   - **"You need"**: links to the pages this one assumes, only when it assumes something he may not have. Its strict subset (pages he cannot understand this one without, transitively reduced) is the page's `prereqs` in `pages.json`, which orders the learning map on the site's landing page; every prerequisite must appear in "You need" (`python3 html_utils/learning_map.py check` warns when one does not).
+   - **"You need"**: links to the pages this one assumes, only when it assumes something he may not have. Its strict subset is the page's `prereqs` in `pages.json` (defined in [../../sync-kb-github/site.md](../../sync-kb-github/site.md), The learning map); every prerequisite must appear in "You need".
    - **New terms**: a short list, only the terms this page introduces, each with a few words.
 2. **Core.** The explanation, in the subject's own order.
    - **Concrete, then picture, then formula.** A small instance with real numbers, the diagram of the same thing, then the equation with the same names and colours (concreteness fading).
@@ -39,13 +39,13 @@ There is no word or minute budget. Each page is as long as its subject needs, an
    - `owned:<page path>`: another page owns it; replace it with a link, only after checking that page carries the unit with its caveats (if not, move it there first);
    - `volatile`: a dated product, price or news fact; goes to tech news or the provider page;
    - `fat`: a wind-up, a restatement, prose that a visual now carries, chronicle, a recap.
-3. **Delete only fat.** Everything else survives somewhere.
+3. **Delete only fat.** Everything else survives somewhere. When a section is retired because another page now carries it, its units are labelled `owned:<page path>` with a key found on that page, never `fat` because the section was removed (fat is only a wind-up, heading, widget instruction, question stem or restatement; one close-out once labelled 328 substantive units fat).
 4. **Rewrite for density.** A paragraph that a visual now carries becomes one caption sentence. A list of facts becomes the example that shows them.
 5. **Check the ledger after the rebuild** (`html_utils/ledger.py check`): every non-fat unit is found on the page or at its owner.
 6. **Record the judgement** in `src/README.md`: core reading time before and after, and why that length is right. A long page whose ledger is all core is fine; a thin page whose subject matters grows.
 
 ## Writing rules (2026-11-19)
-- **A step list is the only explanation of its animation.** The paragraph beside it does not repeat the steps; this repetition was the main source of the reading-time growth after the 2026-11-06 layout rollout.
+- **A step list is the only explanation of its animation.** The paragraph beside it does not repeat the steps.
 - **Every number a figure shows also appears in its caption or a closed data table**, so readers and the AI buddy can cite it.
 - **Each core paragraph opens with its claim**, specific enough to stay a stable anchor: citations and the reader's marks re-anchor by a block's opening text.
 - **No glossaries and no on-page "ask" prompts or buttons**: the AI buddy's highlight-and-ask does that. Keep "New terms" and the definition at first use.
@@ -77,9 +77,9 @@ Rules for every visual (Mayer's coherence, signalling and contiguity principles)
 - **Photos** (hardware, a die shot, a rack) from Wikimedia Commons or another licensed source, credited with author and licence.
 - **AI-generated images never for a mechanism**: they draw plausible wrong labels. At most a non-technical illustration, and rarely.
 - Images are files in the page's `img/` folder, WebP, small (under about 200 KB each), referenced by relative path, with `alt` text that says what the image shows.
-- Each image is credited under it (author, licence, link) and listed in `img/CREDITS.md`; download with `curl`, convert with `cwebp`.
+- Each image is credited under it (author, licence, link) and listed in `img/CREDITS.md` (file, title, author, licence, source URL); download with `curl`, convert with `cwebp -q 80 -resize <width> 0`. Licences: CC0, CC BY, CC BY-SA, public domain, or a vendor press image whose terms allow reuse with credit; never an image of unknown licence. One to four per page at most; if no suitable licensed image exists, say so rather than substituting.
 - **When to use a real image (Khalid, 2026-10-29): never forced, always when it adds something new.** An image earns its place only if it shows something the prose and the SVGs on the page do not: what the real object looks like, its scale or layout (the HBM stacks beside a GPU die on the Attention variants page, where "the cache lives in memory" was only a sentence before), a real output (generated samples, a real attention map, a real log or UI), or the figure people actually cite. If it adds something new, include it; if it only decorates or repeats a diagram, leave it out. No quota: a mechanism page may need none, a hardware page several.
-- **Place it where the text talks about it**: in the right column of that section (split layout), with a caption that says what to notice, not just what it is. `figure.ph.side` floats are retired.
+- **Place it where the text talks about it**: in the right column of that section (split layout), with a caption that says what to notice, not just what it is.
 
 ## Sources
 Mayer, *Multimedia Learning* (3rd ed., 2020); Pashler et al. 2008 (learning styles); Höffler and Leutner 2007; Berney and Betrancourt 2016; Tversky, Morrison and Betrancourt 2002; Rey et al. 2019 (segmenting); Kalyuga 2007 (expertise reversal); Fyfe et al. 2014 (concreteness fading); Victor 2011 (explorable explanations).

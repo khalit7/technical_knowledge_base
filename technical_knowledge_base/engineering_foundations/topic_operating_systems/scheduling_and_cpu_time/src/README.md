@@ -55,7 +55,7 @@ Why about 35 minutes is right: the page owns eleven mechanisms (threads and run 
 377 units: core 282, depth 78, fat 16, owned 1. 361 were drafted from the old page by `ledger.py init` (keys are distinctive phrases of each sentence found on the rebuilt page, checked by hand where the overlap was short, and every number of every matched unit was confirmed still present); 16 were added by hand for script-rendered tables and charts and the three new visuals or sections. The one `owned` unit is OSTEP's FIFO/SJF/RR/MLFQ sequence, which the root's section 3 carries. Fat units carry a `note` (tab bar, wind-ups, OSTEP tags repeated by the chapter map, instructions replaced by prediction prompts, the removed tab's Further-reading card).
 
 ## Departures from the child-page method
-No `live.md` or `coverage.json`: the page is new, there was no old text. Measurements on a real kernel replace the "real data" of the training pages; things that need a 6.6+ kernel (EEVDF), privileges (perf, real-time in the root cgroup), real NUMA or a GPU are taught from sources and tagged "not run here"; EEVDF is shown through a simulator checked line by line against v6.12 source and labelled as a model.
+Measurements on a real kernel replace the "real data" of the training pages; things that need a 6.6+ kernel (EEVDF), privileges (perf, real-time in the root cgroup), real NUMA or a GPU are taught from sources and tagged "not run here"; EEVDF is shown through a simulator checked line by line against v6.12 source and labelled as a model.
 
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.

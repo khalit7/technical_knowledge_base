@@ -11,7 +11,7 @@
 - `recompute.py`: every derived number in the prose (44 checks) and the sizing model `size()`; writes `out/size_cases.json`.
 - `check/check_stages.mjs` (from the repo root: `node <this> [shots dir]`): the 2026-11-06 rollout checks (see the last section).
 - `check/check_ui.mjs` (from the repo root: `node <this> <page folder> [shots dir]`): nothing moves after a full scroll before the reader acts; every control and every animation step at 390 dark and 920 light, no errors, NaN, undefined, null or sideways scroll; the page's sizing JS equals `recompute.py` on 8 cases. `check/check_embed.py` (from `src/`): the page embeds exactly `sd_data.json`, prose numbers equal the data, privacy grep, no file over 1 MB.
-- `inputs/research_2026-10-16.md`: every external fact with its verbatim quote, URL, date and label (research notes); `facts.md`: the short list appended to the topic's shared FACTS file. `viz_ideas.md`: visuals built and rejected. `coverage.md`: no old page.
+- `inputs/research_2026-10-16.md`: every external fact with its verbatim quote, URL, date and label (research notes); `facts.md`: the short list appended to the topic's shared FACTS file. `viz_ideas.md`: visuals built and rejected.
 
 Rebuild: run the four `run_*.sh` (headers give the variables), copy their raw output into `runs/out/raw/`, then `python3 -I runs/summarise.py && python3 -I recompute.py && sh build.sh`.
 
@@ -51,7 +51,7 @@ Why 42 minutes is right: the page owns a wide subject (parallel file systems and
 Shard sizing is owned by Data curation's Storage and loading at scale (section 7); section 4's "Pack data into big shards" keeps one sentence plus a link (ledger 96 owned there).
 
 ## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `sd-tab`); `build.sh` already wrote the em-dash it greps for as bytes. No new runs; no change to the data parts, `recompute.py` or the runs: every scene draws from `window.SD` and `window.IO_D`.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` (key `sd-tab`); `build.sh` already wrote the em-dash it greps for as bytes. No new runs; no change to the data parts, `recompute.py` or the runs: every scene draws from `window.SD` and `window.IO_D`.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -8,6 +8,5 @@ Copied with `cp -R` from the language page's `src/ja/` on 2026-10-26 and trimmed
 - `code/k1_backpressure.mjs` and `outputs/k1_backpressure.{json,txt}`, `outputs/k1_det.txt` (added 2026-11-07): a stream pipeline against a loop that ignores `write()`'s false, recorded for this page on Node 20.20.1 under Linux (AMD Ryzen 9 9950X); four runs gave the same events and buffer levels. Fig. 3 replays it.
 - `loop_steps.json` (2026-11-07): the stepper's states for the six programs (lines lit, call stack, each queue, the line printed), with a title and an explanation per step; `gen.py` writes the explanations to the step lists (`[[sx:...]]`) and the states to `window.EL.steps`.
 - `run_all.sh`: reruns everything (trimmed from the language page's; the toolchains live outside the repo, see `versions.txt`, which is the language page's record of the whole toolchain).
-- `coverage.json`: the old Notion page "JavaScript: zero to expert" claims this page carries (10 of the language page's 46; 1 corrected: an unawaited rejected promise crashes Node since 15, it does not disappear).
 
 Order after a rerun: `sh run_all.sh && python3 gen.py && sh ../build.sh && node ../check_controls.mjs`.

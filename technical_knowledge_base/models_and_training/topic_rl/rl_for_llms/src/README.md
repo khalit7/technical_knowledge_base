@@ -1,6 +1,6 @@
 # RL for LLMs: RLHF, GRPO, RLVR: page source
 
-Notion: https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56, a child of Topic: rl. `sh build.sh` writes `../index.html`, the whole page. The old written page is saved verbatim in `live.md` (fetched 4 October 2026); its earlier interactive embed in `inputs/old_embed.html`. The Notion page has no child pages, databases or video; its only non-text block is that old embed (`<embed ...>Interactive: RL for LLMs: RLHF, GRPO, RLVR</embed>`), which the new HTML replaces.
+Notion: https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56, a child of Topic: rl. `sh build.sh` writes `../index.html`, the whole page. The Notion page has no child pages, databases or video; its only non-text block is an old interactive embed (`<embed ...>Interactive: RL for LLMs: RLHF, GRPO, RLVR</embed>`), which the new HTML replaces.
 
 ## Shape
 
@@ -22,9 +22,8 @@ Departure: the page's "real data" is generated for it. No public dataset gives p
 - `rollouts/`: `dl.py` (model downloads), `rollouts.py` (sampling and log-probabilities; `rollouts_lib.py` holds the verifiers), `rollouts_rp.py` (the stray repetition-penalty variant), `rm_score.py`, `mc_values.py` (Monte Carlo prefix values), `mk_data.py` (writes `parts/23_js_data.js` and `inputs/rollouts_extract.json`). Run with `uv run --with torch --with transformers --with accelerate`, 2 CPU threads plus Apple MPS; about 40 minutes in all. The full `rollouts.json` (every token's log-probabilities, several MB) is not committed.
 - `recompute.py` then `node check_engine.mjs`: every closed-form number and toy, recomputed in Python and compared with the page's engine.
 - `check_page.mjs` (from the repo root): every control in light 920 and dark 390, reduced motion, text checked for NaN/undefined, then a normal-motion pass that scrolls every animation into view and fails if any moved by itself; element screenshots in `../.shots/`.
-- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`); it supersedes `coverage.json` (kept, needles updated to the new wording).
-- `mk_coverage.py`: `coverage.json` against `live.md`.
-- `inputs/`: `old_embed.html` (the previous interactive embed, for coverage), `recompute.json`, `rollouts_extract.json`, `ver_notes.json` (notes on the real verifier disagreements).
+- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`).
+- `inputs/`: `recompute.json`, `rollouts_extract.json`, `ver_notes.json` (notes on the real verifier disagreements).
 
 ## The 2026-11-06 pass: split layout, 3D stages (renderer v2), explained and autoplaying animations
 - **Split layout** (`parts/02_split.html`, template, unchanged, after `02_css.html` in `build.sh`; `build.sh` also writes `data-to` for `#t-tab/id` links). Split: the idea (Fig. 1 stage), 2 up to GAE (Fig. 2 stage), 3 twice (group widget; formula beside the k3 chart), 4 (before/after animation), 5 (three checkers beside the agreement table), 7 twice (DAPO beside the overlong slider; entropy and CISPO beside the rare-token toy), 8 twice (mismatch histogram; TIS beside the sequence-ratio chart), 9 (pass@k), 10 (reward-model scatter), 12 twice (Fig. 3 stage; sync/async timelines). Full width: why RL and the comparison table, 1, the rest of 2 (clip, pain points), RLOO and gains, the verifier table, 6, Dr. GRPO, GSPO, the production paragraphs of 8, 11, 13, 14. Real rollouts stays full width (a dataset table, no prose to pair).
@@ -36,7 +35,7 @@ Departure: the page's "real data" is generated for it. No public dataset gives p
 - **Long replay turned widget**: the 40-frame sync/async timeline is now a static before/after of both schedules on one time axis (no autoplay, no step list), explained by the paragraph on its left.
 - **Kept 2D**: k3 scatter, overlong penalty, pass@k curves, mismatch histograms, sequence-ratio strip, reward-model scatter, timelines (all curves, scatters, log axes or timelines, which read best flat); the group and before/after widgets (bar charts over tokens with many controls; the hero already shows a group in 3D).
 - **Motion**: `21_js_rd_common.js` and `99_js_tabs.js` are the templates (key `rl4llm-tab`); everything plays once at least half in view, pauses off screen, stops on any control or at its last step, never moves under reduced motion. SVG labels raised to 11 px minimum (`RD.t` default 12).
-- **Checks**: `check_stages.mjs` (new, from Model-based RL and planning's): every stage and 2D animation autoplays in view at 1400 light, 920 light and 390 dark, steps to its end in every mode with one list item per step, nothing moves under reduced motion, the split is two columns at 1400. `check_page.mjs`: the never-autoplay assertion inverted (every animation plays in view); ids updated. Last run: `check_stages.mjs` problems 0; `check_page.mjs` 322 actions, 0 problems; `check_engine.mjs` PASS (42); `mk_coverage.py` 134 of 134 (one needle updated); `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0.
+- **Checks**: `check_stages.mjs` (new, from Model-based RL and planning's): every stage and 2D animation autoplays in view at 1400 light, 920 light and 390 dark, steps to its end in every mode with one list item per step, nothing moves under reduced motion, the split is two columns at 1400. `check_page.mjs`: the never-autoplay assertion inverted (every animation plays in view); ids updated. Last run: `check_stages.mjs` problems 0; `check_page.mjs` 322 actions, 0 problems; `check_engine.mjs` PASS (42); `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0.
 
 Length: Reading core 44.2 min before (10,163 words), 50.5 after (11,604); closed details 11.2, unchanged; Real rollouts 1.8 and Further reading 4.2, unchanged. The growth is the seven step lists (40 items, about 1,600 words, including the hidden GRPO list of section 4), which carry the numbers each step draws so the visuals can be read without playing; the old hero caption, the four live captions and section 4's summary were cut against them. Visuals inline (audit, SVG only): 12 before, 14 after, plus 3 stages on canvas. Ledger: 427 units, core 273, depth 135, fat 18, owned 1, problems 0; three units re-keyed (40, 50, 259) to the new wording.
 
@@ -67,7 +66,7 @@ Why about 42 minutes is right: the page owns a whole family of algorithms (PPO f
 
 ## Checks
 
-Last build, 24 October 2026: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0, 3 tabs, 254 KB; `check_page.mjs` 590 actions, 0 problems (both themes, 920 and 390 px, reduced motion; no autoplay under normal motion); `check_engine.mjs` PASS (42 checks against `recompute.py`); `mk_coverage.py` 134 of 134 facts of `live.md` found; `ledger.py check` problems 0.
+Last build, 24 October 2026: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0, 3 tabs, 254 KB; `check_page.mjs` 590 actions, 0 problems (both themes, 920 and 390 px, reduced motion; no autoplay under normal motion); `check_engine.mjs` PASS (42 checks against `recompute.py`); `ledger.py check` problems 0.
 
 2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; Fault tolerance at scale and the DSec paper page quoted as their headers; ledger keys that quoted old times re-keyed.
 

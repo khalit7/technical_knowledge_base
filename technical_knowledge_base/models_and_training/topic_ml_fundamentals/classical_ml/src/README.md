@@ -69,7 +69,7 @@ Why about 25 minutes is right: the page owns ten method families plus the tabula
 - 2026-10-24, topic close: Further reading times set to the targets' headers (root 23 min, plus 1; Loss, Regularisation, Optimisers, Evaluation metrics, Contrastive).
 
 ## 2026-11-10: the split layout and four 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and model parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `cml-tab`). Removed: `41_js_rd_ens.js` and `43_js_rd_svm.js` (2D animations replaced by stages); `40_js_rd_tree.js` now draws only the accuracy-against-depth chart.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and model parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `cml-tab`). Removed: `41_js_rd_ens.js` and `43_js_rd_svm.js` (2D animations replaced by stages); `40_js_rd_tree.js` now draws only the accuracy-against-depth chart.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

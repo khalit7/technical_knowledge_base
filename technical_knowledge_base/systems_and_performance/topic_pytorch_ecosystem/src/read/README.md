@@ -4,8 +4,6 @@ Owns `../parts/20_read.html` (styles, nav), `20_read_a.html` to `20_read_k.html`
 
 | File | What it is |
 |---|---|
-| `old/` | The old root and its four children, fetched from Notion (read only) on 2026-10-12, verbatim |
-| `coverage.md` | Every claim of the old pages: verified, corrected, unconfirmed or moved, and where it is now |
 | `measure.py` | Deterministic measurements for this tab (torch 2.14.1, CPU, no timing): views and strides of a 3 x 4 tensor; the dispatch walk of `torch.mm` in five situations (key sets, calls reaching the backend, grad_fn, dtype); a two-layer autograd graph with saved tensors, plain and checkpointed; a graph break against the same code as a `torch.library.custom_op` |
 | `inputs/measure.json` | Its output |
 | `build_data.py` | Writes `../parts/22_js_rd_data.js` from `inputs/measure.json` and the other tabs' recorded inputs (`../step/inputs`, `../comp/inputs`, `../dist/inputs` via `dist_extract.py`) |

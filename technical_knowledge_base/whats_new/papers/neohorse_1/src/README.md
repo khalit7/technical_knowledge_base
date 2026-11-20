@@ -25,7 +25,7 @@
 - **Moved into closed blocks**: where the page came from (the corrections stay visible); the five components as the paper words them (one sentence plus the hero carry them); every structural check (the three outcomes stay); how the six verdicts are reached and stored; annotation-noise controls; why tiers are versioned; gradients and Eq. 4; what each benchmark tests; every baseline and sampling setting (runs per benchmark stay); Appendix B's three cases. The same week's Dwarkesh data-efficiency decomposition moved to one dated block "Since the paper".
 - **Never autoplays**: `makeAnim` waits on its first frame until the reader acts (both `lp` and `cu`, and after a mode switch); the loop caption no longer says it starts by itself; `check_page.mjs` uses DOM clicks for tabs, scrolls each animation into view and fails on any frame drawn before a click, checks the hero is drawn, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `nh-tab`, with `data-to` scrolling).
 - **No real image**: nothing physical to show; the paper's figures are redrawn (Figures 2 and 4) or decoded (Figure 7).
-- **Takeaway softened** (card, `paper.json`, `live.md`): the old line said evaluation feedback "feeds back into the training mixture" (described, never measured), credited the gains to the method with no ablation, and gave "closing 89% of the macro gap to the base 9B" without saying the 4B beats the base 9B on only 5 of 10 benchmarks. The new line says allocation is designed, the parts are not isolated, the loop ran once, and the +6.26 over public data is mostly the public-data run falling 4.99 points below the base. The Notion property still carries the old line (with "11 benchmarks").
+- **Takeaway softened** (card, `paper.json`): the old line said evaluation feedback "feeds back into the training mixture" (described, never measured), credited the gains to the method with no ablation, and gave "closing 89% of the macro gap to the base 9B" without saying the 4B beats the base 9B on only 5 of 10 benchmarks. The new line says allocation is designed, the parts are not isolated, the loop ran once, and the +6.26 over public data is mostly the public-data run falling 4.99 points below the base. The Notion property still carries the old line (with "11 benchmarks").
 - **Length judgement**: Reading core 28 min before (6,470 words) and 26 after (5,968), plus 5 in closed details (1,180 words, from 0; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 2 minutes; the moves and owner links took out about 4. What stays is core: the method as the paper states it (three granularities, gates, three routing fields, Eq. 1 to 3), the results with their noise check, the data experiments and an evidence section that changes the reading, none of which another page carries. Other tabs unchanged (Schedule 2, Tables 7, Further reading 4).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 301 units; core 251, depth 40, owned 5, volatile 2, fat 3; `ledger.py check` problems 0.
 - **Source extracts**: em-dashes in `inputs/paper_v1.txt` (15) and `inputs/github_readme.md` (1) replaced with `--`; no author emails were present. `extract_paper.py` now does both on extraction; `tables.json` and `recompute.json` are byte-identical after the change.
@@ -33,21 +33,19 @@
 ## Files
 
 - `build.sh`: runs `mk_tables.py`, `recompute.py`, `mk_paper.py`, assembles `parts/`, expands the link macros, fails on an em-dash or unexpanded macro.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`.
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt`, `inputs/tables_v1.txt`, `inputs/anchors.txt`.
 - `decode_figs.py` (with `svgparse.py`): Figure 7's six runs and Figure 1's labels from the vector SVGs to `inputs/figs.json`.
 - `fetch_release.py`: dated release facts (GitHub, Hugging Face models and paper upvotes) to `inputs/release.json`. `inputs/github_readme.md` and `inputs/hf_card_4b.md` are the README and model card as fetched on 2026-10-03.
 - `mk_tables.py`: `tables.json` (Tables 1 to 3, asserted against the extract; Figure 7).
 - `recompute.py`: 45 checks and every derived number, to `inputs/recompute.json`.
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `mk_coverage.py` writes `coverage.json` (35 items, this paper's own, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control at 1400 and 920 px light and 390 px dark, the curriculum animation stepped; since 2026-11-13 it asserts that the curriculum animation and the loop stage play once scrolled into view (it used to forbid it).
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at three widths, reduced motion, both step lists of the loop stage, the curriculum animation's lists for every ordering and mix, and the numbers the stage's lists state against `window.NHLOOP` (and that its illustrative inputs are the Schedule tab's defaults).
 - `parts/31_js_sc_loop.js` (2026-11-13): the 3D scene on the template renderer `parts/25_js_s3.js`; `parts/14_js_run.js` now exposes the curriculum engine as `cuPool()` so the scene draws the same pool.
 
 ## Checks (3 October 2026; rerun 25 October 2026)
 
-`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (282 actions; nothing moves before a click); `recompute.py` 45 of 45; `mk_coverage.py` 35 of 35; `ledger.py check` problems 0.
+`checkpage.sh` fail=0 (emdash 0, errbox 1, clipped 0); `check_page.mjs` 0 problems (282 actions; nothing moves before a click); `recompute.py` 45 of 45; `ledger.py check` problems 0.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stage, autoplay)
 
@@ -68,4 +66,4 @@ What changed and why:
 
 The growth is the two stage step lists (about 600 words) that replace the 2D loop animation's script-drawn captions and counters (invisible to the word count before) and state the stage's numbers, plus the curriculum captions now written out as lists. Nothing was cut; every result and evidence point stays open as before. Header: "Reading: 28 min, plus 5 in closed details." from `reading.json`.
 
-Ledger: 304 units (core 254, depth 40, owned 5, volatile 2, fat 3); unit 25 re-keyed by hand ("the animation runs one round of each", the sentence now continues) and three units added for the step lists. `ledger.py check` problems 0. `mk_coverage.py` 35 of 35; `recompute.py` 45 of 45.
+Ledger: 304 units (core 254, depth 40, owned 5, volatile 2, fat 3); unit 25 re-keyed by hand ("the animation runs one round of each", the sentence now continues) and three units added for the step lists. `ledger.py check` problems 0. `recompute.py` 45 of 45.

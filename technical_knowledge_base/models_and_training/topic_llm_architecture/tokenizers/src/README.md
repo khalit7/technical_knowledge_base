@@ -1,4 +1,4 @@
-Source of the interactive HTML on the Notion page "Tokenizers" (child of Topic: llm-architecture). Rebuilt 2026-10-18 from the 2026-10-03 build (floor: every section, card and tab kept; see `coverage.md`).
+Source of the interactive HTML on the Notion page "Tokenizers" (child of Topic: llm-architecture). Rebuilt 2026-10-18 from the 2026-10-03 build (floor: every section, card and tab kept).
 
 ## Build
 `sh build.sh` runs `export_data.py` (writes `parts/22_js_tk_0data.js` from `inputs/`: ten tokenizers, FLORES counts, examples, timeline) and `make_page_data.py` (writes `parts/22_js_tk_2new.js`, `window.TKN`, from `out/` and the root's `src/data/tokenizer.json`), then concatenates `parts/` into `../index.html` (01_head, 10_header, 20_read_*.html for the Reading tab, 3x_tab_*.html, every *.js in its own script, 99_js_tabs.js last; links `{{text|url}}`, `n:<notion id>`, `#t-<tab>`), and fills the reading time (Reading tab words at 230 per minute, closed `<details>` counted apart) and the best-resources total.
@@ -16,8 +16,8 @@ Source of the interactive HTML on the Notion page "Tokenizers" (child of Topic: 
 - `tok2026/fetch.py` (tokenizer files only, revisions in `tok2026/fetched.json`), `tok2026/analyze.py` -> `out/tok2026.json`.
 - `vocab/calc_embed.py` -> `out/calc_embed.json` (reads the root's `src/calc/out/py_results.json`).
 - `code/quotes.py` -> `out/quotes.json` (source excerpts located by pattern: tokenizers v0.23.3 commit 30127707, transformers 5.20.1, the root's tiny_gpt.py); `code/snippets.py` -> `out/snippets.json` (the code blocks on the page, run, stdout kept).
-- From the 2026-10-03 build: `tok_data.py`, `ref_algos.py`, `vocab_data.py`, `overlap.py`, `recompute.py`, `export_data.py`, `save_live.py`, `mk_coverage.py`, `live.md`, `coverage.json`.
-- Checks: `check_algos.mjs` (trainers, 36/36), `check_grow.mjs` (26/26, now on `parts/30_js_tk_grow.js`), `check_controls.mjs` (every control, 390 dark and 920 light; no animation autoplays with or without reduced motion; the hero's ids equal the recorded `snippets.py` output), `check_data.py` (page data equals out/, prose numbers equal data), `mk_coverage.py` (61/61, the 2026-10-03 floor), `ledger.json` (`python3 html_utils/ledger.py check`).
+- From the 2026-10-03 build: `tok_data.py`, `ref_algos.py`, `vocab_data.py`, `overlap.py`, `recompute.py`, `export_data.py`.
+- Checks: `check_algos.mjs` (trainers, 36/36), `check_grow.mjs` (26/26, now on `parts/30_js_tk_grow.js`), `check_controls.mjs` (every control, 390 dark and 920 light; no animation autoplays with or without reduced motion; the hero's ids equal the recorded `snippets.py` output), `check_data.py` (page data equals out/, prose numbers equal data), `ledger.json` (`python3 html_utils/ledger.py check`).
 
 ## Environment
 The topic's shared venv (Python 3.12, tokenizers 0.23.3, transformers 5.20.1, torch 2.14.1), `HF_HUB_OFFLINE=1` for model probes; models and tokenizer files in the Hugging Face cache. Runs: Apple M1 Pro, CPU, 4 threads, nice 15 (no GPU used).

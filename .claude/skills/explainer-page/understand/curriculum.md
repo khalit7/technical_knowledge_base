@@ -21,7 +21,7 @@ When the topic is new to him, order the sections from zero (each term before it 
 
 ## One running example
 One small, concrete object every section, lab and child page uses, so before/after comparisons share an input and numbers line up across pages.
-- **Small and runnable**: it trains or runs on the Mac in minutes (CPU, or MPS under the bench lock).
+- **Small and runnable**: it trains or runs on the build machine in minutes (CPU, or a GPU under the bench lock).
 - **Public and licensed**: dataset URL, licence and sha256 recorded; open models with revision and licence.
 - **Deterministic**: fixed seeds, splits and batch order, so a rerun reproduces it bit for bit where possible.
 - **It exercises every lab**: its queueing, launch, failure and checkpoint I/O (ML infra); its functions for jit, grad and vmap, and its weights for sharding (JAX).
@@ -46,8 +46,8 @@ A root usually gets three to six lab tabs plus one map tab (Tool map, Model map,
 Each lab is one subject of the spine, run on the running example, with:
 - **at least one before/after animation on the same input** where it fits: the same queue before and after backfill; the same noise through 1, 4, 20 and 50 sampler steps; the same weight matrix before and after sharding on a 2x4 mesh;
 - **deterministic results first**: counts, compiled HLO, configs, logs, which job ran where, numerical equality. They need no caveat and are the bulk of a lab;
-- **timings labelled rough** and repeated (shared laptop, threads, priority);
-- **published numbers kept apart**: labelled, dated, checked against their tables; calculations from them labelled as calculations;
+- **timings labelled rough** and repeated (shared machine, threads, priority);
+- **published numbers kept apart**, labelled as [../evidence/sourcing.md](../evidence/sourcing.md) says;
 - **real code that ran**, its script kept in `src/<lab>/`, its output pasted from the run.
 
 Before planning a run, ask what the reader learns that the published number or a cheap toy does not ([../evidence/local-runs.md](../evidence/local-runs.md)). Good reasons to measure:
@@ -62,7 +62,7 @@ Size each lab's embedded data from the start (whole root under about 1.5 MB; on 
 Present the child list with the root plan or right after the root, as Khalid prefers (ask once).
 - **Titles**: exact and descriptive, often "Subject: a, b and c" ("Slurm from zero: allocation, gang scheduling, fairshare and preemption"). The title in the folder README and `pages.json` is the one published.
 - **One line each**: what it owns, how it goes deeper than the root's lab, its labs.
-- **Reuse old pages**: name the old Notion page each new child reuses (retitled at publish). Name which old pages split ("Deep RL" became value-based and policy-gradient children), merge, fold into the root, or become "TO DELETE" after a coverage check ([research.md](research.md)).
+- **Reuse existing pages**: name the existing page each new child replaces or extends. Name which pages split ("Deep RL" became value-based and policy-gradient children), merge, fold into the root, or become "TO DELETE" ([../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md)).
 - **Count**: six to twelve so far; what the subject needs, not a target.
 - **Neighbours**: say where a child stops and a neighbouring topic's page starts.
 - **Handoffs**: when a child depends on another's results, say so, so the order can be planned (Distributed systems wrote handoff notes for Queues and Reliability).
@@ -74,10 +74,8 @@ Keep it to one screen:
 3. **Reading sections** in order, one line each, with the target reading time (root: 15 to 30 minutes).
 4. **Lab and data tabs**: what each shows and measures, and the before/after it animates.
 5. **Children**: titles, one line each, reused or new, plus folds and deletions.
-6. **Evidence plan**: what runs where (CPU, MPS one job at a time, Docker), what stays published only, and disk.
+6. **Evidence plan**: what runs where (CPU, one GPU job at a time, Docker), what stays published only, and disk.
 7. **Reasons**: one or two lines on why this spine and this split.
 
 Then build the root first. Children are built after he approves the root unless he says otherwise ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
 
----
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

@@ -2,24 +2,7 @@
 
 The root's Attention lab: what each token must store and why that is the whole story of attention variants. Built 2026-10-18 by the attention-lab agent.
 
-**Removed from the page on 2026-10-23** (see `../README.md`): Attention variants and Long context carry every unit. The parts listed below were deleted the same day (commit bc10a299b; in git history); the scripts and `out/` stay here for provenance (Attention variants' `make_stage_data.py` reads `out/`). `make_page_data.py` would still write `parts/32_js_at_0data.js`, which no build reads.
-
-## Parts
-| Part | What |
-|---|---|
-| `parts/32_tab_attn_a.html` | opens the tab, scoped CSS, lead, section 1 (why a cache) |
-| `parts/32_tab_attn_b.html` | section 2: the before/after cache animation |
-| `parts/32_tab_attn_c.html` | sections 3 to 5: trained variants, published ablations, decode speed |
-| `parts/32_tab_attn_d.html` | sections 6 and 7: windows and sinks, sparse attention |
-| `parts/32_tab_attn_e.html` | section 8: KV-cache sizing calculator and every model's attention |
-| `parts/32_tab_attn_f.html` | sections 9 and 10: drills, mistakes, interview questions, code; closes the tab |
-| `parts/32_js_at_0data.js` | `window.ATD`, written by `make_page_data.py` (never by hand) |
-| `parts/32_js_at_1core.js` | `window.AT` helpers and a copy of the step controller registered on `t-attn` |
-| `parts/32_js_at_2anim.js` | section 2 animation |
-| `parts/32_js_at_3runs.js` | sections 3 to 6 charts and tables |
-| `parts/32_js_at_4text.js` | prose that quotes recorded numbers, drills, mistakes, interview answers |
-| `parts/32_js_at_5kv.js` | section 8; starts on DOMContentLoaded because it uses `window.CC` and `window.CCD` from the Config calculator's parts, which load after it |
-| `parts/32_js_at_6code.js` | section 10 code quotes |
+**Removed from the page on 2026-10-23** (see `../README.md`): Attention variants and Long context carry every unit. Its parts (`parts/32_tab_attn_*.html`, `parts/32_js_at_*.js`) were deleted the same day (commit bc10a299b; in git history); the scripts and `out/` stay here for provenance (Attention variants' `make_stage_data.py` reads `out/`). `make_page_data.py` would still write `parts/32_js_at_0data.js`, which no build reads.
 
 ## Scripts and recorded outputs
 | Script | Runs on | Writes |

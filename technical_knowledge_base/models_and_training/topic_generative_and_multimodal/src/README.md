@@ -4,7 +4,7 @@ Root of the topic (storage key `gm-tab`). Built 2026-10-17 by a team of tab agen
 
 ## 2026-11-09: split layout, one 3D stage (renderer v2), explained and autoplaying animations (layout rollout)
 
-Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all nine children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `gm-tab`). `build.sh` writes the em-dash test as bytes. `parts/24_js_rd_gen.js` (the section 1 card) is retired: its arithmetic moved into the scene (git history keeps the old file).
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`, after all nine children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `gm-tab`). `build.sh` writes the em-dash test as bytes. `parts/24_js_rd_gen.js` (the section 1 card) is retired: its arithmetic moved into the scene (git history keeps the old file).
 
 **Reading tab** (anchors `rd-top`, `rd-hero`, `rd-s1` to `rd-s10`, `rd-depth`, `rd-kids`, `rd-cost-card` unchanged; `rd-gen-card` is now the id of section 1's split):
 | Section | Layout | Visual | Step list |

@@ -1,6 +1,6 @@
 # Source of "torch.compile from the user's side"
 
-Child 2 of Topic: pytorch-ecosystem (Notion 3c65c17b0d0d8123a232d75bd7339ecb; the old page "torch.compile: Dynamo, AOTAutograd, Inductor", retitled). Goes one level below the root's Reading section 5 and its Compile lab tab, on the same running example, which it imports from `../../src/model/` and never copies. The old page's text is `../../src/read/old/torch_compile.md`; every claim is accounted for in `coverage.md`.
+Child 2 of Topic: pytorch-ecosystem (Notion 3c65c17b0d0d8123a232d75bd7339ecb; the old page "torch.compile: Dynamo, AOTAutograd, Inductor", retitled). Goes one level below the root's Reading section 5 and its Compile lab tab, on the same running example, which it imports from `../../src/model/` and never copies.
 
 ## Rebuild
 
@@ -36,7 +36,7 @@ Only `time_compile.jsonl` and `time_steady.json` are timings (bench lock, load a
 - `parts/`: `20_read*.html` Reading (the idea, sections 1 to 13, closed depth), `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (storage key `tcp-tab`) and `../build.sh` the skill templates copied unchanged on 2026-11-12, `23_tcp_util.js` helpers, `24` the Dynamo walk stepper (7 and 6 explained stretches) and guard kinds, `25_tcp_rd_tables.js` the Reading tables, `26` the fusion stepper (5 steps) and code viewer, `27` the static SVG figures (dynamic-shape grid, partitioner trade-off, compile-time phase bars, per-run table), `28_tcp_rd_brk.js` the graph-break fixer (section 3.1, a widget), `29` predict wiring, `39` Further reading, and the 3D scenes `41_js_sc_call.js` (Fig. 1), `42_js_sc_brk.js` (Fig. 2), `43_js_sc_cut.js` (Fig. 3).
 - `check_stages.mjs` (run `node src/check_stages.mjs` from the repo root): every stage and stepper plays when scrolled into view, steps to its end, has one list item per step, never moves under reduced motion, flows stop off screen, splits are two columns at 1400 px; screenshots of each mid-step into `../.shots/`.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`).
-- `viz_ideas.md`, `coverage.md`.
+- `viz_ideas.md`.
 
 ## Shape
 
@@ -76,7 +76,7 @@ Sibling and neighbour reading times in Further reading set to each page's header
 
 ## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged (see Files). No new runs: every scene draws from `window.TCP` (`inputs/` via `build_data.py`, unchanged). The build script is the template's (it writes the em-dash detector as bytes; the old one held the character).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged (see Files). No new runs: every scene draws from `window.TCP` (`inputs/` via `build_data.py`, unchanged). The build script is the template's (it writes the em-dash detector as bytes; the old one held the character).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

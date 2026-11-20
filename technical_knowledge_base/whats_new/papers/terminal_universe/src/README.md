@@ -29,7 +29,6 @@
 - `replay.py <sample dir>`: Stage 1 replay; writes `inputs/replay_stats.json`, `inputs/replay_expected.json` and `parts/21_traces.js` (the five shipped traces, outputs cut at 30 lines with the cut counted).
 - `check_replay.mjs [sample dir]`: the JS port (`parts/22_js_replay.js`) against `replay.py`, on the shipped traces and, with the sample dir, on all 640 (`inputs/check_replay.json`: 14,824 commands, 0 mismatches).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER`.
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (32 items from `live.md`, verified against the built page).
 - `check_page.mjs` (run from the repo root with node): every control in both themes and widths, the three stages stepped (the replay for every trace and both rules; since 2026-11-13 each stage must play once scrolled into view), 11 px text, NaN, errors, sideways scroll.
 - `check_stages.mjs` (2026-11-13, from the repo root): the layout and motion rules at 1400, 920 and 390 px, reduced motion, both fl step lists, the generated rr list of every trace under both rules (at most 8 steps, every command once, in order, one turn per step), the fl list's numbers against the page's own replay and Table 4, the mr list's styles and verdicts against `window.TUMR`.
 - `parts/31_js_sc_fl.js`, `parts/32_js_sc_mr.js`, `parts/33_js_sc_rr.js` (2026-11-13): the three 3D scenes on the template renderer `parts/25_js_s3.js`.
@@ -39,7 +38,7 @@
 
 ```
 python3 fetch_sample.py <dir> && python3 replay.py <dir> && node check_replay.mjs <dir>
-sh build.sh && python3 mk_coverage.py
+sh build.sh
 sh ../../../../../html_utils/checkpage.sh ..     # from src/; or from the repo root with the page folder
 ```
 
@@ -51,7 +50,7 @@ What changed and why:
 - **Closed**: the three existing routes (one sentence stays open), the RSA cross-workspace example, the rollout settings, seed rules and per-type record sizes, the training and evaluation setup (a one-sentence summary with the MT@4 definition stays open), Cross-WS by category (Figure 6), the small inconsistencies, and the bullets of What it takes to use this (one summary sentence stays open).
 - **Volatile**: the Mercor and SkyRL guide and the Terminal-Bench 4.0 leaderboard reading now sit in one dated closed block, "Since the paper (dated: checked 3 October 2026)"; Connections points to it instead of repeating the date.
 - **No autoplay**: `makeAnim` patched as on the EnvHarness page (the Idea animation and the replay wait on step 1; a mode or trace change resets paused); `90_js_tabs.js` replaced by the skill template `99_js_tabs.js` (storage key `tu-tab`). `check_page.mjs` fails if an animation draws a frame before a click and opens every closed block.
-- **Takeaway scoped** (paper.json, so the card, `live.md` and `mk_coverage.py`): "37,300 runnable environments" became 37,273 judged task-sufficient (on context, not shown to build or run); the gains are kept with their numbers, with the decisive re-solve against imitate comparison, the ablations within noise and the distillation share named; the flywheel is the motivation, not something the paper ran. The Notion property needs the same edit.
+- **Takeaway scoped** (paper.json, so the card): "37,300 runnable environments" became 37,273 judged task-sufficient (on context, not shown to build or run); the gains are kept with their numbers, with the decisive re-solve against imitate comparison, the ablations within noise and the distillation share named; the flywheel is the motivation, not something the paper ran. The Notion property needs the same edit.
 - Em-dashes in `inputs/paper_v1.txt` and `inputs/tables_v1.txt` written as `--` (no author emails were present); `extract_paper.py` now does both. Header: "Reading: 22 min, plus 4 in closed details." from `reading.json`.
 
 ## Length judgement
@@ -68,7 +67,7 @@ Why about 22 minutes is right: the paper is a three-step pipeline with four quer
 317 units: core 276, depth 35, owned 3, volatile 3, fat 0. 303 drafted by `ledger.py init` from the page before the pass; 14 added (top, three owner links, script-drawn charts keyed to their static captions). Nothing was deleted. `ledger.py check`: problems 0.
 
 ## Checks (25 October 2026)
-`checkpage.sh`: tabs 4, 239 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 928 actions, 0 problems (no frame before a click). `check_replay.mjs` passes in the build. `mk_coverage.py`: 32 of 32.
+`checkpage.sh`: tabs 4, 239 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 928 actions, 0 problems (no frame before a click). `check_replay.mjs` passes in the build.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -83,7 +82,7 @@ What changed and why:
 - **Kept 2D**: the hero (a pipeline with printed counts and three bars: a flat diagram reads best), the Table 13 bars, the funnel, Figure 3 (a stacked share bar), the Table 3 dot chart, the predict reveals, the 640-row histogram, the noise chart, Figures 5 and 6, and every table (numbers on an axis or in a grid).
 - `makeAnim` removed from `11_js_ui.js` (no 2D step animation is left). `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `tu-tab`).
 - `build.sh` finds the repo root by walking up to `html_utils` (no git).
-- Ledger: units 32, 35, 38 and 239 re-keyed (`label_ledger.py` `KEYS`), unit 314 re-described; five units added for the stages' step lists, the closed block of quotes and the replay's one-step-per-turn rule. 322 units: core 280, depth 36, owned 3, volatile 3, fat 0; `ledger.py check` problems 0. `mk_coverage.py` 32 of 32; `check_replay.mjs` passes in the build.
+- Ledger: units 32, 35, 38 and 239 re-keyed (`label_ledger.py` `KEYS`), unit 314 re-described; five units added for the stages' step lists, the closed block of quotes and the replay's one-step-per-turn rule. 322 units: core 280, depth 36, owned 3, volatile 3, fat 0; `ledger.py check` problems 0. `check_replay.mjs` passes in the build.
 
 ## Length judgement (2026-11-13)
 | | Before (audit, pre-pass) | After |

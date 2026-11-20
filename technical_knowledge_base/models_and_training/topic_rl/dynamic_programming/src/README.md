@@ -47,7 +47,6 @@ Departure from the child shape: the page still carries the RL foundations (MDP, 
 - **Merged**: old sections 1 and 2 into 1 and 2 by topic, 5 and 6 into 4, 15 and 16 into 13; history and the 12 mistake blocks into two closed blocks at the end (mistakes as one-line pointers to the sections that show them).
 - **Collapsed into closed blocks**: POMDP agent states, notation, the improvement proof and ties, Figure 4.1's rounding check, the uniform-policy values, the corridor's sweep-by-sweep evaluation numbers, Szepesvari's iteration count (with its derivation), worst-case complexity, the LP view, prioritised sweeping's and RTDP's published numbers, the connection list.
 - **Nothing moves before the reader acts**: `22_js_rd_common.js` is the skill template (only change: `onRender` and `anim` take a tab id, for the lab); `99_js_tabs.js` is the template with key `dp-tab`; mode switches in the corridor, VI against Q-learning and the lab no longer start playback. `check_controls.mjs` now also checks, under normal motion, that every scrubber is still at 0 after scrolling into view and after a mode switch.
-- **Retired**: `mk_coverage.py` and `coverage.json` (the 2026-10-04 coverage of `live.md`); `ledger.json` supersedes them, drafted from the build those files had proved complete.
 - **No images**: a mechanism page; the canonical figures (Sutton and Barto 4.1, 4.3) are CC BY-NC-ND, not an allowed licence, and the page reproduces them by computation instead.
 
 ## Length judgement
@@ -75,7 +74,5 @@ Why 35 minutes is right: the page owns two subjects (the MDP foundations and eve
 4. `node .../src/check_controls.mjs` from the repo root: every control at 920 light and 390 dark, plus the no-autoplay pass; last run 2,751 scans, 0 problems.
 5. `sh html_utils/checkpage.sh <page folder>`: fail=0, emdash 0, errbox 1, clipped 0.
 6. `python3 html_utils/ledger.py check <page folder>`: problems 0.
-
-`live.md` is the Notion page as fetched on 2026-10-04 (last edited 2026-09-30), saved verbatim; `inputs/old_embed_visible_text.txt` is the old embed's visible text.
 
 2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; the corridor script comment says section 8; ledger keys that quoted old times re-keyed.

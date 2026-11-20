@@ -10,7 +10,7 @@
 - Measurements: `lab/server.py` (asyncio HTTP server on a Unix socket, timed-wait work, optional stalls), `lab/loadgen.py` (open and closed loops, four balancing policies), `lab/run_all.py` (all runs, about 19 minutes; run from a short scratch directory with Python 3.12), `lab/summarize.py` -> `inputs/measured.json`; `lab/gil.py` -> `inputs/gil_314.json`, `inputs/gil_314t.json` (CPython 3.14.8 and 3.14.8t from python-build-standalone 20261003). Raw per-request files stayed in scratch.
 - Real data: `fetch_peaks.py` -> `inputs/wiki_hourly.json` (Wikimedia hourly page views, September 2026).
 - `gen_data.py` writes `parts/23_js_data.js` from the inputs and `recompute_out.json`; rerun after either changes.
-- `coverage.json`: what this new page owns from the root and the old children, and the corrections. `viz_ideas.md`: visuals built and rejected.
+- `viz_ideas.md`: visuals built and rejected.
 - Shape: Part B of the topic method (summary table first, mechanisms in order, production table, mistakes, glossary). Departure, as on Reliability engineering: measured sections with real local experiments, because the page's central claims (the hockey stick, coordinated omission, two choices) are cheap to test, and the simulation is checked against them.
 
 ## 2026-11-07: split layout, four 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)

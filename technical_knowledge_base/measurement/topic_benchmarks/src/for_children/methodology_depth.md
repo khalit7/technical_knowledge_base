@@ -1,6 +1,6 @@
 # Benchmark methodology: depth kept for a future child page
 
-The old "Benchmark methodology" page (Notion 3c65c17b0d0d8143abd0e126338fb9dd, verbatim in `../live_methodology.md`) is folded into the root's Reading tab at overview level. This file keeps the depth the root does not hold, for a future child (a "Benchmark methodology" or "Human preference" child, or the evaluation topic), with the corrections found while folding it. Nothing here is lost: the verbatim source stays in `live_methodology.md`.
+The old "Benchmark methodology" page (Notion 3c65c17b0d0d8143abd0e126338fb9dd; its original text is in git history) is folded into the root's Reading tab at overview level. This file keeps the depth the root does not hold, for a future child (a "Benchmark methodology" or "Human preference" child, or the evaluation topic), with the corrections found while folding it. Nothing here is lost: the original text stays in git history.
 
 ## Metrics, including the legacy ones
 - Scoring metrics in use: accuracy, precision / recall / F1, exact match, pass@k, ROUGE and BLEU (legacy generation), perplexity (legacy language-model quality), Elo (preference), judge score, task success rate, pass^k (reliability).

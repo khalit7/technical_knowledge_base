@@ -1,6 +1,6 @@
 # Understanding the Benefits of Scaffolds through Computational Separations: page source
 
-`sh build.sh` writes `../index.html`. The paper (arXiv 2610.27157v1, 19 October 2026, Gai, Block and Risteski) was added by the 2026-10-26 update-kb run; its Papers row did not exist yet, so there is no `live.md` and coverage runs against the paper's own claims (`inputs/paper_v1.txt`, the saved arXiv HTML text). Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`, `extract_paper.py`) copied via the Sharpening Tax page; `mk_coverage.py` and `check_page.mjs` rewritten for this paper. `11_js_ui.js`'s step animation no longer starts by itself, and a mode switch stops on step 1 (never autoplay, 2026-10-23). The tab script is the skill template `99_js_tabs.js` (storage key `sc-tab`), so links like `#t-run` open their tab.
+`sh build.sh` writes `../index.html`. The paper (arXiv 2610.27157v1, 19 October 2026, Gai, Block and Risteski) was added by the 2026-10-26 update-kb run; its Papers row did not exist yet. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`, `extract_paper.py`) copied via the Sharpening Tax page; `check_page.mjs` rewritten for this paper. `11_js_ui.js`'s step animation no longer starts by itself, and a mode switch stops on step 1 (never autoplay, 2026-10-23). The tab script is the skill template `99_js_tabs.js` (storage key `sc-tab`), so links like `#t-run` open their tab.
 
 ## Tabs
 
@@ -43,15 +43,15 @@
 - `decode_figs.py` (needs PyMuPDF: `uv run --no-project --with pymupdf python decode_figs.py <e-print>/fig`): `inputs/figs.json`. The e-print is not kept (PDFs); its URL is in the script.
 - `mk_tables.py`: `tables.json` from the decoded figures and the transcribed tables. `recompute.py`: `inputs/recompute.json`, every check on the tables tab. `mk_paper.py`: card, Further reading, `window.PAPER`.
 - `parts/22_js_graph.js`: the lab's engine (graph families, BFS harness, squaring reader, sweep), used by the page and by `sweep.cjs` (node, about 2 s), which writes `inputs/sweep.json` and checks that the squaring reader equals the distance rule (3,000 of 3,000) and that BFS stays under N^2 lookups.
-- `check_page.mjs` (from the repo root): every control at 390 dark, 920 light and reduced motion; the live sweep equals `inputs/sweep.json`; hero numbers; prose numbers against the data. `mk_coverage.py`: `coverage.json`, 49 of 49 of the paper's claims found on the page.
+- `check_page.mjs` (from the repo root): every control at 390 dark, 920 light and reduced motion; the live sweep equals `inputs/sweep.json`; hero numbers; prose numbers against the data.
 
 ## Checks (26 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs (rerun after the contract pass). `check_page.mjs`: 0 problems. `mk_coverage.py`: 49 of 49. Everything here is deterministic CPU work on a Linux cloud container; nothing was trained.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs (rerun after the contract pass). `check_page.mjs`: 0 problems. Everything here is deterministic CPU work on a Linux cloud container; nothing was trained.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`; `99_js_tabs.js` from the template with the storage key `sc-tab` (it keeps `data-to` scrolling). `21_js_rd_common.js` is not used (no 2D animation on the page). `build.sh` finds the repository root by path instead of asking git. `22_js_graph.js` gained `GR.layers(g,k)` (every layer of the squaring reader); `sweep.cjs` still reproduces `inputs/sweep.json` (3,000 of 3,000, max calls / N^2 0.4775).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html` (after `01_css.html`), `25_js_s3.js` (renderer v2), `05z_errbox.js.html`; `99_js_tabs.js` from the template with the storage key `sc-tab` (it keeps `data-to` scrolling). `21_js_rd_common.js` is not used (no 2D animation on the page). `build.sh` finds the repository root by path instead of asking git. `22_js_graph.js` gained `GR.layers(g,k)` (every layer of the squaring reader); `sweep.cjs` still reproduces `inputs/sweep.json` (3,000 of 3,000, max calls / N^2 0.4775).
 
 - **Three 3D stages**, one scene file each, all driven by the page's own engine or data:
   - `31_js_sc_hero.js`, the top (replaces the static hero SVG and its caption): the 10-vertex long-paths graph (seed 13) on the floor; the BFS harness in two explained stretches (rounds 1 to 3, then 4 to 7: 9, 8, 7, ... lookups, 43 in all), each vertex rising as a column as tall as its round; the visited bits as a strip and the base model as a lookup box with dots for queries; the 2-layer reader as an orange glass ceiling at 4 hops, pierced by t at 7; the ceiling raised to 8 hops by a third layer; then a 16-vertex graph (seed 3, the first seed with t reachable beyond 8 hops: 10 hops, 115 lookups) piercing it again. Sets `window.HERO` (used by `check_page.mjs`) and `window.__hero`.
@@ -74,4 +74,4 @@ The growth is the three step lists (about 600 words); they replace the hero capt
 
 Ledger: 231 units (core 222, depth 7, owned 2); 7 added for the step lists and the lab note; keys re-pointed on units 9, 10, 11, 12 and 85 (each marked `rekeyed`). `ledger.py check`: problems 0.
 
-Checks (2026-11-13): `checkpage.sh` 4 tabs, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` (now also 1400 light, opens closed blocks) 0 problems; `check_stages.mjs` (new: the three stages at 1400 and 920 light and 390 dark, autoplay, list lengths, off-screen and reduced motion, step-list numbers against the engine and tables.json) problems 0; `verify_layout.mjs` problems 0; `mk_coverage.py` 49 of 49.
+Checks (2026-11-13): `checkpage.sh` 4 tabs, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` (now also 1400 light, opens closed blocks) 0 problems; `check_stages.mjs` (new: the three stages at 1400 and 920 light and 390 dark, autoplay, list lengths, off-screen and reduced motion, step-list numbers against the engine and tables.json) problems 0; `verify_layout.mjs` problems 0.

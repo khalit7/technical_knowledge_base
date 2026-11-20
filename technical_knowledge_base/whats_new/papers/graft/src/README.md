@@ -1,6 +1,6 @@
 # GRAFT: page source
 
-`sh build.sh` writes `../index.html`. The paper is arXiv 2610.17062v1 (12 October 2026; its arXiv title is "Gradient Routing Localizes and Removes Unintended Behaviors in RL", the code README and the knowledge base add the "GRAFT:" prefix). The Papers row is new (created by the lead at publish), so there is no `live.md` and coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces copied from the Sharpening Tax page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`); `check_page.mjs`, `mk_coverage.py`, `recompute.py` and the rest written for this paper.
+`sh build.sh` writes `../index.html`. The paper is arXiv 2610.17062v1 (12 October 2026; its arXiv title is "Gradient Routing Localizes and Removes Unintended Behaviors in RL", the code README and the knowledge base add the "GRAFT:" prefix). The Papers row is new (created by the lead at publish). Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces copied from the Sharpening Tax page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`); `check_page.mjs`, `recompute.py` and the rest written for this paper.
 
 ## Tabs
 
@@ -34,7 +34,7 @@
 - `mk_countdown.py <paper_fig_inputs.tar.gz>` and `mk_toyenvs.py <same>`: read the authors' figure bundle (github.com/jnward/GRAFT at b0767d1c40e5a03d78fc5ff4b6abc92829168386, `rl/paper_data/paper_fig_inputs.tar.gz`, 7.6 MB, sha256 3bd3911c...7797, MIT; not kept here) and write `inputs/countdown_points.json` and `inputs/toyenv_points.json` with the selection rules of the authors' figure scripts. Stdlib only.
 - `decode_figs.py <dir of SVGs>` (with `svgparse.py`, copied from the InstructGPT page): the arXiv figure SVGs (`countdown_figure1`, `routing_scatter_main`) to `inputs/figs.json`.
 - `mk_tables.py` (Tables 2 to 4 parsed from the extracts into `tables.json`), `recompute.py` (`inputs/recompute.json`: 26 checks, all agree), `mk_paper.py`, `toy_sweep.mjs` (node, about 5 s: `inputs/toy.json` and `parts/_gen_toydata.js`, five seeds, four variants), `parts/22_js_toy.js` (the toy engine, the same file in the page and the sweep).
-- `check_page.mjs` (from the repo root after `. html_utils/cloud_setup.sh`): every control in both themes and widths, label overlap, 11 px text, prose numbers against the data, the live toy against the sweep, element screenshots. `mk_coverage.py`: `coverage.json`, 41 of 41 of the paper's claims found in the source and on the page.
+- `check_page.mjs` (from the repo root after `. html_utils/cloud_setup.sh`): every control in both themes and widths, label overlap, 11 px text, prose numbers against the data, the live toy against the sweep, element screenshots.
 
 ## Length
 
@@ -47,7 +47,7 @@ Reading 19 minutes (4,389 words at 230 a minute) plus 2 in closed details (contr
 
 ## Checks (26 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 169 KB. `check_page.mjs`: 78 actions, 0 problems. `recompute.py`: 26 of 26 agree. `mk_coverage.py`: 41 of 41. Measured on a Linux cloud container (4 CPUs, shared, no GPU); everything here is deterministic CPU work.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs, about 169 KB. `check_page.mjs`: 78 actions, 0 problems. `recompute.py`: 26 of 26 agree. Measured on a Linux cloud container (4 CPUs, shared, no GPU); everything here is deterministic CPU work.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 

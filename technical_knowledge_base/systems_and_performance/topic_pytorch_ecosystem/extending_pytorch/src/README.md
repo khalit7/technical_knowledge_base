@@ -48,7 +48,7 @@ Why 31 minutes is right: the page teaches six mechanisms that have no other owne
 336 units: core 237, depth 63, fat 35, owned 1. 325 were drafted from the old page by `ledger.py init`; 11 were added by hand for the script-rendered visuals and tables (section "added 2026-10-23"), each keyed to a phrase in a static caption. Fat units carry a `note` saying why (headings, navigation, wind-ups, and mistakes or cards that restated a section). The one owned unit (the dispatcher keeps a table of kernels per key) is carried by Tensors, the dispatcher and autograd, Reading 2.3.
 
 ## Departures from the child-page method
-No old page, so no `live.md`/`coverage.json`; corrections to claims in the old root notes are in `coverage.md`. The "compare everything" pattern became a lab (ten variants side by side) and a chooser, since the subject is choices among mechanisms rather than a dataset.
+No old page. The "compare everything" pattern became a lab (ten variants side by side) and a chooser, since the subject is choices among mechanisms rather than a dataset.
 
 ## Close of the topic (2026-10-23)
 
@@ -56,7 +56,7 @@ Sibling reading times in Further reading set to each page's header; the Which ex
 
 ## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged (see Parts). No new runs: every scene draws from `window.EXT` (`inputs/` via `build_data.py`, unchanged).
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged (see Parts). No new runs: every scene draws from `window.EXT` (`inputs/` via `build_data.py`, unchanged).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

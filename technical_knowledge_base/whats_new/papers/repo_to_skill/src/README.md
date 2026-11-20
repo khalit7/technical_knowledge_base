@@ -25,7 +25,7 @@
 - **Moved into closed blocks**: how the library was built (selection, graph, verification, taxonomy), PaperBench gains as multiples, the FrontierCS leaderboard comparison, how the PassNet skill was built (Table 6 and the conv3d rule), and every correction to the old summary (gathered into one block under Why it matters). No follow-up news was found, so there is no dated block.
 - **Never autoplays**: `makeAnim` waits on step 1 until the reader acts (also after a mode switch); `check_page.mjs` scrolls both animations (`mt`, `rp`) into view and fails on any frame drawn before a click, and opens every closed block. Tabs from the skill template (`99_js_tabs.js`, key `r2s-tab`, with `data-to` scrolling).
 - **No real image**: the paper is CC BY-NC-SA 4.0, so its figures are not embedded; the hero is redrawn, and the page is about files, not a physical object.
-- **Takeaway softened** (card, `paper.json`, `live.md`): the property credited the four gains to the library "at fixed compute" and placed the knowledge in "READMEs and issues". The new line says the gains came from skills built for each benchmark (no result uses the library), that the fixed budget excludes up to 24 GPU-hours of trials per MLE-bench competition, that FrontierCS used 1.8 times the tokens, that only MLE-bench has repeated runs, and that "verified" means structural and package-test checks.
+- **Takeaway softened** (card, `paper.json`): the property credited the four gains to the library "at fixed compute" and placed the knowledge in "READMEs and issues". The new line says the gains came from skills built for each benchmark (no result uses the library), that the fixed budget excludes up to 24 GPU-hours of trials per MLE-bench competition, that FrontierCS used 1.8 times the tokens, that only MLE-bench has repeated runs, and that "verified" means structural and package-test checks.
 - **Length judgement**: Reading core 22 min before (5,042 words) and 21 after (4,888), plus 3 in closed details (581 words; `audit_pages.mjs`, 230 words a minute; header from `reading.json`). The top added about 1.5 minutes and the moves took out a little more. The rest is core: four separate benchmark protocols, a released artefact whose audit changes the verdict, and the evidence section, which no other page carries. Other tabs unchanged (Follow the router 4, Tables 7, Further reading 3).
 - **Ledger** (`ledger.json`, labelled by `label_ledger.py`): 264 units; core 246, depth 16, owned 1, fat 1; `ledger.py check` problems 0.
 - **Source extracts**: three author emails in `inputs/paper_v1.txt` replaced with "[email removed]" (no em-dashes were present); `extract_paper.py` now redacts emails and replaces em-dashes on extraction.
@@ -39,14 +39,13 @@
 - `recompute.py`: every derived number and check, written to `inputs/recompute.json` and shown in the checks table. One check fails on purpose: the paper's 75.1% is 75.04%.
 - `mk_libdata.py`: `parts/20_lib_data.js` (window.LIB, about 95 KB: the router tree, every graph's size, the session reads, the two graphs, the FrontierCS graph).
 - `mk_paper.py`, `paper.json`: card, Further reading, `window.PAPER` (adds `takeaway_note` under the Takeaway).
-- `save_live.py`: copied the Notion fetch verbatim from the session transcript into `live.md`. `mk_coverage.py` writes `coverage.json` (40 items from `live.md`, verified against the built page).
 - `check_page.mjs` (run from the repo root with node; uses `CHROME_PATH`): every control in both themes and widths, both 3D stages playing in view (since 2026-11-13; it used to forbid any frame before a click) and stepped in every mode, the SVG nodes and bars clicked, 11 px text, NaN, errors, sideways scroll.
 - `shoot.mjs`: element screenshots for review (not part of the build).
 - `inputs/README.md`: where every input came from.
 
 ## Checks (3 October 2026; rerun 25 October 2026)
 
-`checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems (304 actions); `mk_coverage.py` 40 of 40; `recompute.py` 42 checks, 41 reproduce plus the one deliberate rounding miss.
+`checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_page.mjs` 0 problems (304 actions); `recompute.py` 42 checks, 41 reproduce plus the one deliberate rounding miss.
 
 ## The 2026-11-13 layout rollout (split layout, renderer v2 stages, autoplay)
 
@@ -70,4 +69,4 @@ What changed and why:
 
 The growth is the step lists: the method animation's twelve captions and the replay's seven were drawn by script and so were invisible to the audit; they are now static text beside the stages, with a few words more each to name what the stage shows. Nothing was cut; the length stays right for the reason given in the light pass. Header: "Reading: 24 min, plus 3 in closed details." from `reading.json`.
 
-Ledger: 268 units (core 250, depth 16, owned 1, fat 1); `ledger.py check` problems 0. `mk_coverage.py` 40 of 40; `recompute.py` 42 checks, 41 plus the deliberate rounding miss.
+Ledger: 268 units (core 250, depth 16, owned 1, fat 1); `ledger.py check` problems 0. `recompute.py` 42 checks, 41 plus the deliberate rounding miss.

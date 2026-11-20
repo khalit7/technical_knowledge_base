@@ -2,7 +2,7 @@ Source of the interactive HTML on the Notion page "Reward Hacking" (deep-dive ch
 
 Build: `python3 recompute.py` (writes `parts/20_js_data.js` and `inputs/derived.json`, prints every check), then `sh build.sh` (writes `../index.html`). The header's reading time is written by hand from `html_utils/audit_pages.mjs` (230 words a minute). Checks: `sh html_utils/checkpage.sh <page folder>`; from the repo root `node <page folder>/src/check_page.mjs` (every control in both themes under reduced motion, NaN / undefined / errors, link targets, nothing plays by itself) and `node <page folder>/src/check_stages.mjs [shots dir]` (about 3 minutes: the three stages and two transcript animations play once in view, reach their last step with one step-list item per step, stop off screen and under reduced motion, a mode toggle replays; the splits; the best-of-n step-list numbers against `inputs/derived.json`); `python3 html_utils/ledger.py check <page folder>`.
 
-Data: `inputs/research_gao.md`, `inputs/research_coding.md`, `inputs/research_chat.md` are the verified source notes (verbatim quotes, URLs, what is unconfirmed). `live.md` is the old Notion page; `coverage.json` maps every fact in it (2026-10-03); `ledger.json` is the knowledge ledger of the 2026-10-23 rebuild.
+Data: `inputs/research_gao.md`, `inputs/research_coding.md`, `inputs/research_chat.md` are the verified source notes (verbatim quotes, URLs, what is unconfirmed). `ledger.json` is the knowledge ledger of the 2026-10-23 rebuild.
 
 ## Tabs and parts
 | Tab | Parts | What |
@@ -45,7 +45,7 @@ Why about 26 minutes is right: the page owns a broad subject (the curve, four ch
 Section 4's sandbox case now names the filesystem ioctl that got around AppArmor (from Harnesses for training, which keeps one sentence plus a link).
 
 ## 2026-11-10: the split layout and three 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `rh-tab`). `build.sh` includes `02_split.html`, writes the em-dash test as `ED=$(printf ...)` and expands `{{text|#rh-...}}` as in-page links. Section ids `rh-s1` to `rh-s8` and the section numbers are kept (siblings link to "section 2"); new ids `rh-s2b`, `rh-s3d` and the like only wrap the splits.
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `rh-tab`). `build.sh` includes `02_split.html`, writes the em-dash test as `ED=$(printf ...)` and expands `{{text|#rh-...}}` as in-page links. Section ids `rh-s1` to `rh-s8` and the section numbers are kept (siblings link to "section 2"); new ids `rh-s2b`, `rh-s3d` and the like only wrap the splits.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

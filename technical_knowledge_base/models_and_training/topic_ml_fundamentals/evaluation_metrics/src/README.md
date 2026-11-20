@@ -68,7 +68,7 @@ Departures from the method: none of substance. The page is about 273 KB, of whic
 Section 6 now defines hit@k (success@k, and recall@k in some dense-retrieval papers) and when it equals recall@k, absorbed from RAG and retrieval evaluation, which keeps one sentence plus a link.
 
 ## 2026-11-10: the split layout and three 3D stages (renderer v2)
-The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and 2D parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `evm-tab`).
+The 2026-11-06 rollout (briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history)). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and 2D parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `evm-tab`).
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|

@@ -1,6 +1,6 @@
 # Sourcing published numbers
 
-How every fact and number on a page is sourced, labelled and checked, so the page can be trusted as the only copy of the knowledge. For numbers produced on the Mac see [local-runs.md](local-runs.md).
+How every fact and number on a page is sourced, labelled and checked, so the page can be trusted as the only copy of the knowledge. For numbers measured here see [local-runs.md](local-runs.md).
 
 ## The rule
 Every specific fact carries its source inline as a link, at the point it is used, with a date where the fact can change. Derived numbers show their formula. Illustrative or fitted inputs are labelled. Nothing is invented; a claim that cannot be sourced is marked **unconfirmed**, not filled in from memory.
@@ -28,6 +28,8 @@ Primary papers and technical reports (arXiv HTML pages, `/html/` rather than `/a
 - **Superseded sources:** a model card replaced by a technical report is the older source; say what changed. A live page that differs from its archived copy: use the archived raw HTML nearest the date and mark the live reading.
 - **Accounting:** for "effective" or "active" parameter claims, sum the parameter table every way and show which sum reproduces the headline; for a headline ratio, say which accounting (per layer, whole model) reproduces it.
 - **Figures only as images:** use values printed as labels (labelled "read from figure"), or decode vector SVG or PDF figures calibrated on their gridlines; never read a curve by eye.
+- **Like with like.** Match precision (dense or sparse on both sides); never splice benchmark versions or join two metrics a company reported one after the other; dollars, GPU-hours and FLOPs stay on separate axes. For an "x times" claim, find the two figures it divides and show the matched-budget and matched-performance versions.
+- **Provenance.** Was a baseline row re-run or copied from another paper? Which split does it come from? Did the result use the released artefact at all?
 - Extract saved PDFs with `pdftotext -layout`, which keeps tables intact.
 
 ## "Defaults reproduce X"

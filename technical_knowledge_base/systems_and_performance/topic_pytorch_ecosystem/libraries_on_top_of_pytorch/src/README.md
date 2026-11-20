@@ -67,7 +67,7 @@ Why about 23 minutes is right: the page compares eight libraries on the same dut
 
 ## Departures from the child-page method
 
-Reading by the subject's logic (the loop, defaults, loss averaging, then library by library, then which for which job, then dropping down); one tab for the standalone dataset view (What calls what), Further reading last. There is no `src/live.md`: the old page's text is in the root's `src/read/old/hf_stack_and_frameworks.md`, and `coverage.md` here lists every claim with its status.
+Reading by the subject's logic (the loop, defaults, loss averaging, then library by library, then which for which job, then dropping down); one tab for the standalone dataset view (What calls what), Further reading last.
 
 ## Close of the topic (2026-10-23)
 
@@ -75,7 +75,7 @@ Sibling and neighbour reading times in Further reading set to each page's header
 
 ## The 2026-11 rollout: split layout, two 3D stages, explained and autoplaying animations (2026-11-12)
 
-Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `lib-tab`) and `build.sh`. No new runs: both scenes draw from the page's own recorded traces (`window.LIB.tr`) and the duty table, which is read from source at pinned versions.
+Briefs `rebuild-page.md` and the layout-rollout brief (retired; in git history). Templates copied unchanged: `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `lib-tab`) and `build.sh`. No new runs: both scenes draw from the page's own recorded traces (`window.LIB.tr`) and the duty table, which is read from source at pinned versions.
 
 | Tab | Section | Layout | Visual | Step list |
 |---|---|---|---|---|
