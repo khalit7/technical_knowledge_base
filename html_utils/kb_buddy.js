@@ -2633,7 +2633,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!dotSpot.has(n)) {
         const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms), ae = anchorEl(n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null;
         const bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}), mg = bx && inV(ar || {left:bx.x0, top:bx.y0, right:bx.x1, bottom:bx.y1, width:1, height:1}) ? findMargin(bx, ar ? ar.right : bx.x1, 34, 34) : undefined;
-        if (mg !== undefined) dotSpot.set(n, mg ? {dx:mg.x - f.x - 6, dy:mg.y - f.y} : null);
+        let sp2 = mg;
+        if (mg === null) { const lx = (ar ? ar.left : bx.x0) - 40, ly = Math.max(bx.y0, (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0) + 8); if (lx >= 4 && marginFree(lx, ly, 32, 32)) sp2 = {x:lx + 6, y:ly} }   // no room on the right (a figure beside the text): the left margin
+        if (mg !== undefined) dotSpot.set(n, sp2 ? {dx:sp2.x - f.x - 6, dy:sp2.y - f.y} : null);
       }
       const sp = dotSpot.get(n); if (sp) { e.style.left = (f.x + sp.dx - ob.left) + 'px'; e.style.top = (f.y + sp.dy - ob.top) + 'px' }
     }
@@ -3029,7 +3031,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
     },
-    follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight },
+    follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
+      const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
     done(job, text){ if (job.quiet) return; if (job.nudge && /^\s*NONE\.?\s*$/i.test(text)) { this.empty(job); toast('Nothing to add on "' + job.nudge.name + '"', 4000); return } job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
