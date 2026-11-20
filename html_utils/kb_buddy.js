@@ -1089,6 +1089,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const out = {}; if (!R || typeof R !== 'object') return out;
     for (const [id, r] of Object.entries(R)) {
       if (!r || typeof r !== 'object' || r.id !== id || !/^[0-9a-zA-Z_-]{2,40}$/.test(id) || typeof r.k !== 'string') continue;
+      if (r.del) { out[id] = {k:r.k, id, del:true, u:+r.u || 0}; if (typeof r.pg === 'string') out[id].pg = r.pg; continue }   // a deletion carries nothing else, so a removed picture or note stays removed on every device
       if (r.c != null && !COLOR_OK.test(String(r.c))) r.c = null;
       if (r.k === 'note') { if (!Array.isArray(r.turns)) r.turns = []; for (const t of r.turns) if (t && t.ink != null) { const k = t.ink, ok = k && Number.isFinite(k.w) && Number.isFinite(k.h) && k.w > 0 && k.w <= 4000 && k.h > 0 && k.h <= 4000 && Array.isArray(k.s) && k.s.length <= 300 && k.s.every(st => Array.isArray(st) && st.length <= 4000 && st.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))); if (!ok) delete t.ink } }   // a drawing from the repo must be plain numbers
       if (r.k === 'shot') { if (typeof r.n !== 'string' || !SHOT_OK.test(String(r.img || ''))) continue } else delete r.img; if (r.shot != null && !SHOT_OK.test(String(r.shot))) delete r.shot; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
