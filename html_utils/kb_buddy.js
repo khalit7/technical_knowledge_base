@@ -122,7 +122,9 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
 .kb-chips{display:flex;flex-wrap:wrap;gap:4px}
 .kb-vrow{display:flex;gap:6px;padding:0 8px 8px}.kb-vrow button{flex:1;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card,var(--bg));color:var(--ink);font:600 12.5px/1.4 system-ui,-apple-system,sans-serif;cursor:pointer}.kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}
-#kbAskPop .kb-vrow{padding:6px 0 0}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
+#kbAskPop .kb-vrow{padding:6px 0 0}#kbAskPop .kb-vrow button{background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:12.5px;padding:4px 8px;border-radius:8px}#kbAskPop .kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
+.kb-note:has(.kb-where)>.kb-vrow,.kb-chipsbox:has(.kb-where)>.kb-vrow,.kb-selbar:has(.kb-where)>.kb-vrow{display:none}
+@media (pointer:coarse){.kb-vrow button{min-height:40px}}@media (prefers-reduced-motion:reduce){.kb-tdots i{animation:none;opacity:.6}}
 .kb-think{display:flex;align-items:center;gap:8px;padding:4px 0 6px;color:var(--mute);font:13px/1.4 system-ui,-apple-system,sans-serif}
 .kb-tdots{display:inline-flex;gap:3px}.kb-tdots i{width:6px;height:6px;border-radius:50%;background:var(--acc);opacity:.3;animation:kbDot 1.2s infinite ease-in-out}.kb-tdots i:nth-child(2){animation-delay:.2s}.kb-tdots i:nth-child(3){animation-delay:.4s}
 @keyframes kbDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
@@ -474,17 +476,20 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …\nVisualise: Add a visual to the page that shows this.\nRewrite: Rewrite this part of the page more clearly for me.';
   const prompts = () => (mine.get('prompts') || PROMPTS0).split('\n').map(l => { const i = l.indexOf(':'); return i > 0 ? {label:l.slice(0, i).trim(), text:l.slice(i + 1).trim()} : null }).filter(x => x && x.label && x.text).slice(0, 8);
   // a picture for a note's conversation goes one of two places, chosen with these two buttons (or asked when typed words leave it open)
-  const VROW = '<div class="kb-vrow"><button type="button" data-v="note" title="Claude draws a sketch in this conversation; the page is not changed">&#x270E; Sketch here</button><button type="button" data-v="page" title="Claude adds an interactive visual to the page, after this passage">&#x25A6; Add to page</button></div>';
+  const VROW = '<div class="kb-vrow"><button type="button" data-v="note" title="Claude draws a sketch in this conversation; the page is not changed">&#x270E; Sketch in note</button><button type="button" data-v="page" title="Claude adds an interactive visual to the page, after this passage">&#x25A6; Add to page</button></div>';
   const VASK = {note:'Draw this as a sketch here in our conversation.', page:'Add a visual to the page that shows this.'};
-  const VIS_WORDS = /\b(draw|sketch|visuali[sz]e|diagram|illustrate|chart|plot|picture|animation|animate)\b/i, AT_PAGE = /\b(on|to|in|into) (the |this )?page\b|\bpage\b.{0,12}\b(visual|figure)/i, AT_NOTE = /\b(here|in (the |this |our )?(note|sticky|chat|conversation|reply))\b/i;
-  const whereOf = q => AT_PAGE.test(q) ? 'page' : AT_NOTE.test(q) ? 'note' : VIS_WORDS.test(q) ? null : '';   // '' no picture asked; null: asked, place unsaid
+  // a request for a picture (not a question about one: "what does this chart show?", "draw a conclusion"), then where it should go
+  const PIC_VERB = /(^\s*|\b(can|could|would|will) you\s+|\bplease\s+|\b(now|also|then)\s+)(draw|sketch|visuali[sz]e|illustrate|animate|plot|graph|chart|diagram)\b(?!\s+(a |the )?conclusions?\b)/i;
+  const PIC_ASK = /\b(show|give|make|add|create|build|want|need|draw|sketch|put)\b(\s+(me|us))?.{0,25}\b(diagram|picture|chart|graph|plot|figure|visual|visuali[sz]ation|animation|image|illustration|sketch|drawing)s?\b/i;
+  const AT_PAGE = /\b(on|to|into|onto|in) (the |this )?page\b/i, AT_NOTE = /\b(here|in (the |this |our )?(note|sticky|chat|conversation|reply))\b/i;
+  const whereOf = q => !(PIC_VERB.test(q) || PIC_ASK.test(q)) ? '' : AT_PAGE.test(q) ? 'page' : AT_NOTE.test(q) ? 'note' : null;   // '' no picture asked; null: asked, place unsaid
   // the question's "Thinking…" line inside its turn, until the first words of the answer arrive
-  function thinkLine(R, t){ if (!R || !R.querySelector) return; let k = R.querySelector('.kb-think'); if (!k) { if (R.textContent.trim()) return; k = el('div', {class:'kb-think', role:'status'}, '<span class="kb-tdots"><i></i><i></i><i></i></span><span class="kb-tt"></span>'); R.appendChild(k) } k.querySelector('.kb-tt').textContent = t }
+  function thinkLine(R, t){ if (!R || !R.querySelector) return; let k = R.querySelector('.kb-think'); if (!k) { k = el('div', {class:'kb-think', role:'status'}, '<span class="kb-tdots"><i></i><i></i><i></i></span><span class="kb-tt"></span>'); R.appendChild(k) } k.querySelector('.kb-tt').textContent = t }
   // asked for a picture without saying where: the two places, as buttons, under the question
   function askWhere(box, q, go){
     const old = box.querySelector('.kb-where'); if (old) old.remove();
-    const w = el('div', {class:'kb-where'}, '<span>Where should the picture go?</span>' + VROW); box.appendChild(w);
-    w.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; e.preventDefault(); e.stopPropagation(); w.remove(); go(b.dataset.v) });
+    const w = el('div', {class:'kb-where'}, (box.closest('.kb-note') ? '<div class="kb-nq">You: ' + esc(q) + '</div>' : '') + '<span>Where should the picture go?</span>' + VROW.replace('</div>', '<button type="button" data-v="" title="No picture: just answer the question">Just answer</button></div>')); box.appendChild(w);
+    w.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; e.preventDefault(); e.stopPropagation(); w.remove(); go(b.dataset.v || undefined) });
   }
   const chipsHtml = () => '<div class="kb-chips">' + prompts().map((x, i) => '<button type="button" data-q="' + i + '" title="' + esc(x.text) + '">' + esc(x.label) + '</button>').join('') + '</div>';
   // a chip: ask its prompt at once, or put an unfinished one ("…") in the box
@@ -1232,7 +1237,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // a change Claude makes with a tool, or a new version of the change being refined
   function pageEdit(u, job){
     if (job.where === 'note') return 'Not done: they asked for the picture here in your note, not on the page. Draw it as a sketch in your reply instead.';
-    if (!job.refineId && job.where !== 'page' && !ASKED_CHANGE.test(job.typed || '')) return 'Not done: the reader did not ask to change the page. Answer in your note instead; offer the change if it would help.';
+    if (!job.refineId && !(job.where === 'page' && /^(add_visual|patch_visual)$/.test(u.name)) && !ASKED_CHANGE.test(job.typed || '')) return 'Not done: the reader did not ask to change the page. Answer in your note instead; offer the change if it would help.';
     const B = docBlocks(), R = job.refineId ? edits.find(y => y.id === job.refineId) : null, inp = u.input || {};
     if (job.refineId && !R) return 'Not done: the reader removed this change while you were working on it.';
     const i = +(u.name === 'add_visual' || u.name === 'insert_text' ? inp.after_block : inp.block); let e = B.els[i];
@@ -1820,12 +1825,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   });
   blkPop.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.value.trim()) { e.preventDefault(); askBlock(blkTgt, e.target.value.trim()) } });
   document.addEventListener('pointerdown', e => { if (!blkPop.hidden && !blkPop.contains(e.target)) closeBlk() }, true);
-  async function askBlock(b, q, near){
+  async function askBlock(b, q, near, where){
     closeBlk(); if (!b || !b.isConnected || needKey(PG)) return; const r = b.getBoundingClientRect();
     PG.out.status('Looking…');
-    const job = {kind:'page', typed:q, block:true, hl:null, marks:[], anchorEl:b, box:{x0:r.left, y0:r.top, x1:r.right, y1:r.bottom}, near:near || normT(origText(b)).slice(0, 700), scr:await screenBlocks(false, [], null)};
-    if (PG.busy) { if (!enqueue(PG, job)) return; PG.out.status('Will read after this reply…'); return }
-    send(PG, job);
+    const job = {kind:'page', typed:q, where, block:true, hl:null, marks:[], anchorEl:b, box:{x0:r.left, y0:r.top, x1:r.right, y1:r.bottom}, near:near || normT(origText(b)).slice(0, 700), scr:null};
+    early(job); job.scr = await screenBlocks(false, [], null); go(job);
   }
 
   // ---- the changes panel (the overview's Page changes): grouped by request, filters, step through, keep or remove, the page as written ----
@@ -2412,6 +2416,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     S.busy = true; S.cur = job; let reply = null, rawNow = ''; if (job.tab === undefined) job.tab = openTab();
     if (job.refineId) { const y = edits.find(z => z.id === job.refineId); if (y) job.refine = y }   // the change as it is now (a sync may have replaced it while this waited)
     job.gid = job.gid || newId();
+    if (job.early && !job.early.isConnected) { job.early = null; job.note = null; job.newNote = false }   // its note was deleted while it waited: placed again
     const content = [];
     if (job.kind === 'note') {
       job.slots = findSlots(job.pg, job.A);
@@ -2467,8 +2472,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
       const inNote = S === PG && !job.quiet && !job.nudge;   // a question on the page shows its progress in its own note, like a chat
-      if (inNote) { try { target(); thinkLine(reply, 'Thinking…') } catch(e) {} }
-      const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)/.test(t)) thinkLine(reply, t); return } S.out.status(t) }; say('Reading…');
+      if (inNote) { try { target(); thinkLine(reply, 'Thinking…'); S.out.follow(job) } catch(e) {} }
+      const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)…$/.test(t)) { thinkLine(reply, t); S.out.follow(job) } return } S.out.status(t) }; say('Reading…');
       let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
         const big = !!job.refine || !!job.where || ASKED_CHANGE.test(job.typed || '');
@@ -2783,11 +2788,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     Object.assign(bx.style, {left:(b.x0 + off[0] - 6) + 'px', top:(b.y0 + off[1] - 6) + 'px', width:(b.x1 - b.x0 + 12) + 'px', height:(b.y1 - b.y0 + 12) + 'px', background:'transparent', borderColor:'transparent', cursor:k ? 'move' : 'default'});
     const W = Math.min(420, innerWidth - 24); Object.assign(br.style, {left:Math.max(scrollX + 8, Math.min(scrollX + innerWidth - W - 8, b.x0 + off[0])) + 'px', top:(b.y1 + off[1] + 10) + 'px'});
     psel$.append(bx, br);
-    const inp = br.querySelector('input'), ask = q => { if (q && q.trim()) askPageLasso(q.trim()) };
+    br.querySelector('.kb-pr').insertAdjacentHTML('afterend', VROW);
+    const inp = br.querySelector('input'), ask = (q, where) => { q = (q || '').trim(); if (!q) return; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => askPageLasso(q, v)); return } where = w || undefined } askPageLasso(q, where) };
     br.addEventListener('pointerdown', e => e.stopPropagation(), true);
     br.addEventListener('click', e => {
       if (blockClick(e, psel && psel.tgt, inp, clearPsel)) return;
-      if (chipClick(e, inp, ask)) return; const t = e.target.closest('[data-s]'); if (!t) return;
+      if (chipClick(e, inp, ask)) return; const vb = e.target.closest('[data-v]'); if (vb && !vb.closest('.kb-where')) { ask(inp.value.trim() || VASK[vb.dataset.v], vb.dataset.v); return } const t = e.target.closest('[data-s]'); if (!t) return;
       if (t.dataset.s === 'ask') ask(inp.value); else if (t.dataset.s === 'done') clearPsel();
       else if (t.dataset.s === 'del') { for (const m of ms) removeMark(m); clearPsel(); saveBook(); syncBar() }
     });
@@ -2802,16 +2808,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       bx.addEventListener('pointermove', mv); bx.addEventListener('pointerup', up); bx.addEventListener('pointercancel', up);
     });
   }
-  async function askPageLasso(q){
+  async function askPageLasso(q, where){
     if (PG.busy && PG.queued.length >= 3) { PG.out.status('Claude is still busy with earlier requests; try again in a moment.'); return }
     const S = psel; if (!S) return; psel = null; psel$.innerHTML = ''; if (needKey(PG)) { S.g.remove(); return }
     // the loop itself is kept as a faint dashed mark, so the note has something to stay beside and to be reopened from
     const m = {p:S.poly.concat([S.poly[0]]).map(q => [q[0], q[1], 0.5]), c:null, w:1.6, dash:true}; styleMark(S.g, m); pin(m, S.o, S.g); saveBook();
     const ms = [m].concat(S.ms);
-    PG.out.status('Looking…');
-    const job = {kind:'page', typed:q, lasso:true, hl:null, marks:ms, made:[m.id], box:viewBox([m]), near:nearText([m]), scr:await screenBlocks(false, ms, null)};
-    if (PG.busy) { if (!enqueue(PG, job)) return; PG.out.status('Will read after this reply…'); return }
-    send(PG, job);
+    const job = {kind:'page', typed:q, where, lasso:true, hl:null, marks:ms, made:[m.id], box:viewBox([m]), near:nearText([m]), scr:null};
+    early(job); job.scr = await screenBlocks(false, ms, null); go(job);
   }
   // a scratch-out over marks on the page: the marks mostly under it go, and so does the scratch
   function scratchPage(L){
@@ -2852,9 +2856,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function showPop(){
     if (!hl || !hl.rects.length) return;
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
-    let y = last.y - scrollY + last.h + 12; if (y + 90 > innerHeight) y = Math.max(8, first.y - scrollY - 96);
+    const cb = pop.querySelector('.kb-chipsbox'); if (pop.hidden || !cb.querySelector('.kb-where')) cb.innerHTML = chipsHtml() + VROW + (hl.el ? blockRowHtml(hl.el) : '');
+    pop.hidden = false; const ph = pop.offsetHeight || 160;   // measured now that it is filled
+    let y = last.y - scrollY + last.h + 12; if (y + ph > innerHeight - 8) y = Math.max(8, first.y - scrollY - ph - 8);
     const x = Math.max(8, Math.min(innerWidth - w - 8, last.x - scrollX + last.w / 2 - w / 2));
-    pop.querySelector('.kb-chipsbox').innerHTML = chipsHtml() + VROW + (hl.el ? blockRowHtml(hl.el) : ''); Object.assign(pop.style, {left:x + 'px', top:y + 'px'}); pop.hidden = false;
+    Object.assign(pop.style, {left:x + 'px', top:y + 'px'});
   }
   function hidePop(){ pop.hidden = true; popIn.value = '' }
   document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target)) setTimeout(() => { if (document.activeElement !== popIn || !popIn.value.trim()) { const sel = getSelection(); if (!sel || sel.isCollapsed) hidePop() } }, 300) }, true);
@@ -2870,7 +2876,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const x = edits.find(y => y.id === h.edit), e = x && anchorOf(x); if (!x || !e) return;
       const visualAsk = /\b(visual|visuali[sz]e|diagram|draw|figure|chart|animat|sketch|picture|graph|3d|2d)/i.test(q);
       const same = (x.kind === 'visual' && ASKED_CHANGE.test(q)) || ((x.kind === 'rewrite' || x.kind === 'insert') && ASKED_CHANGE.test(q) && !visualAsk);
-      return same ? refineEdit(x, q) : askBlock(e, q, 'They selected this in a change you made to the page:\n' + h.text);
+      return same && where !== 'note' ? refineEdit(x, q) : askBlock(e, q, 'They selected this in a change you made to the page:\n' + h.text, where);
     }
     const mid = h.rects[0] && noteAt(h.rects[0].x - scrollX + h.rects[0].w / 2, h.rects[0].y - scrollY + h.rects[0].h / 2);
     if (mid && mid.hl) return followUp(mid, q, where);   // the same passage asked about again: one thread
@@ -2920,7 +2926,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const a = d.querySelector('.kb-na'); if (!a || a.querySelector('.kb-cut')) return;
     a.insertAdjacentHTML('beforeend', '<span class="kb-cut">' + (t.a ? ' [cut off: ' : 'Not answered: ') + esc(String(t.cut).slice(0, 200)) + (t.a ? ']' : '') + '</span>' + (t.q ? ' <button type="button" class="kb-retry" data-n="retry">Try again</button>' : ''));
   }
+  const liveT = new WeakSet();   // turns being answered now; any other turn with a question and no answer was left by a closed page
   function turnEl(t){
+    if (t.q && !t.a && !t.cut && !liveT.has(t)) t.cut = 'the page was closed before Claude answered';
     const d = el('div', {class:'kb-turn'});
     if (t.q) d.appendChild(el('div', {class:'kb-nq'}, 'You: ' + esc(t.q)));
     const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
@@ -2950,10 +2958,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         if (PG.busy && PG.queued.length >= 3) { toast('Claude is still busy with earlier requests; try again in a moment.', 5000); return }   // nothing is removed until it can be asked
         const old = retryOf.get(t); drop(ts, t); td.remove(); saveBook();
         if (old && !old.follow && !(old.refineId && !edits.some(y => y.id === old.refineId))) {   // the note's first question: asked again as it was (a selection, a loop), its reply in this note
-          const j = Object.assign({}, old, {note:null, newNote:false, err:null, lastRaw:null, lastReply:null, reuse:n, gid:edits.some(y => y.g === old.gid) ? old.gid : undefined, tab:old.tab});
+          const j = Object.assign({}, old, {note:null, newNote:false, early:null, err:null, lastRaw:null, lastReply:null, reuse:n, gid:edits.some(y => y.g === old.gid) ? old.gid : undefined, tab:old.tab});
           (async () => { try { j.scr = await screenBlocks(false, j.marks || [], j.hl) } catch(e2) {}   // the screen as it is now
             if (PG.busy) { PG.queued.push(j); toast('Will ask again after this reply.', 4000) } else send(PG, j) })();
-        } else followUp(n, t.q);
+        } else followUp(n, t.q, old && old.where);
       }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input');
@@ -3044,14 +3052,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   });
   // a follow-up in a note's thread: the same marks, the earlier turns, the new question
   async function followUp(n, q, where){
-    if (needKey(PG)) return;
+    if (needKey(PG)) return; { const ne = noteEl.get(n), w0 = ne && ne.querySelector('.kb-where'); if (w0) w0.remove() }
     const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean);
     const job = {kind:'page', typed:q, where, follow:n, thread:turnsOf(n).slice(), hl:n.hl ? {text:n.hl, where:'', rects:[]} : null, marks:ms, box:viewBox(ms), near:nearText(ms), scr:null};
     early(job); job.scr = await screenBlocks(false, ms, job.hl);
     go(job);
   }
   // like a chat: the question shows in its note at once with a thinking line under it, before the screen is captured and sent
-  function early(job){ if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for the answer above…' : 'Thinking…') } catch(e) { job.early = null } }
+  function early(job){ if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
   function go(job){
     if (PG.busy) { if (!enqueue(PG, job)) { if (job.early) PG.out.empty(job); return } if (!job.early) PG.out.status('Will read after this reply…'); return }
     send(PG, job);
@@ -3064,7 +3072,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.follow && !noteEl.get(job.follow)) { job.follow = null; job.lostFollow = true }   // deleted while it waited
       if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
       if (job.follow || job.reuse) {
-        const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
+        const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; liveT.add(t); turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
       const b = (job.marks && job.marks.length && viewBox(job.marks)) || job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);   // where its marks are now, not when it was asked
@@ -3087,7 +3095,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!an) { an = {a:'', aw:0}; fr = frameOf({a:''}) }
       fr = fr || {x:0, y:0, s:1};
       const anEl = an === m0 ? anchorOf(m0) : ar && an.a === ar.a && waits !== 'mark' && job.anchorEl ? job.anchorEl : pageRoot();
-      const t = {q:job.typed || '', a:''};
+      const t = {q:job.typed || '', a:''}; liveT.add(t);
       const n = {id:newId(), tab:tabTag(anEl, job.tab), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:waits === 'mark' ? Math.round(bbox([m0]).x1 + 12) : waits ? 0 : Math.round((x - fr.x) / fr.s), y:waits === 'mark' ? Math.round(bbox([m0]).y0) : waits ? 28 : Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
