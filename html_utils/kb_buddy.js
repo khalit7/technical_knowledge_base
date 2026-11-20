@@ -121,6 +121,12 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbAskPop[hidden]{display:none}
 #kbAskPop .kb-pr{display:flex;gap:6px;align-items:center}
 .kb-chips{display:flex;flex-wrap:wrap;gap:4px}
+.kb-vrow{display:flex;gap:6px;padding:0 8px 8px}.kb-vrow button{flex:1;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card,var(--bg));color:var(--ink);font:600 12.5px/1.4 system-ui,-apple-system,sans-serif;cursor:pointer}.kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}
+#kbAskPop .kb-vrow{padding:6px 0 0}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
+.kb-think{display:flex;align-items:center;gap:8px;padding:4px 0 6px;color:var(--mute);font:13px/1.4 system-ui,-apple-system,sans-serif}
+.kb-tdots{display:inline-flex;gap:3px}.kb-tdots i{width:6px;height:6px;border-radius:50%;background:var(--acc);opacity:.3;animation:kbDot 1.2s infinite ease-in-out}.kb-tdots i:nth-child(2){animation-delay:.2s}.kb-tdots i:nth-child(3){animation-delay:.4s}
+@keyframes kbDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.kb-note .kb-nq{font-weight:600}
 .kb-chips button{padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:12px/1.6 system-ui,-apple-system,sans-serif;cursor:pointer}
 .kb-chips button:hover{border-color:var(--acc)}
 .kb-note .kb-chips{display:none;padding:0 8px 8px}
@@ -209,7 +215,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 .kb-note .kb-nf{display:flex;gap:4px;padding:4px 8px 8px}
 .kb-note .kb-nf input{flex:1;min-width:0;font:13px/1.3 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 .kb-note .kb-nf button{border:0;background:var(--acc);color:var(--card,var(--bg));border-radius:7px;padding:0 9px;font-weight:700;cursor:pointer}
-.kb-note.kb-folded .kb-nf{display:none}
+.kb-note.kb-folded .kb-nf,.kb-note.kb-folded .kb-vrow{display:none}
 .kb-note.kb-flash{animation:kbFlash 1.2s ease-out}
 .kb-note.kb-resolved .kb-dot{background:var(--good,#2f9e44)}
 html.kb-narrow .kb-note:not(.kb-active){width:auto!important;border:0;background:transparent;box-shadow:none}
@@ -467,6 +473,19 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // one-tap prompts beside every Ask box: "Label: prompt" per line; a prompt ending in "…" is put in the box to finish, not sent
   const PROMPTS0 = 'Intuition: Give me the intuition behind this, in plain words.\nExample: Walk me through a tiny worked example with real numbers.\nWhy it matters: What would break or change without this?\nSimpler: Explain this more simply.\nContrast: Contrast this with …\nVisualise: Add a visual to the page that shows this.\nRewrite: Rewrite this part of the page more clearly for me.';
   const prompts = () => (mine.get('prompts') || PROMPTS0).split('\n').map(l => { const i = l.indexOf(':'); return i > 0 ? {label:l.slice(0, i).trim(), text:l.slice(i + 1).trim()} : null }).filter(x => x && x.label && x.text).slice(0, 8);
+  // a picture for a note's conversation goes one of two places, chosen with these two buttons (or asked when typed words leave it open)
+  const VROW = '<div class="kb-vrow"><button type="button" data-v="note" title="Claude draws a sketch in this conversation; the page is not changed">&#x270E; Sketch here</button><button type="button" data-v="page" title="Claude adds an interactive visual to the page, after this passage">&#x25A6; Add to page</button></div>';
+  const VASK = {note:'Draw this as a sketch here in our conversation.', page:'Add a visual to the page that shows this.'};
+  const VIS_WORDS = /\b(draw|sketch|visuali[sz]e|diagram|illustrate|chart|plot|picture|animation|animate)\b/i, AT_PAGE = /\b(on|to|in|into) (the |this )?page\b|\bpage\b.{0,12}\b(visual|figure)/i, AT_NOTE = /\b(here|in (the |this |our )?(note|sticky|chat|conversation|reply))\b/i;
+  const whereOf = q => AT_PAGE.test(q) ? 'page' : AT_NOTE.test(q) ? 'note' : VIS_WORDS.test(q) ? null : '';   // '' no picture asked; null: asked, place unsaid
+  // the question's "Thinking…" line inside its turn, until the first words of the answer arrive
+  function thinkLine(R, t){ if (!R || !R.querySelector) return; let k = R.querySelector('.kb-think'); if (!k) { if (R.textContent.trim()) return; k = el('div', {class:'kb-think', role:'status'}, '<span class="kb-tdots"><i></i><i></i><i></i></span><span class="kb-tt"></span>'); R.appendChild(k) } k.querySelector('.kb-tt').textContent = t }
+  // asked for a picture without saying where: the two places, as buttons, under the question
+  function askWhere(box, q, go){
+    const old = box.querySelector('.kb-where'); if (old) old.remove();
+    const w = el('div', {class:'kb-where'}, '<span>Where should the picture go?</span>' + VROW); box.appendChild(w);
+    w.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; e.preventDefault(); e.stopPropagation(); w.remove(); go(b.dataset.v) });
+  }
   const chipsHtml = () => '<div class="kb-chips">' + prompts().map((x, i) => '<button type="button" data-q="' + i + '" title="' + esc(x.text) + '">' + esc(x.label) + '</button>').join('') + '</div>';
   // a chip: ask its prompt at once, or put an unfinished one ("…") in the box
   function chipClick(e, input, askFn){
@@ -1212,7 +1231,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // a change Claude makes with a tool, or a new version of the change being refined
   function pageEdit(u, job){
-    if (!job.refineId && !ASKED_CHANGE.test(job.typed || '')) return 'Not done: the reader did not ask to change the page. Answer in your note instead; offer the change if it would help.';
+    if (job.where === 'note') return 'Not done: they asked for the picture here in your note, not on the page. Draw it as a sketch in your reply instead.';
+    if (!job.refineId && job.where !== 'page' && !ASKED_CHANGE.test(job.typed || '')) return 'Not done: the reader did not ask to change the page. Answer in your note instead; offer the change if it would help.';
     const B = docBlocks(), R = job.refineId ? edits.find(y => y.id === job.refineId) : null, inp = u.input || {};
     if (job.refineId && !R) return 'Not done: the reader removed this change while you were working on it.';
     const i = +(u.name === 'add_visual' || u.name === 'insert_text' ? inp.after_block : inp.block); let e = B.els[i];
@@ -2401,6 +2421,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     }
     content.push(...job.scr.blocks);
     if (job.kind === 'page' && blockHint(job)) content.push({type:'text', text:blockHint(job)});
+    if (job.where === 'note') content.push({type:'text', text:'They chose to have the picture here, in your note: draw it as one sketch in your reply (the <svg> described in your instructions), with a sentence or two around it. Do not change the page.'});
+    else if (job.where === 'page') content.push({type:'text', text:'They chose to have the picture added to the page: make it with add_visual after the block their question is about (or patch_visual if it is a change to a visual you made), then say in one short sentence what you added.'});
     content.push({type:'text', text:job.kind === 'page'
       ? job.refine ? refineText(job)
       : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
@@ -2414,11 +2436,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         '\nFree spots for your reply:\n' + job.slots.map(q => q.key + ': ' + q.where + ', ' + room(q)).join('\n') + '\nStart with <at>letter</at>.'});
     let shown = 0, queue = [], drip = 0, hold = 0, stopped = false;
     const replyPart = raw => { const i = raw.indexOf('</read>'); const r = i >= 0 ? raw.slice(i + 7) : (/^\s*<(read|at)/.test(raw) || raw.length < 6 ? '' : raw); return r.replace(/<point>[\s\S]*?<\/point>/g, '').replace(/<at>[\s\S]*?<\/at>/g, '').replace(/^\s+/, '') };
-    const target = () => reply || (reply = S.out.place(job, (rawNow.match(/<at>\s*([A-Z])\s*<\/at>/i) || [])[1]));
+    const target = () => reply || (reply = job.early || S.out.place(job, (rawNow.match(/<at>\s*([A-Z])\s*<\/at>/i) || [])[1]));
     const pump = () => { if (drip) return; drip = setInterval(() => {
       if (performance.now() < hold) return;
       if (!queue.length) { clearInterval(drip); drip = 0; return }
-      const w = queue.shift(), R = target();
+      const w = queue.shift(), R = target(), tk = R.querySelector && R.querySelector('.kb-think'); if (tk) tk.remove();   // the answer starts: the thinking line goes
       if (typeof w === 'string') R.appendChild(txt(w, R));
       else { const b = sketch(w.svg); if (b) { R.appendChild(b); hold = performance.now() + inkIn(b) } }
       S.out.follow(job);
@@ -2444,10 +2466,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     };
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
-      const say = job.quiet ? () => {} : t => S.out.status(t); say('Reading…');
+      const inNote = S === PG && !job.quiet && !job.nudge;   // a question on the page shows its progress in its own note, like a chat
+      if (inNote) { try { target(); thinkLine(reply, 'Thinking…') } catch(e) {} }
+      const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)/.test(t)) thinkLine(reply, t); return } S.out.status(t) }; say('Reading…');
       let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
-        const big = !!job.refine || ASKED_CHANGE.test(job.typed || '');
+        const big = !!job.refine || !!job.where || ASKED_CHANGE.test(job.typed || '');
         r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) say('Writing…'); job.lastRaw = before + raw; feed(before + raw, end) }, undefined,
           name => say(name === 'add_visual' ? 'Building a visual for the page…' : name === 'rewrite_block' ? 'Rewriting that part of the page…' : name === 'web_search' ? 'Searching the web…' : name === 'web_fetch' ? 'Reading a web page…' : name === 'patch_visual' ? 'Changing the visual…' : 'Looking further…'), job.model);
         cost += r.cents; const uses = r.content.filter(b => b.type === 'tool_use');
@@ -2472,7 +2496,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       job.err = msg; if (job.lastRaw) try { job.lastReply = replyPart(job.lastRaw).trim() } catch(e2) {}
       if (job.quiet) {} else if (S.out.fail) S.out.fail(job, reply, msg); else { target().innerHTML = '<span class="kb-err" style="font:14px/1.5 system-ui,sans-serif">' + esc(msg) + '</span>'; S.out.status('') }
     } finally {
-      S.busy = false; S.cur = null; if (S === PG && job.gid) try { tidyOrphan(job) } catch(e) {}
+      S.busy = false; S.cur = null; try { const tk = reply && reply.querySelector && reply.querySelector('.kb-think'); if (tk) tk.remove() } catch(e) {} if (S === PG && job.gid) try { tidyOrphan(job) } catch(e) {}
       nextJob(S);
       if (job.after) setTimeout(() => { try { job.after() } catch(e) {} });   // once the next job has started, so a further repair waits its turn
     }
@@ -2821,21 +2845,24 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const pop = el('div', {id:'kbAskPop', hidden:'', role:'dialog', 'aria-label':'Ask Claude about the selection'}, '<div class="kb-pr"><input type="text" placeholder="Ask Claude about this…" enterkeyhint="send" aria-label="Your question"><button type="button" data-ask>Ask</button></div><div class="kb-chipsbox"></div>');
   document.body.appendChild(pop);
   const popIn = pop.querySelector('input');
-  pop.addEventListener('click', e => { if (blockClick(e, hl && hl.el, popIn, () => { hidePop(); try { getSelection().removeAllRanges() } catch(err) {} hl = null; showHl() })) return; chipClick(e, popIn, q => askSel(q)) });
+  pop.addEventListener('click', e => { if (blockClick(e, hl && hl.el, popIn, () => { hidePop(); try { getSelection().removeAllRanges() } catch(err) {} hl = null; showHl() })) return;
+    const v = e.target.closest('[data-v]'); if (v && !v.closest('.kb-where')) { e.preventDefault(); askSel(popIn.value.trim() || VASK[v.dataset.v], v.dataset.v); return }
+    chipClick(e, popIn, q => askPop(q)) });
+  function askPop(q){ const w = whereOf(q); if (w === null) { askWhere(pop.querySelector('.kb-chipsbox'), q, v => askSel(q, v)); return } askSel(q, w || undefined) }
   function showPop(){
     if (!hl || !hl.rects.length) return;
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
     let y = last.y - scrollY + last.h + 12; if (y + 90 > innerHeight) y = Math.max(8, first.y - scrollY - 96);
     const x = Math.max(8, Math.min(innerWidth - w - 8, last.x - scrollX + last.w / 2 - w / 2));
-    pop.querySelector('.kb-chipsbox').innerHTML = chipsHtml() + (hl.el ? blockRowHtml(hl.el) : ''); Object.assign(pop.style, {left:x + 'px', top:y + 'px'}); pop.hidden = false;
+    pop.querySelector('.kb-chipsbox').innerHTML = chipsHtml() + VROW + (hl.el ? blockRowHtml(hl.el) : ''); Object.assign(pop.style, {left:x + 'px', top:y + 'px'}); pop.hidden = false;
   }
   function hidePop(){ pop.hidden = true; popIn.value = '' }
   document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target)) setTimeout(() => { if (document.activeElement !== popIn || !popIn.value.trim()) { const sel = getSelection(); if (!sel || sel.isCollapsed) hidePop() } }, 300) }, true);
   addEventListener('scroll', () => { if (!pop.hidden && !popIn.value.trim() && document.activeElement !== popIn && hl && hl.rects.length) { const q = hl.rects[hl.rects.length - 1]; const y = q.y - scrollY; if (y < -40 || y > innerHeight + 40) hidePop(); else showPop() } }, {passive:true});
-  const ask = () => { const q = popIn.value.trim(); if (q) askSel(q) };
+  const ask = () => { const q = popIn.value.trim(); if (q) askPop(q) };
   pop.querySelector('[data-ask]').addEventListener('click', ask);
   popIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask() } else if (e.key === 'Escape') hidePop() });
-  async function askSel(q){
+  async function askSel(q, where){
     if (PG.busy && PG.queued.length >= 3) { PG.out.status('Claude is still busy with earlier requests; try again in a moment.'); return }
     const h = hl; if (!h) return; hidePop(); try { getSelection().removeAllRanges() } catch(e) {} hl = null; showHl();
     if (needKey(PG)) return;
@@ -2846,16 +2873,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       return same ? refineEdit(x, q) : askBlock(e, q, 'They selected this in a change you made to the page:\n' + h.text);
     }
     const mid = h.rects[0] && noteAt(h.rects[0].x - scrollX + h.rects[0].w / 2, h.rects[0].y - scrollY + h.rects[0].h / 2);
-    if (mid && mid.hl) return followUp(mid, q);   // the same passage asked about again: one thread
+    if (mid && mid.hl) return followUp(mid, q, where);   // the same passage asked about again: one thread
     // the selection's lines as highlighter strokes, one per line, pinned like any mark
     const o = marksSvg.getBoundingClientRect(), lines = [];
     for (const q of h.rects) { const L = lines.find(l => Math.abs(l.y - q.y) < 4 && Math.abs(l.h - q.h) < 6); if (L) { L.x0 = Math.min(L.x0, q.x); L.x1 = Math.max(L.x1, q.x + q.w) } else lines.push({x0:q.x, x1:q.x + q.w, y:q.y, h:q.h}) }
     const ms = lines.map(l => { const y = l.y - scrollY - o.top + l.h / 2, hw = l.h * 0.9; const m = {p:[[r1(l.x0 - scrollX - o.left + hw / 2), r1(y), 0.5], [r1(l.x1 - scrollX - o.left - hw / 2), r1(y), 0.5]], c:'#f5c400', w:hw, h:true, sel:1}; pin(m, o, null); return m });
     saveBook(); syncBar();
-    PG.out.status('Looking…');
-    const job = {kind:'page', typed:q, hl:h, marks:ms, made:ms.map(m => m.id), box:viewBox(ms), near:nearText(ms), scr:await screenBlocks(false, ms, h)};
-    if (PG.busy) { if (!enqueue(PG, job)) return; PG.out.status('Will read after this reply…'); return }
-    send(PG, job);
+    const job = {kind:'page', typed:q, where, hl:h, marks:ms, made:ms.map(m => m.id), box:viewBox(ms), near:nearText(ms), scr:null};
+    early(job); job.scr = await screenBlocks(false, ms, h);
+    go(job);
   }
   document.addEventListener('pointerup', endLive, true); document.addEventListener('pointercancel', endLive, true);
   // a pen tap or a mouse stroke must not also click what is under it
@@ -2904,7 +2930,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   let noteZ = 1;
   function noteNode(n){
-    const e = el('div', {class:'kb-note' + (n.fold || n.resolved ? ' kb-folded' : '') + (n.resolved ? ' kb-resolved' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="resolve" title="Resolve: done with this; it shrinks to a tick on the page and stays in the overview" aria-label="Resolve">&#x2713;</button><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
+    const e = el('div', {class:'kb-note' + (n.fold || n.resolved ? ' kb-folded' : '') + (n.resolved ? ' kb-resolved' : ''), role:'note', 'aria-label':"Claude's note"}, '<div class="kb-nh"><b>Claude</b><span class="kb-sp"></span><button type="button" data-n="resolve" title="Resolve: done with this; it shrinks to a tick on the page and stays in the overview" aria-label="Resolve">&#x2713;</button><button type="button" data-n="fold" title="Fold to a dot" aria-label="Fold">&#x2013;</button><button type="button" data-n="del" title="Delete this note (the marks stay)" aria-label="Delete">&#x2715;</button></div><div class="kb-nb"></div><form class="kb-nf"><input type="text" placeholder="Ask a follow-up…" enterkeyhint="send" aria-label="Ask a follow-up"><button type="submit" aria-label="Send">&#x2191;</button></form>' + VROW + chipsHtml() + '<button type="button" class="kb-dot" data-n="open" title="Open Claude\'s note" aria-label="Open Claude\'s note">C</button>');
     e.style.width = (n.w || 340) + 'px'; const body = e.querySelector('.kb-nb');
     for (const t of turnsOf(n)) body.appendChild(turnEl(t));
     e.addEventListener('click', ev => {
@@ -2931,9 +2957,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input');
-    f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (q) { inp.value = ''; followUp(n, q) } });
+    const ask = (q, where) => { inp.value = ''; if (where === undefined) where = whereOf(q); if (where === null) { askWhere(e.querySelector('.kb-nb'), q, v => followUp(n, q, v)); const nb = e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight; return } followUp(n, q, where || undefined) };
+    f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (q) ask(q) });
+    e.querySelector('.kb-vrow').addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (!b) return; ev.stopPropagation(); const q = inp.value.trim(); ask(q || VASK[b.dataset.v], b.dataset.v) });
     e.querySelector('.kb-chips').addEventListener('pointerdown', ev => ev.preventDefault());   // keep the box focused so the chips stay
-    e.querySelector('.kb-chips').addEventListener('click', ev => chipClick(ev, inp, q => followUp(n, q)));
+    e.querySelector('.kb-chips').addEventListener('click', ev => chipClick(ev, inp, q => ask(q)));
     const h = e.querySelector('.kb-nh');
     h.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || ev.target.closest('button')) return; ev.preventDefault(); h.setPointerCapture(ev.pointerId); front(e);
@@ -3015,12 +3043,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const n = noteAt(e.clientX, e.clientY); if (n) openNote(n);
   });
   // a follow-up in a note's thread: the same marks, the earlier turns, the new question
-  async function followUp(n, q){
+  async function followUp(n, q, where){
     if (needKey(PG)) return;
     const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean);
-    PG.out.status('Looking…');
-    const job = {kind:'page', typed:q, follow:n, thread:turnsOf(n).slice(), hl:n.hl ? {text:n.hl, where:'', rects:[]} : null, marks:ms, box:viewBox(ms), near:nearText(ms), scr:await screenBlocks(false, ms, n.hl ? {text:n.hl, where:'', rects:[]} : null)};
-    if (PG.busy) { if (!enqueue(PG, job)) return; PG.out.status('Will read after this reply…'); return }
+    const job = {kind:'page', typed:q, where, follow:n, thread:turnsOf(n).slice(), hl:n.hl ? {text:n.hl, where:'', rects:[]} : null, marks:ms, box:viewBox(ms), near:nearText(ms), scr:null};
+    early(job); job.scr = await screenBlocks(false, ms, job.hl);
+    go(job);
+  }
+  // like a chat: the question shows in its note at once with a thinking line under it, before the screen is captured and sent
+  function early(job){ if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for the answer above…' : 'Thinking…') } catch(e) { job.early = null } }
+  function go(job){
+    if (PG.busy) { if (!enqueue(PG, job)) { if (job.early) PG.out.empty(job); return } if (!job.early) PG.out.status('Will read after this reply…'); return }
     send(PG, job);
   }
   // the page's side of a reply. A new note goes right by its marks: under a highlight, beside a drawing (right, else left, else under
@@ -3065,7 +3098,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
       if (!job.note && job.typed && !job.nudge && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
-      const J = job.note;
+      const J = job.note; if (J) { const tk = J.d.querySelector('.kb-think'); if (tk) tk.remove() }   // not part of an answer
       if (J) {
         const got = J.d.querySelector('.kb-na').textContent.trim(), raw = job.lastReply || '';
         J.t.a = got ? raw || got : ''; J.t.cut = msg; saveBook(); retryOf.set(J.t, job); showCut(J.t, J.d); try { linkNote(job) } catch(e) {}
