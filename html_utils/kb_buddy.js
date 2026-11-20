@@ -253,6 +253,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbOvw .kb-ovp i{position:absolute;left:8px;top:8px;min-width:24px;height:24px;border-radius:50% 50% 50% 4px;background:var(--acc);color:var(--card,#fff);font:700 12.5px/24px system-ui,sans-serif;text-align:center;font-style:normal}
 #kbOvw .kb-ovq{padding:14px 16px;font-size:13px;color:var(--ink);background:color-mix(in srgb,#f5c400 22%,transparent);max-height:100%;overflow:hidden}
 #kbOvw .kb-ovt{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}#kbOvw .kb-ovt small{color:var(--mute);font-size:12px}#kbOvw .kb-ovt>span{color:var(--mute);font-size:13px}
+#kbOvw .kb-ovr{opacity:.7}#kbOvw .kb-ovh button{min-height:44px}
 #kbOvw .kb-ove{max-width:620px;margin:40px auto;color:var(--mute);text-align:center}
 .kb-note .kb-maxonly{display:none}.kb-note.kb-max .kb-nh .kb-maxonly{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:9px;font:600 13px/1 system-ui,-apple-system,sans-serif;color:var(--ink);margin-right:4px}
 .kb-maxbg{position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,.3);touch-action:none}
@@ -407,7 +408,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const sws = bar.querySelector('.kb-sws');
   document.addEventListener('pointerdown', e => { if (sws.classList.contains('kb-open') && !sws.contains(e.target)) sws.classList.remove('kb-open') }, true);
   let barRO = 0; try { new ResizeObserver(() => { cancelAnimationFrame(barRO); barRO = requestAnimationFrame(() => { if (!bar.classList.contains('kb-drag')) placeBar() }) }).observe(bar) } catch(e) {}
-  // the notebook (and its Text tool) and the overview are off for now: Khalid is rethinking them (2026-11-20). Their data stays saved
+  // the notebook (and its Text tool) is off for now: Khalid is rethinking it (2026-11-20; the overview came back as the conversation overview). Its data stays saved
   // and syncs; the panel still opens for Settings. Set to false to bring them back as they were.
   const NB_OFF = true;
   if (NB_OFF) for (const q of ['[data-b=notebook]', '[data-t=text]']) { const b = bar.querySelector(q); if (b) b.hidden = true }
@@ -485,7 +486,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   let lastFocus = null;
   function open(view){
-    exitMax(); if (P.hidden) lastFocus = document.activeElement;
+    exitMax(); closeOvw(); if (P.hidden) lastFocus = document.activeElement;
     P.hidden = false; setFull(mine.get('full') !== '0');
     sub = !store.get('key') || NB_OFF ? 'set' : (view || null); P.classList.toggle('kb-setonly', NB_OFF); show();
   }
@@ -621,7 +622,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function showHl(){ hlBox.hidden = !hl || !!sub; if (hl) hlBox.querySelector('q').textContent = hl.text.length > 300 ? hl.text.slice(0, 300) + '…' : hl.text }
 
   // ---- what is in view now ----
-  const OURS = '#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel,#jsErr', OURS_UI = '#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel';
+  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbAsk,#kbAskBtn,#kbAskSel';
   // what the buddy itself puts into the page (visual sections, added text, hidden-block stubs, move placeholders, change badges): never
   // counted as page content, so showing or hiding a change moves no mark, citation or anchor
   const KB_NODES = '.kb-vsp,.kb-vis,.kb-ins,.kb-hidstub,.kb-mvph,.kb-edtag';
@@ -746,7 +747,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // the screen as an image, rebuilt in the browser: background, boxes and text, then the page's canvases (current frame), SVGs
   // (with their computed styles) and images on top at their screen positions, the highlight in yellow, the reader's marks on the page
   // in their colours with the newest (fresh) outlined, and Claude's open notes
-  async function screenImage(mark, fresh){
+  async function screenImage(mark, fresh, noNotes){
     const W = innerWidth, H = innerHeight, k = Math.min(1, 1280 / Math.max(W, H));
     const out = document.createElement('canvas'); out.width = Math.round(W * k); out.height = Math.round(H * k);
     const g = out.getContext('2d'); g.scale(k, k);
@@ -766,7 +767,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       g.drawImage(tmp, r.left, r.top, r.width, r.height);
     }
     if (mark) { g.fillStyle = 'rgba(255,205,0,.38)'; for (const q of mark.rects) g.fillRect(q.x - scrollX, q.y - scrollY, q.w, q.h) }
-    try { paintMarks(g, fresh) } catch(e) {}
+    try { paintMarks(g, fresh, noNotes) } catch(e) {}
     try { return {img:out.toDataURL('image/jpeg', 0.85), k} } catch(e) { return {img:null, k} }
   }
   // what Claude gets about the screen: content blocks (the image, then the description); with ink on the page it is always sent
@@ -980,7 +981,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       for (const r of pg.reads || []) { const b = Object.assign({}, r); delete b.id; put('read', r, b, {pg:pg.id}) }
     });
     for (const m of marks) { const b = Object.assign({}, m, {p:m.p.map(rq)}); delete b.id; put('mark', m, b) }
-    for (const n of notes) { const b = JSON.parse(JSON.stringify(n)); delete b.id; put('note', n, b) }
+    for (const n of notes) { const b = JSON.parse(JSON.stringify(n)); delete b.id; delete b.shot; put('note', n, b); if (n.shot) out['shot_' + n.id] = {k:'shot', id:'shot_' + n.id, n:n.id, img:n.shot} }   // a note's picture is its own record: taking one never touches the note, so it cannot overwrite a newer turn from another device
     for (const x of edits) { normEdit(x); const b = Object.assign({}, x); delete b.id; if (b.revs && b.revs.length) for (const k of REV_KEYS[x.kind] || []) delete b[k]; put('edit', x, b) }
     for (const e of entries) { const b = Object.assign({}, e); delete b.id; delete b.img; delete b.page; put('entry', e, b); if (e.img) LOCAL[e.id] = {img:e.img} }
     return out;
@@ -1002,7 +1003,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const pgIds = new Set(kids('npage').map(r => r.id)); for (const r of live) if (r.pg && REC[r.pg]) pgIds.add(r.pg);
     book = [...pgIds].map(id => REC[id]).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.id < b.id ? -1 : 1)).map(np => ({id:np.id, order:np.order || 0,
       ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip), reads:kids('read').filter(r => r.pg === np.id).sort(byT).map(strip)}));
-    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
+    marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); { const sh = new Map(kids('shot').map(r => [r.n, r.img])); for (const n of notes) { const u = sh.get(n.id) || n.shot; if (u && SHOT_OK.test(u)) n.shot = u; else delete n.shot } } edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
     entries = kids('entry').sort(byT).map(r => Object.assign(strip(r), LOCAL[r.id] || {}));
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
   }
@@ -1060,12 +1061,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // records from the notes repo are data from outside this browser: keep only well-formed ones, colours as hex, no pictures
   const COLOR_OK = /^#[0-9a-f]{3,8}$/i;
+  const SHOT_OK = /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]{16,250000}$/;   // a picture from the repo: only a JPEG of bounded size
   function cleanRecs(R){
     const out = {}; if (!R || typeof R !== 'object') return out;
     for (const [id, r] of Object.entries(R)) {
       if (!r || typeof r !== 'object' || r.id !== id || !/^[0-9a-zA-Z_-]{2,40}$/.test(id) || typeof r.k !== 'string') continue;
       if (r.c != null && !COLOR_OK.test(String(r.c))) r.c = null;
-      delete r.img; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
+      if (r.k === 'shot') { if (typeof r.n !== 'string' || !SHOT_OK.test(String(r.img || ''))) continue } else delete r.img; if (r.shot != null && !SHOT_OK.test(String(r.shot))) delete r.shot; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
       out[id] = r;
     }
     return out;
@@ -1837,7 +1839,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     hovT = setTimeout(() => {
       const b = blockEl(tgt); if (!b) { setTimeout(() => { if (!handle.matches(':hover') && !(hovBlk && hovBlk.matches(':hover'))) handle.hidden = true }, 450); return }
       hovBlk = b; const r = b.getBoundingClientRect(), hx = Math.max(2, r.left - 28), hy = r.top + 2;
-      if (document.elementsFromPoint(hx + 11, hy + 11).some(x => x.closest && x.closest('.kb-note')) || document.elementsFromPoint(hx + 11, hy + 30).some(x => x.closest && x.closest('.kb-note'))) { handle.hidden = true; return }   // never over a note's dot
+      if ([...noteEl.values()].some(x => { if (x.hidden) return false; const q = x.getBoundingClientRect(); return q.width && q.left < hx + 30 && q.right > hx - 8 && q.top < hy + 30 && q.bottom > hy - 8 })) { handle.hidden = true; return }   // never over or beside a note's dot
       Object.assign(handle.style, {left:(hx + scrollX) + 'px', top:(hy + scrollY) + 'px'}); handle.hidden = false;
     }, 80);
   }, {passive:true});
@@ -2758,13 +2760,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   function nearText(ms){ const e = ms.length && anchorEl(ms[0].a); if (!e || e === pageRoot()) return ''; const t = (e.innerText || e.textContent || '').replace(/\s+/g, ' ').trim(); return (where(e) ? '(' + where(e) + ') ' : '') + t.slice(0, 700) }
   // the marks (and the open notes) drawn into the screen image; the new marks outlined
-  function paintMarks(g, fresh){
+  function paintMarks(g, fresh, noNotes){
     const def = getComputedStyle(document.body).color || '#222';
     g.save(); for (const [n, ls] of selRects) { const ms0 = marks.find(m => m.id === n.marks[0]); g.fillStyle = (ms0 && ms0.c) || '#f5c400'; g.globalAlpha = 0.35; for (const L of ls) g.fillRect(L.l - scrollX, L.t - scrollY, L.r - L.l, L.b - L.t) } g.restore();
     for (const m of marks) { const f = frameOf(m); if (!f || selHid.has(m.id)) continue; g.save(); g.translate(f.x, f.y); g.scale(f.s, f.s); drawStroke(g, Object.assign({}, m, {w:markW(m), p:m.p.map(q => [q[0], q[1], 0.5])}), def); g.restore() }
     const rg = document.createRange();
-    for (const [n, e] of noteEl) {
-      if (e.hidden || n.fold) continue; const r = e.getBoundingClientRect(); if (!inV(r)) continue;
+    if (!noNotes) for (const [n, e] of noteEl) {
+      if (e.hidden || n.fold || n.resolved || n !== activeNote) continue; const r = e.getBoundingClientRect(); if (!inV(r)) continue;
       g.save(); g.fillStyle = 'rgba(255,255,255,.92)'; g.strokeStyle = '#a0522d'; g.lineWidth = 1.5; g.beginPath(); if (g.roundRect) g.roundRect(r.left, r.top, r.width, r.height, 10); else g.rect(r.left, r.top, r.width, r.height); g.fill(); g.stroke();
       const body = e.querySelector('.kb-nb'), tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {acceptNode: t => t.parentElement.closest('svg') ? 2 : 1});
       g.fillStyle = '#a0522d';
@@ -2986,8 +2988,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const t of turnsOf(n)) body.appendChild(turnEl(t));
     e.addEventListener('click', ev => {
       const b = ev.target.closest('[data-n]'); if (!b) return; const a = b.dataset.n;
-      if (a === 'max') { maxNote(n, !e.classList.contains('kb-max')); return }
-      if (a === 'ovw') { exitMax(); openOvw(); return }
+      if (a === 'max') { if (e.classList.contains('kb-max')) leaveMax(); else { fromOvw = null; maxNote(n, true) } return }
+      if (a === 'ovw') { fromOvw = null; exitMax(); openOvw(true); return }
       if (a === 'goto') { goToNote(n); return }
       if (a === 'open' && !n.fold && !n.resolved) { activate(n); schedule(); return }
       if (a === 'fold' && !n.fold) { deactivate(); return }   // folding the open note just closes it to its dot
@@ -3040,20 +3042,22 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // full screen: the note over the page, centred under the toolbar, for a long conversation; Esc, the button or a tap outside goes back
   // a real backdrop behind a full-screen note: it dims the page and takes every tap, stroke and scroll meant for the page (a tap closes)
   const maxBg = el('div', {class:'kb-maxbg', hidden:''}); notesBox.appendChild(maxBg);
-  for (const t of ['pointerdown', 'click']) maxBg.addEventListener(t, ev => { ev.preventDefault(); ev.stopPropagation(); if (t === 'click') exitMax() });
+  for (const t of ['pointerdown', 'click']) maxBg.addEventListener(t, ev => { ev.preventDefault(); ev.stopPropagation(); if (t === 'click') leaveMax() });
   for (const t of ['wheel', 'touchmove']) maxBg.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});
   const fitMax = () => { const m = [...noteEl.values()].find(x => x.classList.contains('kb-max')); if (!m) return; const vv = window.visualViewport, room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0, roomB = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room-b')) || 0;
     const top = (vv ? vv.offsetTop : 0) + room + 12; m.style.setProperty('--kb-maxtop', top + 'px'); m.style.setProperty('--kb-maxh', Math.max(200, (vv ? vv.height : innerHeight) - room - roomB - 24) + 'px') };   // the on-screen keyboard shrinks it, so the input stays in view
   if (window.visualViewport) { visualViewport.addEventListener('resize', fitMax); visualViewport.addEventListener('scroll', fitMax) }
   function maxNote(n, on){
     const e = noteEl.get(n); if (!e) return; if (on) { for (const [m, x] of noteEl) if (m !== n && x.classList.contains('kb-max')) maxNote(m, false); activate(n) }
-    e.classList.toggle('kb-max', on); maxBg.hidden = !on; document.documentElement.classList.toggle('kb-maxed', on);
+    e.classList.toggle('kb-max', on); if (on) e.classList.remove('kb-folded'); else if (n.fold || n.resolved) e.classList.add('kb-folded'); maxBg.hidden = !on;   // a resolved note is read, not reopened document.documentElement.classList.toggle('kb-maxed', on);
     const b = e.querySelector('[data-n=max]'); if (b) { b.innerHTML = on ? 'Done' : '&#x2922;'; b.title = on ? 'Back to the note beside the page' : 'Full screen: the whole conversation, big'; b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen') }
     const nb = e.querySelector('.kb-nb'); if (on) { fitMax(); nb.scrollTop = nb.scrollHeight; const inp = e.querySelector('.kb-nf input'); if (inp && matchMedia('(pointer:fine)').matches) inp.focus({preventScroll:true}) }   // no keyboard popping up on the iPad
     else { mgSpot.delete(n); try { if (e.contains(document.activeElement)) document.activeElement.blur() } catch(err) {} }
     schedule();
   }
+  let fromOvw = null, ovwTop = 0;   // a conversation opened from the overview goes back to it
   function exitMax(){ const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) maxNote(m[0], false) }
+  function leaveMax(){ const back = fromOvw; fromOvw = null; exitMax(); if (back) openOvw(true) }
 
   // ---- the overview: every conversation on this page (all its tabs) as a picture of where it was asked, the highlight or drawing with a
   // margin round it. A tap opens that conversation full screen, with Show on page to go there. The pictures are part of the notes, so they
@@ -3063,49 +3067,52 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const pad = 70, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2, w = Math.max(box.x1 - box.x0 + 2 * pad, 460), h = Math.max(box.y1 - box.y0 + 2 * pad, 220);
     const sx = Math.max(0, (cx - w / 2) * k), sy = Math.max(0, (cy - h / 2) * k), sw = Math.min(i.width - sx, w * k), sh = Math.min(i.height - sy, h * k);
     if (sw < 4 || sh < 4) { res(null); return }
-    const sc = Math.min(1, 560 / sw, 340 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
+    const sc = Math.min(1, 480 / sw, 290 / sh), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
     const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(i, sx, sy, sw, sh, 0, 0, c.width, c.height);
-    try { res(c.toDataURL('image/jpeg', 0.66)) } catch(e) { res(null) } }; i.onerror = () => res(null); i.src = src }) }
+    try { res(c.toDataURL('image/jpeg', 0.6)) } catch(e) { res(null) } }; i.onerror = () => res(null); i.src = src }) }
   const regionOf = n => { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms); if (b) return b; const a = anchorEl(n.a); if (!a || a === pageRoot()) return null; const r = a.getBoundingClientRect(); return r.width ? {x0:r.left, y0:r.top, x1:r.right, y1:r.bottom} : null };
-  let shotBusy = false;
+  let shotBusy = false; const shotTry = new Map();
   setInterval(async () => {   // pictures for older notes, one at a time, only when the passage is fully on screen and nothing covers it
-    if (shotBusy || document.hidden || live || activeNote || !ovw.hidden || PG.busy) return;
-    const top = clipLine() + 4, due = notes.map(n => [n, !n.shot && frameOf(n) && regionOf(n)]).filter(([, b]) => b && b.y0 >= top && b.y1 <= innerHeight - 4 && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4 && b.y1 - b.y0 <= innerHeight * 0.8);
+    if (shotBusy || document.hidden || live || !ovw.hidden || PG.busy || [...noteEl.values()].some(x => x.classList.contains('kb-max'))) return;
+    const openR = activeNote && noteEl.get(activeNote) ? noteEl.get(activeNote).getBoundingClientRect() : null, now = Date.now();
+    const top = clipLine() + 4, due = notes.map(n => [n, !n.shot && frameOf(n) && regionOf(n)]).filter(([n, b]) => b && b.y0 >= top && b.y1 <= innerHeight - 4 && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4 && b.y1 - b.y0 <= innerHeight * 0.8 && !(openR && openR.left < b.x1 + 70 && openR.right > b.x0 - 70 && openR.top < b.y1 + 70 && openR.bottom > b.y0 - 70) && (shotTry.get(n.id) || 0) < now);
     if (!due.length) return;
-    shotBusy = true; try { const sh = await screenImage(null, []); if (sh.img) { let got = 0; for (const [n, b] of due) { if (n.shot) continue; const u = await shotCrop(sh.img, b, sh.k); if (u) { n.shot = u; got++ } } if (got) saveBook() } } catch(e) {} shotBusy = false;   // one capture serves every note on screen
+    for (const [n] of due) { const t = shotTry.get(n.id + '#') || 0; shotTry.set(n.id + '#', t + 1); shotTry.set(n.id, now + (t < 3 ? 0 : 60000)) }   // a picture that keeps failing is tried again only every minute
+    const y0 = scrollY; shotBusy = true; try { const sh = await screenImage(null, [], true); if (sh.img && scrollY === y0) { let got = 0; for (const [n, b] of due) { if (n.shot) continue; const u = await shotCrop(sh.img, b, sh.k); if (u) { n.shot = u; got++ } } if (got) saveBook() } } catch(e) {} shotBusy = false;   // one capture serves every note on screen
   }, 2000);
   const ovw = el('div', {id:'kbOvw', hidden:'', role:'dialog', 'aria-label':'Every conversation on this page'}); document.body.appendChild(ovw);
   function toggleOvw(){ if (ovw.hidden) openOvw(); else closeOvw() }
-  function closeOvw(){ ovw.hidden = true; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'false') }
-  function openOvw(){
-    exitMax(); if (!P.hidden) close();
+  function closeOvw(){ try { ovw.hidden = true; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'false') } catch(e) {} }   // safe before the overview exists (Settings can open during start-up)
+  function openOvw(keep){
+    fromOvw = null; exitMax(); if (!P.hidden) close();
     const items = notes.filter(n => turnsOf(n).length);
     const tabOf = n => { const a = anchorEl(n.a), t = (n.tab && document.getElementById(n.tab)) || (a && a.closest && a.closest('.tab[id]')); return t ? tabName(t) : '' };
     ovw.innerHTML = '<div class="kb-ovh"><b>Your conversations on this page</b><span>' + items.length + '</span><span class="kb-sp"></span><button type="button" data-o="close" aria-label="Close">&#x2715;</button></div>'
       + (items.length ? '<div class="kb-ovg">' + items.map(n => {
         const ts = turnsOf(n), q = (ts.find(t => t.q) || {}).q || (n.hl ? 'Highlight' : 'Drawing'), a = plain((ts.find(t => t.a) || {}).a || '').slice(0, 150), k = notes.indexOf(n) + 1, tb = tabOf(n);
         const pic = n.shot ? '<img src="' + esc(n.shot) + '" alt="">' : '<div class="kb-ovq">' + esc((n.hl || nearText((n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean)) || '').slice(0, 220) || 'A drawing on the page') + '</div>';
-        return '<button type="button" class="kb-ovc" data-id="' + esc(n.id) + '"><span class="kb-ovp">' + pic + '<i>' + k + '</i></span><span class="kb-ovt">' + (tb ? '<small>' + esc(tb) + '</small>' : '') + '<b>' + esc(q) + '</b>' + (a ? '<span>' + esc(a) + (a.length >= 150 ? '…' : '') + '</span>' : '') + '<small>' + ts.length + (ts.length > 1 ? ' exchanges' : ' exchange') + '</small></span></button>' }).join('') + '</div>'
+        return '<button type="button" class="kb-ovc' + (n.resolved ? ' kb-ovr' : '') + '" data-id="' + esc(n.id) + '"><span class="kb-ovp">' + pic + '<i>' + (n.resolved ? '\u2713' : k) + '</i></span><span class="kb-ovt">' + (tb ? '<small>' + esc(tb) + '</small>' : '') + '<b>' + esc(q) + '</b>' + (a ? '<span>' + esc(a) + (a.length >= 150 ? '…' : '') + '</span>' : '') + '<small>' + ts.length + (ts.length > 1 ? ' exchanges' : ' exchange') + '</small></span></button>' }).join('') + '</div>'
       : '<p class="kb-ove">No conversations on this page yet. Highlight a passage or draw on the page and ask Claude; each conversation shows up here.</p>');
-    ovw.hidden = false; ovw.scrollTop = 0; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'true');
+    ovw.hidden = false; ovw.scrollTop = keep ? ovwTop : 0; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'true');
   }
   ovw.addEventListener('click', e => {
     if (e.target.closest('[data-o=close]')) { closeOvw(); return }
     const c = e.target.closest('.kb-ovc'); if (!c) return; const n = notes.find(x => x.id === c.dataset.id); if (!n) return;
-    closeOvw(); const ne = noteEl.get(n) || noteNode(n);
-    if (n.fold || n.resolved) { n.fold = false; n.resolved = false; ne.classList.remove('kb-folded', 'kb-resolved'); saveBook() }
-    maxNote(n, true);
+    ovwTop = ovw.scrollTop; closeOvw(); if (!noteEl.get(n)) noteNode(n); fromOvw = n; maxNote(n, true);
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !ovw.hidden) { ev.stopPropagation(); closeOvw() } }, true);
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !ovw.hidden) { ev.stopImmediatePropagation(); closeOvw() } }, true);
   // go to a conversation's place: its tab opened, its passage scrolled into view, the note open beside it
   function goToNote(n){
     exitMax(); closeOvw();
     const a = anchorEl(n.a), tabId = n.tab || (a && a.closest && (a.closest('.tab[id]') || {}).id);
     const t = tabId && document.getElementById(tabId); if (t && !t.getClientRects().length) { const tb = document.querySelector('[role=tab][data-t="' + tabId + '"]'); if (tb) tb.click() }
-    setTimeout(() => { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), target = (ms[0] && anchorOf(ms[0])) || (a !== pageRoot() ? a : null);
-      if (target) target.scrollIntoView({block:'center'}); setTimeout(() => { schedule(); openNote(n) }, 120) }, 160);
+    setTimeout(() => {
+      placeMarks(); const b = regionOf(n); if (!b || !frameOf(n)) { toast('This conversation\'s place on the page could not be found (the page may have changed).', 6000); return }
+      window.scrollBy({top:(b.y0 + b.y1) / 2 - innerHeight * 0.42}); mgSpot.delete(n);   // the marked words in the middle of the screen
+      setTimeout(() => { const e = noteEl.get(n); if (!e) return; activate(n); placeMarks(); e.classList.remove('kb-flash'); void e.offsetWidth; e.classList.add('kb-flash') }, 120);
+    }, 160);
   }
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) { ev.stopPropagation(); maxNote(m[0], false) } } }, true);
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) { ev.stopPropagation(); leaveMax() } } }, true);
   function deactivate(){ if (!activeNote) return; exitMax(); activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); schedule() }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
   document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS) || t.closest('input,button,select,textarea,a,label,summary,[role=tab],[role=button],figure,svg,canvas,iframe,' + FIGCOL + ',.lab') || (PG.cur && PG.cur.note && PG.cur.note.n === activeNote)) return; deactivate() }, true);   // the page's own controls and figures leave it open
@@ -3223,8 +3230,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     },
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
-    done(job, text){ if (job.quiet) return; try { const nn = job.note && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}
-      if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
+    done(job, text){ if (job.quiet) return; if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
       job.note.t.a = text; linkNote(job); saveBook() },
     empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
     fail(job, reply, msg){ try {
