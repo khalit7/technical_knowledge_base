@@ -62,6 +62,7 @@
     'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
   };
   const mem = {};
+  let preparing = 0;   // questions placed in their note and being captured, not sent yet: a sync waits for them
   const mgSpot = new Map(), dotSpot = new Map(); let spotW = innerWidth; addEventListener('resize', () => { if (innerWidth === spotW) return; spotW = innerWidth; mgSpot.clear(); dotSpot.clear() });   // Safari's bars collapsing on scroll is not a new layout   // where an open note shows in the margin, relative to its passage
   // preferences that sync across devices (settings.json in the notes repo); everything else in localStorage stays on the device:
   // the Claude key, the GitHub token, the toolbar's place and size, the window's place, the current tool and colour
@@ -479,10 +480,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const VROW = '<div class="kb-vrow"><button type="button" data-v="note" title="Claude draws a sketch in this conversation; the page is not changed">&#x270E; Sketch in note</button><button type="button" data-v="page" title="Claude adds an interactive visual to the page, after this passage">&#x25A6; Add to page</button></div>';
   const VASK = {note:'Draw this as a sketch here in our conversation.', page:'Add a visual to the page that shows this.'};
   // a request for a picture (not a question about one: "what does this chart show?", "draw a conclusion"), then where it should go
-  const PIC_VERB = /(^\s*|\b(can|could|would|will) you\s+|\bplease\s+|\b(now|also|then)\s+)(draw|sketch|visuali[sz]e|illustrate|animate|plot|graph|chart|diagram)\b(?!\s+(a |the )?conclusions?\b)/i;
-  const PIC_ASK = /\b(show|give|make|add|create|build|want|need|draw|sketch|put)\b(\s+(me|us))?.{0,25}\b(diagram|picture|chart|graph|plot|figure|visual|visuali[sz]ation|animation|image|illustration|sketch|drawing)s?\b/i;
-  const AT_PAGE = /\b(on|to|into|onto|in) (the |this )?page\b/i, AT_NOTE = /\b(here|in (the |this |our )?(note|sticky|chat|conversation|reply))\b/i;
-  const whereOf = q => !(PIC_VERB.test(q) || PIC_ASK.test(q)) ? '' : AT_PAGE.test(q) ? 'page' : AT_NOTE.test(q) ? 'note' : null;   // '' no picture asked; null: asked, place unsaid
+  const PIC_VERB = /(^\s*|[.!?;]\s+|\b(can|could|would|will) you\s+|\bplease\s+|\b(now|also|then)\s+)(draw|sketch|visuali[sz]e|animate|plot|graph|chart|diagram)\b(?![^.?!]*\bconclusions?\b)/i;
+  const PIC_ASK = /\b(show|give|make|add|create|build|want|need|draw|sketch|put)\b(\s+(me|us))?(?![^.?!]{0,25}\b(to understand|understand|where|what|why|how|conclusions?)\b).{0,25}\b(diagram|picture|chart|graph|plot|figure|visual|visuali[sz]ation|animation|image|illustration|sketch|drawing)s?\b/i;
+  const AT_PAGE = /\b(on|to|into|onto|in) (the |this )?page\b|\b(add|put|insert|place)\b[^.?!]*\bhere\b/i, AT_NOTE = /\b(here|in (the |this |our )?(note|sticky|chat|conversation|reply))\b/i;
+  const whereOf = q => !(PIC_VERB.test(q) || PIC_ASK.test(q)) ? '' : AT_PAGE.test(q) ? 'page' : AT_NOTE.test(q) ? 'note' : null;   // "add/put … here" means the page   // '' no picture asked; null: asked, place unsaid
   // the question's "Thinking…" line inside its turn, until the first words of the answer arrive
   function thinkLine(R, t){ if (!R || !R.querySelector) return; let k = R.querySelector('.kb-think'); if (!k) { k = el('div', {class:'kb-think', role:'status'}, '<span class="kb-tdots"><i></i><i></i><i></i></span><span class="kb-tt"></span>'); R.appendChild(k) } k.querySelector('.kb-tt').textContent = t }
   // asked for a picture without saying where: the two places, as buttons, under the question
@@ -980,7 +981,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
   // under way. Marks still waiting for Claude (Claude off, or before the pause) are carried over by their ids
-  const canApply = () => !live && !ed && !sel && !psel && !PG.busy && !NB.busy && !saveT && !pgs.some(p => p.ink.busy());
+  const canApply = () => !live && !ed && !sel && !psel && !PG.busy && !NB.busy && !preparing && !saveT && !pgs.some(p => p.ink.busy());
   function applyRecs(){
     if (!canApply()) { needApply = true; setTimeout(applyRecs, 2000); return }
     closeChg();   // what it showed may be replaced by the merged records
@@ -2416,7 +2417,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     S.busy = true; S.cur = job; let reply = null, rawNow = ''; if (job.tab === undefined) job.tab = openTab();
     if (job.refineId) { const y = edits.find(z => z.id === job.refineId); if (y) job.refine = y }   // the change as it is now (a sync may have replaced it while this waited)
     job.gid = job.gid || newId();
-    if (job.early && !job.early.isConnected) { job.early = null; job.note = null; job.newNote = false }   // its note was deleted while it waited: placed again
+    if (job.early && !job.early.isConnected) {   // its note was rebuilt by a sync, or deleted, while it waited
+      const fn = job.follow || job.reuse, again = fn && notes.find(x => x.id === fn.id);
+      job.early = null; job.note = null; job.newNote = false;
+      if (!fn) { S.busy = false; S.cur = null; nextJob(S); return }   // a new note deleted before its answer: the question is dropped
+      if (again) { if (job.follow) job.follow = again; else job.reuse = again }
+    }
     const content = [];
     if (job.kind === 'note') {
       job.slots = findSlots(job.pg, job.A);
@@ -2472,7 +2478,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const drained = () => new Promise(res => { const w = () => (queue.length || drip) ? setTimeout(w, 80) : res(); w() });
     try {
       const inNote = S === PG && !job.quiet && !job.nudge;   // a question on the page shows its progress in its own note, like a chat
-      if (inNote) { try { target(); thinkLine(reply, 'Thinking…'); S.out.follow(job) } catch(e) {} }
+      if (inNote) { try { const fresh = !job.early; target(); thinkLine(reply, 'Thinking…'); S.out.follow(job); if (fresh && !job.follow && job.typed) reveal(job) } catch(e) {} }
       const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)…$/.test(t)) { thinkLine(reply, t); S.out.follow(job) } return } S.out.status(t) }; say('Reading…');
       let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
       for (let turn = 0; ; turn++) {
@@ -2926,9 +2932,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const a = d.querySelector('.kb-na'); if (!a || a.querySelector('.kb-cut')) return;
     a.insertAdjacentHTML('beforeend', '<span class="kb-cut">' + (t.a ? ' [cut off: ' : 'Not answered: ') + esc(String(t.cut).slice(0, 200)) + (t.a ? ']' : '') + '</span>' + (t.q ? ' <button type="button" class="kb-retry" data-n="retry">Try again</button>' : ''));
   }
-  const liveT = new WeakSet();   // turns being answered now; any other turn with a question and no answer was left by a closed page
   function turnEl(t){
-    if (t.q && !t.a && !t.cut && !liveT.has(t)) t.cut = 'the page was closed before Claude answered';
+    if (t.q && !t.a && !t.cut && Date.now() - (t.t || 0) > 6e5) t.cut = 'the page was closed before Claude answered';   // older than 10 minutes: not being answered anywhere
     const d = el('div', {class:'kb-turn'});
     if (t.q) d.appendChild(el('div', {class:'kb-nq'}, 'You: ' + esc(t.q)));
     const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
@@ -2961,7 +2966,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
           const j = Object.assign({}, old, {note:null, newNote:false, early:null, err:null, lastRaw:null, lastReply:null, reuse:n, gid:edits.some(y => y.g === old.gid) ? old.gid : undefined, tab:old.tab});
           (async () => { try { j.scr = await screenBlocks(false, j.marks || [], j.hl) } catch(e2) {}   // the screen as it is now
             if (PG.busy) { PG.queued.push(j); toast('Will ask again after this reply.', 4000) } else send(PG, j) })();
-        } else followUp(n, t.q, old && old.where);
+        } else { const w = old ? old.where : whereOf(t.q); if (w === null) askWhere(e.querySelector('.kb-nb'), t.q, v => followUp(n, t.q, v)); else followUp(n, t.q, w || undefined) }
       }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input');
@@ -3059,8 +3064,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     go(job);
   }
   // like a chat: the question shows in its note at once with a thinking line under it, before the screen is captured and sent
-  function early(job){ if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
+  function early(job){ preparing++; setTimeout(() => { preparing = Math.max(0, preparing - 1) }, 8000); if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
+  // a note that opened below or above the screen is brought into view, so the reader sees their question and the answer arrive
+  function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden) return; const r = e.getBoundingClientRect(); if (r.top > innerHeight - 140 || r.bottom < clipLine() + 60) window.scrollBy({top:r.top - innerHeight * 0.35, behavior:'smooth'}) }
   function go(job){
+    reveal(job); preparing = Math.max(0, preparing - 1);   // after the screen was captured
     if (PG.busy) { if (!enqueue(PG, job)) { if (job.early) PG.out.empty(job); return } if (!job.early) PG.out.status('Will read after this reply…'); return }
     send(PG, job);
   }
@@ -3072,7 +3080,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.follow && !noteEl.get(job.follow)) { job.follow = null; job.lostFollow = true }   // deleted while it waited
       if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
       if (job.follow || job.reuse) {
-        const n = job.follow || job.reuse, e = noteEl.get(n), t = {q:job.typed, a:''}; liveT.add(t); turnsOf(n).push(t); const d = turnEl(t); e.querySelector('.kb-nb').appendChild(d);
+        const n = job.follow || job.reuse, e = noteEl.get(n), ts = turnsOf(n), last = ts[ts.length - 1];
+        let t, d; if (last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
+        if (!d) { t = {q:job.typed, a:'', t:Date.now()}; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d) }
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
       const b = (job.marks && job.marks.length && viewBox(job.marks)) || job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);   // where its marks are now, not when it was asked
@@ -3095,7 +3105,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!an) { an = {a:'', aw:0}; fr = frameOf({a:''}) }
       fr = fr || {x:0, y:0, s:1};
       const anEl = an === m0 ? anchorOf(m0) : ar && an.a === ar.a && waits !== 'mark' && job.anchorEl ? job.anchorEl : pageRoot();
-      const t = {q:job.typed || '', a:''}; liveT.add(t);
+      const t = {q:job.typed || '', a:'', t:Date.now()};
       const n = {id:newId(), tab:tabTag(anEl, job.tab), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:waits === 'mark' ? Math.round(bbox([m0]).x1 + 12) : waits ? 0 : Math.round((x - fr.x) / fr.s), y:waits === 'mark' ? Math.round(bbox([m0]).y0) : waits ? 28 : Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
       const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
