@@ -498,6 +498,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const mv = ev => Object.assign(bar.style, {left:(ev.clientX - ox) + 'px', top:(ev.clientY - oy) + 'px'});
     const up = ev => {
       g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); bar.classList.remove('kb-drag');
+      if (Math.hypot(ev.clientX - (r.left + ox), ev.clientY - (r.top + oy)) < 8) { placeBar(); return }   // a tap on the grip, not a drag: it stays where it is
       const x = ev.clientX, y = ev.clientY, W = innerWidth, H = innerHeight, d = [['top', y], ['bottom', H - y], ['left', x], ['right', W - x]].sort((a, b) => a[1] - b[1])[0][0];
       dock = {e:d, f:d === 'top' || d === 'bottom' ? x / W : y / H}; mine.set('dock', JSON.stringify(dock)); placeBar();
     };
@@ -1666,6 +1667,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       + '<div class="kb-chr">' + (x.st !== 'kept' ? '<button type="button" class="kb-go" data-c="keep" title="Mark it as reviewed and worth keeping: kept changes are the ones to fold into the page itself later">Keep</button>' : '<button type="button" data-c="unkeep" title="Mark it as not reviewed again">Kept \u2713 \u00B7 undo</button>') + '<button type="button" data-c="discard">' + (x.kind === 'hide' ? 'Show it again' : x.kind === 'move' ? 'Put it back' : 'Remove') + '</button>' + (grp > 1 ? '<button type="button" data-c="group">Undo the whole request (' + grp + ')</button>' : '') + '</div>'
       + (ask ? '<small>You asked: ' + esc(String(ask).slice(0, 160)) + '</small>' : '') + (x.st !== 'kept' && x.by !== 'you' ? '<small>Changes stay until you remove them. Keep marks one as reviewed and worth folding into the page.</small>' : '');
     chg.hidden = false; posPop(chg, chgNear);
+    const vb = x.kind === 'visual' && chgNear && chgNear.closest && chgNear.closest('.kb-vis');   // a visual's bar goes beside it when there is room, so it does not cover what is being changed
+    if (vb) { const r = vb.getBoundingClientRect(), w = chg.offsetWidth; if (r.right + 12 + w <= innerWidth - 8) { chg.style.left = (r.right + 12 + scrollX) + 'px'; chg.style.top = (Math.max(r.top, 64) + scrollY) + 'px' } }
     const inp2 = chg.querySelector('input'); if (inp2 && typedV) { inp2.value = typedV; try { inp2.setSelectionRange(typedP, typedP) } catch(e) {} }
     const f = was === 'input' ? inp2 : was && (chg.querySelector('[data-c="' + was + '"]') || chg.querySelector('[data-rf="' + was + '"]')); (f || chg.querySelector('button')).focus({preventScroll:true});
   }
@@ -2594,8 +2597,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     }
   }
   function markNode(m){ const g = document.createElementNS(NS, 'path'); styleMark(g, m); g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(g); markEl.set(m, g); return g }
+  // marks pass under the toolbar's band and under the page's sticky section bar, as the page's own text does
+  let lastClip = null;
+  function clipMarks(){
+    const room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0, nav = document.querySelector('.nav'); let ct = room;
+    if (nav) { const r = nav.getBoundingClientRect(); if (r.top <= room + 1 && r.bottom > ct && r.height < 120) ct = r.bottom }
+    const y = Math.round(scrollY + ct); if (y === lastClip) return; lastClip = y;
+    marksSvg.style.clipPath = 'polygon(-10000px ' + y + 'px, 100000px ' + y + 'px, 100000px 10000000px, -10000px 10000000px)';
+  }
+  addEventListener('scroll', clipMarks, {passive:true});
   function placeMarks(){
-    const o = marksSvg.getBoundingClientRect(), seen = new Map();
+    clipMarks(); const o = marksSvg.getBoundingClientRect(), seen = new Map();
     // a highlight or loop that asked for a rewrite was drawn over the old words: hidden while Claude's version shows, back with the original
     const over = new Set(); for (const x of edits) if (x.kind === 'rewrite' && x.made && x.made.length) { const e = anchorOf(x); if (e && e.classList.contains('kb-ed-on')) x.made.forEach(id => over.add(id)) }
     drawSel(o, over);
@@ -2641,7 +2653,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms); if (!b) continue;
       const nx0 = x.left + ob.left, ny0 = x.top + ob.top, nx1 = nx0 + x.w, ny1 = ny0 + x.h;
       const px = Math.max(b.x0, Math.min((nx0 + nx1) / 2, b.x1)), py = Math.max(b.y0, Math.min((ny0 + ny1) / 2, b.y1));
-      const qx = Math.max(nx0, Math.min(px, nx1)), qy = Math.max(ny0, Math.min(py, ny1)); if (Math.hypot(qx - px, qy - py) < 28) continue;
+      const qx = Math.max(nx0, Math.min(px, nx1)), qy = Math.max(ny0, Math.min(py, ny1)), dl = Math.hypot(qx - px, qy - py); if (dl < 28 || dl > 380) continue;   // a long line across the page is noise
       const l = document.createElementNS(NS, 'path'); l.setAttribute('d', `M${r1(qx - o.left)} ${r1(qy - o.top)}L${r1(px - o.left)} ${r1(py - o.top)}`); links.appendChild(l);
     }
   }
