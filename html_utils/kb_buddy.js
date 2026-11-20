@@ -2010,7 +2010,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (o.cur || e.button > 0 || (opt.block && opt.block())) return;   // one stroke at a time: a second finger or the palm during a stroke does not draw
       // fingers draw too; only a large contact (a resting palm) or a touch while the pen was just writing is ignored
       if (e.pointerType === 'touch' && (Math.max(e.width || 0, e.height || 0) > 44 || performance.now() - penUp < 400)) return;
-      e.preventDefault(); cv.setPointerCapture(e.pointerId);
+      e.preventDefault(); try { cv.setPointerCapture(e.pointerId) } catch(err) {}
       const r = cv.getBoundingClientRect();
       if (opt.texter && opt.texter()) { opt.textAt(pt(e, r), e); return }
       if (opt.lassoer && opt.lassoer()) { o.cur = {id:e.pointerId, r, la:true, p:[pt(e, r)]}; opt.lasso(o.cur.p, false); return }
