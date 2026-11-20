@@ -543,7 +543,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     selT = setTimeout(() => {
       const s = window.getSelection(), txt = s && String(s).trim();
       if (!txt || txt.length < 2 || !s.rangeCount) return;
-      const r = s.getRangeAt(0), host = r.commonAncestorContainer, he = host.nodeType === 1 ? host : host.parentElement;
+      const r = s.getRangeAt(0), elOfN = n => n && (n.nodeType === 1 ? n : n.parentElement), st = elOfN(r.startContainer);
+      // a triple-click selects a whole paragraph and runs on to the very start of the next block: it is about the first one only
+      const spill = r.endOffset === 0 && st && !st.contains(r.endContainer) && (st.closest(CITE_SEL) || st), host = spill ? (st.closest(CITE_SEL) || st) : r.commonAncestorContainer, he = elOfN(host);
       if (!he || P.contains(he) || he.closest('input,textarea,select,button,#kbAsk') || !pageRoot().contains(he)) return;
       const inEd = he.closest('[data-ed],[data-edw]');
       if (inEd || he.closest(KB_NODES)) { if (!inEd) return; hl = {text:txt.slice(0, 4000), where:'', el:null, edit:inEd.dataset.ed || inEd.dataset.edw, rects:[...r.getClientRects()].filter(q => q.width > 1).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))}; showHl(); if (!penOn()) showPop(); return }
@@ -2555,9 +2557,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function markNode(m){ const g = document.createElementNS(NS, 'path'); styleMark(g, m); g.setAttribute('d', pathD(m.p, m.sh)); marksSvg.appendChild(g); markEl.set(m, g); return g }
   function placeMarks(){
     const o = marksSvg.getBoundingClientRect(), seen = new Map();
+    // a highlight or loop that asked for a rewrite was drawn over the old words: hidden while Claude's version shows, back with the original
+    const over = new Set(); for (const x of edits) if (x.kind === 'rewrite' && x.made && x.made.length) { const e = anchorOf(x); if (e && e.classList.contains('kb-ed-on')) x.made.forEach(id => over.add(id)) }
     for (const m of marks) {
       const g = markEl.get(m) || markNode(m), k = m.a + '|' + m.aw; if (!seen.has(k)) seen.set(k, frameOf(m)); const f = seen.get(k);
-      if (!f) { g.style.display = 'none'; continue }
+      if (!f || over.has(m.id)) { g.style.display = 'none'; continue }
       g.style.display = ''; g.setAttribute('transform', `translate(${(f.x - o.left).toFixed(1)} ${(f.y - o.top).toFixed(1)}) scale(${f.s.toFixed(4)})`);
     }
     const ob = notesBox.getBoundingClientRect(); for (const n of notes) placeNote(n, ob);
@@ -2572,6 +2576,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     notes.forEach((n, k) => { const e = noteEl.get(n); if (e) e.querySelector('.kb-dot').textContent = n.resolved ? '\u2713' : String(k + 1) });
     const open = notes.map(n => [n, noteEl.get(n)]).filter(([n, e]) => e && !e.hidden && !e.classList.contains('kb-folded') && n === activeNote)
       .map(([n, e]) => ({n, e, top:parseFloat(e.style.top), left:parseFloat(e.style.left), w:e.offsetWidth, h:e.offsetHeight})).sort((a, b) => a.top - b.top);
+    for (const x of open) {   // not moved by hand: shown in the empty margin beside its passage when there is one, so it covers nothing
+      if (x.n.dragged) continue; const ms = (x.n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms);
+      const ae = anchorEl(x.n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null, bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}); if (!bx) continue;
+      const mx = Math.max(bx.x1, ar ? ar.right : bx.x1) + 14, my = Math.max(bx.y0 - 4, 8);
+      if (mx + x.w <= innerWidth - 8 && marginFree(mx, my, x.w, Math.min(x.h, 260))) { x.left = mx - ob.left; x.top = my - ob.top; x.e.style.left = x.left + 'px' }
+    }
     for (const x of open) { for (const y of shown) if (x.left < y.left + y.w && x.left + x.w > y.left && x.top < y.top + y.h + 8) x.top = y.top + y.h + 8; x.e.style.top = x.top + 'px'; shown.push(x) }
     links.innerHTML = ''; if (links.parentNode !== marksSvg || links !== marksSvg.lastChild) marksSvg.appendChild(links);
     for (const x of open) {
@@ -2767,7 +2777,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }, {passive:false, capture:true});
   function erasePage(cx, cy){
     let hit = false;
-    for (const m of marks.slice()) { const f = frameOf(m); if (!f) continue; if (nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (12 + markW(m) / 2) / f.s)) { removeMark(m); hit = true } }
+    for (const m of marks.slice()) { const f = frameOf(m); if (!f || !marks.includes(m)) continue; if (nearStroke(m.p, [(cx - f.x) / f.s, (cy - f.y) / f.s], (12 + markW(m) / 2) / f.s)) {
+      // a highlight made from a selection is one thing (a stroke per line): it goes whole
+      const n = m.h && notes.find(o => o.hl && (o.marks || []).includes(m.id)), all = n ? n.marks.map(id => marks.find(y => y.id === id)).filter(y => y && y.h) : [m];
+      for (const y of all) removeMark(y); hit = true } }
     if (hit) syncBar();
   }
   function removeMark(m){ drop(marks, m); drop(pendPage, m); drop(undoStack, m); const g = markEl.get(m); if (g) g.remove(); markEl.delete(m) }
@@ -2807,7 +2820,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (a === 'fold' && !n.fold) { deactivate(); return }   // folding the open note just closes it to its dot
       if (a === 'fold' || a === 'open') { n.fold = a === 'fold'; if (a === 'open') n.resolved = false; e.classList.toggle('kb-folded', n.fold); e.classList.toggle('kb-resolved', !!n.resolved); if (!n.fold) activate(n); saveBook(); schedule() }
       else if (a === 'resolve') { n.resolved = true; n.fold = true; e.classList.add('kb-folded', 'kb-resolved'); saveBook(); schedule() }
-      else if (a === 'del') { drop(notes, n); e.remove(); noteEl.delete(n); saveBook() }
+      else if (a === 'del') {   // the note goes with the marks only it was about (its highlight, its loop); Undo brings them back
+        const snap = {edits:[], marks:[], notes:[n]}; drop(notes, n); e.remove(); noteEl.delete(n); if (activeNote === n) activeNote = null;
+        for (const id of n.marks || []) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); snap.marks.push(m) } }
+        saveBook(); placeMarks(); offerUndo('Note deleted', snap);
+      }
       else if (a === 'retry') {   // the failed turn goes and its question is asked again in this note
         const td = b.closest('.kb-turn'), ts = turnsOf(n), t = ts[[...td.parentElement.children].filter(c => c.classList.contains('kb-turn')).indexOf(td)];
         if (!t || !t.q || needKey(PG)) return;
@@ -2832,7 +2849,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const r = e.getBoundingClientRect(), W = document.documentElement.clientWidth, dx = Math.max(0, 8 - r.left) - Math.max(0, r.right - (W - 8));
         const t0 = dock.e === 'top' && !bar.hidden ? bar.getBoundingClientRect().bottom + 4 : 0, dy = Math.max(0, t0 - r.top);
         if (dx || dy) { n.x += dx / fr.s; n.y += dy / fr.s; placeNote(n, notesBox.getBoundingClientRect()) } };
-      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); saveBook() };
+      const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); if (n.x !== x0 || n.y !== y0) n.dragged = 1; saveBook() };
       h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
     });
     e.addEventListener('pointerenter', () => lightMarks(n, 0)); e.addEventListener('pointerleave', () => lightMarks({}, 0));
