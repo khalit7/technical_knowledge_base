@@ -76,10 +76,10 @@
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');   // this page's key in the browser's storage
   const model = () => MODELS[store.get('model')] ? store.get('model') : 'claude-opus-5-5';
   // ask the browser, once a visit, to keep this site's data for good (the key, the token, notes not yet synced). Safari clears a site's data
-  // after about a week without a visit, except for a site opened from the Home Screen or the Dock, where it also grants this request
+  // after about a week without a visit, except for a site opened from the Home Screen, where it also grants this request
   let keepP = null;
   const keepData = () => keepP || (keepP = (() => { try { const s = navigator.storage; if (s && s.persist) return s.persisted().then(p => p || s.persist()).catch(() => false) } catch(e) {} return Promise.resolve(false) })());
-  if (store.get('key')) keepData();
+  if (store.get('key') && !/ Firefox\//.test(navigator.userAgent)) keepData();   // Firefox asks the reader: there only after a tap (Save, or opening Settings)
   const seeOn = () => mine.get('see') !== 'off';
 
   const fl = document.createElement('link'); fl.rel = 'stylesheet'; fl.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap'; document.head.appendChild(fl);
@@ -251,7 +251,7 @@ html.kb-narrow .kb-note:not(.kb-active) .kb-dot{display:flex;align-items:center;
 .kb-note.kb-folded .kb-nq{display:none}
 #kbBuddy .kd-ed{position:absolute;pointer-events:auto;font:inherit;font-size:22px;line-height:40px;color:inherit;background:color-mix(in srgb,var(--acc) 6%,transparent);border:1px dashed var(--acc);border-radius:4px;padding:0 4px;margin:0 -5px;resize:none;overflow:hidden;min-height:40px;outline:none}
 #kbBuddy.kd-texting .kd-pg canvas{cursor:text}
-#kbToast{position:fixed;z-index:69;max-width:min(360px,80vw);padding:5px 12px;background:var(--card,var(--bg));color:var(--mute);border:1px solid var(--line);border-radius:99px;box-shadow:var(--shadow,0 3px 12px rgba(0,0,0,.15));font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#kbToast{position:fixed;z-index:69;max-width:min(360px,80vw);padding:5px 12px;background:var(--card,var(--bg));color:var(--mute);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 3px 12px rgba(0,0,0,.15));font-size:12px;line-height:1.35;pointer-events:none}
 #kbToast[hidden]{display:none}
 #kbMarks{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;z-index:57;color:var(--ink)}
 #kbNotes{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:58}
@@ -350,6 +350,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 #kbBuddy .kb-set label.kb-ck{display:flex;gap:8px;align-items:flex-start;font-weight:400}
 #kbBuddy .kb-set label.kb-ck input{width:auto;margin-top:4px}
 #kbBuddy .kb-set input,#kbBuddy .kb-set select{width:100%}
+#kbBuddy .kb-set>input,#kbBuddy .kb-set>select,#kbBuddy .kb-set>textarea{display:block}
 #kbBuddy .kb-set p{font-size:13px;color:var(--mute);margin:6px 0}
 #kbBuddy .kb-means{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 #kbBuddy .kb-means span{display:flex;gap:6px;align-items:center}
@@ -583,8 +584,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let toastT = 0;
   function placeToast(){
     const r = bar.getBoundingClientRect(), t = toastEl;
-    if (dock.e === 'top') Object.assign(t.style, {left:r.left + 'px', top:(r.bottom + 6) + 'px', right:'', bottom:''});
-    else if (dock.e === 'bottom') Object.assign(t.style, {left:r.left + 'px', top:(r.top - 34) + 'px', right:'', bottom:''});
+    const de = document.documentElement, x = Math.max(8, Math.min(r.left, de.clientWidth - 368)) + 'px';   // room for its full width, wherever the toolbar sits along the edge (the layout's size: innerWidth and innerHeight shrink under pinch zoom in Safari)
+    if (dock.e === 'top') Object.assign(t.style, {left:x, top:(r.bottom + 6) + 'px', right:'', bottom:''});
+    else if (dock.e === 'bottom') Object.assign(t.style, {left:x, top:'', right:'', bottom:(de.clientHeight - r.top + 6) + 'px'});
     else if (dock.e === 'left') Object.assign(t.style, {left:(r.right + 6) + 'px', top:(r.top + 4) + 'px', right:'', bottom:''});
     else Object.assign(t.style, {left:Math.max(8, r.left - 366) + 'px', top:(r.top + 4) + 'px', right:'', bottom:''});
   }
@@ -874,7 +876,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // the first user message starts with the page as a document (citations on, cached), so the cached prefix is the same every turn.
   // Cached for an hour, the time a reader may take between two questions on a page: the first question pays twice the input price for
   // the page's text and every later one within the hour a twentieth, where the 5-minute cache is paid again (1.25 times) by each
-  // question that comes more than 5 minutes after the last
+  // question that comes more than 5 minutes after the last. The tools and the system prompt, the same on every page and nearly as
+  // long as a page, are cached by themselves (stream), so the first question on the next page pays only for that page's text
   function withDoc(messages){
     const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content.map((c, i) => ({type:'text', text:'[' + i + '] ' + c.text}))}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order, each starting with its block number in square brackets (the number the page-changing tools take); "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral', ttl:'1h'}};
     const m0 = messages[0], c0 = typeof m0.content === 'string' ? [{type:'text', text:m0.content}] : m0.content;
@@ -901,7 +904,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
-        system:[{type:'text', text:system}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
+        system:[{type:'text', text:system, cache_control:{type:'ephemeral', ttl:'1h'}}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {}
       if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl) }
       throw new Error(res.status === 401 ? 'The API key was not accepted. Check it in Settings.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
@@ -981,14 +984,26 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // fold what changed on screen since the last build into the records, stamped now
   function commitRecs(){
-    if (!recsReady) return;
+    if (!recsReady) { if (dbLate) toast(DB_WAIT); return }   // still waiting for the store: say so again, a pen stroke cleared it
     const cur = buildRecs(), now = Date.now(); let n = 0;
     for (const id in cur) { const sg = sig(cur[id]); if (BASE.get(id) !== sg) { REC[id] = Object.assign(cur[id], {u:now}); BASE.set(id, sg); n++ } }
     for (const id of [...BASE.keys()]) if (!cur[id]) { const o = REC[id] || {}; REC[id] = {k:o.k, id, pg:o.pg, order:o.order, del:true, u:now}; BASE.delete(id); n++ }
     if (n) { changeSeq++; persistRecs(true); schedulePush() } else persistRecs(false);
   }
-  let dirty = false;
-  function persistRecs(d){ if (d) dirty = true; return tx('readwrite', st => st.put({page:PAGE_ID, recs:REC, dirty}), 'recs') }
+  // unread: this page's saved records could not be read at start-up (the store did not open, or the read failed), so the page started
+  // without them. Nothing is written over them: at the first save that can read the store they are merged in, shown and synced. A
+  // store that is open but fails twice running to read this page's record holds a damaged one: it is replaced, or the page could
+  // never save again
+  let dirty = false, unread = false;
+  async function persistRecs(d){
+    if (d) dirty = true;
+    if (unread) {
+      const read = () => tx('readonly', st => st.get(PAGE_ID), 'recs'); let r = await read(); if (r === null && dbC) r = await read();
+      if (r === null && !dbC) return null;
+      if (unread) { unread = false; if (r && r.recs) { const m = mergeRecs(REC, r.recs); REC = m.recs; if (m.lc || r.dirty) { dirty = true; changeSeq++; schedulePush() } if (m.lc) applyRecs() } }
+    }
+    return tx('readwrite', st => st.put({page:PAGE_ID, recs:REC, dirty}), 'recs');
+  }
   // the screen rebuilt from the records: notebook pages in order (a page also shows while something live is on it), marks, notes, changes, exchanges
   function fromRecs(){
     const live = Object.values(REC).filter(r => r && !r.del), kids = k => live.filter(r => r.k === k), strip = r => { const o = bare(r); delete o.k; delete o.pg; return o };
@@ -1015,11 +1030,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // start-up: this page's records from IndexedDB (none yet: an empty start)
   async function loadRecs(){
-    const r = await tx('readonly', st => st.get(PAGE_ID), 'recs');
+    const r = await tx('readonly', st => st.get(PAGE_ID), 'recs');   // null: could not be read; undefined: nothing saved yet
+    if (r === null) unread = true;
     if (r && r.recs) { REC = r.recs; dirty = !!r.dirty }
-    fromRecs();
-    recsReady = true; book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook();
-    renderEdits(); placeMarks(); commitRecs(); syncNow();
+    // what the reader made while the records were still on their way (a slow or held store) is kept: added to them as new records,
+    // and the screen is then rebuilt as after a sync
+    const early = buildRecs(), now = Date.now(); let n = 0;
+    for (const id in early) if (!REC[id]) { REC[id] = Object.assign(early[id], {u:now}); n++ }
+    if (n) { dirty = true; changeSeq++; recsReady = loaded = true; applyRecs() }
+    else { fromRecs(); recsReady = true; book.forEach((_, i) => mountPage(i)); grow(); loaded = true; if (!P.hidden && !nbView.hidden) layoutBook(); renderEdits(); placeMarks() }
+    commitRecs(); syncNow();
   }
 
   // ---- the GitHub side: the contents API, with the reader's fine-grained token (this browser only) ----
@@ -1898,24 +1918,27 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ================= Notebook =================
   let entries = [];
   // the store in this browser. When another tab needs it changed or removed (a newer buddy, a clean-up), this tab lets go of it at once
-  // and opens it again at its next read or save, so no tab ever waits on another; a wait of 6 s says why and what to do
-  const DB_WAIT = 'Your notes cannot load yet: another tab of the knowledge base is holding the notes store. Close the other knowledge-base tabs and this page carries on by itself.';
-  let dbC = null, dbP = null;   // the open store, or the wait for it
+  // and opens it again at its next read or save, so no tab ever waits on another. A wait of 6 s says what to do, and a store that a
+  // newer buddy has changed says to reload; both are said again at each read or save, because a pen stroke clears the toast
+  const DB_WAIT = 'Your notes are waiting for this browser\'s notes store. If other tabs of the knowledge base are open, close them: this page then carries on by itself.',
+    DB_NEWER = 'The AI buddy has been updated. Reload this page to keep saving your notes here (in the Home Screen app: close the app and open it again).';
+  let dbC = null, dbP = null, dbLate = false;   // the open store, the wait for it, and whether that wait has passed 6 s
   function openDb(){
     if (dbC) return Promise.resolve(dbC);
-    return dbP || (dbP = new Promise(res => {
-      const slow = setTimeout(() => toast(DB_WAIT), 6000);
-      const give = d => { clearTimeout(slow); if (toastEl.textContent === DB_WAIT) toast(''); dbP = null; dbC = d; res(d) };
+    if (dbP) { if (dbLate) toast(DB_WAIT); return dbP }
+    return dbP = new Promise(res => {
+      const slow = setTimeout(() => { dbLate = true; toast(DB_WAIT) }, 6000);
+      const give = d => { clearTimeout(slow); dbLate = false; if (toastEl.textContent === DB_WAIT) toast(''); dbP = null; dbC = d; res(d) };
       try {
         const r = indexedDB.open('kbDiary', 3);
         r.onupgradeneeded = () => { const d = r.result;
           if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // one record per thing, synced
         r.onsuccess = () => { const d = r.result, gone = () => { if (dbC === d) dbC = null };
-          d.onversionchange = e => { d.close(); gone(); if (e.newVersion != null) toast('The AI buddy was updated in another tab. Reload this tab to keep saving your notes here.') };
+          d.onversionchange = e => { d.close(); gone(); if (e.newVersion != null) toast(DB_NEWER); else if (recsReady) persistRecs(false) };   // removed by another tab: what this page shows is saved again
           d.onclose = gone; give(d) };
-        r.onerror = () => give(null);
+        r.onerror = () => { give(null); if (r.error && r.error.name === 'VersionError') toast(DB_NEWER, 8000) };
       } catch(e) { give(null) }
-    }));
+    });
   }
   const tx = async (m, f, name) => { const d = await openDb(); if (!d) return null; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
   const save = e => { e.id = newId(); entries.push(e); saveBook() };   // an exchange, kept so the next questions carry the recent ones
@@ -3413,9 +3436,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <p>The key is saved only in this browser. Each message sends this page's text, what you wrote, the screen as above (with your marks and Claude's notes on the page) and your recent exchanges from your browser straight to api.anthropic.com; your notebook, your marks and Claude's notes stay in this browser, and with a GitHub token below they also sync to your private notes repository.</p>`;
     if (k) keepData().then(ok => { const e = setv.querySelector('#kbKeep'); if (!e) return;
       const app = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, safari = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
-      e.textContent = ok ? 'This browser keeps your key, your token and your notes until you remove them.'
+      e.textContent = ok ? 'Your key, your token and your notes are kept on this device until you remove them.'
         : app ? 'Opened as an app: your key, your token and your notes stay for as long as you keep using it.'
-        : safari ? 'Safari clears a site\'s saved data after about a week without a visit: your key, your token and any notes not yet synced. Opened from the Home Screen (Share, Add to Home Screen) or, on a Mac, from the Dock (File, Add to Dock), the knowledge base keeps them.' : '';
+        : safari ? 'Safari clears a site\'s saved data after about a week without a visit: your key, your token and any notes not yet synced. Read the knowledge base from the Home Screen instead (Share, then Add to Home Screen, which may be under More): that copy keeps them. It starts empty, so let your notes sync here first, then enter the key and the token there once.' : '';
       e.hidden = !e.textContent });
     setv.querySelector('select').onchange = e => store.set('model', e.target.value);
     setv.querySelector('#kbBuddySee').onchange = e => mine.set('see', e.target.checked ? null : 'off');
