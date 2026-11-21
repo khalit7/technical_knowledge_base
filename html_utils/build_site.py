@@ -12,6 +12,9 @@ Also written at the site root: kb_index.json (path, title, id, prereqs, headings
 knowledge-base search) kb_buddy.js (the AI buddy, html_utils/kb_buddy.js), kb_s3.js (the template's 3D renderer, for the buddy's generated visuals on pages without one), whose address, with a version stamp, goes into each
 page's buddy loader (the kb-buddy block) as data-src. The bar is inserted at each page's first closing head tag and opening body tag,
 so no inline script may contain those literally.
+The site also installs as an app (Add to Home Screen on an iPad or iPhone, Add to Dock on a Mac, Install in Chrome): manifest.webmanifest
+and app_icon.png at the site root, linked from every page's head. Opened that way Safari keeps the reader's saved data (the buddy's key,
+token and notes), which it clears from an ordinary tab after about a week without a visit.
 """
 import hashlib, html, json, re, shutil, sys
 from pathlib import Path
@@ -71,6 +74,13 @@ BAR_CSS = ("""<style id="kb-bar-css">#kb-bar{font:13px/1.5 ui-sans-serif,-apple-
 #kb-bar .d{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 6px 1px 0;vertical-align:middle;background:var(--kb-sc)}"""
            + "".join(f"#kb-bar.k{i}{{--kb-sc:{c}}}" for i, c in enumerate(SEC_LIGHT))
            + "@media (prefers-color-scheme:dark){" + "".join(f"#kb-bar.k{i}{{--kb-sc:{c}}}" for i, c in enumerate(SEC_DARK)) + "}</style>")
+
+
+# the site as an app: its name and icon, linked from every page (the icon is also the browser tab's)
+APP = (f'<link rel="manifest" href="{BASE}manifest.webmanifest"><link rel="icon" href="{BASE}app_icon.png">'
+       f'<link rel="apple-touch-icon" href="{BASE}app_icon.png"><meta name="apple-mobile-web-app-title" content="Knowledge base">')
+MANIFEST = {"name": "Technical knowledge base", "short_name": "Knowledge base", "start_url": BASE, "scope": BASE, "display": "standalone",
+            "icons": [{"src": BASE + "app_icon.png", "sizes": "512x512", "type": "image/png"}]}
 
 
 def bar(p):
@@ -151,7 +161,7 @@ def home():
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Technical knowledge base</title><meta name="description" content="Khalid's technical knowledge base: {npages} pages in {ntopics} topics, with a learning map of the order to study them in.">
-<link href="{BASE}pagefind/pagefind-ui.css" rel="stylesheet"><script src="{BASE}pagefind/pagefind-ui.js"></script>
+{APP}<link href="{BASE}pagefind/pagefind-ui.css" rel="stylesheet"><script src="{BASE}pagefind/pagefind-ui.js"></script>
 <style>:root{{--bg:#fff;--ink:#2f3437;--mute:#6f6e69;--line:#e9e9e7;--acc:#2f6fb5;--card:#fff;--cardln:rgba(31,35,40,.10);
  --pagefind-ui-scale:.78;--pagefind-ui-primary:#2f6fb5;--pagefind-ui-border:rgba(31,35,40,.16);--pagefind-ui-border-width:1px;--pagefind-ui-border-radius:12px;--pagefind-ui-font:inherit}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--acc:#6ea8e6;--card:#212123;--cardln:rgba(255,255,255,.08);color-scheme:dark;
@@ -249,7 +259,7 @@ def main():
         f = src / "index.html"
         if f.exists():
             s = relink(f.read_text())
-            s = s.replace("</head>", BAR_CSS + "</head>", 1)
+            s = s.replace("</head>", BAR_CSS + APP + "</head>", 1)
             s = s.replace('<script id="kb-buddy">', f'<script id="kb-buddy" data-src="{BUDDY_SRC}">', 1)
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)
@@ -258,7 +268,7 @@ def main():
             main_ = (whats_new.papers_index(pages, url, by_id) if p["path"] == PAPERS else whats_new.news_index(pages, url) if p["path"] == NEWS
                      else "<h1>" + html.escape(p["title"]) + "</h1><ul>" + "".join(f'<li><a href="{url(c)}">{html.escape(c["title"])}</a></li>' for c in children(p)) + "</ul>")
             (dst / "index.html").write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-                                            f'<title>{html.escape(p["title"])}</title><style>{whats_new.PAGE_CSS}\n{whats_new.CSS}</style>{BAR_CSS}</head>'
+                                            f'<title>{html.escape(p["title"])}</title><style>{whats_new.PAGE_CSS}\n{whats_new.CSS}</style>{BAR_CSS}{APP}</head>'
                                             f'<body>{bar(p)}<main class="w">{main_}</main></body></html>')
         if (src / "img").is_dir():
             shutil.copytree(src / "img", dst / "img")
@@ -279,6 +289,8 @@ def main():
     (OUT / "kb_buddy.js").write_text(BUDDY)
     (OUT / "kb_s3.js").write_text((ROOT / ".claude/skills/explainer-page/build/templates/25_js_s3.js").read_text())   # the 3D renderer, for the buddy's visuals on pages without their own copy
     (OUT / "kb_index.json").write_text(json.dumps(kb_index(), ensure_ascii=False, separators=(",", ":")))
+    (OUT / "manifest.webmanifest").write_text(json.dumps(MANIFEST))
+    shutil.copy(ROOT / "html_utils/app_icon.png", OUT / "app_icon.png")
     print(f"site: {n} pages in {OUT}")
 
 

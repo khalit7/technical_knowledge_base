@@ -55,8 +55,8 @@
   function init(){
   const API = 'https://api.anthropic.com/v1/messages', KEEP = 12, WAITS = [1, 2, 3, 5, 8, 12];
   const MODELS = {
-    'claude-opus-5-5':   {name:'Claude Opus 5.5',   in:4, write:5, read:0.2, out:20},
-    'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, read:0.1, out:10}
+    'claude-opus-5-5':   {name:'Claude Opus 5.5',   in:4, write:5, write1h:8, read:0.2, out:20},
+    'claude-sonnet-5-5': {name:'Claude Sonnet 5.5', in:2, write:2.5, write1h:4, read:0.1, out:10}
   };
   const mem = {};
   let preparing = 0;   // questions placed in their note and being captured, not sent yet: a sync waits for them
@@ -75,6 +75,11 @@
   const store = ls('kbAsk.'), mine = ls('kbBuddy.');
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');   // this page's key in the browser's storage
   const model = () => MODELS[store.get('model')] ? store.get('model') : 'claude-opus-5-5';
+  // ask the browser, once a visit, to keep this site's data for good (the key, the token, notes not yet synced). Safari clears a site's data
+  // after about a week without a visit, except for a site opened from the Home Screen or the Dock, where it also grants this request
+  let keepP = null;
+  const keepData = () => keepP || (keepP = (() => { try { const s = navigator.storage; if (s && s.persist) return s.persisted().then(p => p || s.persist()).catch(() => false) } catch(e) {} return Promise.resolve(false) })());
+  if (store.get('key')) keepData();
   const seeOn = () => mine.get('see') !== 'off';
 
   const fl = document.createElement('link'); fl.rel = 'stylesheet'; fl.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap'; document.head.appendChild(fl);
@@ -862,11 +867,16 @@ The reader writes to you by hand or by keyboard in a notebook of ruled pages, th
 - They also write on the page itself, with pens of several colours and a highlighter: circles, arrows, underlines, highlights, notes in the margin, a sketch for you to finish. Those marks stay on the page, as do your replies to them, which appear as small sticky notes beside the marks. When they have just marked the page, the new marks are outlined NEW on the screen image; answer about exactly what they marked, keeping in mind the note is small. There is no <at> or <point> then. Their older marks and your older notes on the screen are context: earlier thinking you can build on.
 Output format, always: in the notebook first <at>the letter of the spot you choose</at>; then <read>exactly what they wrote, transcribed (handwriting and typed text; describe any sketch or mark of theirs, and what it points at, in a few words in brackets)</read>; then, in the notebook and only if needed, <point>x,y</point>; then your reply as plain text.`;
   // ---- one streamed request; onText gets the text so far ----
-  const cents = (u, m) => { const p = MODELS[m]; if (!p || !u) return 0; return ((u.input_tokens || 0) * p.in + (u.cache_creation_input_tokens || 0) * p.write + (u.cache_read_input_tokens || 0) * p.read + (u.output_tokens || 0) * p.out) / 1e4 };
+  // the page is written to the 1-hour cache; anything else written to the cache (a web tool's results) is at the 5-minute price
+  const cents = (u, m) => { const p = MODELS[m]; if (!p || !u) return 0; const w = u.cache_creation_input_tokens || 0, w1 = u.cache_creation ? Math.min(w, u.cache_creation.ephemeral_1h_input_tokens || 0) : w;
+    return ((u.input_tokens || 0) * p.in + (w - w1) * p.write + w1 * p.write1h + (u.cache_read_input_tokens || 0) * p.read + (u.output_tokens || 0) * p.out) / 1e4 };
   let spent = 0;
-  // the first user message starts with the page as a document (citations on, cached), so the cached prefix is the same every turn
+  // the first user message starts with the page as a document (citations on, cached), so the cached prefix is the same every turn.
+  // Cached for an hour, the time a reader may take between two questions on a page: the first question pays twice the input price for
+  // the page's text and every later one within the hour a twentieth, where the 5-minute cache is paid again (1.25 times) by each
+  // question that comes more than 5 minutes after the last
   function withDoc(messages){
-    const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content.map((c, i) => ({type:'text', text:'[' + i + '] ' + c.text}))}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order, each starting with its block number in square brackets (the number the page-changing tools take); "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral'}};
+    const B = docBlocks(), doc = {type:'document', source:{type:'content', content:B.content.map((c, i) => ({type:'text', text:'[' + i + '] ' + c.text}))}, title:document.title, context:'The knowledge-base page the reader is on, one block per paragraph, heading, list item or caption, in reading order, each starting with its block number in square brackets (the number the page-changing tools take); "=== Tab: name ===" blocks mark where each tab of the page starts.', citations:{enabled:true}, cache_control:{type:'ephemeral', ttl:'1h'}};
     const m0 = messages[0], c0 = typeof m0.content === 'string' ? [{type:'text', text:m0.content}] : m0.content;
     return [{role:'user', content:[doc].concat(c0)}].concat(messages.slice(1));
   }
@@ -1887,15 +1897,27 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // ================= Notebook =================
   let entries = [];
-  const db = new Promise(res => {
-    try {
-      const r = indexedDB.open('kbDiary', 3);
-      r.onupgradeneeded = () => { const d = r.result;
-        if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // one record per thing, synced
-      r.onsuccess = () => res(r.result); r.onerror = () => res(null);
-    } catch(e) { res(null) }
-  });
-  const tx = async (m, f, name) => { const d = await db; if (!d) return null; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
+  // the store in this browser. When another tab needs it changed or removed (a newer buddy, a clean-up), this tab lets go of it at once
+  // and opens it again at its next read or save, so no tab ever waits on another; a wait of 6 s says why and what to do
+  const DB_WAIT = 'Your notes cannot load yet: another tab of the knowledge base is holding the notes store. Close the other knowledge-base tabs and this page carries on by itself.';
+  let dbC = null, dbP = null;   // the open store, or the wait for it
+  function openDb(){
+    if (dbC) return Promise.resolve(dbC);
+    return dbP || (dbP = new Promise(res => {
+      const slow = setTimeout(() => toast(DB_WAIT), 6000);
+      const give = d => { clearTimeout(slow); if (toastEl.textContent === DB_WAIT) toast(''); dbP = null; dbC = d; res(d) };
+      try {
+        const r = indexedDB.open('kbDiary', 3);
+        r.onupgradeneeded = () => { const d = r.result;
+          if (!d.objectStoreNames.contains('recs')) d.createObjectStore('recs', {keyPath:'page'}) };   // one record per thing, synced
+        r.onsuccess = () => { const d = r.result, gone = () => { if (dbC === d) dbC = null };
+          d.onversionchange = e => { d.close(); gone(); if (e.newVersion != null) toast('The AI buddy was updated in another tab. Reload this tab to keep saving your notes here.') };
+          d.onclose = gone; give(d) };
+        r.onerror = () => give(null);
+      } catch(e) { give(null) }
+    }));
+  }
+  const tx = async (m, f, name) => { const d = await openDb(); if (!d) return null; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
   const save = e => { e.id = newId(); entries.push(e); saveBook() };   // an exchange, kept so the next questions carry the recent ones
 
   // ---- ink: a stroke is {p:[[x, y, pressure]...], c:colour (null: the ink colour of the page or theme), w:width, h:highlighter}; on a
@@ -3370,7 +3392,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     setv.innerHTML = `<label for="kbBuddyKey">Claude API key</label>
 <input id="kbBuddyKey" type="password" autocomplete="off" spellcheck="false" placeholder="${k ? 'saved (ending ' + esc(k.slice(-4)) + ')' : 'sk-ant-...'}">
 <div class="kb-row"><button type="button" class="kb-go" data-a="save">Save</button>${k ? '<button type="button" data-a="forget">Forget key</button>' : ''}<span class="kb-meta"></span><button type="button" data-a="back">Back</button></div>
-<p>One key for every page of the knowledge base, kept in this browser. Create a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>; API use is billed per message, separately from a Claude subscription.</p>
+<p>One key for every page of the knowledge base, kept in this browser. Create a key at <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">platform.claude.com/settings/keys</a>; API use is billed per message, separately from a Claude subscription. A key of its own, in a workspace with a monthly spend limit, caps what a lost key can cost.</p>
+<p id="kbKeep" hidden></p>
 <label for="kbBuddyGh">Sync across devices: GitHub token</label>
 <input id="kbBuddyGh" type="password" autocomplete="off" spellcheck="false" placeholder="${ghTok() ? 'saved (ending ' + esc(ghTok().slice(-4)) + ')' : 'github_pat_...'}">
 <div class="kb-row"><button type="button" class="kb-go" data-a="ghsave">Save</button>${ghTok() ? '<button type="button" data-a="ghforget">Forget token</button><button type="button" data-a="ghsync">Sync now</button>' : ''}<span class="kb-meta" id="kbSyncSt"></span></div>
@@ -3388,6 +3411,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
 <label class="kb-ck"><input type="checkbox" id="kbBuddyScratch"${scratchOn() ? ' checked' : ''}><span>Scratch out to erase: a quick zigzag over your writing deletes it. Holding the pen still at the end of a stroke straightens it into a line, an ellipse or a box.</span></label>
 <label class="kb-ck"><input type="checkbox" id="kbBuddySee"${seeOn() ? ' checked' : ''}><span>Let Claude see the screen: an image of the figures and animations in view, the text in view, the controls' values and your highlight, sent with each message.</span></label>
 <p>The key is saved only in this browser. Each message sends this page's text, what you wrote, the screen as above (with your marks and Claude's notes on the page) and your recent exchanges from your browser straight to api.anthropic.com; your notebook, your marks and Claude's notes stay in this browser, and with a GitHub token below they also sync to your private notes repository.</p>`;
+    if (k) keepData().then(ok => { const e = setv.querySelector('#kbKeep'); if (!e) return;
+      const app = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, safari = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+      e.textContent = ok ? 'This browser keeps your key, your token and your notes until you remove them.'
+        : app ? 'Opened as an app: your key, your token and your notes stay for as long as you keep using it.'
+        : safari ? 'Safari clears a site\'s saved data after about a week without a visit: your key, your token and any notes not yet synced. Opened from the Home Screen (Share, Add to Home Screen) or, on a Mac, from the Dock (File, Add to Dock), the knowledge base keeps them.' : '';
+      e.hidden = !e.textContent });
     setv.querySelector('select').onchange = e => store.set('model', e.target.value);
     setv.querySelector('#kbBuddySee').onchange = e => mine.set('see', e.target.checked ? null : 'off');
     setv.querySelector('#kbBuddyQ').onchange = e => mine.set('qsend', e.target.checked ? null : 'off');
@@ -3412,7 +3441,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'riddle') { sub = sub === 'riddle' ? null : 'riddle'; show(); if (sub === 'riddle') riddleOpen(); else riddleClose() }
     else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
     else if (act === 'back') { sub = null; show() }
-    else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) store.set('key', v); sub = null; show() }
+    else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) { store.set('key', v); keepData() } sub = null; show() }
     else if (act === 'forget') { store.set('key', null); renderSet() }
     else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); renderSet(); syncNow() }
     else if (act === 'ghforget') { mine.set('ghToken', null); setSync('off'); renderSet() }
