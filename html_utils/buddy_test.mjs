@@ -89,9 +89,10 @@ const CORS = { 'access-control-allow-origin': '*' };
 function fakeClaude(complain) {
   const requests = [], lines = [];
   const sse = (type, d) => `event: ${type}\ndata: ${JSON.stringify({ type, ...d })}\n\n`;
-  const fake = { requests, refuse: false, say: line => lines.push(line),
+  const fake = { requests, refuse: false, fail500: false, say: line => lines.push(line),
     answer(route) {
       if (fake.refuse) return route.fulfill({ status: 401, headers: CORS, json: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } });
+      if (fake.fail500 && route.request().method() === 'POST') { fake.fail500 = false; return route.fulfill({ status: 500, headers: CORS, json: { type: 'error', error: { type: 'api_error', message: 'Internal server error' } } }) }
       if (route.request().method() === 'GET') return route.fulfill({ headers: CORS, json: { data: [], has_more: false } });   // the free check of the key: the models list
       const body = route.request().postDataJSON(), text = lines.length ? lines.shift() : 'Nobody asked for this.';
       if (text === 'Nobody asked for this.') complain('a request to Claude that no check asked for');
@@ -275,6 +276,13 @@ async function reading({ context, claude }) {
   const Q1 = 'Why does this matter?', A1 = 'Because the gradient passes through it.', Q2 = 'And in one line?', A2 = 'A flat slope stops learning.';
   let para = [], before = 0;
   await check('2 with a key: the toolbar appears', async () => { await page.waitForSelector('#kbBar'); await ready(page); para = await paragraphs(page, 2) });
+  await check('3 the selection\'s Ask box: the box, Ask and the chips; Sketch it and the paragraph row once the box has the cursor', async () => {
+    await select(page, para[1]); await page.waitForSelector('#kbAskPop:not([hidden])');
+    const vis = q => page.$eval('#kbAskPop', (p, q) => { const e = p.querySelector(q); return !!(e && e.getClientRects().length) }, q);
+    same([await vis('.kb-chips'), await vis('.kb-vrow'), await vis('.kb-blk')], [true, false, false], 'chips, Sketch row, paragraph row before the box has the cursor');
+    await page.focus('#kbAskPop input'); await shows(page, 'the rows did not show with the cursor in the box', () => !!document.querySelector('#kbAskPop .kb-vrow').getClientRects().length);
+    await page.press('#kbAskPop input', 'Escape'); await shows(page, 'Escape did not close the box', () => document.getElementById('kbAskPop').hidden);
+  });
   await check('3 ask about a selected passage: the request to Claude, and the streamed answer in a note', async () => {
     claude.say(A1); await ask(page, para[0], Q1);
     await reads(page, '.kb-note .kb-nq', Q1); await reads(page, '.kb-note .kb-na', A1);
@@ -351,7 +359,8 @@ async function reading({ context, claude }) {
     assert((await page.textContent('#kbOvw .kb-ovc')).includes(A1), 'the answer is not on the note\'s card'); await page.click('#kbOvw [data-o=close]');
   });
   await check('8 a paragraph hidden from its Ask box: the Page changes list opens from Conversations and holds it', async () => {
-    await select(page, para[1]); await page.click('#kbAskPop .kb-blk [data-k=hide]');
+    await select(page, para[1]); await page.waitForSelector('#kbAskPop:not([hidden])'); await page.focus('#kbAskPop input');   // the paragraph row shows once the box has the cursor
+    await page.click('#kbAskPop .kb-blk [data-k=hide]');
     await page.click('#kbBar [data-b=over]'); await page.click('#kbOvw [data-o=chg]');
     await reads(page, '#kbBuddy .kb-h > b', 'Page changes'); same(await page.locator('#kbBuddy .kd-ov .kd-edi').count(), 1, 'the number of changes listed');
     await page.click('#kbBuddy [data-a=close]');
@@ -382,6 +391,11 @@ async function reading({ context, claude }) {
     claude.say(''); await page.evaluate(() => scrollTo(0, 0)); await ask(page, (await paragraphs(page, 1))[0], 'Say nothing here?');
     await shows(page, 'the question was not kept with No reply and Try again', () => { const e = document.querySelector('.kb-note.kb-active'); return e && /Say nothing here\?/.test(e.textContent) && /No reply/.test(e.textContent) && !/Not answered/.test(e.textContent) && e.querySelector('[data-n=retry]') });
     assert(!/No reply/.test(await page.$eval('#kbToast', e => e.hidden ? '' : e.textContent)), 'No reply shows twice (in the note and under the toolbar)');
+  });
+  await check('9 a server error shows once, in its open note, with Try again', async () => {
+    await page.keyboard.press('Escape'); claude.fail500 = true; await ask(page, (await paragraphs(page, 1))[0], 'Will this fail?');
+    await shows(page, 'the error is not in the note with Try again', () => { const e = document.querySelector('.kb-note.kb-active'); return e && /Will this fail\?/.test(e.textContent) && /Not answered/.test(e.textContent) && e.querySelector('[data-n=retry]') });
+    assert(await page.$eval('#kbToast', e => e.hidden || !/Not answered|server/i.test(e.textContent)), 'the error shows twice (in the note and under the toolbar)');
   });
 }
 
@@ -523,13 +537,15 @@ async function landing({ context, claude }) {
   });
 }
 
+const OTHER_URL = ORIGIN + '/technical_knowledge_base/models_and_training/topic_ml_fundamentals/loss_functions/index.html';
 async function touching({ context, claude }) {
   const page = await openPage(context);
-  await check('18 on a touch screen a tap on a highlight opens its note, and a tap on the page closes it', async () => {
+  await check('18 on an upright iPad (no margin) a closed highlight has no dot; a tap on the highlight opens its note, and a tap on the page closes it', async () => {
     await ready(page); const para = await paragraphs(page, 2);
     claude.say('Tapped.'); await ask(page, para[0], 'Tap test?'); await reads(page, '.kb-note.kb-active .kb-na', 'Tapped.');
     await shows(page, 'the answer did not finish', () => /\u00a2/.test(document.getElementById('kbToast').textContent));   // a note being written in stays open on a tap elsewhere
     await page.click('.kb-note.kb-active [data-n=close]'); await shows(page, 'x did not close the note', () => !document.querySelector('.kb-note.kb-active'));
+    await shows(page, 'the closed highlight still shows a dot on the words', () => { const e = document.querySelector('.kb-note'); return e && getComputedStyle(e).display === 'none' });
     const b = await para[0].boundingBox(); await page.touchscreen.tap(b.x + 100, b.y + 14);
     await shows(page, 'a tap on the highlight did not open its note', () => !!document.querySelector('.kb-note.kb-active'));
     const free = await page.evaluate(y0 => {   // page text well away from every note and control (a finger's tap is pulled to anything near), below the highlighted line
@@ -582,6 +598,12 @@ async function syncing({ context, claude, repo }) {
     await page.click('#kbBar [data-b=sync]'); await shows(page, 'the other device\'s second note never arrived', () => document.querySelectorAll('.kb-note:not(.kb-gen)').length === 3);
     assert(await page.$eval('.kb-note.kb-gen.kb-active', e => getComputedStyle(e).display !== 'none'), 'the Ask card is hidden after the sync');
     await page.click('#kbBar [data-b=claude]'); same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
+  });
+  await check('10 a mark made just before leaving a page reaches the notes repo with the next page\'s sync', async () => {
+    await page.goto(PAGE_URL); await ready(page); const before = penMarks(repo.read(PAGE_FILE)).length, p = (await paragraphs(page, 1))[0];
+    await stroke(page, p); await page.goto(OTHER_URL);   // at once, before this page's own sync
+    await until('the mark in the notes repo', () => penMarks(repo.read(PAGE_FILE)).length === before + 1);
+    same(await page.evaluate(() => localStorage.getItem('kbBuddy.unsent')), null, 'the pages left with changes not sent');
   });
 }
 
@@ -672,7 +694,7 @@ for (const engine of only ? [only] : Object.keys(ENGINES)) {
   await visit(browser, 'reading', WITH_KEY, reading);
   await visit(browser, 'asking', WITH_KEY, asking);
   await visit(browser, 'landing page', WITH_KEY, landing, SITE);
-  await visit(browser, 'touch', WITH_KEY, touching, ORIGIN, { hasTouch: true });
+  await visit(browser, 'touch', WITH_KEY, touching, ORIGIN, { hasTouch: true, viewport: { width: 820, height: 1180 } });
   await visit(browser, 'syncing', { ...WITH_KEY, 'kbBuddy.ghToken': TOKEN }, syncing);
   await visit(browser, 'two tabs', WITH_KEY, twoTabs);
   await visit(browser, 'held store', WITH_KEY, heldStore);

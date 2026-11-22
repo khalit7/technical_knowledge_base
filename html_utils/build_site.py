@@ -210,7 +210,7 @@ details.all[open]>summary::before{{transform:rotate(45deg)}}details.all>summary 
 .sec h3 i{{width:8px;height:8px;border-radius:50%;background:var(--sc,var(--mute))}}.sec h3 span{{margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0;color:var(--mute);font-variant-numeric:tabular-nums}}
 .sec ul{{padding-left:18px;margin:2px 0}}.sec>ul{{padding-left:0;list-style:none}}.sec>ul>li{{margin:6px 0}}.sec>ul>li>a{{font-weight:600}}.sec li{{margin:2px 0}}
 .sec summary{{color:var(--mute);font-size:12.5px;cursor:pointer;width:max-content}}.sec summary:hover{{color:var(--ink)}}
-@media (prefers-color-scheme:dark){{body::before{{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.035;
+@media (prefers-color-scheme:dark){{html::after{{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.035;
  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}}}}
 @media (max-width:640px){{.hero{{padding-top:30px}}h1{{font-size:26px}}.tag{{font-size:15px}}}}
 @media (prefers-reduced-motion:reduce){{*{{transition:none!important}}}}
