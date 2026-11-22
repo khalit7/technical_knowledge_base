@@ -2,7 +2,7 @@
 
 Each page carries only the small loader, html_utils/kb_buddy_loader.js, as one marked <script id="kb-buddy"> block just before
 </head> in the source part that holds </head>, so a rebuild keeps it. The loader fetches the shared
-buddy, html_utils/kb_buddy.js, when a Claude key is saved in the browser or the reader taps "AI buddy"; on the site build_site.py
+buddy, html_utils/kb_buddy.js, on every page; on the site build_site.py
 publishes that file as kb_buddy.js at the site root. So editing kb_buddy.js needs no rerun of this script and no page rebuild; editing
 the loader does (--all, then rebuild every page). Any older kb-buddy block is replaced. Usage:
   python3 html_utils/apply_buddy.py <page folder> ...   insert or update the loader on these pages

@@ -6,7 +6,10 @@
 // a check can read it), api.github.com is an in-memory notes repo behind the contents API as the buddy uses it, the handwriting font's
 // stylesheet is empty, and any other outside request is aborted and fails the visit. The key and the token are made-up test values.
 // Seven visits, each in a fresh browser context (its own storage, fake Claude and fake repo), so they do not depend on each other:
-//   first visit  1  no key saved: the "AI buddy" button shows and kb_buddy.js is not fetched; tapping it loads the buddy on Settings
+//   first visit  1  no key and no token: the toolbar loads (and nothing else), its Claude and sync buttons say Add key; a pen stroke
+//                   is a note (nothing opens, nothing is sent, no Send button); Add key on the Claude button opens Settings with the
+//                   cursor in the key field and saving it goes back to the page; a key the API refuses turns the button into Fix key;
+//                   Add key on the sync button opens the token field; a token GitHub refuses turns it into Fix key; a good one syncs
 //   reading      2  with a key the toolbar appears
 //                3  a passage selected with the mouse and asked about: the request (model, headers, the page as a cached document with
 //                   citations on) and the streamed answer in a note; a follow-up in the note sends the earlier turn with it
@@ -67,8 +70,9 @@ const CORS = { 'access-control-allow-origin': '*' };
 function fakeClaude(complain) {
   const requests = [], lines = [];
   const sse = (type, d) => `event: ${type}\ndata: ${JSON.stringify({ type, ...d })}\n\n`;
-  return { requests, say: line => lines.push(line),
+  const fake = { requests, refuse: false, say: line => lines.push(line),
     answer(route) {
+      if (fake.refuse) return route.fulfill({ status: 401, headers: CORS, json: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } });
       const body = route.request().postDataJSON(), text = lines.shift() || 'Nobody asked for this.';
       if (text === 'Nobody asked for this.') complain('a request to Claude that no check asked for');
       requests.push({ body, headers: route.request().headers() });
@@ -82,6 +86,7 @@ function fakeClaude(complain) {
         sse('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 12 } }) +
         sse('message_stop', {}) });
     } };
+  return fake;
 }
 // the notes repo: path -> {sha, content (base64)}. write() is a save from another device; conflictOnce turns the next good save away
 // once, as GitHub does when the file changed after it was read
@@ -133,7 +138,7 @@ async function visit(browser, name, prefs, fn) {
   context.on('weberror', e => errors.push('script error: ' + e.error().message));
   // the browser logs every 404 and 409 as a console error. Expected ones: a file not in the fake repo yet, a save turned away, and
   // kb_index.json (the search index build_site.py writes at the site's root, not in the working tree: the buddy looks for it and goes on)
-  context.on('console', m => { if (m.type() === 'error' && !(m.text().startsWith('Failed to load resource') && /^https:\/\/api\.github\.com\/|\/kb_index\.json$/.test(m.location().url))) errors.push('console error: ' + m.text()) });
+  context.on('console', m => { if (m.type() === 'error' && !(m.text().startsWith('Failed to load resource') && /^https:\/\/api\.(github|anthropic)\.com\/|\/kb_index\.json$/.test(m.location().url))) errors.push('console error: ' + m.text()) });
   await context.route(url => /^https?:$/.test(url.protocol) && url.origin !== ORIGIN, route => {
     const host = new URL(route.request().url()).hostname;
     if (host === 'api.anthropic.com') return claude.answer(route);
@@ -197,15 +202,45 @@ const savedRecs = async page => ((await store(page))[1].find(row => row.page ===
 const saved = (page, what, test) => until(what + ' to be saved in the browser', async () => test(await savedRecs(page)));
 
 // ---------------- the visits
-async function firstVisit({ context }) {
+async function firstVisit({ context, claude, repo }) {
   served.length = 0; const page = await openPage(context);
-  await check('1 no key saved: the "AI buddy" button shows and the buddy is not loaded', async () => {
-    await page.waitForSelector('#kbBuddyGo');
-    assert(!await page.evaluate(() => !!window.__kbBuddy) && !served.some(u => u.endsWith('/kb_buddy.js')), 'kb_buddy.js was fetched without a key');
-  });
-  await check('1 tapping the button loads the buddy and opens Settings', async () => {
-    await page.click('#kbBuddyGo'); await page.waitForSelector('#kbBuddyKey'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
+  const focused = () => page.evaluate(() => document.activeElement && document.activeElement.id);
+  let para = [];
+  await check('1 no key and no token: the toolbar loads, and its Claude and sync buttons say Add key', async () => {
+    await page.waitForSelector('#kbBar'); await ready(page);
     assert(served.includes('/html_utils/kb_buddy.js'), 'the buddy did not come from html_utils/kb_buddy.js');
+    same(await page.locator('#kbBuddyGo').count(), 0, 'the number of floating AI buddy buttons');
+    await reads(page, '#kbBar [data-b=claude] span', 'Add key'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Add key');
+    same([await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), await page.getAttribute('#kbBar [data-b=sync]', 'data-s')], ['missing', 'missing'], 'the two buttons\' states');
+  });
+  await check('1 without a key a pen stroke is a note: nothing opens, nothing is sent, no Send button', async () => {
+    para = await paragraphs(page, 1); await stroke(page, para[0]); await sleep(4000);   // longer than Claude's usual 3 s pause
+    assert(await page.$eval('#kbBuddy', P => P.hidden), 'a panel opened by itself'); same(claude.requests.length, 0, 'the requests to Claude');
+    assert(await page.locator('#kbBar [data-b=send]').isHidden(), 'Send shows without a key');
+    await saved(page, 'the mark', R => live(R, 'mark').length === 1);
+  });
+  await check('1 Add key on the Claude button: Settings with the cursor in the key field; saving it goes back to the page', async () => {
+    await tool(page, 'hand'); await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
+    same(await focused(), 'kbBuddyKey', 'the field with the cursor');
+    await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
+    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Claude');
+    await sleep(4000); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
+  });
+  await check('1 a key the API refuses turns the Claude button into Fix key, which opens the key field', async () => {
+    claude.refuse = true; await ask(page, para[0], 'Is this key good?');
+    await reads(page, '#kbBar [data-b=claude] span', 'Fix key'); same(await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), 'bad', 'the Claude button\'s state');
+    claude.refuse = false; await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
+    same(await focused(), 'kbBuddyKey', 'the field with the cursor'); await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
+    await reads(page, '#kbBar [data-b=claude] span', 'Claude');
+  });
+  await check('1 Add key on the sync button opens the token field; a refused token says Fix key; a good one syncs', async () => {
+    await page.click('#kbBar [data-b=sync]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');
+    await page.fill('#kbBuddyGh', 'github_pat_test_refused'); await page.click('#kbBuddy [data-a=ghsave]');
+    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Fix key');
+    await page.click('#kbBar [data-b=sync]'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');
+    await page.fill('#kbBuddyGh', TOKEN); await page.click('#kbBuddy [data-a=ghsave]');
+    await shows(page, 'the sync button never said synced', () => document.querySelector('#kbBar [data-b=sync]').dataset.s === 'ok');
+    assert(live((repo.read(PAGE_FILE) || {}).records, 'mark').some(m => !m.sel), 'the pen mark made without a key is not in the notes repo');
   });
 }
 

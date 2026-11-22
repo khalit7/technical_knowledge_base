@@ -1,7 +1,8 @@
 // ---- AI buddy: a toolbar of pens over the page, a notebook, and Claude reading both ----
 // On every page of the knowledge base since 2026-11-19 (piloted on the Attention Is All You Need page from 2026-11-18). This file is
 // the buddy's only copy and is NOT inlined: each page carries the small loader html_utils/kb_buddy_loader.js (written by apply_buddy.py
-// as the marked kb-buddy block in the page's head part), which loads this file when a Claude key is saved or the reader taps "AI buddy".
+// as the marked kb-buddy block in the page's head part), which loads this file on every page. The toolbar is all a page gets: without a
+// Claude key or a GitHub token, its Claude and sync buttons turn into "Add key" (or "Fix key" when the key was refused) and open its field.
 // On the site build_site.py publishes this file as kb_buddy.js at the site root (with a version stamp); edit it here and push, no page
 // rebuild needed.
 // Toolbar: docked to an edge of the screen (top by default; drag its grip to any edge), or made small. Read (no pen), pen,
@@ -75,6 +76,10 @@
   const store = ls('kbAsk.'), mine = ls('kbBuddy.');
   const PAGE_ID = location.pathname.replace(/index\.html$/, '');   // this page's key in the browser's storage
   const model = () => MODELS[store.get('model')] ? store.get('model') : 'claude-opus-5-5';
+  // the Claude key: '' usable, 'missing' none on this device, 'bad' refused by the API (401) until another is saved. Without a usable key
+  // nothing is sent: marks and ink are notes, and the toolbar's Claude button asks for the key
+  let keyBad = false;
+  const keyState = () => !store.get('key') ? 'missing' : keyBad ? 'bad' : '';
   // ask the browser, once a visit, to keep this site's data for good (the key, the token, notes not yet synced). Safari clears a site's data
   // after about a week without a visit, except for a site opened from the Home Screen, where it also grants this request
   let keepP = null;
@@ -107,16 +112,22 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
 #kbBar button[data-b=claude][aria-pressed=false]{color:var(--mute)}#kbBar button[data-b=claude][aria-pressed=false] svg{opacity:.4}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
-#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur){display:none!important}
+#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-k]):not([data-s=missing]):not([data-s=bad]){display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-v [data-b=claude] span{display:none}
+#kbBar .kb-lbl{display:none}
+#kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
+#kbBar button[data-b][data-k] svg,#kbBar button[data-b][data-s=missing] svg,#kbBar button[data-b][data-s=bad] svg{opacity:1;color:var(--bad,#c2703a)}
+#kbBar button[data-b][data-k] span,#kbBar [data-s=missing] .kb-lbl,#kbBar [data-s=bad] .kb-lbl{display:inline!important}
+#kbBar [data-s=missing] .kb-sdot,#kbBar [data-s=bad] .kb-sdot{display:none}
+#kbBuddy .kb-set input.kb-want{border-color:var(--bad,#c2703a);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad,#c2703a) 25%,transparent)}
 
 @keyframes kbGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
 #kbBar [data-b=sync]{position:relative}
 #kbBar .kb-sdot{position:absolute;right:5px;bottom:5px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--card,var(--bg));background:var(--good,#2f9e44)}
 #kbBar [data-b=sync][data-s=wait] .kb-sdot{background:#f59f00}
 #kbBar [data-b=sync][data-s=busy] .kb-sdot{background:var(--acc);animation:kbGlow 1s ease-out infinite}
-#kbBar [data-b=sync][data-s=offline] .kb-sdot{background:var(--mute)}
+#kbBar [data-b=sync][data-s=offline] .kb-sdot,#kbBar [data-b=sync][data-s=off] .kb-sdot{background:var(--mute)}
 #kbBar [data-b=sync][data-s=error] .kb-sdot{background:#e03131}
 #kbBar .kb-dash{stroke-dasharray:3 2.4}
 #kbBar .kb-A{font:700 17px/1 Georgia,'Times New Roman',serif}
@@ -398,7 +409,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     '<button type="button" data-b="send" title="Send your new marks to Claude now" hidden>Send</button>' +
     '<button type="button" data-b="over" title="Conversations: every conversation on this page, as pictures of where you asked" aria-label="Conversations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>' +
     '<button type="button" data-b="notebook" title="Notebook: write or type to Claude" aria-label="Notebook">' + ic(ICON.book) + '</button>' +
-    '<button type="button" data-b="sync" hidden aria-label="Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span class="kb-sdot"></span></button>' +
+    '<button type="button" data-b="sync" aria-label="Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z"/></svg><span class="kb-lbl"></span><span class="kb-sdot"></span></button>' +
     '<button type="button" data-b="set" title="Settings: key, model, what Claude sees" aria-label="Settings">' + ic(ICON.set) + '</button>' +
     '<button type="button" data-b="min" title="Make the toolbar small" aria-label="Make the toolbar small">&#x2013;</button>');
   const sws = bar.querySelector('.kb-sws');
@@ -477,10 +488,17 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   function open(view){
     exitMax(); closeOvw(); if (P.hidden) lastFocus = document.activeElement;
     P.hidden = false; setFull(mine.get('full') !== '0');
-    sub = !store.get('key') ? 'set' : (view || null); P.classList.toggle('kb-chgonly', sub === 'marks');   // a plain open is the normal notebook
+    sub = view || null; P.classList.toggle('kb-chgonly', sub === 'marks');   // a plain open is the normal notebook
     show();
   }
-  function close(){ if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
+  function close(){ backToPage = false; if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
+  // Settings at the field the toolbar asked for (the Claude key, or the GitHub token: 'gh'); saving it from the page goes back to the page
+  let backToPage = false;
+  function askFor(which){
+    const was = P.hidden; open('set'); backToPage = was;
+    const f = setv.querySelector(which === 'gh' ? '#kbBuddyGh' : '#kbBuddyKey'); if (!f) return;
+    f.classList.add('kb-want'); f.scrollIntoView({block:'center'}); f.focus({preventScroll:true});
+  }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!chg.hidden || !blkPop.hidden) { closeChg(); closeBlk() } else if (sel || psel) { clearSel(); clearPsel() } else if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
 
   // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
@@ -554,8 +572,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     for (const b of bar.querySelectorAll('[data-t]')) { const on = b.dataset.t === tool; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('kb-cur', on) }
     const M = means(); for (const b of bar.querySelectorAll('[data-c]')) { b.setAttribute('aria-pressed', String(b.dataset.c === color)); const nm = colName(b.dataset.c) + (M[b.dataset.c] ? ': ' + M[b.dataset.c] : ''); b.title = nm; b.setAttribute('aria-label', nm) }
     const wb = bar.querySelector('[data-b=width] path'); wb.parentElement.style.strokeWidth = thick ? 4.2 : 1.9;
-    const cb = bar.querySelector('[data-b=claude]'); cb.setAttribute('aria-pressed', String(claudeOn())); cb.title = claudeTitle();
-    bar.querySelector('[data-b=send]').hidden = !(pendPage.length || pend.length || pendTyped.length || (ed && ed.ta.value.trim()));
+    const cb = bar.querySelector('[data-b=claude]'), ks = keyState(); if (ks) cb.setAttribute('data-k', ks); else cb.removeAttribute('data-k');
+    cb.querySelector('span').textContent = ks === 'bad' ? 'Fix key' : ks ? 'Add key' : 'Claude'; cb.setAttribute('aria-pressed', String(!ks && claudeOn()));
+    cb.title = ks === 'bad' ? 'Your Claude API key was not accepted. Tap to change it' : ks ? 'No Claude API key on this device. Tap to add one' : claudeTitle(); cb.setAttribute('aria-label', ks ? cb.title : 'Claude');
+    bar.querySelector('[data-b=send]').hidden = !!ks || !(pendPage.length || pend.length || pendTyped.length || (ed && ed.ta.value.trim()));
     bar.querySelector('[data-b=send]').title = claudeOn() ? 'Send now instead of waiting' : 'Send your new marks to Claude';
     bar.querySelector('[data-b=notebook]').setAttribute('aria-pressed', String(!P.hidden));
     document.documentElement.classList.toggle('kb-pen', penOn());
@@ -571,11 +591,11 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.c != null) { sws.classList.remove('kb-open'); color = b.dataset.c; mine.set('color', color || null); if (tool === 'hand' || tool === 'erase') setTool('pen'); else syncBar() }
     else if (b.dataset.b === 'width') { thick = !thick; mine.set('thick', thick ? '1' : null); syncBar() }
     else if (b.dataset.b === 'undo') undo();
-    else if (b.dataset.b === 'claude') { mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing ' + waitS() + ' s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
+    else if (b.dataset.b === 'claude') { if (keyState()) { askFor('key'); return } mine.set('claude', claudeOn() ? 'off' : null); toast(claudeOn() ? 'Claude is on: it reads your writing ' + waitS() + ' s after you stop.' : 'Claude is off: your marks are just notes; tap Send to ask.', 4000); if (claudeOn()) { arm(PG); arm(NB) } else { clearTimeout(PG.timer); clearTimeout(NB.timer); stat.textContent = '' } syncBar() }
     else if (b.dataset.b === 'send') { if (!P.hidden && sub === 'riddle') rdSend(); else { commit(PG); commit(NB) } }
     else if (b.dataset.b === 'notebook') P.hidden ? open() : close();
     else if (b.dataset.b === 'set') open('set');
-    else if (b.dataset.b === 'sync') { if (syncState === 'error' && /token|repository/.test(syncMsg)) open('set'); syncNow() }
+    else if (b.dataset.b === 'sync') { if (syncState === 'missing' || syncState === 'bad') askFor('gh'); else syncNow() }
     else if (b.dataset.b === 'over') toggleOvw();
     else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? '+' : '&#x2013;'; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; placeBar() }
   });
@@ -907,7 +927,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         system:[{type:'text', text:system, cache_control:{type:'ephemeral', ttl:'1h'}}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {}
       if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl) }
-      throw new Error(res.status === 401 ? 'The API key was not accepted. Check it in Settings.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
+      if (res.status === 401) { keyBad = true; syncBar() }
+      throw new Error(res.status === 401 ? 'The API key was not accepted. Tap Fix key on the toolbar.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) {
       const {value, done} = await rd.read(); if (done) break; kick();
@@ -1049,7 +1070,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const b64d = b => { const s2 = atob(b.replace(/\s/g, '')), u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return new TextDecoder().decode(u) };
   const ghUrl = path => 'https://api.github.com/repos/' + ghRepo() + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
   const ghHead = acc => ({Authorization:'Bearer ' + ghTok(), Accept:acc || 'application/vnd.github+json'});
-  const ghErr = async r => { let m = r.status + ''; try { m += ' ' + ((await r.json()).message || '') } catch(e) {} const e = new Error(r.status === 401 ? 'the GitHub token was not accepted' : r.status === 404 ? 'repository ' + ghRepo() + ' not found, or the token cannot see it' : r.status === 403 ? 'the token may not write to ' + ghRepo() + ' (' + m + ')' : m); e.gh = true; return e };
+  const ghErr = async r => { let m = r.status + ''; try { m += ' ' + ((await r.json()).message || '') } catch(e) {} const e = new Error(r.status === 401 ? 'the GitHub token was not accepted' : r.status === 404 ? 'repository ' + ghRepo() + ' not found, or the token cannot see it' : r.status === 403 ? 'the token may not write to ' + ghRepo() + ' (' + m + ')' : m); e.gh = true; e.auth = r.status === 401 || r.status === 404 || (r.status === 403 && !/rate limit/i.test(m)); return e };
   async function ghGet(path){
     const r = await fetch(ghUrl(path), {headers:ghHead(), cache:'no-store'});
     if (r.status === 404) { const t = await fetch('https://api.github.com/repos/' + ghRepo(), {headers:ghHead(), cache:'no-store'}); if (!t.ok) throw await ghErr(t); return {sha:null, data:null} }
@@ -1106,9 +1127,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- syncing: the state shown on the toolbar (off without a token; synced, waiting, syncing, offline, error); tap it to sync now ----
   let pushT = 0, syncing = false, again = false, syncState = 'off', syncMsg = '', lastSync = 0;
   function setSync(st, msg){
+    if (!ghTok()) st = 'missing';
     syncState = st; syncMsg = msg || ''; const b = bar.querySelector('[data-b=sync]'); if (!b) return;
-    b.hidden = !ghTok(); b.dataset.s = st;
-    b.title = st === 'ok' ? 'Synced' + (lastSync ? ' at ' + new Date(lastSync).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '') + '; tap to sync now' : st === 'wait' ? 'Changes waiting to sync; tap to sync now' : st === 'busy' ? 'Syncing…' : st === 'offline' ? 'Offline: your changes are kept here and sync when you are back online' : st === 'error' ? 'Sync error: ' + syncMsg + '. Tap to try again' : 'Sync is off';
+    b.dataset.s = st; b.querySelector('.kb-lbl').textContent = st === 'bad' ? 'Fix key' : 'Add key';
+    b.title = st === 'missing' ? 'Sync is off: there is no GitHub token on this device, so your notes stay here. Tap to add one'
+      : st === 'bad' ? 'Sync stopped: ' + syncMsg + '. Tap to change the GitHub token' : st === 'ok' ? 'Synced' + (lastSync ? ' at ' + new Date(lastSync).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '') + '; tap to sync now' : st === 'wait' ? 'Changes waiting to sync; tap to sync now' : st === 'busy' ? 'Syncing…' : st === 'offline' ? 'Offline: your changes are kept here and sync when you are back online' : st === 'error' ? 'Sync error: ' + syncMsg + '. Tap to try again' : 'Starting…';
+    b.setAttribute('aria-label', st === 'missing' || st === 'bad' ? b.title : 'Sync');
     const t = setv && setv.querySelector('#kbSyncSt'); if (t) t.textContent = b.title;
   }
   function schedulePush(ms){ if (!ghTok()) return; if (!syncing) setSync('wait'); clearTimeout(pushT); pushT = setTimeout(syncNow, ms == null ? 10000 : ms) }
@@ -1138,7 +1162,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       await syncFile('settings.json', () => settingsDoc(), data => { const m = mergeSettings(data); m.rc = m.rc || sd; return m }, () => { syncBar(); if (!stView.hidden) renderSet() });
       lastSync = Date.now(); setSync(dirty || setDirty ? 'wait' : 'ok');
     } catch(e) {
-      setSync(e.gh ? 'error' : navigator.onLine === false || e instanceof TypeError ? 'offline' : 'error', String(e.message || e));
+      setSync(e.auth ? 'bad' : e.gh ? 'error' : navigator.onLine === false || e instanceof TypeError ? 'offline' : 'error', String(e.message || e));
     } finally { syncing = false; if (again) { again = false; schedulePush(1500) } }
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { if (dirty || setDirty || saveT) syncNow() } else syncNow() });
@@ -2072,7 +2096,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const st of rd.strokes.concat(rd.cur ? [rd.cur] : [])) { g.lineWidth = 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } }
   // every open is a fresh, empty diary; anything still on its way from an earlier one is dropped (gen), and nothing is ever kept
   function rdReset(){ rd.qTyped = ''; rd.gen++; clearTimeout(rd.timer); clearTimeout(rd.fadeT); if (rd.ac) try { rd.ac.abort() } catch(e) {} rd.ac = null; rd.busy = false; rd.hist = []; rd.strokes = []; rd.cur = null; rd.pid = null; rdSay.innerHTML = ''; rdCv.classList.remove('kr-sink') }
-  function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (!store.get('key')) toast('The diary needs your Claude key: add it in Settings (the gear).', 6000) }
+  function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (keyState()) toast('The diary needs your Claude key: tap Add key on the toolbar.', 6000) }
   function riddleClose(){ rdReset() }
   new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
   for (const t of ['touchstart', 'touchmove', 'touchend']) rdCv.addEventListener(t, e => { if (e.cancelable) e.preventDefault() }, {passive:false});   // the Pencil writes letter after letter with no pause: Scribble never holds a stroke back
@@ -2112,6 +2136,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:model(), max_tokens:8000, output_config:{effort:'low'}, system:RIDDLE, messages:(m => { const d = m[0] && Array.isArray(m[0].content) && m[0].content[0]; if (d && d.type === 'document') delete d.citations; return m })(withDoc(rd.hist.slice(-12).concat([{role:'user', content:content.concat([{type:'text', text:rdWhere()}])}])))})});
       let j = null; try { j = await res.json() } catch(e) {}
+      if (res.status === 401) { keyBad = true; syncBar() }
       if (!res.ok) throw new Error((j && j.error && j.error.message) || ('HTTP ' + res.status));
       const raw = ((j && j.content) || []).filter(b => b.type === 'text').map(b => b.text).join(''), read = (raw.match(/<read>([\s\S]*?)<\/read>/) || [])[1] || typed || '';
       say = raw.replace(/<read>[\s\S]*?<\/read>/g, '').trim();
@@ -2201,7 +2226,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (loaded && !jumped) { jumped = true; jumpLatest() }
   }
   new ResizeObserver(() => { cancelAnimationFrame(layT); layT = requestAnimationFrame(() => { if (!nbView.hidden) layoutBook() }) }).observe(scr);
-  loadRecs();
+  setSync('off'); loadRecs();
 
   // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
   function styleItem(e, it){ if ((it.kind === 'reply' || it.kind === 'typed') && it.fs && it.fs !== 1) { const b = it.kind === 'reply' ? 30 : 22; e.style.fontSize = b * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
@@ -2480,6 +2505,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function arm(S){
     clearTimeout(S.timer); syncBar();
     if (!(S === NB ? pend.length : pendPage.length) && !S.out.typed()) { if (S === NB) renderOn(); return }
+    if (keyState()) return;   // no usable Claude key: the marks are notes; the toolbar's Claude button says so
     if (qOn()) {
       const bs = S === NB ? pend.map(x => pbox(x.s.p)) : pendPage.map(m => viewBox([m])), tq = S === NB && ed && /\?\s*$/.test(ed.ta.value);
       if (endsWithQ(bs) || tq) { S.out.status('Reading now…'); S.timer = setTimeout(() => commit(S), tq ? 900 : 500); return }
@@ -2488,7 +2514,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const typing = S === NB && ed && document.activeElement === ed.ta, wait = waitS() * (typing ? 2 : 1);
     S.out.status(typing ? 'Reading ' + wait + ' s after you stop typing (Enter sends now)…' : 'Reading in ' + wait + ' s…'); S.timer = setTimeout(() => commit(S), wait * 1000);
   }
-  const needKey = S => { if (store.get('key')) return false; S.out.status('Add your Claude API key in Settings (the gear on the toolbar).'); open('set'); return true };
+  const needKey = S => { if (!keyState()) return false; S.out.status(keyState() === 'bad' ? 'Your Claude key was not accepted: change it to ask.' : 'Add your Claude key to ask.'); askFor('key'); return true };
   async function commit(S){
     clearTimeout(S.timer);
     if (S === NB) return commitNote();
@@ -3073,7 +3099,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const send = () => {
       clearTimeout(D.timer); if (!D.s.length || !box.isConnected) return;
       const n2 = notes.find(x => x.id === n.id); if (!n2) return;   // the note was deleted, or rebuilt by a sync: its live copy
-      if (!store.get('key') || (PG.busy && PG.queued.length >= 3)) { if (store.get('key')) toast('Claude is still busy with earlier requests; the drawing waits here.', 5000); else needKey(PG); return }   // the drawing stays until it can go
+      if (keyState() || (PG.busy && PG.queued.length >= 3)) { if (!keyState()) toast('Claude is still busy with earlier requests; the drawing waits here.', 5000); else needKey(PG); return }   // the drawing stays until it can go
       const xs = D.s.flat(), x0 = Math.max(0, Math.min(...xs.map(q => q[0])) - 8), y0 = Math.max(0, Math.min(...xs.map(q => q[1])) - 8), x1 = Math.max(...xs.map(q => q[0])) + 8, y1 = Math.max(...xs.map(q => q[1])) + 8;
       const thin = st => st.filter((q, i) => i === 0 || i === st.length - 1 || Math.hypot(q[0] - st[i - 1][0], q[1] - st[i - 1][1]) >= 1.5);
       const ink = {w:Math.round(x1 - x0), h:Math.round(Math.ceil((y1 - y0) / 30) * 30), s:D.s.map(st => thin(st).map(q => [Math.round(q[0] - x0), Math.round(q[1] - y0)]))};   // cropped to the drawing, as tall as whole ruled lines
@@ -3464,9 +3490,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'riddle') { sub = sub === 'riddle' ? null : 'riddle'; show(); if (sub === 'riddle') riddleOpen(); else riddleClose() }
     else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
     else if (act === 'back') { sub = null; show() }
-    else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim(); if (v) { store.set('key', v); keepData() } sub = null; show() }
-    else if (act === 'forget') { store.set('key', null); renderSet() }
-    else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); renderSet(); syncNow() }
+    else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim();
+      if (v) { if (!store.get('key')) { pendPage.length = 0; pend.length = 0; pendTyped.length = 0 } store.set('key', v); keyBad = false; keepData() }
+      if (v && backToPage) close(); else { sub = null; show() } }
+    else if (act === 'forget') { store.set('key', null); keyBad = false; renderSet(); syncBar() }
+    else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); if (v && backToPage) close(); else renderSet(); syncNow() }
     else if (act === 'ghforget') { mine.set('ghToken', null); setSync('off'); renderSet() }
     else if (act === 'ghsync') syncNow();
     else if (act === 'unhl') { hl = null; showHl() }
@@ -3474,6 +3502,5 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'end') { grow(); const p = pgs[pgs.length - 1]; scr.scrollTo({top:p.outer.offsetTop - 10, behavior:'smooth'}) }
   });
   syncBar();
-  window.kbBuddyOpen = v => open(v);   // for the loader (kb_buddy_loader.js): open Settings when the reader asked for the buddy without a key
 }
 })();
