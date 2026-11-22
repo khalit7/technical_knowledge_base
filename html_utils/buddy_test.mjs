@@ -77,6 +77,7 @@ function fakeClaude(complain) {
   const fake = { requests, refuse: false, say: line => lines.push(line),
     answer(route) {
       if (fake.refuse) return route.fulfill({ status: 401, headers: CORS, json: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } });
+      if (route.request().method() === 'GET') return route.fulfill({ headers: CORS, json: { data: [], has_more: false } });   // the free check of the key: the models list
       const body = route.request().postDataJSON(), text = lines.shift() || 'Nobody asked for this.';
       if (text === 'Nobody asked for this.') complain('a request to Claude that no check asked for');
       requests.push({ body, headers: route.request().headers() });
@@ -236,6 +237,10 @@ async function firstVisit({ context, claude, repo }) {
     claude.refuse = false; await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     same(await focused(), 'kbBuddyKey', 'the field with the cursor'); await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
     await reads(page, '#kbBar [data-b=claude] span', 'Ask');
+  });
+  await check('1 a refused key shows Fix key as soon as a page opens (checked once per tab, before any question)', async () => {
+    claude.refuse = true; const other = await openPage(context); await other.waitForSelector('#kbBar');
+    await reads(other, '#kbBar [data-b=claude] span', 'Fix key'); claude.refuse = false; await other.close();
   });
   await check('1 Add key on the sync button opens the token field; a refused token says Fix key; a good one syncs', async () => {
     await page.click('#kbBar [data-b=sync]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');

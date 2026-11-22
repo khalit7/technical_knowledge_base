@@ -81,6 +81,13 @@
   // nothing is sent: marks and ink are notes, and the toolbar's Claude button asks for the key
   let keyBad = false, activeNote = null;   // activeNote: the note being read (see activate)
   const keyState = () => !store.get('key') ? 'missing' : keyBad ? 'bad' : '';
+  // the saved key is checked once per tab (listing the models costs nothing), so a refused one shows Fix key at once, not at the first question
+  function checkKey(){
+    const k = store.get('key'); if (!k) return; let seen = ''; try { seen = sessionStorage.getItem('kbAsk.ok') || '' } catch(e) {}
+    if (seen === k.slice(-8)) return;
+    fetch('https://api.anthropic.com/v1/models?limit=1', {headers:{'x-api-key':k, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}})
+      .then(r => { if (store.get('key') !== k) return; if (r.status === 401) { keyBad = true; syncBar() } else if (r.ok) try { sessionStorage.setItem('kbAsk.ok', k.slice(-8)) } catch(e) {} }, () => {});
+  }
   // ask the browser, once a visit, to keep this site's data for good (the key, the token, notes not yet synced). Safari clears a site's data
   // after about a week without a visit, except for a site opened from the Home Screen, where it also grants this request
   let keepP = null;
@@ -2221,7 +2228,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (loaded && !jumped) { jumped = true; jumpLatest() }
   }
   new ResizeObserver(() => { cancelAnimationFrame(layT); layT = requestAnimationFrame(() => { if (!nbView.hidden) layoutBook() }) }).observe(scr);
-  setSync('off'); loadRecs();
+  setSync('off'); checkKey(); loadRecs();
 
   // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
   function styleItem(e, it){ if ((it.kind === 'reply' || it.kind === 'typed') && it.fs && it.fs !== 1) { const b = it.kind === 'reply' ? 30 : 22; e.style.fontSize = b * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
@@ -3491,7 +3498,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
     else if (act === 'back') { sub = null; show() }
     else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim();
-      if (v) { if (!store.get('key')) { pendPage.length = 0; pend.length = 0; pendTyped.length = 0 } store.set('key', v); keyBad = false; keepData() }
+      if (v) { if (!store.get('key')) { pendPage.length = 0; pend.length = 0; pendTyped.length = 0 } store.set('key', v); keyBad = false; keepData(); checkKey() }
       if (v && backToPage) close(); else { sub = null; show() } }
     else if (act === 'forget') { store.set('key', null); keyBad = false; renderSet(); syncBar() }
     else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); if (v && backToPage) close(); else renderSet(); syncNow() }
