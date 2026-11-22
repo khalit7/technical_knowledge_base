@@ -47,7 +47,7 @@ for (const d of dirs) {
         const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) {
           const el = n.parentElement;
-          if (!el || el.closest('script,style,svg,button,nav,[role=tablist],annotation,annotation-xml,#kbBuddy,#kbBar,#kbNotes,#kbToast,#kbMarks,#kbPsel,#kbNib,#kbAskPop')) continue;  // #kbBuddy, #kbBar, #kbNotes, #kbToast, #kbMarks: the AI buddy (kb_buddy.js)
+          if (!el || el.closest('script,style,svg,button,nav,[role=tablist],annotation,annotation-xml,#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle')) continue;  // the #kb... elements: the AI buddy (html_utils/kb_buddy.js), not the page
           const k = el.closest('math') ? n.textContent.replace(/\s+/g, '').length / 6
             : n.textContent.split(/\s+/).filter(Boolean).length;
           if (!k) continue;
@@ -67,7 +67,7 @@ for (const d of dirs) {
           if (r.width >= 120 && r.height >= 80) vis++;
         }
         const ctl = root.querySelectorAll('input[type=range],select').length
-          + [...root.querySelectorAll('button')].filter(x => !x.dataset.t && !x.closest('#kbBuddy,#kbBar,#kbNotes,#kbPsel,#kbAskPop') && !/^kb(Ask|Buddy)/.test(x.id)).length;
+          + [...root.querySelectorAll('button')].filter(x => !x.dataset.t && !x.closest('#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle')).length;
         const title = t ? (document.querySelector(`button[data-t="${t}"]`)?.textContent || t).trim() : 'page';
         return { tab: t, title, core, depth, core_all: coreAll, depth_all: depthAll, modes_off: off.size, h2: root.querySelectorAll('h2').length, vis, ctl };
       }, t));

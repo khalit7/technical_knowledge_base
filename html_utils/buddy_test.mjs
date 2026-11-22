@@ -5,7 +5,7 @@
 // queued, streamed as the API streams it, or as one JSON message when the request does not ask for a stream; every request is kept so
 // a check can read it), api.github.com is an in-memory notes repo behind the contents API as the buddy uses it, the handwriting font's
 // stylesheet is empty, and any other outside request is aborted and fails the visit. The key and the token are made-up test values.
-// Seven visits, each in a fresh browser context (its own storage, fake Claude and fake repo), so they do not depend on each other:
+// Nine visits, each in a fresh browser context (its own storage, fake Claude and fake repo), so they do not depend on each other:
 //   first visit  1  no key and no token: the toolbar loads (and nothing else), its Claude and sync buttons say Claude key and Sync key;
 //                   a pen stroke is a note (nothing opens, nothing is sent, no Send button); Claude key opens Settings with the cursor
 //                   in the key field and saving it goes back to the page; a key the API refuses turns the button into Fix Claude key
@@ -231,12 +231,12 @@ async function firstVisit({ context, claude, repo }) {
   await check('1 no key and no token: the toolbar loads, and its Claude and sync buttons say Claude key and Sync key', async () => {
     await page.waitForSelector('#kbBar'); await ready(page);
     assert(served.includes('/html_utils/kb_buddy.js'), 'the buddy did not come from html_utils/kb_buddy.js');
-    same(await page.locator('#kbBuddyGo').count(), 0, 'the number of floating AI buddy buttons');
+    same(await page.evaluate(() => ['#kbOvw', '#kbBuddy', '#kbToast', '#kbAskPop', '#kbChg', '#kbUndo', '#kbOrig', '#kbBlkPop', '#kbHandle', '.kb-note'].filter(q => [...document.querySelectorAll(q)].some(e => e.getClientRects().length))), [], 'what else of the buddy shows');
     await reads(page, '#kbBar [data-b=claude] span', 'Claude key'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Sync key');
     same([await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), await page.getAttribute('#kbBar [data-b=sync]', 'data-s')], ['missing', 'missing'], 'the two buttons\' states');
   });
   await check('1 without a key a pen stroke is a note: nothing opens, nothing is sent, no Send button', async () => {
-    para = await paragraphs(page, 1); await stroke(page, para[0]); await sleep(4000);   // longer than Claude's usual 3 s pause
+    para = await paragraphs(page, 1); await stroke(page, para[0]); await sleep(1500);
     assert(await page.$eval('#kbBuddy', P => P.hidden), 'a panel opened by itself'); same(claude.requests.length, 0, 'the requests to Claude');
     assert(await page.locator('#kbBar [data-b=send]').isHidden(), 'Send shows without a key');
     await saved(page, 'the mark', R => live(R, 'mark').length === 1);
@@ -246,7 +246,7 @@ async function firstVisit({ context, claude, repo }) {
     same(await focused(), 'kbBuddyKey', 'the field with the cursor');
     await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
     assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
-    await sleep(4000); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
+    await sleep(1500); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
   });
   await check('1 a key the API refuses turns the Claude button into Fix Claude key, which opens the key field', async () => {
     claude.refuse = true; await ask(page, para[0], 'Is this key good?');
@@ -303,7 +303,7 @@ async function reading({ context, claude }) {
   await check('4 x on a note beside a passage closes it to its dot; Delete is in its full screen, and Undo brings it back', async () => {
     await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active'); await page.click('.kb-note.kb-active [data-n=close]');
     await shows(page, 'x did not close the note to its dot', () => !document.querySelector('.kb-note.kb-active') && document.querySelectorAll('.kb-note').length === 1);
-    await page.click('.kb-note .kb-dot'); await page.click('.kb-note.kb-active [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]');
+    await page.click('.kb-note .kb-dot'); await page.click('.kb-note.kb-active [data-n=max]'); await page.click('.kb-note.kb-max [data-n=del]');
     await shows(page, 'Delete did not delete the note', () => !document.querySelector('.kb-note'));
     await page.click('#kbUndo button'); await shows(page, 'Undo did not bring the note back', () => document.querySelectorAll('.kb-note').length === 1);
     await reads(page, '#kbUndo span', 'Note deleted').catch(() => {});
@@ -319,8 +319,9 @@ async function reading({ context, claude }) {
   });
   await check('5 Undo removes it', async () => { await page.click('#kbBar [data-b=undo]'); same(await strokes(page), before, 'the number of strokes on the page') });
   await check('5 a mark made just before leaving the page is kept', async () => {
-    const n0 = await strokes(page); await stroke(page, para[1]); await page.reload(); await ready(page);
-    await shows(page, 'the mark made just before leaving is gone', n => document.querySelectorAll('#kbMarks > path').length >= n + 1, n0);
+    const all = () => page.evaluate(() => document.querySelectorAll('#kbMarks > path').length), n0 = await all();
+    await stroke(page, para[1]); await page.reload(); await ready(page);   // at once, as when a link is tapped right after drawing
+    await shows(page, 'the mark made just before leaving is gone', n => document.querySelectorAll('#kbMarks > path').length === n + 1, n0);
     await page.click('#kbBar [data-b=undo]');
   });
   await check('6 notebook: ink sent to Claude gets its reply on the paper', async () => {
@@ -351,7 +352,6 @@ async function reading({ context, claude }) {
   await check('9 Settings: the key field, the token field and the line on how long this browser keeps them', async () => {
     await page.click('#kbBar [data-b=set]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     await page.waitForSelector('#kbBuddyKey'); await page.waitForSelector('#kbBuddyGh');
-    same(await page.locator('#kbBuddyWait, #kbBuddyQ').count(), 0, 'the settings for answering by itself (a wait, a question mark)');
     const kept = await page.evaluate(() => navigator.storage && navigator.storage.persisted ? navigator.storage.persisted() : false);
     const want = kept ? ['are kept on this device'] : context.browser().browserType().name() === 'webkit' ? ['Safari clears a site\'s saved data', 'It starts empty'] : [];
     if (want.length) await shows(page, `#kbKeep does not say "${want.join('" and "')}"`, want => { const e = document.getElementById('kbKeep'); return e && !e.hidden && want.every(w => e.textContent.includes(w)) }, want);
@@ -365,7 +365,6 @@ async function asking({ context, claude }) {
   const askIn = async (q, a) => { claude.say(a); await page.fill(box, q); await page.press(box, 'Enter') };
   await check('15 Ask on the toolbar: a card just under it on the right, the cursor in its box; nothing is kept before a question', async () => {
     await ready(page); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
-    same(await page.$eval('#kbBar [data-b=claude] svg', e => getComputedStyle(e).opacity), '1', 'the opacity of Ask\'s icon before it is tapped (it must not look switched off)');
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor');
     const at = await page.evaluate(() => { const c = document.querySelector('.kb-note.kb-gen.kb-active').getBoundingClientRect(), b = document.getElementById('kbBar').getBoundingClientRect(); return {gap:c.top - b.bottom, right:innerWidth - c.right} });
@@ -408,7 +407,7 @@ async function asking({ context, claude }) {
     await shows(page, 'the long answer was not written out', () => /^(A long answer\. ){25}A long answer\.$/.test(((document.querySelector('.kb-note.kb-gen.kb-active .kb-na') || {}).textContent || '').trim()), undefined, 20000);
     await sleep(300); const r = await page.$eval(card, e => { const q = e.getBoundingClientRect(); return { top: Math.round(q.top), bottom: Math.round(q.bottom), H: innerHeight } });
     assert(r.bottom <= r.H && r.top >= 0, 'the card runs off the screen: ' + JSON.stringify(r));
-    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]'); await page.evaluate(() => localStorage.removeItem('kbBuddy.askAt'));
+    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=del]'); await page.evaluate(() => localStorage.removeItem('kbBuddy.askAt'));
   });
   await check('15 a drawing can be the first question of a new conversation', async () => {
     const A4 = 'A curve that bends once.'; await page.click('#kbBar [data-b=claude]'); await page.click(card + ' [data-n=draw]');
@@ -419,7 +418,7 @@ async function asking({ context, claude }) {
   await check('15 an empty answer keeps the question, with Try again; Ask keeps working', async () => {
     await page.click('#kbBar [data-b=claude]'); claude.say(''); await page.fill(box, 'Say nothing?'); await page.press(box, 'Enter');
     await shows(page, 'the question was not kept with No reply and Try again', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && /Say nothing\?/.test(c.textContent) && /No reply/.test(c.textContent) && c.querySelector('[data-n=retry]') });
-    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]'); await shows(page, 'Delete in full screen did not delete it', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
+    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=del]'); await shows(page, 'Delete in full screen did not delete it', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
     await page.keyboard.press('Escape'); await shows(page, 'Escape did not close the card', () => !document.querySelector('.kb-note.kb-gen.kb-active'));

@@ -9,22 +9,16 @@ the loader does (--all, then rebuild every page). Any older kb-buddy block is re
   python3 html_utils/apply_buddy.py --template          only the explainer-page template's 01_head.html
   python3 html_utils/apply_buddy.py --all               every page with src/parts, and the template
   python3 html_utils/apply_buddy.py --check             every built page (index.html) carries the current loader once
-  python3 html_utils/apply_buddy.py --remove <page folder> ...   take the loader out again
 then rebuild the pages (src/build.sh).
 """
 import glob, os, re, sys
-LOOK_RX = re.compile(r'<style id="kb-look">.*?</style><!--/kb-look-->\n?', re.S)
 
 
 def head_part(folder):
-    """The source part that closes the head: the place the loader goes. A page whose parts never write </head> (the
-    browser closes it) gets it at the end of its last CSS part instead."""
+    """The source part that closes the head: the place the loader goes (every page has exactly one)."""
     parts = [f for f in sorted(glob.glob(os.path.join(folder, 'src', 'parts', '*'))) if os.path.isfile(f)]
     hits = [f for f in parts if '</head>' in open(f, errors='ignore').read()]
-    if len(hits) == 1:
-        return hits[0]
-    css = [f for f in parts if 'css' in os.path.basename(f) and LOOK_RX.sub('', open(f, errors='ignore').read()).rstrip().endswith('</style>')]
-    return css[-1] if not hits and css else None
+    return hits[0] if len(hits) == 1 else None
 
 H = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(H)
@@ -32,31 +26,29 @@ TEMPLATE = os.path.join(ROOT, '.claude', 'skills', 'explainer-page', 'build', 't
 START, END = '<script id="kb-buddy">', '</script><!--/kb-buddy-->'
 LOADER = open(os.path.join(H, 'kb_buddy_loader.js'), encoding='utf-8').read()
 for name in ('kb_buddy_loader.js', 'kb_buddy.js'):
-    js = open(os.path.join(H, name), encoding='utf-8').read()
-    assert '</script' not in js and '—' not in js, name + ': no closing script tag and no em dash'
-    # build_site.py puts its bar at a page's first closing head tag and opening body tag: neither may appear in what pages carry
-    assert '</head' not in js.lower() and '<body' not in js.lower(), name + ' holds a literal head or body tag; split it'
+    assert '\u2014' not in open(os.path.join(H, name), encoding='utf-8').read(), name + ': no em dash'
+# the loader is written into every page: build_site.py puts its bar at a page's first closing head tag and opening body tag
+assert '</script' not in LOADER and '</head' not in LOADER.lower() and '<body' not in LOADER.lower(), 'the loader holds a literal script, head or body tag'
 BLOCK = START + '\n' + LOADER.rstrip('\n') + '\n' + END
 RX = re.compile(re.escape(START) + r'.*?' + re.escape(END) + r'\n?', re.S)
 
 
-def put(f, remove=False):
+def put(f):
     s = open(f, encoding='utf-8').read()
     s2 = RX.sub('', s)
-    if not remove:
-        i = s2.index('</head>') if '</head>' in s2 else len(s2)
-        s2 = s2[:i] + BLOCK + '\n' + s2[i:]
+    i = s2.index('</head>')
+    s2 = s2[:i] + BLOCK + '\n' + s2[i:]
     if s2 == s:
         return 'unchanged'
     open(f, 'w', encoding='utf-8').write(s2)
-    return 'removed from ' if remove else 'applied to '
+    return 'applied to '
 
 
-def apply(folder, remove=False):
+def apply(folder):
     f = head_part(folder)
     if not f:
         return 'SKIP no single part with </head>'
-    r = put(f, remove)
+    r = put(f)
     return r + ('' if r == 'unchanged' else os.path.relpath(f, folder))
 
 
@@ -82,16 +74,15 @@ def check():
 def main(argv):
     if '--check' in argv:
         sys.exit(0 if check() else 1)
-    remove = '--remove' in argv
     args = [a for a in argv if not a.startswith('--')]
     if '--template' in argv or '--all' in argv:
-        print('template 01_head.html', put(TEMPLATE, remove))
+        print('template 01_head.html', put(TEMPLATE))
     if '--all' in argv:
         args = pages()
     if not args and '--template' not in argv:
         raise SystemExit(__doc__)
     for a in args:
-        print(os.path.relpath(os.path.abspath(a), ROOT), apply(os.path.abspath(a.rstrip('/')), remove))
+        print(os.path.relpath(os.path.abspath(a), ROOT), apply(os.path.abspath(a.rstrip('/'))))
 
 
 if __name__ == '__main__':
