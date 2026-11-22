@@ -6,10 +6,10 @@
 // a check can read it), api.github.com is an in-memory notes repo behind the contents API as the buddy uses it, the handwriting font's
 // stylesheet is empty, and any other outside request is aborted and fails the visit. The key and the token are made-up test values.
 // Seven visits, each in a fresh browser context (its own storage, fake Claude and fake repo), so they do not depend on each other:
-//   first visit  1  no key and no token: the toolbar loads (and nothing else), its Claude and sync buttons say Add key; a pen stroke
-//                   is a note (nothing opens, nothing is sent, no Send button); Add key on the Claude button opens Settings with the
-//                   cursor in the key field and saving it goes back to the page; a key the API refuses turns the button into Fix key;
-//                   Add key on the sync button opens the token field; a token GitHub refuses turns it into Fix key; a good one syncs
+//   first visit  1  no key and no token: the toolbar loads (and nothing else), its Claude and sync buttons say Claude key and Sync key;
+//                   a pen stroke is a note (nothing opens, nothing is sent, no Send button); Claude key opens Settings with the cursor
+//                   in the key field and saving it goes back to the page; a key the API refuses turns the button into Fix Claude key
+//                   (at once on a new page too); Sync key opens the token field; a refused token says Fix sync key; a good one syncs
 //   reading      2  with a key the toolbar appears
 //                3  a passage selected with the mouse and asked about: the request (model, headers, the page as a cached document with
 //                   citations on) and the streamed answer in a note; a follow-up in the note sends the earlier turn with it
@@ -25,6 +25,9 @@
 //                   asks about the page (no passage) and its answer streams into the card, which stays put while the page scrolls; a
 //                   follow-up sends the earlier turn; Ask again starts another; a drawing can be a first question; an empty answer
 //                   leaves Ask working; Conversations lists them; after a reload no card is open and one opens in full from Conversations
+//   landing page 16 on the built site: the landing page's toolbar has Ask and nothing to draw with; Ask there is about the whole
+//                   knowledge base (Claude is told to search it and link its pages, with the tools to do so); Conversations lists it
+//                17 Continue reading goes back to the same tab and the same place on the page
 //   syncing      10 with a token: the note and a mark are saved to pages/<page path>.json in the repo; a note added and a mark
 //                   deleted there by another device show after a reload; the next save, turned away once as if the file had changed
 //                   meanwhile, is retried and leaves the deletion a deletion
@@ -47,6 +50,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 const ENGINES = { chromium, webkit }, only = process.argv[2];
 if (process.argv.length > 3 || (only && !ENGINES[only])) { console.error('usage: node html_utils/buddy_test.mjs [chromium|webkit]'); process.exit(2) }
@@ -67,6 +72,16 @@ const server = http.createServer((req, res) => {
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`, PAGE_URL = ORIGIN + PAGE_ID + 'index.html';
+// the reading site as GitHub Pages serves it (build_site.py into a temporary folder): the landing page exists only there
+const SITE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-site-'));
+{ const r = spawnSync('python3', [path.join(ROOT, 'html_utils/build_site.py'), path.join(SITE_DIR, 'technical_knowledge_base'), '/technical_knowledge_base/'], { encoding: 'utf8' }); if (r.status) { console.error('the site did not build:\n' + r.stdout + r.stderr); process.exit(2) } }
+const site = http.createServer((req, res) => {
+  let url = decodeURIComponent(req.url.split(/[?#]/)[0]); if (url.endsWith('/')) url += 'index.html'; const f = path.join(SITE_DIR, url);
+  if (!f.startsWith(SITE_DIR + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); res.end(); return }
+  res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(res);
+});
+await new Promise(r => site.listen(0, '127.0.0.1', r));
+const SITE = `http://127.0.0.1:${site.address().port}`, LOCAL = new Set([ORIGIN, SITE]);
 
 // ---------------- the outside world, faked
 const CORS = { 'access-control-allow-origin': '*' };
@@ -135,16 +150,16 @@ const live = (recs, k) => Object.values(recs || {}).filter(r => r.k === k && !r.
 const texts = message => typeof message.content === 'string' ? message.content : message.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
 
 // one visit: a fresh context with these localStorage values and the fakes in place of the outside world; it ends with the check every visit shares
-async function visit(browser, name, prefs, fn) {
+async function visit(browser, name, prefs, fn, origin = ORIGIN) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 },
-    storageState: { cookies: [], origins: [{ origin: ORIGIN, localStorage: Object.entries(prefs).map(([name, value]) => ({ name, value })) }] } });
+    storageState: { cookies: [], origins: [{ origin, localStorage: Object.entries(prefs).map(([name, value]) => ({ name, value })) }] } });
   context.setDefaultTimeout(8000);
   const errors = [], claude = fakeClaude(e => errors.push(e)), repo = fakeRepo();
   context.on('weberror', e => errors.push('script error: ' + e.error().message));
   // the browser logs every 404 and 409 as a console error. Expected ones: a file not in the fake repo yet, a save turned away, and
   // kb_index.json (the search index build_site.py writes at the site's root, not in the working tree: the buddy looks for it and goes on)
-  context.on('console', m => { if (m.type() === 'error' && !(m.text().startsWith('Failed to load resource') && /^https:\/\/api\.(github|anthropic)\.com\/|\/kb_index\.json$/.test(m.location().url))) errors.push('console error: ' + m.text()) });
-  await context.route(url => /^https?:$/.test(url.protocol) && url.origin !== ORIGIN, route => {
+  context.on('console', m => { if (m.type() === 'error' && !(m.text().startsWith('Failed to load resource') && /^https:\/\/api\.(github|anthropic)\.com\/|\/kb_index\.json$|\/pagefind\//.test(m.location().url))) errors.push('console error: ' + m.text()) });
+  await context.route(url => /^https?:$/.test(url.protocol) && !LOCAL.has(url.origin), route => {
     const host = new URL(route.request().url()).hostname;
     if (host === 'api.anthropic.com') return claude.answer(route);
     if (host === 'api.github.com') return repo.answer(route);
@@ -211,11 +226,11 @@ async function firstVisit({ context, claude, repo }) {
   served.length = 0; const page = await openPage(context);
   const focused = () => page.evaluate(() => document.activeElement && document.activeElement.id);
   let para = [];
-  await check('1 no key and no token: the toolbar loads, and its Claude and sync buttons say Add key', async () => {
+  await check('1 no key and no token: the toolbar loads, and its Claude and sync buttons say Claude key and Sync key', async () => {
     await page.waitForSelector('#kbBar'); await ready(page);
     assert(served.includes('/html_utils/kb_buddy.js'), 'the buddy did not come from html_utils/kb_buddy.js');
     same(await page.locator('#kbBuddyGo').count(), 0, 'the number of floating AI buddy buttons');
-    await reads(page, '#kbBar [data-b=claude] span', 'Add key'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Add key');
+    await reads(page, '#kbBar [data-b=claude] span', 'Claude key'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Sync key');
     same([await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), await page.getAttribute('#kbBar [data-b=sync]', 'data-s')], ['missing', 'missing'], 'the two buttons\' states');
   });
   await check('1 without a key a pen stroke is a note: nothing opens, nothing is sent, no Send button', async () => {
@@ -224,28 +239,28 @@ async function firstVisit({ context, claude, repo }) {
     assert(await page.locator('#kbBar [data-b=send]').isHidden(), 'Send shows without a key');
     await saved(page, 'the mark', R => live(R, 'mark').length === 1);
   });
-  await check('1 Add key on the Claude button: Settings with the cursor in the key field; saving it goes back to the page', async () => {
+  await check('1 Claude key on the toolbar: Settings with the cursor in the key field; saving it goes back to the page', async () => {
     await tool(page, 'hand'); await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     same(await focused(), 'kbBuddyKey', 'the field with the cursor');
     await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
     assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
     await sleep(4000); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
   });
-  await check('1 a key the API refuses turns the Claude button into Fix key, which opens the key field', async () => {
+  await check('1 a key the API refuses turns the Claude button into Fix Claude key, which opens the key field', async () => {
     claude.refuse = true; await ask(page, para[0], 'Is this key good?');
-    await reads(page, '#kbBar [data-b=claude] span', 'Fix key'); same(await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), 'bad', 'the Claude button\'s state');
+    await reads(page, '#kbBar [data-b=claude] span', 'Fix Claude key'); same(await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), 'bad', 'the Claude button\'s state');
     claude.refuse = false; await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     same(await focused(), 'kbBuddyKey', 'the field with the cursor'); await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
     await reads(page, '#kbBar [data-b=claude] span', 'Ask');
   });
-  await check('1 a refused key shows Fix key as soon as a page opens (checked once per tab, before any question)', async () => {
+  await check('1 a refused key shows Fix Claude key as soon as a page opens (checked once per tab, before any question)', async () => {
     claude.refuse = true; const other = await openPage(context); await other.waitForSelector('#kbBar');
-    await reads(other, '#kbBar [data-b=claude] span', 'Fix key'); claude.refuse = false; await other.close();
+    await reads(other, '#kbBar [data-b=claude] span', 'Fix Claude key'); claude.refuse = false; await other.close();
   });
-  await check('1 Add key on the sync button opens the token field; a refused token says Fix key; a good one syncs', async () => {
+  await check('1 Sync key opens the token field; a refused token says Fix sync key; a good one syncs', async () => {
     await page.click('#kbBar [data-b=sync]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');
     await page.fill('#kbBuddyGh', 'github_pat_test_refused'); await page.click('#kbBuddy [data-a=ghsave]');
-    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Fix key');
+    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Fix sync key');
     await page.click('#kbBar [data-b=sync]'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');
     await page.fill('#kbBuddyGh', TOKEN); await page.click('#kbBuddy [data-a=ghsave]');
     await shows(page, 'the sync button never said synced', () => document.querySelector('#kbBar [data-b=sync]').dataset.s === 'ok');
@@ -354,8 +369,16 @@ async function asking({ context, claude }) {
     await askIn(Q2, A2); await reads(page, card + ' .kb-na', A1, A2);
     const last = texts(claude.requests.at(-1).body.messages.at(-1)); for (const t of [Q1, A1, Q2]) assert(last.includes(t), `"${t}" is not in the follow-up`);
   });
-  await check('15 Ask again starts a new conversation; Conversations lists both, as about the page', async () => {
-    await page.click('#kbBar [data-b=claude]'); await shows(page, 'no new empty card', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && !c.querySelector('.kb-turn') });
+  let moved = null;
+  await check('15 the card can be dragged by its header; x closes it, and the conversation stays in Conversations', async () => {
+    const b = await page.locator(card + ' .kb-nh b').boundingBox(); await page.mouse.move(b.x + 5, b.y + 5); await page.mouse.down(); await page.mouse.move(b.x - 300, b.y + 180, { steps: 8 }); await page.mouse.up();
+    moved = await page.$eval(card, e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) } });
+    await page.click(card + ' [data-n=close]'); await shows(page, 'x did not close the card', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
+    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1); await page.click('#kbOvw [data-o=close]');
+  });
+  await check('15 Ask again starts a new conversation, where the last card was put; Conversations lists both, as about the page', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    same(await page.$eval(card, e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) } }), moved, 'where the new card opened'); await shows(page, 'no new empty card', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && !c.querySelector('.kb-turn') });
     await askIn(Q3, A3); await reads(page, card + ' .kb-na', A3);
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3);
     same((await page.$$eval('#kbOvw .kb-ovc small', es => es.map(e => e.textContent))).filter(t => t.startsWith('About the page')).length, 2, 'the cards that say they are about the page');
@@ -370,7 +393,7 @@ async function asking({ context, claude }) {
   await check('15 an empty answer keeps the question, with Try again; Ask keeps working', async () => {
     await page.click('#kbBar [data-b=claude]'); claude.say(''); await page.fill(box, 'Say nothing?'); await page.press(box, 'Enter');
     await shows(page, 'the question was not kept with No reply and Try again', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && /Say nothing\?/.test(c.textContent) && /No reply/.test(c.textContent) && c.querySelector('[data-n=retry]') });
-    await page.click(card + ' [data-n=del]'); await shows(page, 'the conversation was not deleted', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
+    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]'); await shows(page, 'Delete in full screen did not delete it', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
     await page.keyboard.press('Escape'); await shows(page, 'Escape did not close the card', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
@@ -381,6 +404,41 @@ async function asking({ context, claude }) {
     same(await page.$$eval('.kb-note.kb-gen', es => es.filter(e => getComputedStyle(e).display !== 'none').length), 0, 'the conversation cards shown');
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3, 'Drawing');
     await page.locator('#kbOvw .kb-ovc').first().click(); await reads(page, '.kb-note.kb-max .kb-na', A1, A2);
+  });
+}
+
+async function landing({ context, claude }) {
+  const page = await context.newPage(); await page.goto(SITE + '/technical_knowledge_base/');
+  const card = '.kb-note.kb-gen.kb-active', box = card + ' .kb-nf input', Q = 'Where do I start with attention?', A = 'Read [[Attention variants]] after the transformer page.';
+  await check('16 the landing page has the toolbar with Ask and nothing to draw with', async () => {
+    await page.waitForSelector('#kbBar'); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
+    assert(await page.locator('#kbBar [data-t=pen]').isHidden() && await page.locator('#kbBar [data-b=undo]').isHidden(), 'the drawing tools show on the landing page');
+  });
+  await check('16 Ask there is about the whole knowledge base: Claude is told to search it and link its pages', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    same(await page.getAttribute(box, 'placeholder'), 'Ask Claude about anything in the knowledge base…', 'the placeholder');
+    claude.say(A); await page.fill(box, Q); await page.press(box, 'Enter'); await shows(page, 'the answer did not show', () => /after the transformer page/.test((document.querySelector('.kb-note.kb-gen.kb-active .kb-na') || {}).textContent || ''));
+    const { body } = claude.requests.at(-1), last = texts(body.messages.at(-1));
+    assert(last.includes(Q) && last.includes('knowledge base as a whole') && last.includes('search_kb'), 'the request does not ask about the knowledge base');
+    assert(body.tools.some(t => t.name === 'search_kb') && body.tools.some(t => t.name === 'read_kb_page'), 'the knowledge-base tools are not offered');
+  });
+  await check('16 Conversations on the landing page lists it, as about the knowledge base', async () => {
+    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q);
+    assert((await page.textContent('#kbOvw .kb-ovc small')).startsWith('About the knowledge base'), 'the card does not say it is about the knowledge base');
+  });
+  await check('17 Continue reading on the landing page goes back to the same tab and the same place on the page', async () => {
+    const p = await context.newPage(); await p.goto(SITE + PAGE_ID); await p.waitForSelector('#kbBar'); await ready(p);
+    const tabs = p.locator('[role=tab]'); if (await tabs.count() > 1) await tabs.nth(1).click();
+    await p.mouse.wheel(0, 700); await sleep(1400);
+    const where = () => p.evaluate(() => { const t = document.querySelector('[role=tab][aria-selected=true]'), y = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0;
+      const e = document.elementFromPoint(document.querySelector('.w').getBoundingClientRect().left + 24, y + 70); return { tab: t && t.dataset.t, block: e && e.textContent.trim().slice(0, 60) } });
+    const before = await where(); await p.close();
+    await page.reload(); await page.waitForSelector('#kb-last:not([hidden])');
+    same(await page.getAttribute('#kb-last a', 'href'), PAGE_ID + '#kb-resume', 'the link'); same((await page.textContent('#kb-last a')).trim(), 'Activation functions', 'the title shown');
+    await page.click('#kb-last a'); await page.waitForURL(u => !String(u).includes('#kb-resume')); await sleep(1600);
+    const after = await (async () => { const p2 = page; return p2.evaluate(() => { const t = document.querySelector('[role=tab][aria-selected=true]'), y = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0;
+      const e = document.elementFromPoint(document.querySelector('.w').getBoundingClientRect().left + 24, y + 70); return { tab: t && t.dataset.t, block: e && e.textContent.trim().slice(0, 60) } }) })();
+    same(after, before, 'the tab and the block at the top of the screen');
   });
 }
 
@@ -511,6 +569,7 @@ for (const engine of only ? [only] : Object.keys(ENGINES)) {
   await visit(browser, 'first visit', {}, firstVisit);
   await visit(browser, 'reading', WITH_KEY, reading);
   await visit(browser, 'asking', WITH_KEY, asking);
+  await visit(browser, 'landing page', WITH_KEY, landing, SITE);
   await visit(browser, 'syncing', { ...WITH_KEY, 'kbBuddy.ghToken': TOKEN }, syncing);
   await visit(browser, 'two tabs', WITH_KEY, twoTabs);
   await visit(browser, 'held store', WITH_KEY, heldStore);
@@ -520,5 +579,5 @@ for (const engine of only ? [only] : Object.keys(ENGINES)) {
   console.log(`${engine}: ${ok} ok, ${failed} failed, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   bad += failed;
 }
-server.close();
+server.close(); site.close(); fs.rmSync(SITE_DIR, { recursive: true, force: true });
 process.exit(bad ? 1 : 0);

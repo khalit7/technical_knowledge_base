@@ -15,8 +15,10 @@ so no inline script may contain those literally.
 The site also installs as an app (Add to Home Screen on an iPad or iPhone, Add to Dock on a Mac, Install in Chrome): manifest.webmanifest
 and app_icon.png at the site root, linked from every page's head. Opened from an iPad's or iPhone's Home Screen, Safari keeps the
 reader's saved data (the buddy's key, token and notes), which it clears from an ordinary tab after about a week without a visit. Such an
-app has no tabs or address bar and may reopen on the home page, so every page notes itself as the last one read (localStorage kb.last)
-and the home page offers it as "Continue reading".
+app has no tabs or address bar and may reopen on the home page, so the home page offers "Continue reading": the AI buddy keeps where
+the reader is (page, tab and place on it, the synced setting kb.last; each page carries its display title as <meta name="kb-title">)
+and the link opens the page there (#kb-resume). The home page loads the AI buddy too (its html is marked data-kb-home): there, Ask is
+a question about the whole knowledge base.
 """
 import hashlib, html, json, re, shutil, sys
 from pathlib import Path
@@ -36,6 +38,9 @@ for _p in pages:
         by_id.setdefault(_a.replace("-", ""), _p)
 BUDDY = (ROOT / "html_utils/kb_buddy.js").read_text()
 BUDDY_SRC = BASE + "kb_buddy.js?v=" + hashlib.sha1(BUDDY.encode()).hexdigest()[:10]   # a new stamp whenever the buddy changes, so browsers fetch it again
+# the loader every page carries (written by apply_buddy.py), for the home page, which this script writes
+HOME_BUDDY = (f'<script id="kb-buddy" data-src="{BUDDY_SRC}">\n' + (ROOT / "html_utils/kb_buddy_loader.js").read_text().rstrip("\n")
+              + '\n</script><!--/kb-buddy-->')
 NEWS, PAPERS = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers"
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]  # What's new sits above them
 
@@ -83,14 +88,6 @@ APP = (f'<link rel="manifest" href="{BASE}manifest.webmanifest"><link rel="icon"
        f'<link rel="apple-touch-icon" href="{BASE}app_icon.png"><meta name="apple-mobile-web-app-title" content="Knowledge base">')
 MANIFEST = {"name": "Technical knowledge base", "short_name": "Knowledge base", "start_url": BASE, "scope": BASE, "display": "standalone",
             "icons": [{"src": BASE + "app_icon.png", "sizes": "512x512", "type": "image/png"}]}
-
-
-def last(p):
-    """each page notes itself as the last one read (its path, and its title as the home page shows it), for the home page's "Continue
-    reading" link; again when the browser brings the page back without loading it (Back)"""
-    t = json.dumps(title(p)).replace("</", "<\\/")
-    return ('<script>(function(){function f(){try{localStorage.setItem("kb.last",JSON.stringify({p:location.pathname,t:%s}))}catch(e){}}'
-            'f();addEventListener("pageshow",function(e){if(e.persisted)f()})})()</script>' % t)
 
 
 def bar(p):
@@ -169,9 +166,9 @@ def home():
     body = (whats_new.home(pages, url, by_id, by_path[NEWS], by_path[PAPERS]) + learning_map.section(url, KB)
             + f'<details class="all"><summary>All pages by section<span>{nsec} pages</span></summary><div class="secs">{body}</div></details>')
 
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    return f"""<!doctype html><html lang="en" data-kb-home><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Technical knowledge base</title><meta name="description" content="Khalid's technical knowledge base: {npages} pages in {ntopics} topics, with a learning map of the order to study them in.">
-{APP}<link href="{BASE}pagefind/pagefind-ui.css" rel="stylesheet"><script src="{BASE}pagefind/pagefind-ui.js"></script>
+{APP}<link href="{BASE}pagefind/pagefind-ui.css" rel="stylesheet"><script src="{BASE}pagefind/pagefind-ui.js"></script>{HOME_BUDDY}
 <style>:root{{--bg:#fff;--ink:#2f3437;--mute:#6f6e69;--line:#e9e9e7;--acc:#2f6fb5;--card:#fff;--cardln:rgba(31,35,40,.10);
  --pagefind-ui-scale:.78;--pagefind-ui-primary:#2f6fb5;--pagefind-ui-border:rgba(31,35,40,.16);--pagefind-ui-border-width:1px;--pagefind-ui-border-radius:12px;--pagefind-ui-font:inherit}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--acc:#6ea8e6;--card:#212123;--cardln:rgba(255,255,255,.08);color-scheme:dark;
@@ -219,7 +216,7 @@ details.all[open]>summary::before{{transform:rotate(45deg)}}details.all>summary 
 <p class="tag">Deep, visual explanations of how modern AI systems work: what's new each week, and a map of the order to learn it all in.</p>
 <ul class="stats" aria-label="Size of the knowledge base"><li><b>{npages}</b> pages</li><li><b>{ntopics}</b> topics</li><li><b>{len(SECTIONS)}</b> sections</li><li><b>{hours}</b> h of core reading</li></ul>
 <div id="search"><span class="kbd" aria-hidden="true">/</span></div><p id="kb-last" hidden data-pagefind-ignore>Continue reading: <a></a></p></header></div><div class="w">{body}</div>
-<script>(function(){{function f(){{const c=document.getElementById('kb-last');try{{const l=JSON.parse(localStorage.getItem('kb.last'))||{{}},a=c.querySelector('a');c.hidden=!(typeof l.p==='string'&&l.p.startsWith({json.dumps(BASE)})&&l.p.length>{len(BASE)}&&new URL(l.p,location.href).origin===location.origin);if(!c.hidden){{a.href=l.p;a.textContent=l.t||'the last page you read'}}}}catch(e){{c.hidden=true}}}}f();addEventListener('pageshow',e=>{{if(e.persisted)f()}})}})()
+<script>(function(){{function f(){{const c=document.getElementById('kb-last');try{{const l=JSON.parse(localStorage.getItem('kb.last'))||{{}},a=c.querySelector('a');c.hidden=!(typeof l.p==='string'&&l.p.startsWith({json.dumps(BASE)})&&l.p.length>{len(BASE)}&&new URL(l.p,location.href).origin===location.origin);if(!c.hidden){{a.href=l.p+'#kb-resume';a.textContent=l.t||'the last page you read'}}}}catch(e){{c.hidden=true}}}}f();window.kbLastRender=f;addEventListener('pageshow',e=>{{if(e.persisted)f()}})}})()
 window.addEventListener('DOMContentLoaded',()=>{{try{{new PagefindUI({{element:'#search',showSubResults:true,showImages:false,baseUrl:'{BASE}',bundlePath:'{BASE}pagefind/',translations:{{placeholder:'Search all {npages} pages'}}}})}}catch(e){{}}}});
 document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable]'))return;const i=document.querySelector('#search input');if(i){{e.preventDefault();i.focus()}}}})</script>
 </body></html>"""
@@ -270,9 +267,9 @@ def main():
         f = src / "index.html"
         if f.exists():
             s = relink(f.read_text())
-            s = s.replace("</head>", BAR_CSS + APP + "</head>", 1)
+            s = s.replace("</head>", BAR_CSS + APP + f'<meta name="kb-title" content="{html.escape(title(p))}">' + "</head>", 1)
             s = s.replace('<script id="kb-buddy">', f'<script id="kb-buddy" data-src="{BUDDY_SRC}">', 1)
-            s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p) + last(p), s, count=1)
+            s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)
             n += 1
         else:  # a parent with no page of its own (Papers, Tech news): its children as cards (html_utils/whats_new.py)
