@@ -395,6 +395,8 @@ async function asking({ context, claude }) {
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.$eval(card, e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) } }), moved, 'where the new card opened'); await shows(page, 'no new empty card', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && !c.querySelector('.kb-turn') });
     await askIn(Q3, A3); await reads(page, card + ' .kb-na', A3);
+    const sent = claude.requests.at(-1).body.messages; same(sent.length, 1, 'the messages sent with a new conversation\'s first question');
+    assert(![Q1, A1].some(x => JSON.stringify(sent).includes(x)), 'the other conversation on the page went with the new one');
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3);
     same((await page.$$eval('#kbOvw .kb-ovc small', es => es.map(e => e.textContent))).filter(t => t.startsWith('About the page')).length, 2, 'the cards that say they are about the page');
     await page.click('#kbOvw [data-o=close]');
@@ -500,6 +502,7 @@ async function syncing({ context, claude, repo }) {
     gone = penMarks(file)[0].id;
     file.records.other1 = { ...note, id: 'other1', marks: [], turns: [{ q: Q9, a: A9, t: now }], t: now, u: now };
     file.records[gone] = { k: 'mark', id: gone, del: true, u: now };
+    file.records.oldq = { k: 'entry', id: 'oldq', kind: 'page', typed: 'An old question', read: '', reply: 'An old answer.', t: now - 5000, u: now };   // kept by an earlier version
     repo.write(PAGE_FILE, file);
     await page.reload(); await ready(page);
     await shows(page, 'the other device\'s note is not on the page', () => document.querySelectorAll('.kb-note').length === 2);
@@ -512,6 +515,7 @@ async function syncing({ context, claude, repo }) {
     const file = await until('the new mark in the notes repo', () => { const f = repo.read(PAGE_FILE); return penMarks(f).some(m => m.id !== gone) && f });
     const was = file.records[gone], saves = repo.saves.filter(s => s.endsWith(PAGE_FILE));
     assert(was && was.del === true && !was.p, 'the mark deleted on the other device is live again in the repo'); assert(!file.records.other1.del, 'the other device\'s note was deleted');
+    assert(file.records.oldq && file.records.oldq.del === true, 'the exchange an earlier version kept for a question on the page was not removed');
     assert(saves[0] === 'turned away ' + PAGE_FILE && saves.includes('saved ' + PAGE_FILE), 'the saves went: ' + saves.join(', '));
   });
   await check('10 a change from another device arriving while an Ask card is open leaves the card open, and Ask working', async () => {
@@ -586,7 +590,7 @@ async function failedOpen({ context }) {
 }
 
 async function newerStore({ context }) {
-  const row = { page: PAGE_ID, recs: { later1: { k: 'entry', id: 'later1', t: 1, kind: 'page', typed: 'A question', reply: 'An answer.', u: 1 } }, dirty: false };
+  const row = { page: PAGE_ID, recs: { later1: { k: 'entry', id: 'later1', t: 1, kind: 'note', typed: 'A question', reply: 'An answer.', u: 1 } }, dirty: false };
   const other = await context.newPage(); await other.goto(ORIGIN + '/html_utils/package.json');   // same origin, no buddy
   await other.evaluate(row => new Promise((res, rej) => { const r = indexedDB.open('kbDiary', 4);   // the buddy asks for version 3
     r.onupgradeneeded = () => r.result.createObjectStore('recs', { keyPath: 'page' }).put(row);

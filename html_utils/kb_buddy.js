@@ -1067,8 +1067,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     book = [...pgIds].map(id => REC[id]).sort((a, b) => (a.order || 0) - (b.order || 0) || (a.id < b.id ? -1 : 1)).map(np => ({id:np.id, order:np.order || 0,
       ink:kids('stroke').filter(r => r.pg === np.id).sort(byT).map(strip), items:kids('item').filter(r => r.pg === np.id).sort(byT).map(strip)}));
     marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); { const sh = new Map(kids('shot').map(r => [r.n, r.img])); for (const n of notes) { const u = sh.get(n.id); if (u && SHOT_OK.test(u)) n.shot = u; else delete n.shot } } edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
-    entries = kids('entry').sort(byT).map(strip);
+    const ex = kids('entry').sort(byT).map(strip); entries = ex.filter(e => e.kind === 'note').slice(-KEEP);
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
+    for (const e of ex) if (!entries.includes(e)) BASE.set(e.id, '');   // exchanges no longer kept (a question on the page, a notebook one older than the last KEEP) go at the next save
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
   // under way. Marks still waiting for Send are carried over by their ids
@@ -2052,7 +2053,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     });
   }
   const tx = async (m, f, name) => { const d = await openDb(); if (!d) return null; return new Promise(res => { try { const t = d.transaction(name, m), s = t.objectStore(name); const r = f(s); t.oncomplete = () => res(r && r.result); t.onerror = () => res(null) } catch(e) { res(null) } }) };
-  const save = e => { e.id = newId(); entries.push(e); saveBook() };   // an exchange, kept so the next questions carry the recent ones
+  const save = e => { e.id = newId(); entries.push(e); if (entries.length > KEEP) entries.splice(0, entries.length - KEEP); saveBook() };   // a notebook exchange, kept so the next notebook questions carry the last KEEP
 
   // ---- ink: a stroke is {p:[[x, y, pressure]...], c:colour (null: the ink colour of the page or theme), w:width, h:highlighter}; on a
   // notebook page in paper units (its canvas is lw units wide, scaled on screen) ----
@@ -2616,7 +2617,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   function noteHistory(){
     const h = [];
-    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:(e.kind === 'page' ? '(earlier they drew on the page' + (e.where ? ', at ' + e.where : '') + '; their marks:) ' : '(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ') + (e.read || e.typed || '')}, {role:'assistant', content:noMarks(e.reply) || '…'});
+    for (const e of entries.slice(-KEEP)) h.push({role:'user', content:'(earlier in the notebook' + (e.nbPage ? ', page ' + e.nbPage : '') + ', they wrote:) ' + (e.read || e.typed || '')}, {role:'assistant', content:noMarks(e.reply) || '…'});
     return h;
   }
   // an error as the reader should read it
@@ -2711,7 +2712,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const inNote = S === PG && !job.quiet;   // a question on the page shows its progress in its own note, like a chat
       if (inNote) { try { const fresh = !job.early; target(); thinkLine(reply, 'Thinking…'); S.out.follow(job); if (fresh && !job.follow && job.typed) reveal(job) } catch(e) {} }
       const say = job.quiet ? () => {} : t => { if (inNote && reply && !/¢/.test(t)) { if (!/^(Reading|Writing)…$/.test(t)) { thinkLine(reply, t); S.out.follow(job) } return } S.out.status(t) }; say('Reading…');
-      let msgs = (job.quiet ? [] : noteHistory()).concat([{role:'user', content}]), before = '', r, cost = 0;
+      let msgs = (S === NB && !job.quiet ? noteHistory() : []).concat([{role:'user', content}]), before = '', r, cost = 0;   // a note or an Ask conversation carries only its own thread
       for (let turn = 0; ; turn++) {
         const big = !!job.refine || !!job.where || ASKED_CHANGE.test(job.typed || '');
         r = await stream(SYS_NOTE, msgs, big ? 'medium' : 'low', big ? 16000 : 4000, (raw, end) => { if (!end) say('Writing…'); job.lastRaw = before + raw; feed(before + raw, end) }, undefined,
@@ -2729,7 +2730,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!text) { if (S.out.empty) S.out.empty(job, reply); else target().innerHTML = '<span class="kb-err">' + (r.stop === 'refusal' ? 'Claude declined to answer this one.' : 'No reply.') + '</span>' }
       else if (S.out.done) S.out.done(job, text, r.raw);
       say(!text && r.stop === 'refusal' ? 'Claude declined to answer this one. ' + costLine(r) : costLine(r));
-      if (!job.quiet) save({t:Date.now(), kind:job.kind, where:job.scr.note, nbPage:job.kind === 'note' ? (job.at ? job.at.pg : job.pg) + 1 : null, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text});
+      if (S === NB && !job.quiet) save({t:Date.now(), kind:'note', nbPage:(job.at ? job.at.pg : job.pg) + 1, typed:job.typed, read:m2 ? m2[1].trim() : '', reply:text});
     } catch(e) {
       await drained();
       const msg = plainErr(e);
@@ -3257,7 +3258,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const f = e.querySelector('form'), inp = f.querySelector('input'); const strip = drawStrip(n, e, inp); e.insertBefore(strip, f);
     if (n === activeNote) e.classList.add('kb-active');   // rebuilt while it is being read (after a sync)
     if (n.g && genRO) genRO.observe(e);
-    if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this ' + (HOME ? 'knowledge base' : 'page')); if (!turnsOf(n).length) inp.placeholder = HOME ? 'Ask about the knowledge base…' : 'Ask Claude about this page…'; inp.setAttribute('aria-label', HOME ? 'Ask Claude about the knowledge base' : 'Ask Claude about this page'); e.classList.add('kb-fresh')
+    if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this ' + (HOME ? 'knowledge base' : 'page')); if (!turnsOf(n).length) { inp.placeholder = HOME ? 'Ask about the knowledge base…' : 'Ask Claude about this page…'; inp.setAttribute('aria-label', HOME ? 'Ask Claude about the knowledge base' : 'Ask Claude about this page'); e.classList.add('kb-fresh') }
       const gb = e.querySelector('[data-n=goto]'); gb.textContent = 'Beside the page'; gb.title = 'Close full screen and keep this conversation open beside the page';
       e.querySelector('.kb-nh').insertAdjacentHTML('afterbegin', '<span class="kb-ggrip" title="Drag to move" aria-hidden="true">&#x2807;&#x2807;</span>');
       e.querySelector('[data-n=close]').title = 'Close: it stays in Conversations' }
