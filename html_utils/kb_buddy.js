@@ -124,15 +124,24 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
-#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-b=send]):not([data-k]):not([data-s=missing]):not([data-s=bad]){display:none!important}
+#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-b=send]):not([data-b=claude]):not([data-s=missing]):not([data-s=bad]){display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-v [data-b=claude] span{display:none}
 #kbBar .kb-lbl{display:none}
-#kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home .kb-sep{display:none!important}
+:where(html[data-kb-home]){--soft:color-mix(in srgb,var(--ink) 6%,var(--card,#fff));--bad:#c2703a;--good:#3f7f56}
+@media (prefers-color-scheme:dark){:where(html[data-kb-home]){--bad:#e8915c;--good:#5fae7b}}
+:where(html[data-kb-home]) :where(#kbBuddy,#kbOvw,.kb-note,#kbToast) :where(button,input,select,textarea){font:inherit;font-size:13.5px;color:var(--ink);background:var(--card,#fff);border:1px solid var(--line);border-radius:8px;padding:5px 10px}
+:where(html[data-kb-home]) :where(#kbBuddy,#kbOvw,.kb-note) :where(input:not([type=checkbox]),select,textarea){background:var(--soft)}
+:where(html[data-kb-home]) :where(#kbBuddy,#kbOvw,.kb-note) :where(button){cursor:pointer}
+:where(html[data-kb-home]) body::before{background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.kb-note input::placeholder{color:var(--mute);opacity:1}
+#kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
 #kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
 #kbBar button[data-b][data-k] svg,#kbBar button[data-b][data-s=missing] svg,#kbBar button[data-b][data-s=bad] svg{opacity:1;color:var(--bad,#c2703a)}
 #kbBar button[data-b][data-k] span,#kbBar [data-s=missing] .kb-lbl,#kbBar [data-s=bad] .kb-lbl{display:inline!important}
 #kbBar [data-s=missing] .kb-sdot,#kbBar [data-s=bad] .kb-sdot{display:none}
+#kbBar.kb-v button[data-b][data-k] span,#kbBar.kb-v button[data-b][data-s=missing] .kb-lbl,#kbBar.kb-v button[data-b][data-s=bad] .kb-lbl{display:none!important}
+#kbBar [data-b=claude]{position:relative}#kbBar.kb-v button[data-k]::after,#kbBar.kb-v button[data-s=missing]::after,#kbBar.kb-v button[data-s=bad]::after{content:'!';position:absolute;top:-4px;right:-4px;width:15px;height:15px;border-radius:50%;background:var(--bad,#c2703a);color:#fff;font:700 10px/15px system-ui,sans-serif;text-align:center}
 #kbBuddy .kb-set input.kb-want{border-color:var(--bad,#c2703a);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad,#c2703a) 25%,transparent)}
 
 @keyframes kbGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 60%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
@@ -185,7 +194,7 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 .kb-cite{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;margin:0 2px;vertical-align:.35em;border:0;border-radius:99px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc);font:700 10.5px/1 system-ui,-apple-system,sans-serif;cursor:pointer;pointer-events:auto}
 .kb-cite.kb-web{text-decoration:none;font-weight:600;padding:0 6px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kb-cite:hover{background:var(--acc);color:var(--card,var(--bg))}
-.kb-kbl{color:var(--acc);text-decoration:underline;text-decoration-style:dotted;pointer-events:auto}
+.kb-kbl{color:var(--ink);font-weight:600;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;pointer-events:auto}.kb-kbl:hover{color:var(--acc)}
 .kb-edtag{display:inline-block;margin-left:6px;padding:0 7px;border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);border-radius:99px;background:color-mix(in srgb,var(--acc) 8%,transparent);color:var(--acc);font:600 11px/1.6 system-ui,-apple-system,sans-serif;vertical-align:.1em;cursor:pointer;white-space:nowrap}
 .kb-ed-on{box-shadow:inset 3px 0 0 color-mix(in srgb,var(--acc) 55%,transparent);padding-left:8px!important}
 .kb-ed-new{background:color-mix(in srgb,var(--acc) 7%,transparent)}
@@ -281,11 +290,13 @@ html.kb-narrow .kb-note:not(.kb-active) .kb-dot{display:flex;align-items:center;
 #kbNotes{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;z-index:58}
 .kb-note.kb-gen:not(.kb-max){position:fixed}
 .kb-note.kb-gen:not(.kb-active),.kb-note.kb-gen.kb-folded:not(.kb-max){display:none!important}
-.kb-note.kb-gen .kb-dot,.kb-note.kb-gen .kb-vrow [data-v=page],.kb-note.kb-gen .kb-chips [data-rw]{display:none!important}
-.kb-note.kb-gen .kb-rz{right:auto;left:0;transform:scaleX(-1);cursor:nesw-resize}.kb-note.kb-gen [data-n=resolve],.kb-note.kb-gen [data-n=fold]{display:none!important}
+.kb-note.kb-gen .kb-dot,.kb-note.kb-gen .kb-vrow [data-v=page],.kb-note.kb-gen .kb-chips [data-rw],.kb-note.kb-gen.kb-fresh .kb-chips,.kb-note.kb-gen.kb-fresh .kb-vrow{display:none!important}
+.kb-note.kb-gen .kb-rz{right:auto;left:0;transform:scaleX(-1);cursor:nesw-resize}.kb-note.kb-gen.kb-max [data-n=max]{display:none!important}
+.kb-note.kb-gen [data-n=gdel]{margin-left:10px;color:var(--bad,#c2703a)!important;border-color:color-mix(in srgb,var(--bad,#c2703a) 45%,transparent)!important}
+.kb-note .kb-ggrip{display:none}.kb-note.kb-gen:not(.kb-max) .kb-ggrip{display:inline-block;margin-right:4px;color:var(--mute);letter-spacing:-2px;font-size:14px;cursor:grab}.kb-note.kb-gen [data-n=resolve],.kb-note.kb-gen [data-n=fold]{display:none!important}
 html.kb-pen body,html.kb-pen body *{cursor:crosshair}
 html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #kbBuddy button,html.kb-pen .kb-note .kb-nh{cursor:default}
-.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}
+.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}.kb-note.kb-gen:not(.kb-max) .kb-vrow,.kb-note.kb-gen:not(.kb-max) .kb-chips{padding-right:8px;padding-left:30px}
 .kb-note.kb-folded .kb-rz,.kb-note.kb-max .kb-rz,html.kb-narrow .kb-note:not(.kb-active) .kb-rz{display:none}
 #kbOvw{position:fixed;left:0;right:0;top:var(--kb-room,0px);bottom:var(--kb-room-b,0px);z-index:69;overflow:auto;overscroll-behavior:contain;background:var(--bg,#fff);color:var(--ink);font:14px/1.45 system-ui,-apple-system,sans-serif;padding:0 16px 24px}
 #kbOvw[hidden]{display:none}
@@ -509,7 +520,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     sub = view || null; P.classList.toggle('kb-chgonly', sub === 'marks');   // a plain open is the normal notebook
     show();
   }
-  function close(){ backToPage = false; if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
+  function close(){ backToPage = false; reopen = null; if (sub === 'riddle') riddleClose(); P.hidden = true; syncBar(); if (lastFocus && lastFocus.focus) lastFocus.focus() }
   // Settings at the field the toolbar asked for (the Claude key, or the GitHub token: 'gh'); saving it from the page goes back to the page
   let backToPage = false;
   let reopen = null;   // the Ask conversation open when its key was asked for: shown again once the key is saved
@@ -524,7 +535,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- the toolbar: tools, colours, width, undo, Ask, Send, Conversations, the notebook, sync, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand',
+  let tool = !HOME && /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand',
       color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom|left|right)$/.test(d.e)) dock = {e:d.e, f:Math.max(0, Math.min(1, +d.f || 0.5))} } catch(e) {}
   const scratchOn = () => mine.get('scratch') !== 'off', webOn = () => mine.get('web') !== 'off';
@@ -590,10 +601,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const wb = bar.querySelector('[data-b=width] path'); wb.parentElement.style.strokeWidth = thick ? 4.2 : 1.9;
     const cb = bar.querySelector('[data-b=claude]'), ks = keyState(); if (ks) cb.setAttribute('data-k', ks); else cb.removeAttribute('data-k');
     cb.querySelector('span').textContent = ks === 'bad' ? 'Fix Claude key' : ks ? 'Claude key' : 'Ask'; cb.removeAttribute('aria-pressed');
-    cb.title = ks === 'bad' ? 'Your Claude API key was not accepted. Tap to change it' : ks ? 'No Claude API key on this device. Tap to add one' : HOME ? 'Ask Claude about anything in the knowledge base: a new conversation' : 'Ask Claude about this page: a new conversation, with what is on your screen'; cb.setAttribute('aria-label', ks ? cb.title : 'Ask Claude');
+    cb.title = ks === 'bad' ? 'Your Claude API key was not accepted. Tap to change it' : ks ? 'No Claude API key on this device. Tap to add one' : HOME ? 'Ask Claude about anything in the knowledge base: a new conversation' : 'Ask Claude about this page: a new conversation, with what is on your screen'; cb.setAttribute('aria-label', ks ? cb.querySelector('span').textContent + ': ' + cb.title : 'Ask Claude');
     bar.querySelector('[data-b=send]').hidden = !!ks || !(pendPage.length || pend.length || pendTyped.length || (ed && ed.ta.value.trim()));
     bar.querySelector('[data-b=send]').title = 'Send your new marks to Claude';
-    bar.querySelector('[data-b=notebook]').setAttribute('aria-pressed', String(!P.hidden));
+    bar.querySelector('[data-b=notebook]').setAttribute('aria-pressed', String(!P.hidden && sub !== 'set' && sub !== 'marks')); bar.querySelector('[data-b=set]').setAttribute('aria-pressed', String(!P.hidden && sub === 'set'));
     document.documentElement.classList.toggle('kb-pen', penOn());
     P.classList.toggle('kd-hand', tool === 'hand'); P.classList.toggle('kd-erasing', tool === 'erase'); P.classList.toggle('kd-texting', tool === 'text');
     if (penOn()) hidePop();
@@ -610,12 +621,12 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.b === 'claude') { if (keyState()) askFor('key'); else askGeneral() }
     else if (b.dataset.b === 'send') { if (!P.hidden && sub === 'riddle') rdSend(); else { if (P.hidden && (pend.length || pendTyped.length)) open(); commit(PG); commit(NB) } }
     else if (b.dataset.b === 'notebook') P.hidden ? open() : close();
-    else if (b.dataset.b === 'set') open('set');
+    else if (b.dataset.b === 'set') { if (!P.hidden && sub === 'set') close(); else open('set') }
     else if (b.dataset.b === 'sync') { if (syncState === 'missing' || syncState === 'bad') askFor('gh'); else syncNow() }
     else if (b.dataset.b === 'over') toggleOvw();
-    else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? '+' : '&#x2013;'; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; placeBar() }
+    else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? '+' : '&#x2013;'; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; b.setAttribute('aria-label', b.title); placeBar() }
   });
-  if (mine.get('min') === '1') { bar.classList.add('kb-min'); bar.querySelector('[data-b=min]').textContent = '+' }
+  if (mine.get('min') === '1') { bar.classList.add('kb-min'); const mb = bar.querySelector('[data-b=min]'); mb.textContent = '+'; mb.title = 'Show the whole toolbar'; mb.setAttribute('aria-label', mb.title) }
   // a short status line beside the toolbar (for the page; the notebook has its own)
   let toastT = 0;
   function placeToast(){
@@ -630,7 +641,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 
   // ---- the reader's highlight: the last selection made on the page, kept until it is sent or dropped ----
   let hl = null, selT = 0;
-  const pageRoot = () => document.querySelector('.w') || document.body;
+  const pageRoot = () => (!HOME && document.querySelector('.w')) || document.body;
   document.addEventListener('selectionchange', () => {
     clearTimeout(selT);
     selT = setTimeout(() => {
@@ -801,7 +812,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   async function screenBlocks(full, fresh, mark){
     const ink = fresh && fresh.length;
     if (!seeOn() && !ink) return {blocks:[], note:'', img:null, k:1};
-    const v = inViewNow(), shot = await screenImage(mark, fresh, true);   // the page as they see it, without the buddy's note cards over it
+    const v = inViewNow(), shot = HOME ? {img:null, k:1} : await screenImage(mark, fresh, true);   // the page as they see it, without the buddy's note cards over it (none on the landing page)
     const lines = ['What is on their screen right now' + (full ? ' (the page under the full-screen notebook)' : '') + ':',
       '- Tab "' + v.tab + '"' + (v.section ? ', section "' + v.section + '"' : '') + ', ' + v.pct + '% of the way down the page.'];
     if (mark) lines.push('- They highlighted this' + (mark.where ? ' (in ' + mark.where + ')' : '') + ':\n<highlight>\n' + mark.text + '\n</highlight>');
@@ -873,9 +884,16 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
         let host = ''; try { host = new URL(url).hostname.replace(/^www\./, '') } catch(e) {}
         return '<a class="kb-cite kb-web" href="' + esc(url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" title="' + esc(title || host).replace(/"/g, '&quot;') + '">\u2197 ' + esc(host) + '</a>' })
       .replace(/⟦c(\d+)⟧/g, (_, i) => { const B = docBlocks(), t = (B.content[+i] || {}).text || ''; return '<button type="button" class="kb-cite" data-cb="' + i + '" title="' + esc(t.slice(0, 160)) + '">' + (++n) + '</button>' })
-      .replace(/\[\[([^\]]{1,160})\]\]/g, (_, t) => { const u = kbUrl(unesc(t)); return u ? '<a class="kb-kbl" href="' + esc(u) + '">' + t + '</a>' : '<u>' + t + '</u>' });
+      .replace(/\[\[([^\]]{1,160})\]\]/g, (_, t) => kbLink(unesc(t)));
   }
-  const txt = (str, box) => { const sp = el('span'); sp.innerHTML = renderStr(str, box); return sp };
+  const txt = (str, box) => { const sp = el('span'); sp.innerHTML = renderStr(str, box); if (!KBI && sp.querySelector('u[data-kbt]')) kbIndex().then(kbLinks); return sp };
+  // a page of the knowledge base named in a reply: a link (its short title, the full one as its tooltip), or, until the index has loaded,
+  // a placeholder that kbLinks turns into one
+  function kbLink(t){
+    const u = kbUrl(t), e = u && KBI.find(x => KBROOT + x.p + '/' === u), full = e ? e.t : t, i = full.indexOf(': '), short = i >= 12 ? full.slice(0, i) : full;
+    return u ? '<a class="kb-kbl" href="' + esc(u) + '" title="' + esc(full) + '">' + esc(short) + '</a>' : '<u data-kbt="' + esc(t) + '">' + esc(t) + '</u>';
+  }
+  const kbLinks = () => { if (!KBI) return; for (const u of document.querySelectorAll('u[data-kbt]')) { const d = document.createElement('span'); d.innerHTML = kbLink(u.dataset.kbt); u.replaceWith(d.firstChild) } };
   const noMarks = t => String(t || '').replace(/⟦[^⟧]*⟧/g, '');
   document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.kb-cite:not(.kb-web)'); if (c) { e.preventDefault(); e.stopPropagation(); jumpBlock(+c.dataset.cb) } }, true);
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
@@ -940,7 +958,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const key = store.get('key'), res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
-        system:[{type:'text', text:system, cache_control:{type:'ephemeral', ttl:'1h'}}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
+        system:[{type:'text', text:system, cache_control:{type:'ephemeral', ttl:'1h'}}], tools:(HOME ? TOOLS.filter(t => t.name === 'search_kb' || t.name === 'read_kb_page') : TOOLS).concat(web ? WEB_TOOLS : []), messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {}
       if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl) }
       if (res.status === 401) refused(key);
@@ -1151,7 +1169,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     b.dataset.s = st; b.querySelector('.kb-lbl').textContent = st === 'bad' ? 'Fix sync key' : 'Sync key';
     b.title = st === 'missing' ? 'Sync is off: there is no GitHub token on this device, so your notes stay here. Tap to add one'
       : st === 'bad' ? 'Sync stopped: ' + syncMsg + '. Tap to change the GitHub token' : st === 'ok' ? 'Synced' + (lastSync ? ' at ' + new Date(lastSync).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '') + '; tap to sync now' : st === 'wait' ? 'Changes waiting to sync; tap to sync now' : st === 'busy' ? 'Syncing…' : st === 'offline' ? 'Offline: your changes are kept here and sync when you are back online' : st === 'error' ? 'Sync error: ' + syncMsg + '. Tap to try again' : 'Starting…';
-    b.setAttribute('aria-label', st === 'missing' || st === 'bad' ? b.title : 'Sync');
+    b.setAttribute('aria-label', st === 'missing' || st === 'bad' ? b.querySelector('.kb-lbl').textContent + ': ' + b.title : 'Sync');
     const t = setv && setv.querySelector('#kbSyncSt'); if (t) t.textContent = st === 'missing' ? 'Not syncing: no token on this device yet' : st === 'bad' ? 'Sync stopped: ' + syncMsg : b.title;
   }
   function schedulePush(ms){ if (!ghTok()) return; if (!syncing && syncState !== 'bad') setSync('wait'); clearTimeout(pushT); pushT = setTimeout(syncNow, ms == null ? 10000 : ms) }
@@ -1186,37 +1204,54 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // switching away (another tab or app, the lid closed) syncs at once; leaving the page does not, since the browser would cancel it: the
   // next page's sync sends what is left (pagehide comes before the page is hidden, in Safari and Chrome alike)
-  let leaving = false; addEventListener('pagehide', () => { leaving = true }); addEventListener('pageshow', () => { leaving = false });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { noteLast(!leaving); if (!leaving && (dirty || setDirty || saveT)) syncNow() } else syncNow() });
+  let leaving = false; addEventListener('pagehide', () => { leaving = true; if (saveT) { clearTimeout(saveT); saveT = 0; commitRecs() } }); addEventListener('pageshow', () => { leaving = false });   // what is waiting to be saved is saved in the browser at once
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (!leaving) { clearTimeout(lastT); noteLast(true) } if (!leaving && (dirty || setDirty || saveT)) syncNow() } else syncNow() });   // leaving keeps the place kept last
   // ---- where they are reading, for the landing page's Continue reading on any device (kb.last, a synced setting): the page, its open tab,
   // and the block at the top of the screen with how far into it. Kept as they scroll; sent with the next sync (at once when they leave).
   // Continue reading opens the page with #kb-resume, and the page goes back to that tab and that place ----
   const touchSet = k => { const u = setU(); u[k] = Date.now(); rawSet('kbBuddy.setU', JSON.stringify(u)) };
+  // the block being read: the first text block found a little under the top of the reading area (the line under the toolbar and any sticky
+  // bar), skipping sticky stages and the buddy's own layers; o is how far under that line it was found, f how far into the block. sf (how far
+  // down the page) is kept too, for a stretch with no text block (a lab, a figure)
+  const STICKY = '.stg,.s3stick,.nav,.nm-nav,.dd-nav,.mx-nav,.lb-tr,.sq-wrap';
   function readingSpot(){
-    const root = pageRoot(), y = clipLine() + 12, rr = root.getBoundingClientRect();
-    let e = document.elementFromPoint(Math.max(8, rr.left + 24), y); e = e && e.closest && e.closest('p,li,h1,h2,h3,h4,figure,table,pre,blockquote,dl,section');
-    if (!e || !root.contains(e) || e.closest(OURS)) return {};
-    const r = e.getBoundingClientRect(); return {a:pathOf(e), qt:quoteOf(e), f:r.height ? Math.round(Math.max(0, Math.min(1, (y - r.top) / r.height)) * 1000) / 1000 : 0};
+    const root = pageRoot(), top = clipLine(), rr = root.getBoundingClientRect(), H = document.documentElement.scrollHeight - innerHeight;
+    const out = {sf:H > 0 ? Math.round(scrollY / H * 10000) / 10000 : 0};
+    for (const o of [12, 48, 96, 160, 240]) for (const x of [rr.left + 24, rr.left + Math.min(rr.width, 640) / 2]) {
+      const y = top + o; if (y > innerHeight - 20) continue;
+      const e = document.elementsFromPoint(Math.max(8, x), y).map(z => z.closest && z.closest('p,li,h1,h2,h3,h4,dt,dd,figcaption,td,pre,blockquote')).find(z => z && root.contains(z) && !z.closest(OURS) && !z.closest(STICKY));
+      if (!e) continue;
+      const r = e.getBoundingClientRect(); return Object.assign(out, {a:pathOf(e), qt:quoteOf(e), o, f:r.height ? Math.round(Math.max(0, Math.min(1, (y - r.top) / r.height)) * 1000) / 1000 : 0});
+    }
+    return out;
   }
+  let lastSent = '';   // kb.last as it was last marked to be sent: an unchanged place is not sent again
   function noteLast(now){
     if (HOME || resuming) return;
-    const v = Object.assign({p:location.pathname, t:(document.querySelector('meta[name=kb-title]') || {}).content || document.title}, openTab() ? {tab:openTab()} : {}, readingSpot());
-    rawSet('kb.last', JSON.stringify(v)); if (now) onSettingChange('kb.last'); else touchSet('kb.last');
+    const v = JSON.stringify(Object.assign({p:location.pathname, t:(document.querySelector('meta[name=kb-title]') || {}).content || document.title}, openTab() ? {tab:openTab()} : {}, readingSpot()));
+    rawSet('kb.last', v); if (now && v !== lastSent) { lastSent = v; onSettingChange('kb.last') } else if (!now) touchSet('kb.last');
   }
-  let lastT = 0, resuming = false;
-  addEventListener('scroll', () => { clearTimeout(lastT); lastT = setTimeout(() => noteLast(false), 800) }, {passive:true});
-  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[role=tab]')) { clearTimeout(lastT); lastT = setTimeout(() => noteLast(false), 400) } });
+  let lastT = 0, sendT = 0, resuming = false;
+  // a place counts once they have stayed on it for 2 s (scrolling up to the top to leave does not count); a place kept for a minute is sent
+  // even if they never switch away
+  addEventListener('scroll', () => { clearTimeout(lastT); lastT = setTimeout(() => { if (document.hidden) return; noteLast(false); clearTimeout(sendT); sendT = setTimeout(() => noteLast(true), 60000) }, 2000) }, {passive:true});
+  document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[role=tab]')) { clearTimeout(lastT); lastT = setTimeout(() => noteLast(false), 2000) } });
   function resume(){
     let l = null; try { l = JSON.parse(rawGet('kb.last')) } catch(e) {}
     try { history.replaceState(null, '', location.pathname + location.search) } catch(e) {}
-    if (!l || l.p !== location.pathname) { noteLast(false); return }
+    if (!l || l.p !== location.pathname) { document.documentElement.classList.remove('kb-resuming'); setTimeout(() => { if (!document.hidden) noteLast(false) }, 600); return }
     resuming = true;
     if (l.tab) { const t = document.getElementById(l.tab); if (t && !t.getClientRects().length) { const b = document.querySelector('[role=tab][data-t="' + l.tab + '"]'); if (b) b.click() } }
     let at = null;
     const go = again => { if (again && at !== null && Math.abs(scrollY - at) > 2) return;   // they have scrolled since: leave it
       const e0 = l.a != null ? anchorEl(l.a) : null, e = e0 && e0 !== pageRoot() && normT(origText(e0)).startsWith((l.qt || '').slice(0, 60)) ? e0 : l.qt ? refind(l.qt) : null;
-      if (e) { const r = e.getBoundingClientRect(); window.scrollBy({top:r.top + (l.f || 0) * r.height - (clipLine() + 12)}) } at = scrollY };
-    setTimeout(() => go(false), 250); setTimeout(() => { go(true); resuming = false }, 1100);   // again once fonts and figures have settled
+      if (e) { const r = e.getBoundingClientRect(); window.scrollBy({top:r.top + (l.f || 0) * r.height - (clipLine() + (l.o || 12))}) }
+      else if (l.sf != null) { const H = document.documentElement.scrollHeight - innerHeight; window.scrollTo({top:Math.round(l.sf * H)}) }
+      at = scrollY };
+    const show = () => document.documentElement.classList.remove('kb-resuming');   // the site hides the page until it is back in place (build_site.py)
+    const first = () => { go(false); show() };
+    (document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 600))]) : Promise.resolve()).then(() => setTimeout(first, 60));
+    setTimeout(() => { go(true); resuming = false; show() }, 1200);   // once more after figures have settled, unless they have scrolled
   }
   window.addEventListener('online', () => syncNow()); window.addEventListener('offline', () => setSync('offline'));
 
@@ -2273,7 +2308,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   new ResizeObserver(() => { cancelAnimationFrame(layT); layT = requestAnimationFrame(() => { if (!nbView.hidden) layoutBook() }) }).observe(scr);
   setSync('off'); checkKey(); loadRecs();
-  if (!HOME) { if (location.hash === '#kb-resume') resume(); else setTimeout(() => noteLast(false), 600) }
 
   // ---- what is on a page: the reader's typed notes and Claude's replies (text, sketches) and arrows ----
   function styleItem(e, it){ if ((it.kind === 'reply' || it.kind === 'typed') && it.fs && it.fs !== 1) { const b = it.kind === 'reply' ? 30 : 22; e.style.fontSize = b * it.fs + 'px'; e.style.lineHeight = 40 * it.fs + 'px' } }
@@ -3183,15 +3217,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const rz = el('div', {class:'kb-rz', title:'Drag to resize', 'aria-hidden':'true'}); e.appendChild(rz);
     rz.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || e.classList.contains('kb-max')) return; ev.preventDefault(); ev.stopPropagation(); rz.setPointerCapture(ev.pointerId); front(e);
-      const sx = ev.clientX, sy = ev.clientY, w0 = e.offsetWidth, h0 = body.offsetHeight;
-      const mv = q => { const w = Math.max(240, Math.min(innerWidth - 16, w0 + (n.g ? sx - q.clientX : q.clientX - sx))), h = Math.max(100, Math.min(innerHeight * 0.75, h0 + q.clientY - sy)); e.style.width = w + 'px'; Object.assign(body.style, {height:h + 'px', maxHeight:'none'}); n.w = Math.round(w); n.bh = Math.round(h) };
-      const up = () => { rz.removeEventListener('pointermove', mv); rz.removeEventListener('pointerup', up); rz.removeEventListener('pointercancel', up); mgSpot.delete(n); if (notes.includes(n)) saveBook(); schedule() };
+      const sx = ev.clientX, sy = ev.clientY, w0 = e.offsetWidth, h0 = body.offsetHeight, right0 = e.getBoundingClientRect().right; if (n.g) genDrag = true;
+      const mv = q => { const w = Math.max(240, Math.min(innerWidth - 16, w0 + (n.g ? sx - q.clientX : q.clientX - sx))), h = Math.max(100, Math.min(innerHeight * 0.75, h0 + q.clientY - sy)); e.style.width = w + 'px'; if (n.g) e.style.left = Math.max(8, right0 - w) + 'px'; Object.assign(body.style, {height:h + 'px', maxHeight:'none'}); n.w = Math.round(w); n.bh = Math.round(h) };
+      const up = () => { rz.removeEventListener('pointermove', mv); rz.removeEventListener('pointerup', up); rz.removeEventListener('pointercancel', up); mgSpot.delete(n); if (n.g) { genDrag = false; const r = e.getBoundingClientRect(); mine.set('askAt', JSON.stringify({x:r.left / innerWidth, y:r.top / innerHeight})); mine.set('askW', String(Math.round(r.width))) } if (notes.includes(n)) saveBook(); schedule() };
       rz.addEventListener('pointermove', mv); rz.addEventListener('pointerup', up); rz.addEventListener('pointercancel', up);
     });
     for (const t of turnsOf(n)) body.appendChild(turnEl(t));
     e.addEventListener('click', ev => {
       const b = ev.target.closest('[data-n]'); if (!b) return; const a = b.dataset.n === 'gdel' ? 'del' : b.dataset.n;
-      if (a === 'close') { deactivate(); return }   // an Ask card: closed, kept in Conversations
+      if (a === 'close') { const back = e.contains(document.activeElement); deactivate(); if (back) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); return }   // an Ask card: closed, kept in Conversations
       if (a === 'draw') { const sd = e.querySelector('.kb-ndraw'); sd.hidden = !sd.hidden; if (!sd.hidden) sd.querySelector('canvas').dispatchEvent(new Event('kbsize')); return }
       if (a === 'max') { if (e.classList.contains('kb-max')) leaveMax(); else { fromOvw = null; maxNote(n, true) } return }
       if (a === 'ovw') { fromOvw = null; exitMax(); openOvw(true); return }
@@ -3206,7 +3240,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         if (n.g && !notes.includes(n)) { deactivate(); return }   // a general conversation never asked: just closed
         const snap = {edits:[], marks:[], notes:[n], at:new Map([[n.id, notes.indexOf(n)]])}; drop(notes, n); e.remove(); noteEl.delete(n); if (activeNote === n) activeNote = null;
         for (const id of n.marks || []) { const m = marks.find(y => y.id === id); if (m && (isSel(m) || m.dash) && !notes.some(o => (o.marks || []).includes(id))) { removeMark(m); snap.marks.push(m) } }   // the reader's own ink stays
-        saveBook(); placeMarks(); syncBar(); offerUndo('Note deleted', snap);
+        saveBook(); placeMarks(); syncBar(); offerUndo(n.g ? 'Conversation deleted' : 'Note deleted', snap);
       }
       else if (a === 'retry') {   // the failed turn goes and its question is asked again in this note
         const td = b.closest('.kb-turn'), ts = turnsOf(n), t = ts[[...td.parentElement.children].filter(c => c.classList.contains('kb-turn')).indexOf(td)];
@@ -3222,8 +3256,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     });
     const f = e.querySelector('form'), inp = f.querySelector('input'); const strip = drawStrip(n, e, inp); e.insertBefore(strip, f);
     if (n === activeNote) e.classList.add('kb-active');   // rebuilt while it is being read (after a sync)
-    if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this ' + (HOME ? 'knowledge base' : 'page')); if (!turnsOf(n).length) inp.placeholder = HOME ? 'Ask Claude about anything in the knowledge base…' : 'Ask Claude about this page…'
-      const gb = e.querySelector('[data-n=goto]'); gb.textContent = HOME ? 'Beside the map' : 'Beside the page'; gb.title = 'Close full screen and keep this conversation open beside ' + (HOME ? 'the landing page' : 'the page');
+    if (n.g && genRO) genRO.observe(e);
+    if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this ' + (HOME ? 'knowledge base' : 'page')); if (!turnsOf(n).length) inp.placeholder = HOME ? 'Ask about the knowledge base…' : 'Ask Claude about this page…'; inp.setAttribute('aria-label', HOME ? 'Ask Claude about the knowledge base' : 'Ask Claude about this page'); e.classList.add('kb-fresh')
+      const gb = e.querySelector('[data-n=goto]'); gb.textContent = 'Beside the page'; gb.title = 'Close full screen and keep this conversation open beside the page';
+      e.querySelector('.kb-nh').insertAdjacentHTML('afterbegin', '<span class="kb-ggrip" title="Drag to move" aria-hidden="true">&#x2807;&#x2807;</span>');
       const x = e.querySelector('[data-n=del]'); x.dataset.n = 'close'; x.title = 'Close (it stays in Conversations)'; x.setAttribute('aria-label', 'Close');
       gb.insertAdjacentHTML('afterend', '<button type="button" data-n="gdel" class="kb-maxonly" title="Delete this conversation">Delete</button>') }
     const ask = (q, where) => { inp.value = ''; if (where === undefined) where = whereOf(q); if (where === null) { askWhere(e.querySelector('.kb-nb'), q, v => followUp(n, q, v)); const nb = e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight; return } followUp(n, q, where || undefined) };
@@ -3235,9 +3271,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     h.addEventListener('pointerdown', ev => {
       if (ev.button > 0 || ev.target.closest('button') || e.classList.contains('kb-max')) return; ev.preventDefault(); h.setPointerCapture(ev.pointerId); front(e);
       if (n.g) {   // an Ask card moves on the screen (it stays put while the page scrolls); its place is kept on this device
-        const r0 = e.getBoundingClientRect(), sx = ev.clientX, sy = ev.clientY; let moved = false;
+        const r0 = e.getBoundingClientRect(), sx = ev.clientX, sy = ev.clientY; let moved = false; genDrag = true;
         const mv = q => { if (!moved && Math.hypot(q.clientX - sx, q.clientY - sy) < 4) return; moved = true; const p = genAt(e, r0.left + q.clientX - sx, r0.top + q.clientY - sy); e.style.left = p.x + 'px'; e.style.top = p.y + 'px' };
-        const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); if (moved) { const r = e.getBoundingClientRect(); mine.set('askAt', JSON.stringify({x:r.left / innerWidth, y:r.top / innerHeight})) } };
+        const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); genDrag = false; if (moved) { const r = e.getBoundingClientRect(); mine.set('askAt', JSON.stringify({x:r.left / innerWidth, y:r.top / innerHeight})) } };
         h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up); return;
       }
       const f0 = frameOf(n), sx0 = n.x, sy0 = n.y; let moved = false; if (f0) { const r0 = e.getBoundingClientRect(); n.x = Math.round((r0.left - f0.x) / f0.s); n.y = Math.round((r0.top - f0.y) / f0.s) }   // from where it is shown (the margin), not where it was saved
@@ -3304,13 +3340,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     fromOvw = null; exitMax(); if (!P.hidden) close();
     const items = notes.filter(n => turnsOf(n).length);
     const tabOf = n => { const a = anchorEl(n.a), t = (n.tab && document.getElementById(n.tab)) || (a && a.closest && a.closest('.tab[id]')); return t ? tabName(t) : '' };
-    ovw.innerHTML = '<div class="kb-ovh"><b>Conversations on this page</b><span>' + items.length + '</span><span class="kb-sp"></span>' + (o => o.e || o.l ? '<button type="button" data-o="chg" title="' + (o.e ? 'Every change Claude made to this page: keep, remove, or see the page as written' : 'Notes and marks whose words are no longer on the page') + '">' + (o.e ? 'Page changes (' + o.e + ')' : 'Lost from the page (' + o.l + ')') + '</button>' : '')({e:edits.length, l:lostGroups().length}) + '<button type="button" data-o="close" aria-label="Close">&#x2715;</button></div>'
+    ovw.innerHTML = '<div class="kb-ovh"><b>' + (HOME ? 'Conversations about the knowledge base' : 'Conversations on this page') + '</b><span>' + items.length + '</span><span class="kb-sp"></span>' + (o => o.e || o.l ? '<button type="button" data-o="chg" title="' + (o.e ? 'Every change Claude made to this page: keep, remove, or see the page as written' : 'Notes and marks whose words are no longer on the page') + '">' + (o.e ? 'Page changes (' + o.e + ')' : 'Lost from the page (' + o.l + ')') + '</button>' : '')({e:edits.length, l:lostGroups().length}) + '<button type="button" data-o="close" aria-label="Close">&#x2715;</button></div>'
       + (items.length ? '<div class="kb-ovg">' + items.map(n => {
         const ts = turnsOf(n), q = (ts.find(t => t.q) || {}).q || (n.hl ? 'Highlight' : 'Drawing'), a = plain((ts.find(t => t.a) || {}).a || '').slice(0, 150), k = n.g ? '\u2733' : notes.filter(x => !x.g).indexOf(n) + 1, tb = tabOf(n);
         const pic = n.shot ? '<img src="' + esc(n.shot) + '" alt="">' : '<div class="kb-ovq">' + esc((n.hl || nearText((n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean)) || '').slice(0, 220) || (n.g ? 'A question about the page' : 'A drawing on the page')) + '</div>';
         const where = n.g ? (HOME ? 'About the knowledge base' : 'About the page' + (tb ? ', ' + tb : '')) : tb;
         return '<button type="button" class="kb-ovc' + (n.resolved ? ' kb-ovr' : '') + '" data-id="' + esc(n.id) + '"><span class="kb-ovp">' + pic + '<i>' + (n.resolved ? '\u2713' : k) + '</i></span><span class="kb-ovt">' + (where ? '<small>' + esc(where) + '</small>' : '') + '<b>' + esc(q) + '</b>' + (a ? '<span>' + esc(a) + (a.length >= 150 ? '…' : '') + '</span>' : '') + '<small>' + ts.length + (ts.length > 1 ? ' exchanges' : ' exchange') + '</small></span></button>' }).join('') + '</div>'
-      : '<p class="kb-ove">No conversations on this page yet. Ask Claude from the toolbar, highlight a passage and ask, or draw on the page and tap Send; each conversation shows up here.</p>');
+      : '<p class="kb-ove">' + (HOME ? 'No conversations here yet. Ask Claude about the knowledge base from the toolbar; each conversation shows up here.' : 'No conversations on this page yet. Ask Claude from the toolbar, highlight a passage and ask, or draw on the page and tap Send; each conversation shows up here.') + '</p>');
     ovw.hidden = false; ovw.scrollTop = keep ? ovwTop : 0; bar.querySelector('[data-b=over]').setAttribute('aria-pressed', 'true');
   }
   ovw.addEventListener('click', e => {
@@ -3334,26 +3370,37 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const m = [...noteEl].find(([, x]) => x.classList.contains('kb-max')); if (m) { ev.stopPropagation(); leaveMax() } } }, true);
   function deactivate(){ if (!activeNote) return; const was = activeNote; exitMax(); { const x = noteEl.get(activeNote); if (x && (activeNote.fold || activeNote.resolved)) x.classList.add('kb-folded') } activeNote = null; for (const e of noteEl.values()) e.classList.remove('kb-active'); if (was.g && !notes.includes(was)) dropDraft(was); schedule(); syncBar() }
-  const dropDraft = n => { const e = noteEl.get(n); if (e) e.remove(); noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
+  let draftText = '';   // typed in an Ask card closed before it was sent: put back in the next one
+  const dropDraft = n => { const e = noteEl.get(n), i = e && e.querySelector('.kb-nf input'); if (i && i.value.trim()) draftText = i.value; if (e) { if (e.contains(document.activeElement)) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); e.remove() } noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
   // Ask on the toolbar: a new conversation about the page, not tied to a passage (what is on the screen goes with each question). Its
   // card sits under the toolbar and stays while the page scrolls; asking again starts another; Conversations lists them all
   function askGeneral(){
     exitMax(); closeOvw(); if (!P.hidden) close();
     let n = activeNote && activeNote.g && !turnsOf(activeNote).length && noteEl.get(activeNote) ? activeNote : null;   // the new one, still waiting for its first question
-    if (!n) { n = {id:newId(), g:1, turns:[], marks:[], w:Math.min(380, innerWidth - 16), t:Date.now()}; const tb = openTab(); if (tb) n.tab = tb; noteNode(n); activate(n); placeNote(n) }
-    const inp = noteEl.get(n).querySelector('.kb-nf input'); inp.focus({preventScroll:true});
+    if (!n) { n = {id:newId(), g:1, turns:[], marks:[], w:Math.min(+mine.get('askW') || 380, innerWidth - 16), t:Date.now()}; const tb = openTab(); if (tb) n.tab = tb; noteNode(n); activate(n); placeNote(n) }
+    const inp = noteEl.get(n).querySelector('.kb-nf input'); if (draftText && !inp.value) { inp.value = draftText; draftText = '' } inp.focus({preventScroll:true});
   }
   // its place: where it was last dragged to on this device, else under the toolbar on the right (beside a toolbar docked on the right);
   // always on the screen and clear of a toolbar docked at the top
   function genAt(e, x, y){
-    const r = bar.getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight, w = e.offsetWidth || 340, top = !bar.hidden && r.height && dock.e === 'top' ? r.bottom + 6 : 8;
-    return {x:Math.round(Math.max(8, Math.min(x, W - w - 8))), y:Math.round(Math.max(top, Math.min(y, H - 64)))};
+    const r = bar.getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight, w = e.offsetWidth || 340, h = Math.min(e.offsetHeight || 160, H - 16), top = !bar.hidden && r.height && dock.e === 'top' ? r.bottom + 6 : 8;
+    return {x:Math.round(Math.max(8, Math.min(x, W - w - 8))), y:Math.round(Math.max(top, Math.min(y, H - h - 8)))};
   }
+  function fitGen(e){
+    const nb = e.querySelector('.kb-nb'); if (!nb || e.classList.contains('kb-max') || !e.classList.contains('kb-active')) return;
+    let r = e.getBoundingClientRect(); const H = innerHeight;
+    if (r.bottom > H - 8) { e.style.top = genAt(e, r.left, H - 8 - r.height).y + 'px'; r = e.getBoundingClientRect() }
+    if (r.bottom > H - 8) nb.style.maxHeight = Math.max(90, nb.clientHeight - (r.bottom - (H - 8))) + 'px';
+  }
+  const genRO = 'ResizeObserver' in window ? new ResizeObserver(es => { if (!genDrag) for (const x of es) fitGen(x.target) }) : null;
+  addEventListener('resize', () => { const n = activeNote; if (n && n.g && noteEl.get(n)) { const nb = noteEl.get(n).querySelector('.kb-nb'); if (nb && !n.bh) nb.style.maxHeight = ''; placeNote(n) } });
+  let genDrag = false;   // the Ask card is being dragged or resized: left where the pointer puts it
   function placeGen(e, n){
+    if (genDrag) return;
     const r = bar.getBoundingClientRect(), W = document.documentElement.clientWidth, w = e.offsetWidth || Math.min(n.w || 340, W - 16), up = !bar.hidden && r.height;
     let at = null; try { at = JSON.parse(mine.get('askAt') || 'null') } catch(err) {}
     const p = at && isFinite(at.x) && isFinite(at.y) ? genAt(e, at.x * innerWidth, at.y * innerHeight) : genAt(e, (up && dock.e === 'right' ? r.left - 8 : W - 12) - w, up && dock.e === 'top' ? r.bottom + 8 : 12);
-    e.style.left = p.x + 'px'; e.style.top = p.y + 'px';
+    e.style.left = p.x + 'px'; e.style.top = p.y + 'px'; fitGen(e);
   }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
   document.addEventListener('click', ev => { const t = ev.target; if (!activeNote || activeNote.g || !(t instanceof Element) || t.closest('.kb-note') || t.closest(OURS) || t.closest('input,button,select,textarea,a,label,summary,[role=tab],[role=button],figure,svg,canvas,iframe,' + FIGCOL + ',.lab') || (PG.cur && PG.cur.note && PG.cur.note.n === activeNote)) return; deactivate() }, true);   // the page's own controls and figures leave it open
@@ -3445,7 +3492,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const n = job.follow || job.reuse, e = noteEl.get(n), ts = turnsOf(n), last = ts[ts.length - 1];
         if (n.g && !notes.includes(n)) notes.push(n);   // a general conversation is kept from its first question
         let t, d; if (job.replace && last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
-        if (!d) { t = {q:job.typed, a:'', t:Date.now()}; if (job.ink) t.ink = job.ink; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d); const pi = e.querySelector('.kb-nf input'); if (pi) pi.placeholder = 'Ask a follow-up…' }
+        if (!d) { t = {q:job.typed, a:'', t:Date.now()}; if (job.ink) t.ink = job.ink; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d); const pi = e.querySelector('.kb-nf input'); if (pi) { pi.placeholder = 'Ask a follow-up…'; pi.setAttribute('aria-label', 'Ask a follow-up') } e.classList.remove('kb-fresh') }
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
       }
       const b = (job.marks && job.marks.length && viewBox(job.marks)) || job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);   // where its marks are now, not when it was asked
@@ -3489,7 +3536,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     } finally { toast(msg, 9000) } }});
 
   // a reply as plain text, for short previews
-  const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/⟦[^⟧]*⟧/g, '').replace(/\s+/g, ' ').trim();
+  const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/⟦[^⟧]*⟧/g, '').replace(/\[\[([^\]]*)\]\]/g, '$1').replace(/\s+/g, ' ').trim();
   // ---- the Page changes list (opened from the Conversations overview): every change Claude made to the page, then, only if there are
   // any, the marks and notes that no longer find their place after the page changed, each with Delete ----
   function lostGroups(){   // notes and marks whose words are no longer on the page
@@ -3559,14 +3606,14 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (act === 'close') close();
     else if (act === 'full') setFull(!P.classList.contains('kb-full'));
     else if (act === 'riddle') { sub = sub === 'riddle' ? null : 'riddle'; show(); if (sub === 'riddle') riddleOpen(); else riddleClose() }
-    else if (act === 'set') { sub = sub === 'set' ? null : 'set'; show() }
+    else if (act === 'set') { sub = sub === 'set' ? null : 'set'; if (sub !== 'set') backToPage = false; show() }
     else if (act === 'back') { if (backToPage) close(); else { sub = null; show() } }
     else if (act === 'save') { const v = setv.querySelector('#kbBuddyKey').value.trim();
       if (v) { if (!store.get('key')) { pendPage.length = 0; pend.length = 0; pendTyped.length = 0 } store.set('key', v); keyBad = false; keepData(); checkKey() }
       if (v && backToPage) { const r = reopen; close(); toast(''); if (r && notes.includes(r)) { if (!noteEl.get(r)) noteNode(r); activate(r); placeNote(r) } }   // the stale "add your key" line goes; the conversation that asked comes back
       else { sub = null; show() } reopen = null }
     else if (act === 'forget') { store.set('key', null); keyBad = false; renderSet(); syncBar() }
-    else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); if (v && backToPage) close(); else renderSet(); syncNow() }
+    else if (act === 'ghsave') { const v = setv.querySelector('#kbBuddyGh').value.trim(), rp = setv.querySelector('#kbBuddyRepo').value.trim(); if (v) mine.set('ghToken', v); mine.set('ghRepo', rp && rp !== 'khalit7/kb-notes' ? rp : null); if (v && backToPage) { const r = reopen; close(); if (r && notes.includes(r)) { if (!noteEl.get(r)) noteNode(r); activate(r); placeNote(r) } } else renderSet(); syncNow() }
     else if (act === 'ghforget') { mine.set('ghToken', null); setSync('off'); renderSet() }
     else if (act === 'ghsync') syncNow();
     else if (act === 'unhl') { hl = null; showHl() }
@@ -3574,5 +3621,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (act === 'end') { grow(); const p = pgs[pgs.length - 1]; scr.scrollTo({top:p.outer.offsetTop - 10, behavior:'smooth'}) }
   });
   syncBar();
+  // last, once everything above exists: back to where they were reading (Continue reading), else this page becomes where they are
+  if (!HOME) { if (location.hash === '#kb-resume') resume(); else setTimeout(() => { if (!document.hidden) noteLast(false) }, 600) }
 }
 })();

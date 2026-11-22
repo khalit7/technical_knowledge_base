@@ -38,6 +38,9 @@ for _p in pages:
         by_id.setdefault(_a.replace("-", ""), _p)
 BUDDY = (ROOT / "html_utils/kb_buddy.js").read_text()
 BUDDY_SRC = BASE + "kb_buddy.js?v=" + hashlib.sha1(BUDDY.encode()).hexdigest()[:10]   # a new stamp whenever the buddy changes, so browsers fetch it again
+# Continue reading opens a page with #kb-resume: the page stays hidden until the AI buddy has put it back where the reader was (at most 2.5 s)
+RESUME = ('<style>html.kb-resuming body{visibility:hidden}</style><script>if(location.hash==="#kb-resume"){document.documentElement.classList.add("kb-resuming");'
+          'setTimeout(function(){document.documentElement.classList.remove("kb-resuming")},2500)}</script>')
 # the loader every page carries (written by apply_buddy.py), for the home page, which this script writes
 HOME_BUDDY = (f'<script id="kb-buddy" data-src="{BUDDY_SRC}">\n' + (ROOT / "html_utils/kb_buddy_loader.js").read_text().rstrip("\n")
               + '\n</script><!--/kb-buddy-->')
@@ -189,7 +192,8 @@ h1{{font-size:34px;font-weight:650;letter-spacing:-.022em;line-height:1.1;margin
 .tag{{font-size:16.5px;color:var(--mute);margin:10px 0 0;max-width:68ch}}
 .stats{{display:flex;flex-wrap:wrap;gap:6px 8px;margin:16px 0 22px;padding:0;list-style:none;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}}
 .stats li{{padding:3px 11px;border:1px solid var(--cardln);border-radius:999px;background:color-mix(in oklab,var(--card) 70%,transparent)}}.stats b{{color:var(--ink);font-weight:600}}
-#search{{position:relative;max-width:760px}}#kb-last{{margin:14px 0 0;font-size:14px;color:var(--mute)}}
+#search{{position:relative;max-width:760px}}.kb-lastrow{{min-height:46px;margin:12px 0 0}}
+#kb-last{{display:inline-flex;align-items:center;gap:6px;min-height:40px;margin:0;padding:0 16px;border:1px solid var(--cardln);border-radius:999px;background:var(--card);font-size:14px;color:var(--mute)}}#kb-last[hidden]{{display:none}}#kb-last a{{font-weight:600}}
 #search .pagefind-ui__search-input{{font-weight:400;box-shadow:0 1px 2px rgba(31,35,40,.05),0 4px 14px rgba(31,35,40,.06);transition:border-color 150ms cubic-bezier(.2,0,0,1),box-shadow 150ms cubic-bezier(.2,0,0,1)}}
 #search .pagefind-ui__search-input::placeholder{{color:var(--mute);opacity:1}}
 #search .pagefind-ui__search-input:focus{{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in oklab,var(--acc) 22%,transparent)}}
@@ -215,7 +219,7 @@ details.all[open]>summary::before{{transform:rotate(45deg)}}details.all>summary 
 <body><div class="glow"><header class="hero w"><h1>Technical knowledge base</h1>
 <p class="tag">Deep, visual explanations of how modern AI systems work: what's new each week, and a map of the order to learn it all in.</p>
 <ul class="stats" aria-label="Size of the knowledge base"><li><b>{npages}</b> pages</li><li><b>{ntopics}</b> topics</li><li><b>{len(SECTIONS)}</b> sections</li><li><b>{hours}</b> h of core reading</li></ul>
-<div id="search"><span class="kbd" aria-hidden="true">/</span></div><p id="kb-last" hidden data-pagefind-ignore>Continue reading: <a></a></p></header></div><div class="w">{body}</div>
+<div id="search"><span class="kbd" aria-hidden="true">/</span></div><div class="kb-lastrow"><p id="kb-last" hidden data-pagefind-ignore>Continue reading: <a></a></p></div></header></div><div class="w">{body}</div>
 <script>(function(){{function f(){{const c=document.getElementById('kb-last');try{{const l=JSON.parse(localStorage.getItem('kb.last'))||{{}},a=c.querySelector('a');c.hidden=!(typeof l.p==='string'&&l.p.startsWith({json.dumps(BASE)})&&l.p.length>{len(BASE)}&&new URL(l.p,location.href).origin===location.origin);if(!c.hidden){{a.href=l.p+'#kb-resume';a.textContent=l.t||'the last page you read'}}}}catch(e){{c.hidden=true}}}}f();window.kbLastRender=f;addEventListener('pageshow',e=>{{if(e.persisted)f()}})}})()
 window.addEventListener('DOMContentLoaded',()=>{{try{{new PagefindUI({{element:'#search',showSubResults:true,showImages:false,baseUrl:'{BASE}',bundlePath:'{BASE}pagefind/',translations:{{placeholder:'Search all {npages} pages'}}}})}}catch(e){{}}}});
 document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable]'))return;const i=document.querySelector('#search input');if(i){{e.preventDefault();i.focus()}}}})</script>
@@ -267,7 +271,7 @@ def main():
         f = src / "index.html"
         if f.exists():
             s = relink(f.read_text())
-            s = s.replace("</head>", BAR_CSS + APP + f'<meta name="kb-title" content="{html.escape(title(p))}">' + "</head>", 1)
+            s = s.replace("</head>", BAR_CSS + APP + f'<meta name="kb-title" content="{html.escape(title(p))}">' + RESUME + "</head>", 1)
             s = s.replace('<script id="kb-buddy">', f'<script id="kb-buddy" data-src="{BUDDY_SRC}">', 1)
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)

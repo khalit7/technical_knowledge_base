@@ -308,6 +308,11 @@ async function reading({ context, claude }) {
     await page.click('#kbBar [data-b=min]'); assert(await page.locator('#kbBar [data-b=send]').isVisible(), 'Send does not show on the minimised toolbar'); await page.click('#kbBar [data-b=min]');
   });
   await check('5 Undo removes it', async () => { await page.click('#kbBar [data-b=undo]'); same(await strokes(page), before, 'the number of strokes on the page') });
+  await check('5 a mark made just before leaving the page is kept', async () => {
+    const n0 = await strokes(page); await stroke(page, para[1]); await page.reload(); await ready(page);
+    await shows(page, 'the mark made just before leaving is gone', n => document.querySelectorAll('#kbMarks > path').length >= n + 1, n0);
+    await page.click('#kbBar [data-b=undo]');
+  });
   await check('6 notebook: ink sent to Claude gets its reply on the paper', async () => {
     const reply = 'A line, drawn with care.';
     await page.click('#kbBar [data-b=notebook]'); await tool(page, 'pen'); await drag(page, page.locator('#kbBuddy .kd-pg canvas').first(), { x: 80, y: 90, dy: 16 });
@@ -384,6 +389,15 @@ async function asking({ context, claude }) {
     same((await page.$$eval('#kbOvw .kb-ovc small', es => es.map(e => e.textContent))).filter(t => t.startsWith('About the page')).length, 2, 'the cards that say they are about the page');
     await page.click('#kbOvw [data-o=close]');
   });
+  await check('15 a card dragged to the bottom stays on the screen as its answer grows', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    const b = await page.locator(card + ' .kb-nh b').boundingBox(); await page.mouse.move(b.x + 5, b.y + 5); await page.mouse.down(); await page.mouse.move(b.x + 5, 880, { steps: 8 }); await page.mouse.up();
+    claude.say('A long answer. '.repeat(26)); await page.fill(box, 'Tell me at length?'); await page.press(box, 'Enter');
+    await shows(page, 'the long answer was not written out', () => /^(A long answer\. ){25}A long answer\.$/.test(((document.querySelector('.kb-note.kb-gen.kb-active .kb-na') || {}).textContent || '').trim()), undefined, 20000);
+    await sleep(300); const r = await page.$eval(card, e => { const q = e.getBoundingClientRect(); return { top: Math.round(q.top), bottom: Math.round(q.bottom), H: innerHeight } });
+    assert(r.bottom <= r.H && r.top >= 0, 'the card runs off the screen: ' + JSON.stringify(r));
+    await page.click(card + ' [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]'); await page.evaluate(() => localStorage.removeItem('kbBuddy.askAt'));
+  });
   await check('15 a drawing can be the first question of a new conversation', async () => {
     const A4 = 'A curve that bends once.'; await page.click('#kbBar [data-b=claude]'); await page.click(card + ' [data-n=draw]');
     await drag(page, page.locator(card + ' .kb-ndraw canvas'), { x: 30, y: 20, dx: 120, dy: 10 });
@@ -416,7 +430,7 @@ async function landing({ context, claude }) {
   });
   await check('16 Ask there is about the whole knowledge base: Claude is told to search it and link its pages', async () => {
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
-    same(await page.getAttribute(box, 'placeholder'), 'Ask Claude about anything in the knowledge base…', 'the placeholder');
+    same(await page.getAttribute(box, 'placeholder'), 'Ask about the knowledge base…', 'the placeholder');
     claude.say(A); await page.fill(box, Q); await page.press(box, 'Enter'); await shows(page, 'the answer did not show', () => /after the transformer page/.test((document.querySelector('.kb-note.kb-gen.kb-active .kb-na') || {}).textContent || ''));
     const { body } = claude.requests.at(-1), last = texts(body.messages.at(-1));
     assert(last.includes(Q) && last.includes('knowledge base as a whole') && last.includes('search_kb'), 'the request does not ask about the knowledge base');
@@ -426,13 +440,29 @@ async function landing({ context, claude }) {
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q);
     assert((await page.textContent('#kbOvw .kb-ovc small')).startsWith('About the knowledge base'), 'the card does not say it is about the knowledge base');
   });
+  await check('16 links to pages in a saved answer work after a reload (they wait for the index, then become links)', async () => {
+    await until('the landing conversation to be saved in the browser', async () => (((await store(page))[1].find(r => r.page === '/technical_knowledge_base/') || {}).recs ? Object.values((await store(page))[1].find(r => r.page === '/technical_knowledge_base/').recs).some(n => n.k === 'note' && n.g && !n.del && n.turns.every(x => x.a)) : false));
+    await page.reload(); await page.waitForSelector('#kbBar'); await ready(page);
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').first().click();
+    await shows(page, 'the page link in the saved answer never became a link', () => { const a = document.querySelector('.kb-note.kb-max .kb-na a.kb-kbl'); return a && /attention_variants\/$/.test(a.getAttribute('href')) }, undefined, 9000);
+    await page.keyboard.press('Escape');
+  });
+  await check('16 a pen chosen on a page is not chosen on the landing page, where there is nothing to draw with', async () => {
+    await page.evaluate(() => localStorage.setItem('kbBuddy.tool', 'pen')); await page.reload(); await page.waitForSelector('#kbBar');
+    assert(!await page.evaluate(() => document.documentElement.classList.contains('kb-pen')), 'the pen is on on the landing page');
+  });
+  await check('17 a page opened from Continue reading while the saved place names another page still has a working buddy', async () => {
+    const p = await context.newPage(); await p.goto(SITE + '/technical_knowledge_base/'); await p.evaluate(() => localStorage.setItem('kb.last', JSON.stringify({ p: '/technical_knowledge_base/elsewhere/', t: 'Elsewhere' })));
+    await p.goto(SITE + PAGE_ID + '#kb-resume'); await p.waitForSelector('#kbBar'); await ready(p);
+    await p.click('#kbBar [data-b=claude]'); await p.waitForSelector('.kb-note.kb-gen.kb-active'); await p.keyboard.press('Escape'); await p.close();
+  });
   await check('17 Continue reading on the landing page goes back to the same tab and the same place on the page', async () => {
     const p = await context.newPage(); await p.goto(SITE + PAGE_ID); await p.waitForSelector('#kbBar'); await ready(p);
     const tabs = p.locator('[role=tab]'); if (await tabs.count() > 1) await tabs.nth(1).click();
-    await p.mouse.wheel(0, 700); await sleep(1400);
+    await p.evaluate(() => window.scrollBy(0, 1800)); await sleep(2600);   // a place counts once they have stayed on it for 2 s
     const where = () => p.evaluate(() => { const t = document.querySelector('[role=tab][aria-selected=true]'), y = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-room')) || 0;
       const e = document.elementFromPoint(document.querySelector('.w').getBoundingClientRect().left + 24, y + 70); return { tab: t && t.dataset.t, block: e && e.textContent.trim().slice(0, 60) } });
-    const before = await where(); await p.close();
+    const before = await where(); assert(await p.evaluate(() => scrollY) > 1000, 'the page did not scroll'); await p.close();
     await page.reload(); await page.waitForSelector('#kb-last:not([hidden])');
     same(await page.getAttribute('#kb-last a', 'href'), PAGE_ID + '#kb-resume', 'the link'); same((await page.textContent('#kb-last a')).trim(), 'Activation functions', 'the title shown');
     await page.click('#kb-last a'); await page.waitForURL(u => !String(u).includes('#kb-resume')); await sleep(1600);
