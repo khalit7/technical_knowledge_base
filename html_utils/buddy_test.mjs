@@ -14,13 +14,17 @@
 //                3  a passage selected with the mouse and asked about: the request (model, headers, the page as a cached document with
 //                   citations on) and the streamed answer in a note; a follow-up in the note sends the earlier turn with it
 //                4  after a reload the note still holds both questions and both answers
-//                5  a pen stroke on the page makes a mark; Undo removes it
+//                5  a pen stroke on the page makes a mark, which waits for Send (nothing goes to Claude by itself); Undo removes it
 //                6  the notebook: ink sent with Send gets Claude's reply on the paper
 //                7  Tom Riddle's diary: a typed line gets its reply, written out in full
 //                8  Conversations lists the note; a paragraph hidden from its Ask box gives Conversations its Page changes button,
 //                   and the Page changes list opens from it (with no change on the page there is no way in)
 //                9  Settings has the Claude key field, the GitHub token field and the line about how long this browser keeps them
 //                   (in WebKit, which reads as Safari, the Safari warning, unless the engine grants persistent storage)
+//   asking       15 Ask on the toolbar: a card just under it with the cursor in its box, nothing kept before a question; the question
+//                   asks about the page (no passage) and its answer streams into the card, which stays put while the page scrolls; a
+//                   follow-up sends the earlier turn; Ask again starts another; Conversations lists both; after a reload no card is
+//                   open and one opens in full from Conversations
 //   syncing      10 with a token: the note and a mark are saved to pages/<page path>.json in the repo; a note added and a mark
 //                   deleted there by another device show after a reload; the next save, turned away once as if the file had changed
 //                   meanwhile, is retried and leaves the deletion a deletion
@@ -223,7 +227,7 @@ async function firstVisit({ context, claude, repo }) {
     await tool(page, 'hand'); await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     same(await focused(), 'kbBuddyKey', 'the field with the cursor');
     await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
-    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Claude');
+    assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
     await sleep(4000); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
   });
   await check('1 a key the API refuses turns the Claude button into Fix key, which opens the key field', async () => {
@@ -231,7 +235,7 @@ async function firstVisit({ context, claude, repo }) {
     await reads(page, '#kbBar [data-b=claude] span', 'Fix key'); same(await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), 'bad', 'the Claude button\'s state');
     claude.refuse = false; await page.click('#kbBar [data-b=claude]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     same(await focused(), 'kbBuddyKey', 'the field with the cursor'); await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
-    await reads(page, '#kbBar [data-b=claude] span', 'Claude');
+    await reads(page, '#kbBar [data-b=claude] span', 'Ask');
   });
   await check('1 Add key on the sync button opens the token field; a refused token says Fix key; a good one syncs', async () => {
     await page.click('#kbBar [data-b=sync]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings'); same(await focused(), 'kbBuddyGh', 'the field with the cursor');
@@ -278,6 +282,10 @@ async function reading({ context, claude }) {
     before = await strokes(page); await stroke(page, para[1]);
     same(await strokes(page), before + 1, 'the number of strokes on the page'); await saved(page, 'the mark', R => live(R, 'mark').some(m => !m.sel));
   });
+  await check('5 nothing goes to Claude by itself: the stroke waits, and Send shows', async () => {
+    const n = claude.requests.length; await sleep(4000); same(claude.requests.length, n, 'the requests to Claude 4 s after the stroke');
+    assert(await page.locator('#kbBar [data-b=send]').isVisible(), 'Send does not show');
+  });
   await check('5 Undo removes it', async () => { await page.click('#kbBar [data-b=undo]'); same(await strokes(page), before, 'the number of strokes on the page') });
   await check('6 notebook: ink sent to Claude gets its reply on the paper', async () => {
     const reply = 'A line, drawn with care.';
@@ -307,10 +315,52 @@ async function reading({ context, claude }) {
   await check('9 Settings: the key field, the token field and the line on how long this browser keeps them', async () => {
     await page.click('#kbBar [data-b=set]'); await reads(page, '#kbBuddy .kb-h > b', 'Settings');
     await page.waitForSelector('#kbBuddyKey'); await page.waitForSelector('#kbBuddyGh');
+    same(await page.locator('#kbBuddyWait, #kbBuddyQ').count(), 0, 'the settings for answering by itself (a wait, a question mark)');
     const kept = await page.evaluate(() => navigator.storage && navigator.storage.persisted ? navigator.storage.persisted() : false);
     const want = kept ? ['are kept on this device'] : context.browser().browserType().name() === 'webkit' ? ['Safari clears a site\'s saved data', 'It starts empty'] : [];
     if (want.length) await shows(page, `#kbKeep does not say "${want.join('" and "')}"`, want => { const e = document.getElementById('kbKeep'); return e && !e.hidden && want.every(w => e.textContent.includes(w)) }, want);
     else same(await page.$eval('#kbKeep', e => e.hidden ? '' : e.textContent), '', 'the line in #kbKeep');
+  });
+}
+
+async function asking({ context, claude }) {
+  const page = await openPage(context), card = '.kb-note.kb-gen.kb-active', box = card + ' .kb-nf input';
+  const Q1 = 'What is this page about?', A1 = 'How a slope decides learning.', Q2 = 'And the gist in one line?', A2 = 'A flat slope stops learning.', Q3 = 'Which one do LLMs use?', A3 = 'Mostly SwiGLU.';
+  const askIn = async (q, a) => { claude.say(a); await page.fill(box, q); await page.press(box, 'Enter') };
+  await check('15 Ask on the toolbar: a card just under it on the right, the cursor in its box; nothing is kept before a question', async () => {
+    await ready(page); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor');
+    const at = await page.evaluate(() => { const c = document.querySelector('.kb-note.kb-gen.kb-active').getBoundingClientRect(), b = document.getElementById('kbBar').getBoundingClientRect(); return {gap:c.top - b.bottom, right:innerWidth - c.right} });
+    assert(at.gap >= 0 && at.gap < 30 && at.right < 40, 'the card is not just under the toolbar on the right: ' + JSON.stringify(at));
+    same(await page.getAttribute('#kbBar [data-b=claude]', 'aria-pressed'), 'true', 'Ask shown pressed');
+    await sleep(600); same(live(await savedRecs(page), 'note').length, 0, 'the notes kept');
+  });
+  await check('15 a question: Claude is asked about the page (no passage), the answer streams into the card, which stays put while the page scrolls', async () => {
+    await askIn(Q1, A1); await reads(page, card + ' .kb-nq', Q1); await reads(page, card + ' .kb-na', A1);
+    const last = texts(claude.requests.at(-1).body.messages.at(-1));
+    assert(last.includes(Q1) && last.includes('not about one passage'), 'the request does not ask about the page');
+    const t0 = await page.$eval(card, e => Math.round(e.getBoundingClientRect().top)); await page.mouse.wheel(0, 900); await sleep(400);
+    same(await page.$eval(card, e => Math.round(e.getBoundingClientRect().top)), t0, 'the card\'s top after the page scrolled');
+    await saved(page, 'the conversation', R => live(R, 'note').some(n => n.g && n.turns.length === 1 && n.turns[0].a === A1));
+  });
+  await check('15 a follow-up in the card sends the earlier turn', async () => {
+    await askIn(Q2, A2); await reads(page, card + ' .kb-na', A1, A2);
+    const last = texts(claude.requests.at(-1).body.messages.at(-1)); for (const t of [Q1, A1, Q2]) assert(last.includes(t), `"${t}" is not in the follow-up`);
+  });
+  await check('15 Ask again starts a new conversation; Conversations lists both, as about the page', async () => {
+    await page.click('#kbBar [data-b=claude]'); await shows(page, 'no new empty card', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && !c.querySelector('.kb-turn') });
+    await askIn(Q3, A3); await reads(page, card + ' .kb-na', A3);
+    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3);
+    same((await page.$$eval('#kbOvw .kb-ovc small', es => es.map(e => e.textContent))).filter(t => t.startsWith('About the page')).length, 2, 'the cards that say they are about the page');
+    await page.click('#kbOvw [data-o=close]');
+  });
+  await check('15 after a reload no card is open, Conversations holds both, and one opens in full', async () => {
+    await saved(page, 'both conversations', R => live(R, 'note').filter(n => n.g).length === 2 && live(R, 'note').every(n => n.turns.every(t => t.a)));
+    await page.reload(); await ready(page);
+    same(await page.$$eval('.kb-note.kb-gen', es => es.filter(e => getComputedStyle(e).display !== 'none').length), 0, 'the conversation cards shown');
+    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3);
+    await page.locator('#kbOvw .kb-ovc').first().click(); await reads(page, '.kb-note.kb-max .kb-na', A1, A2);
   });
 }
 
@@ -424,7 +474,7 @@ async function newerStore({ context }) {
 }
 
 // ---------------- run
-const WITH_KEY = { 'kbAsk.key': KEY, 'kbBuddy.claude': 'off' };   // Claude off: pen marks wait for Send instead of being read after a pause
+const WITH_KEY = { 'kbAsk.key': KEY };
 let bad = 0;
 setTimeout(() => { console.log('FAIL the run did not end within 15 minutes: stopped'); process.exit(1) }, 15 * 60000).unref();
 for (const engine of only ? [only] : Object.keys(ENGINES)) {
@@ -433,6 +483,7 @@ for (const engine of only ? [only] : Object.keys(ENGINES)) {
   const browser = await ENGINES[engine].launch();
   await visit(browser, 'first visit', {}, firstVisit);
   await visit(browser, 'reading', WITH_KEY, reading);
+  await visit(browser, 'asking', WITH_KEY, asking);
   await visit(browser, 'syncing', { ...WITH_KEY, 'kbBuddy.ghToken': TOKEN }, syncing);
   await visit(browser, 'two tabs', WITH_KEY, twoTabs);
   await visit(browser, 'held store', WITH_KEY, heldStore);
