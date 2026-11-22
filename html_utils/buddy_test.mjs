@@ -155,7 +155,9 @@ async function visit(browser, name, prefs, fn, origin = ORIGIN) {
     storageState: { cookies: [], origins: [{ origin, localStorage: Object.entries(prefs).map(([name, value]) => ({ name, value })) }] } });
   context.setDefaultTimeout(8000);
   const errors = [], claude = fakeClaude(e => errors.push(e)), repo = fakeRepo();
-  context.on('weberror', e => errors.push('script error: ' + e.error().message));
+  // WebKit reports a request to the test's own server that a reload cancels as "access control checks"; a same-origin request cannot fail
+  // those checks for real, so only that case is let through
+  context.on('weberror', e => { const m = e.error().message; if (!/127\.0\.0\.1:\d+\/\S* due to access control checks/.test(m)) errors.push('script error: ' + m) });
   // the browser logs every 404 and 409 as a console error. Expected ones: a file not in the fake repo yet, a save turned away, and
   // kb_index.json (the search index build_site.py writes at the site's root, not in the working tree: the buddy looks for it and goes on)
   context.on('console', m => { if (m.type() === 'error' && !(m.text().startsWith('Failed to load resource') && /^https:\/\/api\.(github|anthropic)\.com\/|\/kb_index\.json$|\/pagefind\//.test(m.location().url))) errors.push('console error: ' + m.text()) });
@@ -296,7 +298,15 @@ async function reading({ context, claude }) {
     await page.reload(); await ready(page);
     await page.click('.kb-note .kb-dot');   // a note not being read is a numbered dot
     await reads(page, '.kb-note .kb-nq', Q1, Q2); await reads(page, '.kb-note .kb-na', A1, A2);
-    await page.click('.kb-note [data-n=fold]');
+    await page.click('.kb-note [data-n=close]');
+  });
+  await check('4 x on a note beside a passage closes it to its dot; Delete is in its full screen, and Undo brings it back', async () => {
+    await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active'); await page.click('.kb-note.kb-active [data-n=close]');
+    await shows(page, 'x did not close the note to its dot', () => !document.querySelector('.kb-note.kb-active') && document.querySelectorAll('.kb-note').length === 1);
+    await page.click('.kb-note .kb-dot'); await page.click('.kb-note.kb-active [data-n=max]'); await page.click('.kb-note.kb-max [data-n=gdel]');
+    await shows(page, 'Delete did not delete the note', () => !document.querySelector('.kb-note'));
+    await page.click('#kbUndo button'); await shows(page, 'Undo did not bring the note back', () => document.querySelectorAll('.kb-note').length === 1);
+    await reads(page, '#kbUndo span', 'Note deleted').catch(() => {});
   });
   await check('5 a pen stroke on the page makes a mark', async () => {
     before = await strokes(page); await stroke(page, para[1]);
@@ -480,7 +490,7 @@ async function syncing({ context, claude, repo }) {
   await check('10 sync: the note and a mark are saved to the page\'s file in the notes repo', async () => {
     await ready(page); para = await paragraphs(page, 2);
     claude.say(A); await ask(page, para[0], Q); await saved(page, 'the answer', R => live(R, 'note').some(n => n.turns[0].a === A));
-    await page.click('.kb-note [data-n=fold]'); await stroke(page, para[1]); await page.click('#kbBar [data-b=sync]');
+    await page.click('.kb-note [data-n=close]'); await stroke(page, para[1]); await page.click('#kbBar [data-b=sync]');
     const file = await until('the note and the mark in the notes repo', () => { const f = repo.read(PAGE_FILE);
       return f && live(f.records, 'note').some(n => n.turns[0].q === Q && n.turns[0].a === A) && penMarks(f).length && f });
     same(file.page, PAGE, 'the page named in the file'); same([...repo.files.keys()].sort(), [PAGE_FILE, 'settings.json'], 'the files in the notes repo');
