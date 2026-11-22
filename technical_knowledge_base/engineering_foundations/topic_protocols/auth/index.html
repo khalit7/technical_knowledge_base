@@ -1482,14 +1482,15 @@ window.AU = (function () {
 // from the first step. Narrower, the card shows the lanes and the current step only, at a fixed height, and stays under the section nav.
 // SQ({id, list, fig, lanes:[{n, s (short name under 520 px), c (colour), k (first step it takes part in)}], steps:[[row, ...], ...], ms})
 // A row is an arrow {f, t, l (label above), c, d (dashed), x (refused at the target), sub (a muted line under the arrow)}
-// or a note {at: lane or [first, last] lanes, l, c}. o.onStep(i), if given, runs after each draw (for example to fill a block on the left). ----
+// or a note {at: lane or [first, last] lanes, l, c}. o.onStep(i), if given, runs after each draw (for example to fill a block on the left).
+// SQ.card(id, fig) builds the same card for a bespoke 2D figure and returns {host, box, stl, ctl}; SQ.wrap(text, maxW, fs, bold) and SQ.tw measure text. ----
 window.SQ = (function () {
   const css = '.sq{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin:6px 0 16px}' +
     '.sq-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 2px;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}' +
     '.sq-top span:first-child{min-width:0}.sq-top span:last-child{white-space:nowrap}' +
     '.sq-svg{padding:2px 8px 4px}.sq-svg svg{display:block;width:100%;height:auto;overflow:visible}' +
-    '.sq .an-ctl{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}' +
-    '.sq .an-ctl button{padding:4px 11px;font-size:13px;white-space:nowrap}.sq .an-ctl input[type=range]{flex:1 1 40px;min-width:30px}.sq .an-ctl select{font-size:12.5px;padding:3px 6px}' +
+    '.sq .an-ctl{display:flex;align-items:center;gap:6px;flex-wrap:nowrap!important;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}' +
+    '.sq .an-ctl label{white-space:nowrap;font-size:13px}.sq .an-ctl button{padding:4px 11px;font-size:13px;white-space:nowrap}.sq .an-ctl input[type=range]{flex:1 1 40px;min-width:30px}.sq .an-ctl select{font-size:12.5px;padding:3px 6px}' +
     '.sq .sq-band{cursor:pointer}' +
     '@keyframes sqIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
     '.sq.rd-fwd .rd-new{animation:sqIn .55s cubic-bezier(.2,.7,.2,1) both}' +
@@ -1509,13 +1510,20 @@ window.SQ = (function () {
     String(t).split(' ').forEach(w => { const n = cur ? cur + ' ' + w : w; if (tw(n, fs, b) > maxW && cur) { out.push(cur); cur = w; } else cur = n; });
     if (cur) out.push(cur); return out;
   }
-  function make(o) {
-    const host = document.getElementById(o.id); if (!host || !window.RD) return null;
+  // the card: title bar (figure name, step k of n), the drawing, the controls; also used by bespoke 2D figures (SQ.card)
+  function card(id, fig) {
+    const host = document.getElementById(id); if (!host || !window.RD) return null;
     if (!document.getElementById('sq-css')) { const s = document.createElement('style'); s.id = 'sq-css'; s.textContent = css; document.head.appendChild(s); }
     host.classList.add('sq');
-    host.innerHTML = '<div class="sq-top"><span>' + esc(o.fig) + '</span><span id="' + o.id + '-st"></span></div><div class="sq-svg" id="' + o.id + '-svg"></div><div class="an-ctl" id="' + o.id + '-ctl"></div>';
-    if (host.parentElement) host.parentElement.classList.add('sq-wrap');
-    const box = document.getElementById(o.id + '-svg'), stl = document.getElementById(o.id + '-st');
+    host.innerHTML = '<div class="sq-top"><span>' + esc(fig) + '</span><span id="' + id + '-st"></span></div><div class="sq-svg" id="' + id + '-svg"></div><div class="an-ctl" id="' + id + '-ctl"></div>';
+    // under 1100 px the card stays under the section nav while its list is read, but only while it takes at most half the window
+    const fit = () => { if (host.parentElement) host.parentElement.classList.toggle('sq-wrap', host.offsetHeight <= innerHeight * .5); };
+    if ('ResizeObserver' in window) new ResizeObserver(fit).observe(host); addEventListener('resize', fit);
+    return { host, box: document.getElementById(id + '-svg'), stl: document.getElementById(id + '-st'), ctl: id + '-ctl' };
+  }
+  function make(o) {
+    const cd = card(o.id, o.fig); if (!cd) return null;
+    const { host, box, stl } = cd;
     let A = null;
     function layout(W, compact) {
       const fs = compact ? 12 : 12.5, lh = Math.round(fs * 1.32), G = compact ? 0 : 30, nl = o.lanes.length, lw = (W - G) / nl;
@@ -1596,6 +1604,7 @@ window.SQ = (function () {
     A.mode = (steps, list) => { o.steps = steps; A.reset(steps.length, list); };
     return A;
   }
+  make.card = card; make.esc = esc; make.wrap = wrap; make.tw = tw;
   return make;
 })();
 </script>
