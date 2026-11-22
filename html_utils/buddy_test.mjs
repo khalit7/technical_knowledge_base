@@ -287,9 +287,10 @@ async function reading({ context, claude }) {
     before = await strokes(page); await stroke(page, para[1]);
     same(await strokes(page), before + 1, 'the number of strokes on the page'); await saved(page, 'the mark', R => live(R, 'mark').some(m => !m.sel));
   });
-  await check('5 nothing goes to Claude by itself: the stroke waits, and Send shows', async () => {
+  await check('5 nothing goes to Claude by itself: the stroke waits, and Send shows (on a minimised toolbar too)', async () => {
     const n = claude.requests.length; await sleep(4000); same(claude.requests.length, n, 'the requests to Claude 4 s after the stroke');
     assert(await page.locator('#kbBar [data-b=send]').isVisible(), 'Send does not show');
+    await page.click('#kbBar [data-b=min]'); assert(await page.locator('#kbBar [data-b=send]').isVisible(), 'Send does not show on the minimised toolbar'); await page.click('#kbBar [data-b=min]');
   });
   await check('5 Undo removes it', async () => { await page.click('#kbBar [data-b=undo]'); same(await strokes(page), before, 'the number of strokes on the page') });
   await check('6 notebook: ink sent to Claude gets its reply on the paper', async () => {
@@ -339,7 +340,6 @@ async function asking({ context, claude }) {
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor');
     const at = await page.evaluate(() => { const c = document.querySelector('.kb-note.kb-gen.kb-active').getBoundingClientRect(), b = document.getElementById('kbBar').getBoundingClientRect(); return {gap:c.top - b.bottom, right:innerWidth - c.right} });
     assert(at.gap >= 0 && at.gap < 30 && at.right < 40, 'the card is not just under the toolbar on the right: ' + JSON.stringify(at));
-    same(await page.getAttribute('#kbBar [data-b=claude]', 'aria-pressed'), 'true', 'Ask shown pressed');
     await sleep(600); same(live(await savedRecs(page), 'note').length, 0, 'the notes kept');
   });
   await check('15 a question: Claude is asked about the page (no passage), the answer streams into the card, which stays put while the page scrolls', async () => {
@@ -367,12 +367,13 @@ async function asking({ context, claude }) {
     claude.say(A4); await page.click(card + ' .kb-nf [type=submit]'); await reads(page, card + ' .kb-na', A4);
     assert(claude.requests.at(-1).body.messages.at(-1).content.some(b => b.type === 'image'), 'the drawing was not sent');
   });
-  await check('15 an empty answer to a first question leaves Ask working', async () => {
+  await check('15 an empty answer keeps the question, with Try again; Ask keeps working', async () => {
     await page.click('#kbBar [data-b=claude]'); claude.say(''); await page.fill(box, 'Say nothing?'); await page.press(box, 'Enter');
-    await shows(page, 'the empty conversation was not removed', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
+    await shows(page, 'the question was not kept with No reply and Try again', () => { const c = document.querySelector('.kb-note.kb-gen.kb-active'); return c && /Say nothing\?/.test(c.textContent) && /No reply/.test(c.textContent) && c.querySelector('[data-n=retry]') });
+    await page.click(card + ' [data-n=del]'); await shows(page, 'the conversation was not deleted', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
-    await page.click(card + ' [data-n=del]');
+    await page.keyboard.press('Escape'); await shows(page, 'Escape did not close the card', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
   });
   await check('15 after a reload no card is open, Conversations holds both, and one opens in full', async () => {
     await saved(page, 'the three conversations', R => live(R, 'note').filter(n => n.g).length === 3 && live(R, 'note').every(n => n.turns.every(t => t.a)));
