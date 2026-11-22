@@ -23,8 +23,8 @@
 //                   (in WebKit, which reads as Safari, the Safari warning, unless the engine grants persistent storage)
 //   asking       15 Ask on the toolbar: a card just under it with the cursor in its box, nothing kept before a question; the question
 //                   asks about the page (no passage) and its answer streams into the card, which stays put while the page scrolls; a
-//                   follow-up sends the earlier turn; Ask again starts another; Conversations lists both; after a reload no card is
-//                   open and one opens in full from Conversations
+//                   follow-up sends the earlier turn; Ask again starts another; a drawing can be a first question; an empty answer
+//                   leaves Ask working; Conversations lists them; after a reload no card is open and one opens in full from Conversations
 //   syncing      10 with a token: the note and a mark are saved to pages/<page path>.json in the repo; a note added and a mark
 //                   deleted there by another device show after a reload; the next save, turned away once as if the file had changed
 //                   meanwhile, is retried and leaves the deletion a deletion
@@ -78,7 +78,7 @@ function fakeClaude(complain) {
     answer(route) {
       if (fake.refuse) return route.fulfill({ status: 401, headers: CORS, json: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } });
       if (route.request().method() === 'GET') return route.fulfill({ headers: CORS, json: { data: [], has_more: false } });   // the free check of the key: the models list
-      const body = route.request().postDataJSON(), text = lines.shift() || 'Nobody asked for this.';
+      const body = route.request().postDataJSON(), text = lines.length ? lines.shift() : 'Nobody asked for this.';
       if (text === 'Nobody asked for this.') complain('a request to Claude that no check asked for');
       requests.push({ body, headers: route.request().headers() });
       const message = { id: 'msg_test', type: 'message', role: 'assistant', model: body.model }, usage = { input_tokens: 900, output_tokens: 12 };
@@ -86,7 +86,7 @@ function fakeClaude(complain) {
       return route.fulfill({ headers: CORS, contentType: 'text/event-stream', body:
         sse('message_start', { message: { ...message, content: [], stop_reason: null, usage: { ...usage, output_tokens: 1 } } }) +
         sse('content_block_start', { index: 0, content_block: { type: 'text', text: '' } }) +
-        text.match(/\S+\s*/g).map(w => sse('content_block_delta', { index: 0, delta: { type: 'text_delta', text: w } })).join('') +
+        (text.match(/\S+\s*/g) || []).map(w => sse('content_block_delta', { index: 0, delta: { type: 'text_delta', text: w } })).join('') +
         sse('content_block_stop', { index: 0 }) +
         sse('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 12 } }) +
         sse('message_stop', {}) });
@@ -334,6 +334,7 @@ async function asking({ context, claude }) {
   const askIn = async (q, a) => { claude.say(a); await page.fill(box, q); await page.press(box, 'Enter') };
   await check('15 Ask on the toolbar: a card just under it on the right, the cursor in its box; nothing is kept before a question', async () => {
     await ready(page); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
+    same(await page.$eval('#kbBar [data-b=claude] svg', e => getComputedStyle(e).opacity), '1', 'the opacity of Ask\'s icon before it is tapped (it must not look switched off)');
     await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
     same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor');
     const at = await page.evaluate(() => { const c = document.querySelector('.kb-note.kb-gen.kb-active').getBoundingClientRect(), b = document.getElementById('kbBar').getBoundingClientRect(); return {gap:c.top - b.bottom, right:innerWidth - c.right} });
@@ -360,11 +361,24 @@ async function asking({ context, claude }) {
     same((await page.$$eval('#kbOvw .kb-ovc small', es => es.map(e => e.textContent))).filter(t => t.startsWith('About the page')).length, 2, 'the cards that say they are about the page');
     await page.click('#kbOvw [data-o=close]');
   });
+  await check('15 a drawing can be the first question of a new conversation', async () => {
+    const A4 = 'A curve that bends once.'; await page.click('#kbBar [data-b=claude]'); await page.click(card + ' [data-n=draw]');
+    await drag(page, page.locator(card + ' .kb-ndraw canvas'), { x: 30, y: 20, dx: 120, dy: 10 });
+    claude.say(A4); await page.click(card + ' .kb-nf [type=submit]'); await reads(page, card + ' .kb-na', A4);
+    assert(claude.requests.at(-1).body.messages.at(-1).content.some(b => b.type === 'image'), 'the drawing was not sent');
+  });
+  await check('15 an empty answer to a first question leaves Ask working', async () => {
+    await page.click('#kbBar [data-b=claude]'); claude.say(''); await page.fill(box, 'Say nothing?'); await page.press(box, 'Enter');
+    await shows(page, 'the empty conversation was not removed', () => !document.querySelector('.kb-note.kb-gen.kb-active'));
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
+    await page.click(card + ' [data-n=del]');
+  });
   await check('15 after a reload no card is open, Conversations holds both, and one opens in full', async () => {
-    await saved(page, 'both conversations', R => live(R, 'note').filter(n => n.g).length === 2 && live(R, 'note').every(n => n.turns.every(t => t.a)));
+    await saved(page, 'the three conversations', R => live(R, 'note').filter(n => n.g).length === 3 && live(R, 'note').every(n => n.turns.every(t => t.a)));
     await page.reload(); await ready(page);
     same(await page.$$eval('.kb-note.kb-gen', es => es.filter(e => getComputedStyle(e).display !== 'none').length), 0, 'the conversation cards shown');
-    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3);
+    await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q1, Q3, 'Drawing');
     await page.locator('#kbOvw .kb-ovc').first().click(); await reads(page, '.kb-note.kb-max .kb-na', A1, A2);
   });
 }
@@ -400,6 +414,13 @@ async function syncing({ context, claude, repo }) {
     const was = file.records[gone], saves = repo.saves.filter(s => s.endsWith(PAGE_FILE));
     assert(was && was.del === true && !was.p, 'the mark deleted on the other device is live again in the repo'); assert(!file.records.other1.del, 'the other device\'s note was deleted');
     assert(saves[0] === 'turned away ' + PAGE_FILE && saves.includes('saved ' + PAGE_FILE), 'the saves went: ' + saves.join(', '));
+  });
+  await check('10 a change from another device arriving while an Ask card is open leaves the card open, and Ask working', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector('.kb-note.kb-gen.kb-active');
+    const file = repo.read(PAGE_FILE), now = Date.now(); file.records.other2 = { ...file.records.other1, id: 'other2', turns: [{ q: 'From the iPad?', a: 'Yes.', t: now }], t: now, u: now }; repo.write(PAGE_FILE, file);
+    await page.click('#kbBar [data-b=sync]'); await shows(page, 'the other device\'s second note never arrived', () => document.querySelectorAll('.kb-note:not(.kb-gen)').length === 3);
+    assert(await page.$eval('.kb-note.kb-gen.kb-active', e => getComputedStyle(e).display !== 'none'), 'the Ask card is hidden after the sync');
+    await page.click('#kbBar [data-b=claude]'); same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
   });
 }
 

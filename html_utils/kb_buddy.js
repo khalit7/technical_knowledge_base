@@ -86,8 +86,10 @@
     const k = store.get('key'); if (!k) return; let seen = ''; try { seen = sessionStorage.getItem('kbAsk.ok') || '' } catch(e) {}
     if (seen === k.slice(-8)) return;
     fetch('https://api.anthropic.com/v1/models?limit=1', {headers:{'x-api-key':k, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'}})
-      .then(r => { if (store.get('key') !== k) return; if (r.status === 401) { keyBad = true; syncBar() } else if (r.ok) try { sessionStorage.setItem('kbAsk.ok', k.slice(-8)) } catch(e) {} }, () => {});
+      .then(r => { if (store.get('key') !== k) return; if (r.status === 401) refused(k); else if (r.ok) try { sessionStorage.setItem('kbAsk.ok', k.slice(-8)) } catch(e) {} }, () => {});
   }
+  // the API refused this key: Fix key, unless another key was saved meanwhile; the tab checks it again on its next page
+  function refused(k){ if (store.get('key') !== k) return; keyBad = true; try { sessionStorage.removeItem('kbAsk.ok') } catch(e) {} syncBar() }
   // ask the browser, once a visit, to keep this site's data for good (the key, the token, notes not yet synced). Safari clears a site's data
   // after about a week without a visit, except for a site opened from the Home Screen, where it also grants this request
   let keepP = null;
@@ -118,7 +120,6 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:var(--kb-room
 #kbBar.kb-v .kb-sws{flex-direction:column}
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
-#kbBar button[data-b=claude][aria-pressed=false]{color:var(--mute)}#kbBar button[data-b=claude][aria-pressed=false] svg{opacity:.4}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
 #kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-k]):not([data-s=missing]):not([data-s=bad]){display:none!important}
 #kbBar [hidden]{display:none!important}
@@ -512,7 +513,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!chg.hidden || !blkPop.hidden) { closeChg(); closeBlk() } else if (sel || psel) { clearSel(); clearPsel() } else if (!pop.hidden) hidePop(); else if (ed) finishEd(); else if (!P.hidden) close(); else if (tool !== 'hand') setTool('hand') } });
 
-  // ---- the toolbar: tools, colours, width, undo, Claude on or off, the notebook, settings. It docks to an edge of the screen
+  // ---- the toolbar: tools, colours, width, undo, Ask, Send, Conversations, the notebook, sync, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
   let tool = /^(hand|pen|hl|text)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand',
@@ -545,7 +546,6 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     if (/…$|\.\.\.$/.test(x.text)) { input.value = x.text.replace(/\s*(…|\.\.\.)$/, ' '); input.focus() } else askFn(x.text);
     return true;
   }
-  // how long after the last stroke Claude reads (Settings; 3 s by default); typing waits twice as long. "Never" is Claude off: Send only
   const penOn = () => tool === 'pen' || tool === 'hl' || tool === 'erase' || tool === 'lasso';   // the tools that act on the page; Read and Text leave it alone
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
@@ -929,13 +929,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const ac = new AbortController(); if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener('abort', () => ac.abort(), {once:true}) }
     let quiet = 0; const kick = () => { clearTimeout(quiet); quiet = setTimeout(() => { ac.timedOut = true; ac.abort() }, 75000) }; kick();
     try {
-    const res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01',
+    const key = store.get('key'), res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true', 'anthropic-beta':'server-side-fallback-2026-07-01'},
       body: JSON.stringify({model:m, max_tokens:maxTokens, stream:true, output_config:{effort}, fallbacks:'default',
         system:[{type:'text', text:system, cache_control:{type:'ephemeral', ttl:'1h'}}], tools:web ? TOOLS.concat(WEB_TOOLS) : TOOLS, messages:withDoc(messages)})});
     if (!res.ok) { let msg = res.status + ' ' + res.statusText; try { const j = await res.json(); msg = (j.error && j.error.message) || msg } catch(e) {}
       if (web && res.status === 400 && /web[_ ]?(search|fetch)/i.test(msg)) { webBroken = true; toast('Web access is not enabled for this API key (' + msg.slice(0, 120) + '); going on without it.', 9000); return stream(system, messages, effort, maxTokens, onText, signal, onTool, mdl) }
-      if (res.status === 401) { keyBad = true; syncBar() }
+      if (res.status === 401) refused(key);
       throw new Error(res.status === 401 ? 'The API key was not accepted. Tap Fix key on the toolbar.' : res.status === 429 ? 'Rate limited or out of credit: ' + msg : msg) }
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) {
@@ -1045,16 +1045,19 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
-  // under way. Marks still waiting for Claude (Claude off, or before the pause) are carried over by their ids
-  const canApply = () => !live && !ed && !sel && !psel && !stripsBusy() && !PG.busy && !NB.busy && !preparing && !maxOpen() && !saveT && !pgs.some(p => p.ink.busy());
+  // under way. Marks still waiting for Send are carried over by their ids
+  const typingInNote = () => { const a = document.activeElement; return !!(a && a.closest && a.closest('.kb-note') && a.value && a.value.trim()) };
+  const canApply = () => !live && !ed && !sel && !psel && !stripsBusy() && !PG.busy && !NB.busy && !preparing && !maxOpen() && !saveT && !typingInNote() && !pgs.some(p => p.ink.busy());
   function applyRecs(){
     if (!canApply()) { needApply = true; setTimeout(applyRecs, 2000); return }
     closeChg();   // what it showed may be replaced by the merged records
     needApply = false; const top = scr.scrollTop, pIds = pend.map(x => x.s.id), mIds = pendPage.map(m => m.id), tIds = pendTyped.map(x => x.it.id); fromRecs();
+    if (activeNote) activeNote = notes.find(x => x.id === activeNote.id) || (activeNote.g && !turnsOf(activeNote).length ? activeNote : null);   // the note being read, as the merged records have it
     pend.length = 0; pendTyped.length = 0; book.forEach((pg, i) => { for (const st of pg.ink) if (pIds.includes(st.id)) pend.push({pg:i, s:st}); for (const it of pg.items) if (tIds.includes(it.id)) pendTyped.push({pg:i, it}) });
     pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
     book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
-    for (const g of markEl.values()) g.remove(); markEl.clear(); for (const e of noteEl.values()) e.remove(); noteEl.clear(); anchors.clear(); undoStack.length = 0;
+    const draft = activeNote && activeNote.g && !notes.includes(activeNote) ? activeNote : null, de = draft && noteEl.get(draft);
+    for (const g of markEl.values()) g.remove(); markEl.clear(); for (const [n, e] of noteEl) if (n !== draft) e.remove(); noteEl.clear(); if (de) noteEl.set(draft, de); anchors.clear(); undoStack.length = 0;
     renderEdits(); placeMarks(); if (!ovView.hidden) renderChanges(); syncBar();
   }
   // start-up: this page's records from IndexedDB (none yet: an empty start)
@@ -1143,7 +1146,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     b.setAttribute('aria-label', st === 'missing' || st === 'bad' ? b.title : 'Sync');
     const t = setv && setv.querySelector('#kbSyncSt'); if (t) t.textContent = b.title;
   }
-  function schedulePush(ms){ if (!ghTok()) return; if (!syncing) setSync('wait'); clearTimeout(pushT); pushT = setTimeout(syncNow, ms == null ? 10000 : ms) }
+  function schedulePush(ms){ if (!ghTok()) return; if (!syncing && syncState !== 'bad') setSync('wait'); clearTimeout(pushT); pushT = setTimeout(syncNow, ms == null ? 10000 : ms) }
   async function syncFile(path, local, merge, apply){
     for (let k = 0; k < 5; k++) {
       const {sha, data} = await ghGet(path), m = merge(data);
@@ -1525,7 +1528,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (visState.has(k)) return;   // one verdict per version: an error after a good drawing (a later tick, a handler) is left alone
     visState.set(k, 'bad'); lastErr.set(x.id, msg);
     const tries = fixTries.get(rk(x, r)) || 0, fresh = madeHere.has(rk(x, r)) && !drewOk.has(rk(x, r));
-    if (fresh && tries < 2 && store.get('key')) { fixTries.set(rk(x, r), tries + 1); trouble(x, 'This visual hit a problem; fixing it (' + (tries + 1) + ' of 2)…', false); repairVisual(x, msg); return }
+    if (fresh && tries < 2 && !keyState()) { fixTries.set(rk(x, r), tries + 1); trouble(x, 'This visual hit a problem; fixing it (' + (tries + 1) + ' of 2)…', false); repairVisual(x, msg); return }
     if (fresh && x.revs.length > 1) { const i = x.revs.indexOf(r); x.revs.splice(i, 1); const back = r.fix ? x.revs.findIndex(v => v.rid === r.from) : -1; x.cur = back >= 0 ? back : Math.max(0, i - 1); normEdit(x); renderEdits(); saveBook(); refreshOv(); if (chgId === x.id && !chg.hidden) openChg(x); toast(r.fix ? 'The fix did not work, so it was dropped; back to your version.' : 'That version of the visual did not work, so it was dropped; showing ' + (i ? 'the one before' : 'the next one') + '.', 7000); return }
     trouble(x, 'This visual has a problem: ' + msg, true);
   }
@@ -1537,7 +1540,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function troubleOff(x){ const t = document.querySelector('.kb-vis[data-ed="' + x.id + '"] .kb-vtr'); if (t) t.remove() }
   // one quiet job (after the reply being written, if any); when it ends without changing the version, the next try or the trouble line
   function repairVisual(x, msg){
-    const e = edits.includes(x) && anchorOf(x); if (!e || !store.get('key')) { trouble(x, 'This visual has a problem: ' + msg, true); return }
+    const e = edits.includes(x) && anchorOf(x); if (!e || keyState()) { trouble(x, 'This visual has a problem: ' + msg, true); return }
     const r = curRev(x), rid = r.rid, fx = r.fx || 0;
     const key = rk(x, r);
     const job = {kind:'page', typed:'Fix this visual: ' + msg, refine:x, refineId:x.id, repair:msg, repairRid:rid, quiet:true, model:'claude-sonnet-5-5', follow:null, thread:[], hl:null, marks:[], anchorEl:e, box:null, near:'', scr:{blocks:[], note:'', img:null, k:1},
@@ -1813,7 +1816,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const id of S.add || []) { const x = edits.find(y => y.id === id); if (x) drop(edits, x) }
     for (const x of S.edits || []) if (!edits.some(y => y.id === x.id)) edits.push(x);
     for (const m of S.marks || []) if (!marks.some(y => y.id === m.id)) marks.push(m);
-    for (const n of S.notes || []) if (!notes.some(y => y.id === n.id)) { const at = S.at && S.at.get(n.id); if (at != null && at <= notes.length) notes.splice(at, 0, n); else notes.push(n) }   // back in its place, so the numbers stay
+    for (const n of S.notes || []) if (!notes.some(y => y.id === n.id)) { const at = S.at && S.at.get(n.id); if (at != null && at <= notes.length) notes.splice(at, 0, n); else notes.push(n); if (n.g) { if (!noteEl.get(n)) noteNode(n); activate(n) } }   // back in its place, so the numbers stay; an Ask conversation opens again
     for (const [id, st] of S.st || []) { const x = edits.find(y => y.id === id); if (x) x.st = st }
     renderEdits(); saveBook(); refreshOv();
   });
@@ -2098,7 +2101,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const st of rd.strokes.concat(rd.cur ? [rd.cur] : [])) { g.lineWidth = 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } }
   // every open is a fresh, empty diary; anything still on its way from an earlier one is dropped (gen), and nothing is ever kept
   function rdReset(){ rd.qTyped = ''; rd.gen++; clearTimeout(rd.timer); clearTimeout(rd.fadeT); if (rd.ac) try { rd.ac.abort() } catch(e) {} rd.ac = null; rd.busy = false; rd.hist = []; rd.strokes = []; rd.cur = null; rd.pid = null; rdSay.innerHTML = ''; rdCv.classList.remove('kr-sink') }
-  function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (keyState()) toast('The diary needs your Claude key: tap Add key on the toolbar.', 6000) }
+  function riddleOpen(){ rdReset(); rdHint.style.opacity = 1; requestAnimationFrame(rdSize); if (keyState()) toast('The diary needs your Claude key: tap ' + (keyState() === 'bad' ? 'Fix key' : 'Add key') + ' on the toolbar.', 6000) }
   function riddleClose(){ rdReset() }
   new ResizeObserver(() => { if (!rdView.hidden) rdSize() }).observe(rdCv);
   for (const t of ['touchstart', 'touchmove', 'touchend']) rdCv.addEventListener(t, e => { if (e.cancelable) e.preventDefault() }, {passive:false});   // the Pencil writes letter after letter with no pause: Scribble never holds a stroke back
@@ -2135,10 +2138,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       setTimeout(() => mine.classList.add('kr-gone'), 1100); setTimeout(() => mine.remove(), 4000) }   // typed words are written in ink first, then sink
     let say = '';
     try {
-      const res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':store.get('key'), 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'},
+      const key = store.get('key'), res = await fetch(API, {method:'POST', signal:ac.signal, headers:{'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:model(), max_tokens:8000, output_config:{effort:'low'}, system:RIDDLE, messages:(m => { const d = m[0] && Array.isArray(m[0].content) && m[0].content[0]; if (d && d.type === 'document') delete d.citations; return m })(withDoc(rd.hist.slice(-12).concat([{role:'user', content:content.concat([{type:'text', text:rdWhere()}])}])))})});
       let j = null; try { j = await res.json() } catch(e) {}
-      if (res.status === 401) { keyBad = true; syncBar() }
+      if (res.status === 401) refused(key);
       if (!res.ok) throw new Error((j && j.error && j.error.message) || ('HTTP ' + res.status));
       const raw = ((j && j.content) || []).filter(b => b.type === 'text').map(b => b.text).join(''), read = (raw.match(/<read>([\s\S]*?)<\/read>/) || [])[1] || typed || '';
       say = raw.replace(/<read>[\s\S]*?<\/read>/g, '').trim();
@@ -2498,8 +2501,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return c.toDataURL('image/png');
   }
 
-  // ---- a writing session: the notebook, or the page itself. Ink and typing collect; 3 s after the last stroke or key
-  // press they are sent with the screen and the reply writes itself: in the notebook at the spot Claude picks, on the page in a card ----
+  // ---- a writing session: the notebook, or the page itself. Ink and typing collect until Send (or Enter in a typed line); then they
+  // are sent with the screen and the reply writes itself: in the notebook at the spot Claude picks, on the page in a card ----
   function Session(out){ return {out, timer:0, busy:false, queued:[], cur:null} }
   // a request made while another is being written waits its turn; at most three wait
   function enqueue(S, job){ if (job.tab === undefined) job.tab = openTab(); if (S.queued.length >= 3) { S.out.status('Claude is still busy with earlier requests; try again in a moment.'); return false } S.queued.push(job); return true }
@@ -2588,8 +2591,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     content.push({type:'text', text:job.kind === 'page'
       ? job.refine ? refineText(job)
       : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
-      : job.follow && job.follow.g && !threadText(job) ? 'They asked you about this page, not about one passage they marked (the screen image and the text in view show where they are reading):\n<question>\n' + askText(job) + '\n</question>\nAnswer it in a note that sits beside the page. No <at> or <point> here.'
-      : job.follow ? (job.follow.g ? 'A follow-up in your conversation with them about this page (not about one passage; the screen image and the text in view show where they are reading now).' : 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new).') + ' The thread so far:\n<thread>\n' + threadText(job) + '\n</thread>\nTheir follow-up:\n<question>\n' + askText(job) + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
+      : job.follow && job.follow.g && !threadText(job) ? 'They asked you about this page, not about one passage they marked (what is on their screen, when it is above, shows where they are reading):\n<question>\n' + askText(job) + '\n</question>\nAnswer it in a note that sits beside the page. No <at> or <point> here.'
+      : job.follow ? (job.follow.g ? 'A follow-up in your conversation with them about this page (not about one passage; what is on their screen, when it is above, shows where they are reading now).' : 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new).') + ' The thread so far:\n<thread>\n' + threadText(job) + '\n</thread>\nTheir follow-up:\n<question>\n' + askText(job) + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
       : job.lasso ? 'They drew a loop round part of the page (the dashed loop, outlined NEW on the screen image' + (job.marks.length > 1 ? '; their own marks inside it are part of what they mean' : '') + ') and asked about it:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The loop is on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Answer that question about what is inside the loop, in a note that will sit beside it. No <at> or <point> here.'
       : job.typed ? 'They selected a passage on the page (its text is in <highlight> above; it is now highlighted in yellow and outlined NEW on the screen image) and asked about it:\n<question>\n' + job.typed + '\n</question>\nAnswer that question about that passage, in a note that will sit beside it. No <at> or <point> here.'
       : 'They drew on the page itself, over what is on their screen: their new marks are in the dashed box marked NEW on the screen image' + (job.scr.img ? '' : ' (the screen image could not be made, so you only have the text in view)') + '. ' + colourNote(job.marks) + ' ' + (job.near ? 'They are on or beside this part of the page:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Read what they wrote or marked (a circle, an arrow, an underline, a highlight, a note in the margin, a sketch) and answer about exactly that, in a note that will sit beside their marks. No <at> or <point> here.'
@@ -3096,7 +3099,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     new ResizeObserver(size).observe(cv); cv.addEventListener('kbsize', () => requestAnimationFrame(size));
     const send = () => {
       clearTimeout(D.timer); if (!D.s.length || !box.isConnected) return;
-      const n2 = notes.find(x => x.id === n.id); if (!n2) return;   // the note was deleted, or rebuilt by a sync: its live copy
+      const n2 = notes.find(x => x.id === n.id) || (n.g && noteEl.has(n) ? n : null); if (!n2) return;   // the note was deleted, or rebuilt by a sync: its live copy (a new Ask conversation is not kept yet: itself)
       if (keyState() || (PG.busy && PG.queued.length >= 3)) { if (!keyState()) toast('Claude is still busy with earlier requests; the drawing waits here.', 5000); else needKey(PG); return }   // the drawing stays until it can go
       const xs = D.s.flat(), x0 = Math.max(0, Math.min(...xs.map(q => q[0])) - 8), y0 = Math.max(0, Math.min(...xs.map(q => q[1])) - 8), x1 = Math.max(...xs.map(q => q[0])) + 8, y1 = Math.max(...xs.map(q => q[1])) + 8;
       const thin = st => st.filter((q, i) => i === 0 || i === st.length - 1 || Math.hypot(q[0] - st[i - 1][0], q[1] - st[i - 1][1]) >= 1.5);
@@ -3174,6 +3177,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input'); const strip = drawStrip(n, e, inp); e.insertBefore(strip, f);
+    if (n === activeNote) e.classList.add('kb-active');   // rebuilt while it is being read (after a sync)
     if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this page'); if (!turnsOf(n).length) inp.placeholder = 'Ask Claude about this page…' }
     const ask = (q, where) => { inp.value = ''; if (where === undefined) where = whereOf(q); if (where === null) { askWhere(e.querySelector('.kb-nb'), q, v => followUp(n, q, v)); const nb = e.querySelector('.kb-nb'); nb.scrollTop = nb.scrollHeight; return } followUp(n, q, where || undefined) };
     f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (!strip.hidden && strip.querySelector('[data-n=dclear]').hidden === false) { strip.sendNow(); return } if (q) ask(q) });   // a waiting drawing goes with the words   // a waiting drawing goes with the words
@@ -3282,7 +3286,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // card sits under the toolbar and stays while the page scrolls; asking again starts another; Conversations lists them all
   function askGeneral(){
     exitMax(); closeOvw(); if (!P.hidden) close();
-    let n = activeNote && activeNote.g && !turnsOf(activeNote).length ? activeNote : null;   // the new one, still waiting for its first question
+    let n = activeNote && activeNote.g && !turnsOf(activeNote).length && noteEl.get(activeNote) ? activeNote : null;   // the new one, still waiting for its first question
     if (!n) { n = {id:newId(), g:1, turns:[], marks:[], w:Math.min(380, innerWidth - 16), t:Date.now()}; const tb = openTab(); if (tb) n.tab = tb; noteNode(n); activate(n); placeNote(n) }
     const inp = noteEl.get(n).querySelector('.kb-nf input'); inp.focus({preventScroll:true});
   }
@@ -3357,7 +3361,6 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (needKey(PG)) return; if (n.resolved) { n.resolved = false; n.fold = false; const ne0 = noteEl.get(n); if (ne0) ne0.classList.remove('kb-resolved', 'kb-folded'); saveBook() }   // talking again reopens it
     { const ne = noteEl.get(n), w0 = ne && ne.querySelector('.kb-where'); if (w0) w0.remove() }
     const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), first = !!n.g && !notes.includes(n);
-    if (first) notes.push(n);   // a general conversation is kept from its first question
     const job = {kind:'page', typed:q, ink, where, follow:n, thread:turnsOf(n).slice(), hl:n.hl ? {text:n.hl, where:'', rects:[]} : null, marks:ms, box:n.g ? {x0:0, y0:clipLine(), x1:innerWidth, y1:innerHeight} : viewBox(ms), near:nearText(ms), scr:null, newNote:first};
     early(job); job.scr = await screenBlocks(false, ms, job.hl);
     go(job);
@@ -3366,7 +3369,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const unprep = job => { if (job.prep) { job.prep = false; preparing = Math.max(0, preparing - 1) } };
   function early(job){ job.prep = true; preparing++; setTimeout(() => unprep(job), 8000); if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
   // a note that opened below or above the screen is brought into view, so the reader sees their question and the answer arrive
-  function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden) return; const r = e.getBoundingClientRect(); if (r.top > innerHeight - 140 || r.bottom < clipLine() + 60) window.scrollBy({top:r.top - innerHeight * 0.35, behavior:'smooth'}) }
+  function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden || job.note.n.g) return; const r = e.getBoundingClientRect(); if (r.top > innerHeight - 140 || r.bottom < clipLine() + 60) window.scrollBy({top:r.top - innerHeight * 0.35, behavior:'smooth'}) }
   function go(job){
     reveal(job); unprep(job);   // after the screen was captured
     if (PG.busy) { if (!enqueue(PG, job)) { if (job.early) PG.out.empty(job); return } if (!job.early) PG.out.status('Will read after this reply…'); return }
@@ -3381,6 +3384,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (job.reuse && !noteEl.get(job.reuse)) job.reuse = null; if (job.reuse) job.newNote = true;   // its own note, made by the question it asks again
       if (job.follow || job.reuse) {
         const n = job.follow || job.reuse, e = noteEl.get(n), ts = turnsOf(n), last = ts[ts.length - 1];
+        if (n.g && !notes.includes(n)) notes.push(n);   // a general conversation is kept from its first question
         let t, d; if (job.replace && last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
         if (!d) { t = {q:job.typed, a:'', t:Date.now()}; if (job.ink) t.ink = job.ink; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d); const pi = e.querySelector('.kb-nf input'); if (pi) pi.placeholder = 'Ask a follow-up…' }
         n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
@@ -3411,10 +3415,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     },
     follow(job){ if (!job.note) return; const nb = job.note.e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
-    done(job, text){ if (job.quiet) return; try { const nn = job.note && job.newNote && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
+    done(job, text){ if (job.quiet) return; try { const nn = job.note && (job.newNote || job.note.n.g) && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
       if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
       job.note.t.a = text; linkNote(job); saveBook() },
-    empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n) } saveBook() },
+    empty(job){ const J = job.note; if (!J) return; drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n); if (activeNote === J.n) activeNote = null } saveBook(); syncBar() },
     fail(job, reply, msg){ try {
       if (!job.note && job.typed && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
       const J = job.note; if (J) { const tk = J.d.querySelector('.kb-think'); if (tk) tk.remove() }   // not part of an answer
