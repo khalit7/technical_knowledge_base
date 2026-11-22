@@ -133,7 +133,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 :where(html[data-kb-home]) :where(#kbBuddy,#kbOvw,.kb-note) :where(button){cursor:pointer}
 :where(html[data-kb-home]) body::before,:where(html[data-kb-home]) body::after{background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .kb-note input::placeholder{color:var(--mute);opacity:1}
-#kbAskPop:not(.kb-typing) .kb-vrow,#kbAskPop:not(.kb-typing) .kb-blk{display:none!important}
+#kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-vrow,#kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-blk{display:none!important}
 .kb-note.kb-nodot:not(.kb-active){display:none!important}
 html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,html[data-kb-home] .kb-note .kb-chips{display:none!important}
 #kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
@@ -180,7 +180,7 @@ html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,h
 .kb-chips button{padding:2px 9px;border-radius:99px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:12px/1.6 system-ui,-apple-system,sans-serif;cursor:pointer}
 @media (hover:hover){.kb-chips button:hover{border-color:var(--acc)}}
 .kb-note .kb-chips{display:none;padding:0 8px 8px}
-.kb-note .kb-vrow{display:none}.kb-note.kb-typing .kb-chips,.kb-note.kb-typing .kb-vrow{display:flex}
+.kb-note>.kb-vrow{display:none}.kb-note.kb-typing>.kb-chips,.kb-note.kb-typing>.kb-vrow{display:flex}
 .kb-selbar{position:absolute;display:flex;flex-direction:column;gap:5px;width:max-content;max-width:min(420px,calc(100vw - 24px));padding:6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2));font:13px/1.4 system-ui,-apple-system,sans-serif;pointer-events:auto;z-index:5}
 .kb-selbar .kb-pr{display:flex;gap:5px;align-items:center}
 .kb-selbar input{flex:1;min-width:150px;font:inherit;font-size:14px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
@@ -1038,12 +1038,20 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return out;
   }
   // fold what changed on screen since the last build into the records, stamped now
+  let retire = false;   // records from before that go at the next full save (see fromRecs)
   function commitRecs(going){
     if (!recsReady) { if (dbLate) toast(DB_WAIT); return }   // still waiting for the store: say so again, a pen stroke cleared it
-    const cur = buildRecs(), now = Date.now(); let n = 0;
+    const cur = buildRecs(), now = Date.now(); let n = 0; retire = false;
     for (const id in cur) { const sg = sig(cur[id]); if (BASE.get(id) !== sg) { REC[id] = Object.assign(cur[id], {u:now}); BASE.set(id, sg); n++ } }
     for (const id of [...BASE.keys()]) if (!cur[id]) { const o = REC[id] || {}; REC[id] = {k:o.k, id, pg:o.pg, order:o.order, del:true, u:now}; BASE.delete(id); n++ }
-    if (n) { changeSeq++; dirty = true; if (ghTok() && !unsent().includes(PAGE_ID)) setUnsent(unsent().concat(PAGE_ID)); if (going) persistNow(); else { persistRecs(true); schedulePush() } } else if (!going) persistRecs(false);
+    if (n) { changeSeq++; dirty = true; markUnsent(); if (going) persistNow(); else { persistRecs(true); schedulePush() } } else if (!going) persistRecs(false);
+  }
+  // one new mark on the page, saved at once by itself (what else waits is saved with it, the usual way)
+  function saveMark(m){
+    if (!recsReady) { saveBook(); return }
+    if (saveT || retire) { clearTimeout(saveT); saveT = 0; commitRecs(); return }
+    const b = Object.assign({}, m, {p:m.p.map(rq)}); delete b.id; const r = Object.assign({k:'mark', id:m.id}, b);
+    BASE.set(m.id, sig(r)); REC[m.id] = Object.assign(r, {u:Date.now()}); changeSeq++; dirty = true; markUnsent(); persistRecs(true); schedulePush();
   }
   // unread: this page's saved records could not be read at start-up (the store did not open, or the read failed), so the page started
   // without them. Nothing is written over them: at the first save that can read the store they are merged in, shown and synced. A
@@ -1071,8 +1079,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     marks = kids('mark').sort(byT).map(strip); notes = kids('note').sort(byT).map(strip); const sh = new Map(kids('shot').map(r => [r.n, r.img])); for (const n of notes) { const u = !n.g && sh.get(n.id); if (u && SHOT_OK.test(u)) n.shot = u; else delete n.shot } edits = kids('edit').sort(byT).map(strip); edits.forEach(normEdit);
     const ex = kids('entry').sort(byT).map(strip); entries = ex.filter(e => e.kind === 'note').slice(-KEEP);
     BASE = new Map(Object.entries(buildRecs()).map(([id, r]) => [id, sig(r)]));
-    for (const e of ex) if (!entries.includes(e)) BASE.set(e.id, '');
-    for (const n of notes) if (n.g && sh.has(n.id)) BASE.set('shot_' + n.id, '');   // an Ask conversation's picture from before: no longer kept   // exchanges no longer kept (a question on the page, a notebook one older than the last KEEP) go at the next save
+    for (const e of ex) if (!entries.includes(e)) { BASE.set(e.id, ''); retire = true }
+    for (const n of notes) if (n.g && sh.has(n.id)) { BASE.set('shot_' + n.id, ''); retire = true }   // an Ask conversation's picture from before: no longer kept   // exchanges no longer kept (a question on the page, a notebook one older than the last KEEP) go at the next save
   }
   // nothing half-done may be lost when the screen is rebuilt: wait while a stroke, a selection, typing, an unsaved change or a reply is
   // under way. Marks still waiting for Send are carried over by their ids
@@ -1109,16 +1117,23 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const fileOf = id => 'pages/' + (decodeURIComponent(id).replace(/^.*?technical_knowledge_base\//, '').replace(/^\/+|\/+$/g, '') || 'home') + '.json', PAGE_FILE = fileOf(PAGE_ID);
   // pages left with changes not yet sent (this device): the next page's sync sends them
   const unsent = () => { try { return JSON.parse(mine.get('unsent') || '[]') } catch(e) { return [] } }, setUnsent = a => mine.set('unsent', a.length ? JSON.stringify(a) : null);
+  const markUnsent = () => { if (ghTok() && !unsent().includes(PAGE_ID)) setUnsent(unsent().concat(PAGE_ID)) };
+  let othersBusy = false;
   async function sendOthers(){
-    for (const p of unsent()) { if (p === PAGE_ID) continue;
-      try { const row = await tx('readonly', st => st.get(p), 'recs'); if (row === null) continue;
-        if (row && row.dirty && row.recs) { let R = row.recs; const path = fileOf(p), sig0 = JSON.stringify(R);
+    if (othersBusy || !ghTok()) return; othersBusy = true;
+    try { for (const p of unsent()) { if (p === PAGE_ID) continue;
+      try { const row = await tx('readonly', st => st.get(p), 'recs'); if (row === null) continue;   // not read: tried again later
+        let done = !(row && row.dirty && row.recs);   // gone or clean: nothing to send
+        if (!done) { let R = row.recs; const path = fileOf(p), sig0 = JSON.stringify(R);
           await syncFile(path, () => Object.keys(R).length ? {v:1, page:path.slice(6, -5), records:R} : null, data => { const m = mergeRecs(R, cleanRecs(data && data.records)); R = m.recs; return m }, () => {});
-          const now = await tx('readonly', st => st.get(p), 'recs'); if (now && JSON.stringify(now.recs) === sig0) await tx('readwrite', st => st.put({page:p, recs:R, dirty:false}), 'recs');   // unless that page changed meanwhile (open in another tab)
+          const d = await openDb(); if (!d) continue;
+          done = await new Promise(res => { try { const t = d.transaction('recs', 'readwrite'), st = t.objectStore('recs'), q = st.get(p); let w = false;
+            q.onsuccess = () => { const now = q.result; if (now && JSON.stringify(now.recs) === sig0) { st.put({page:p, recs:R, dirty:false}); w = true } };   // unless that page changed meanwhile (open in another tab): sent next time
+            t.oncomplete = () => res(w); t.onerror = t.onabort = () => res(false) } catch(e) { res(false) } });
         }
-        setUnsent(unsent().filter(x => x !== p));
-      } catch(e) {}   // tried again at the next sync
-    }
+        if (done) setUnsent(unsent().filter(x => x !== p));
+      } catch(e) {} } }   // tried again at the next sync
+    finally { othersBusy = false }
   }
   const b64e = str => { const u = new TextEncoder().encode(str); let s2 = ''; for (let i = 0; i < u.length; i += 0x8000) s2 += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s2) };
   const b64d = b => { const s2 = atob(b.replace(/\s/g, '')), u = new Uint8Array(s2.length); for (let i = 0; i < s2.length; i++) u[i] = s2.charCodeAt(i); return new TextDecoder().decode(u) };
@@ -1214,8 +1229,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (seq === changeSeq) { dirty = false; persistRecs(false); if (unsent().includes(PAGE_ID)) setUnsent(unsent().filter(x => x !== PAGE_ID)) }
       const sd = setDirty; setDirty = false;
       await syncFile('settings.json', () => settingsDoc(), data => { const m = mergeSettings(data); m.rc = m.rc || sd; return m }, () => { syncBar(); if (!stView.hidden) renderSet(); try { if (window.kbLastRender) window.kbLastRender() } catch(e) {} });   // the landing page's Continue reading, from another device
-      if (unsent().length) await sendOthers();
-      lastSync = Date.now(); setSync(dirty || setDirty ? 'wait' : 'ok');
+      lastSync = Date.now(); setSync(dirty || setDirty ? 'wait' : 'ok'); if (unsent().some(p => p !== PAGE_ID)) setTimeout(sendOthers);
     } catch(e) {
       setSync(e.auth ? 'bad' : e.gh ? 'error' : navigator.onLine === false || e instanceof TypeError ? 'offline' : 'error', String(e.message || e));
     } finally { syncing = false; if (again) { again = false; schedulePush(1500) } }
@@ -2985,14 +2999,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // ---- drawing: pointer events from the pen and the mouse, caught before the page sees them ----
   let live = null, lastStroke = -1e9;   // no stroke yet (0 would swallow clicks in the first 0.4 s after load)
   const onPage = e => !(e.target && e.target.closest && e.target.closest(OURS_UI));
-  let tap0 = null, clickAt = 0, scrollAt = 0; const tapFns = [];
-  addEventListener('scroll', () => { scrollAt = Date.now() }, {passive:true, capture:true});
-  document.addEventListener('click', () => { clickAt = Date.now() }, true);
-  document.addEventListener('pointerdown', e => { tap0 = (e.pointerType === 'touch' || (e.pointerType === 'pen' && !penOn())) && e.isPrimary && Date.now() - scrollAt > 250 ? {x:e.clientX, y:e.clientY, t:Date.now(), id:e.pointerId} : null }, true);
+  const roomB = () => parseFloat(document.documentElement.style.getPropertyValue('--kb-room-b')) || 0;   // the band under a toolbar docked at the bottom
+  let tap0 = null, clickAt = 0, clickXY = [0, 0], scrollAt = 0, scrollEl = null; const tapFns = [];
+  addEventListener('scroll', ev => { scrollAt = Date.now(); scrollEl = ev.target }, {passive:true, capture:true});
+  document.addEventListener('click', e => { clickAt = Date.now(); clickXY = [e.clientX, e.clientY] }, true);
+  const scrolling = e => Date.now() - scrollAt < 250 && (scrollEl === document || scrollEl === document.documentElement || !!(scrollEl && scrollEl.contains && scrollEl.contains(e.target)));
+  document.addEventListener('pointerdown', e => { tap0 = (e.pointerType === 'touch' || (e.pointerType === 'pen' && !penOn())) && e.isPrimary && !scrolling(e) ? {x:e.clientX, y:e.clientY, t:Date.now(), id:e.pointerId, k:e.pointerType} : null }, true);
   document.addEventListener('pointercancel', () => { tap0 = null }, true);
   document.addEventListener('pointerup', e => { const d = tap0; tap0 = null; if (!d || e.pointerId !== d.id || Date.now() - d.t > 600 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) return;
-    const t = document.elementFromPoint(e.clientX, e.clientY), at = Date.now(), cx = e.clientX, cy = e.clientY; if (!t) return;
-    setTimeout(() => { if (clickAt >= at) return; for (const f of tapFns) try { f({target:t, clientX:cx, clientY:cy}) } catch(err) {} }, 350) }, true);
+    const t = document.elementFromPoint(e.clientX, e.clientY), at = Date.now(), cx = e.clientX, cy = e.clientY, k = d.k; if (!t) return;
+    setTimeout(() => { if (clickAt >= at && Math.hypot(clickXY[0] - cx, clickXY[1] - cy) < 30) return; for (const f of tapFns) try { f({target:t, clientX:cx, clientY:cy, pointerType:k}) } catch(err) {} }, 350) }, true);
   const onTap = (f, capture) => { tapFns.push(f); document.addEventListener('click', f, capture) };
   document.addEventListener('pointerdown', e => {
     if (!penOn() || live || e.button > 0 || !(e.pointerType === 'pen' || e.pointerType === 'mouse') || !onPage(e)) return;
@@ -3014,14 +3030,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     for (const x of (evs.length ? evs : [e])) { const p = [r1(x.clientX - o.left), r1(x.clientY - o.top), x.pointerType === 'pen' ? (x.pressure || 0.3) : 0.5], q = m.p[m.p.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 0.8) m.p.push(p); if (Math.hypot(p[0] - live.hx, p[1] - live.hy) > 3) { live.hx = p[0]; live.hy = p[1]; holdLive(live) } }
     live.g.setAttribute('d', pathD(m.p, m.sh));
   }, true);
-  let strokeSaved = 0;
   const endLive = e => {
     if (!live || e.pointerId !== live.id) return; e.stopPropagation(); const L = live; live = null; lastStroke = performance.now();
     clearTimeout(L.ht); if (L.er) { saveBook(); return }
     if (L.la) { lassoPage(L); return }
     if (scratchOn() && !L.m.sh && isScratch(L.m.p) && scratchPage(L)) return;
     pin(L.m, L.o, L.g); const pv = marks[marks.length - 2]; L.m.g = pv && !pv.dash && pv.a === L.m.a && L.m.t - pv.t < 8000 ? pv.g || pv.id : L.m.id;
-    pendPage.push(L.m); if (Date.now() - strokeSaved > 1000) { strokeSaved = Date.now(); clearTimeout(saveT); saveT = 0; commitRecs() } else saveBook(); arm(PG);
+    pendPage.push(L.m); saveMark(L.m); arm(PG);
   };
   // ---- the lasso on the page: a loop selects the marks mostly inside it and the part of the page under it; the box can be moved
   // (the marks with it), the marks deleted, or the region asked about (the loop stays as a faint dashed mark the note is pinned to) ----
@@ -3098,7 +3113,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const pop = el('div', {id:'kbAskPop', hidden:'', role:'dialog', 'aria-label':'Ask Claude about the selection'}, '<div class="kb-pr"><input type="text" placeholder="Ask Claude about this…" enterkeyhint="send" aria-label="Your question"><button type="button" data-ask>Ask</button></div><div class="kb-chipsbox"></div>');
   document.body.appendChild(pop);
   const popIn = pop.querySelector('input');
-  popIn.addEventListener('focus', () => pop.classList.add('kb-typing')); popIn.addEventListener('blur', () => setTimeout(() => { if (!pop.contains(document.activeElement)) pop.classList.remove('kb-typing') }, 300));
+  popIn.addEventListener('focus', () => { pop.classList.add('kb-typing'); requestAnimationFrame(placePop) });
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (document.activeElement === popIn) placePop() }); popIn.addEventListener('blur', () => setTimeout(() => { if (!pop.contains(document.activeElement)) pop.classList.remove('kb-typing') }, 300));
   pop.addEventListener('pointerdown', e => { if (e.target.closest('.kb-chipsbox button')) e.preventDefault() });   // the box keeps the cursor, so its rows stay
   pop.addEventListener('click', e => { if (blockClick(e, hl && hl.el, popIn, () => { hidePop(); try { getSelection().removeAllRanges() } catch(err) {} hl = null; showHl() })) return;
     const v = e.target.closest('[data-v]'); if (v && !v.closest('.kb-where')) { e.preventDefault(); askSel(popIn.value.trim() || VASK[v.dataset.v], v.dataset.v); return }
@@ -3108,8 +3124,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (!hl || !hl.rects.length) return;
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
     const cb = pop.querySelector('.kb-chipsbox'); if (pop.hidden || !cb.querySelector('.kb-where')) cb.innerHTML = chipsHtml() + VROW + (hl.el ? blockRowHtml(hl.el) : '');
-    pop.hidden = false; const ph = pop.offsetHeight || 160;   // measured now that it is filled
-    let y = last.y - scrollY + last.h + 12; if (y + ph > innerHeight - 8) y = Math.max(8, first.y - scrollY - ph - 8);
+    pop.hidden = false; placePop();
+  }
+  function placePop(){   // under the selection, or above it when there is no room (the visible part of the screen: an iPad's keyboard)
+    if (pop.hidden || !hl || !hl.rects.length) return;
+    const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16), ph = pop.offsetHeight || 160, vv = window.visualViewport, bot = (vv ? vv.offsetTop + vv.height : innerHeight) - 8 - roomB();
+    let y = last.y - scrollY + last.h + 12; if (y + ph > bot) y = Math.max(8, first.y - scrollY - ph - 8);
     const x = Math.max(8, Math.min(innerWidth - w - 8, last.x - scrollX + last.w / 2 - w / 2));
     Object.assign(pop.style, {left:x + 'px', top:y + 'px'});
   }
@@ -3305,7 +3325,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   const front = e => { e.style.zIndex = String(++noteZ) };
   // a note beside a passage being typed in shows whole, its question kept in view: above the keyboard on an iPad (the visual viewport)
-  const showFoot = e => requestAnimationFrame(() => { if (!e.isConnected || e.classList.contains('kb-gen') || e.classList.contains('kb-max')) return; const r = e.getBoundingClientRect(), vv = window.visualViewport, bot = (vv ? vv.offsetTop + vv.height : innerHeight) - 8, top = clipLine() + 8; if (r.bottom > bot) window.scrollBy({top:Math.min(r.bottom - bot, r.top - top), behavior:'smooth'}) });
+  const showFoot = e => requestAnimationFrame(() => { if (!e.isConnected || e.classList.contains('kb-gen') || e.classList.contains('kb-max')) return; const r = e.getBoundingClientRect(), vv = window.visualViewport, bot = (vv ? vv.offsetTop + vv.height : innerHeight) - 8 - roomB(), top = clipLine() + 8; if (r.bottom > bot) window.scrollBy({top:Math.min(r.bottom - bot, r.top - top), behavior:'smooth'}) });
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement, e = a && a.closest && a.closest('.kb-note.kb-typing'); if (e) showFoot(e) });
   // the notes being read: the Ask card and one note beside its passage can be open at once (every other note is a numbered dot); activeNote
   // is the one touched last, on top, and the first Escape closes
@@ -3400,7 +3420,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (e) { e.classList.remove('kb-active', 'kb-shown'); if (!n.g && (n.fold || n.resolved)) e.classList.add('kb-folded') }
     forget(n); if (n.g && !notes.includes(n)) dropDraft(n);
     schedule(); syncBar();
-    if (back) { const d = n.g ? bar.querySelector('[data-b=claude]') : e.isConnected && e.querySelector('.kb-dot'); if (d) d.focus({preventScroll:true}) }
+    if (back) { const d = n.g ? bar.querySelector('[data-b=claude]') : e.isConnected && !e.classList.contains('kb-nodot') ? e.querySelector('.kb-dot') : bar.querySelector('[data-b=over]'); if (d) d.focus({preventScroll:true});
+      requestAnimationFrame(() => requestAnimationFrame(() => { const a = document.activeElement; if (!a || a === document.body || !a.getClientRects().length) bar.querySelector('[data-b=over]').focus({preventScroll:true}) })) }   // no dot shown (no margin): Conversations
   }
   const deactivate = () => closeNote(activeNote);
   let draftText = '';   // typed in an Ask card closed before it was sent: put back in the next one
@@ -3497,7 +3518,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return null;
   }
   onTap(e => {   // a tap on a note's marks opens it
-    if (penOn() || !onPage(e) || !notes.length) return; const sel = getSelection(); if (sel && !sel.isCollapsed) return;
+    if ((penOn() && e.pointerType !== 'touch') || !onPage(e) || !notes.length) return; const sel = getSelection(); if (sel && !sel.isCollapsed) return;
     const n = noteAt(e.clientX, e.clientY); if (n) openNote(n);
   });
   // a follow-up in a note's thread: the same marks, the earlier turns, the new question
@@ -3513,7 +3534,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const unprep = job => { if (job.prep) { job.prep = false; preparing = Math.max(0, preparing - 1) } };
   function early(job){ job.prep = true; preparing++; setTimeout(() => unprep(job), 8000); if (PG.busy && PG.queued.length >= 3) return; try { job.early = PG.out.place(job); thinkLine(job.early, PG.busy ? 'Waiting for Claude to finish another answer…' : 'Thinking…'); const nb = job.note && job.note.e.querySelector('.kb-nb'); if (nb) nb.scrollTop = nb.scrollHeight } catch(e) { job.early = null } }   // the new question in view
   // a note that opened below or above the screen is brought into view, so the reader sees their question and the answer arrive
-  function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden || job.note.n.g || e.classList.contains('kb-max')) return; const r = e.getBoundingClientRect(), top = clipLine() + 8, bot = innerHeight - 8;
+  function reveal(job){ const e = job.note && job.note.e; if (!e || e.hidden || job.note.n.g || e.classList.contains('kb-max')) return; const r = e.getBoundingClientRect(), top = clipLine() + 8, bot = innerHeight - 8 - roomB();
     const dy = r.top < top ? r.top - top : r.bottom > bot ? Math.min(r.bottom - bot, r.top - top) : 0; if (Math.abs(dy) > 4) window.scrollBy({top:dy, behavior:'smooth'}) }
   function go(job){
     reveal(job); unprep(job);   // after the screen was captured

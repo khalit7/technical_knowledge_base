@@ -283,6 +283,12 @@ async function reading({ context, claude }) {
     await page.focus('#kbAskPop input'); await shows(page, 'the rows did not show with the cursor in the box', () => !!document.querySelector('#kbAskPop .kb-vrow').getClientRects().length);
     await page.press('#kbAskPop input', 'Escape'); await shows(page, 'Escape did not close the box', () => document.getElementById('kbAskPop').hidden);
   });
+  await check('3 a picture chip tapped in the selection\'s Ask box asks where the picture goes, with its buttons', async () => {
+    await page.evaluate(() => localStorage.setItem('kbBuddy.prompts', 'Diagram: Draw a diagram of this.')); await page.reload(); await ready(page);
+    await select(page, (await paragraphs(page, 2))[1]); await page.waitForSelector('#kbAskPop:not([hidden])'); await page.click('#kbAskPop .kb-chips button');
+    await shows(page, 'the where-row has no buttons', () => [...document.querySelectorAll('#kbAskPop .kb-where button')].filter(b => b.getClientRects().length).length >= 2);
+    await page.press('#kbAskPop input', 'Escape').catch(() => {}); await page.evaluate(() => { localStorage.removeItem('kbBuddy.prompts'); document.getElementById('kbAskPop').hidden = true }); await page.reload(); await ready(page);
+  });
   await check('3 ask about a selected passage: the request to Claude, and the streamed answer in a note', async () => {
     claude.say(A1); await ask(page, para[0], Q1);
     await reads(page, '.kb-note .kb-nq', Q1); await reads(page, '.kb-note .kb-na', A1);
@@ -546,8 +552,9 @@ async function touching({ context, claude }) {
     await shows(page, 'the answer did not finish', () => /\u00a2/.test(document.getElementById('kbToast').textContent));   // a note being written in stays open on a tap elsewhere
     await page.click('.kb-note.kb-active [data-n=close]'); await shows(page, 'x did not close the note', () => !document.querySelector('.kb-note.kb-active'));
     await shows(page, 'the closed highlight still shows a dot on the words', () => { const e = document.querySelector('.kb-note'); return e && getComputedStyle(e).display === 'none' });
-    const b = await para[0].boundingBox(); await page.touchscreen.tap(b.x + 100, b.y + 14);
-    await shows(page, 'a tap on the highlight did not open its note', () => !!document.querySelector('.kb-note.kb-active'));
+    await tool(page, 'pen'); const b = await para[0].boundingBox(); await page.touchscreen.tap(b.x + 100, b.y + 14);   // fingers never draw
+    await shows(page, 'a finger\'s tap on the highlight (pen chosen) did not open its note', () => !!document.querySelector('.kb-note.kb-active'));
+    await tool(page, 'hand');
     const free = await page.evaluate(y0 => {   // page text well away from every note and control (a finger's tap is pulled to anything near), below the highlighted line
       const away = [...document.querySelectorAll('.kb-note,#kbBar,button,a,input,figure')].map(e => e.getBoundingClientRect()).filter(r => r.width);
       for (let y = Math.max(y0, 140); y < innerHeight - 30; y += 20) for (let x = 40; x < innerWidth * 0.7; x += 30) {
@@ -599,10 +606,10 @@ async function syncing({ context, claude, repo }) {
     assert(await page.$eval('.kb-note.kb-gen.kb-active', e => getComputedStyle(e).display !== 'none'), 'the Ask card is hidden after the sync');
     await page.click('#kbBar [data-b=claude]'); same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
   });
-  await check('10 a mark made just before leaving a page reaches the notes repo with the next page\'s sync', async () => {
+  await check('10 two marks made just before leaving a page reach the notes repo with the next page\'s sync', async () => {
     await page.goto(PAGE_URL); await ready(page); const before = penMarks(repo.read(PAGE_FILE)).length, p = (await paragraphs(page, 1))[0];
-    await stroke(page, p); await page.goto(OTHER_URL);   // at once, before this page's own sync
-    await until('the mark in the notes repo', () => penMarks(repo.read(PAGE_FILE)).length === before + 1);
+    await stroke(page, p); await drag(page, p, { y: 30, dy: 10 }); await page.goto(OTHER_URL);   // a word's two strokes, then away at once, before this page's own sync
+    await until('both marks in the notes repo', () => penMarks(repo.read(PAGE_FILE)).length === before + 2);
     same(await page.evaluate(() => localStorage.getItem('kbBuddy.unsent')), null, 'the pages left with changes not sent');
   });
 }
