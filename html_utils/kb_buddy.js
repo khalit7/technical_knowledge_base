@@ -260,14 +260,14 @@ html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,h
 #kbAskPop input{flex:1;min-width:0;font:inherit;font-size:14.5px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
 #kbAskPop input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 #kbAskPop button{padding:5px 12px;border-radius:8px;background:var(--acc);border:1px solid var(--acc);color:var(--card,var(--bg));font-weight:600;font-size:13px;cursor:pointer}
-.kb-note .kb-nq{font:500 15px/1.5 system-ui,-apple-system,sans-serif;color:var(--ink);margin:0 0 4px;padding:0;border:0;white-space:pre-wrap}.kb-note .kb-nq svg{display:block;max-width:100%;height:auto;color:var(--kb-qink)}
-.kb-note .kb-turn+.kb-turn{margin-top:0;padding-top:0}
+.kb-note .kb-nq{width:fit-content;max-width:85%;margin:4px 0 8px auto;padding:7px 11px;border:0;border-radius:14px 14px 4px 14px;background:color-mix(in srgb,var(--acc) 12%,var(--card,var(--bg)));color:var(--ink);font:14px/1.45 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}.kb-note .kb-nq svg{display:block;max-width:100%;height:auto;margin-top:4px;color:var(--kb-qink)}
+.kb-note .kb-turn+.kb-turn{margin-top:12px;padding-top:0}
 .kb-note .kb-nf{display:flex;gap:4px;padding:4px 8px 8px}
-.kb-note .kb-nf input{flex:1;min-width:0;font:13px/1.3 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
-.kb-note .kb-nf button{border:0;background:var(--acc);color:var(--card,var(--bg));border-radius:7px;padding:0 9px;font-weight:700;cursor:pointer}
+.kb-note .kb-nf input{flex:1;min-width:0;font:14px/1.35 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.kb-note .kb-nf button{border:0;background:var(--acc);color:var(--card,var(--bg));border-radius:10px;min-width:34px;padding:0 10px;font-weight:700;cursor:pointer}
 .kb-note.kb-folded .kb-nf,.kb-note.kb-folded .kb-vrow,.kb-note.kb-folded .kb-chips,.kb-note.kb-folded .kb-ndraw,html.kb-narrow .kb-note:not(.kb-active) .kb-ndraw{display:none}
 .kb-note .kb-nf .kb-pen{background:var(--soft);color:var(--ink);border:1px solid var(--line)}.kb-note .kb-ndraw[hidden]{display:none!important}
-.kb-note .kb-ndraw{position:relative;margin:2px 8px 6px;height:96px;border:1px dashed color-mix(in srgb,var(--acc) 35%,transparent);border-radius:8px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,color-mix(in srgb,var(--acc) 12%,transparent) 29px,color-mix(in srgb,var(--acc) 12%,transparent) 30px)}
+.kb-note .kb-ndraw{position:relative;margin:2px 8px 6px;height:96px;border:1px dashed var(--line);border-radius:10px;background:var(--soft)}
 .kb-note .kb-ndraw canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}.kb-note .kb-ndraw span{position:absolute;left:10px;top:8px;font:12px system-ui,-apple-system,sans-serif;color:var(--mute);pointer-events:none}.kb-note .kb-ndraw button{position:absolute;right:4px;top:4px;border:0;background:var(--soft);color:var(--mute);border-radius:6px;cursor:pointer}
 .kb-note.kb-max .kb-ndraw{height:150px;margin-left:18px;margin-right:18px}
 .kb-note.kb-flash{animation:kbFlash 1.2s ease-out}
@@ -294,7 +294,7 @@ html.kb-narrow .kb-note:not(.kb-active) .kb-dot{display:flex;align-items:center;
 .kb-note .kb-ggrip{display:none}.kb-note.kb-gen:not(.kb-max) .kb-ggrip{display:inline-block;margin-right:4px;color:var(--mute);letter-spacing:-2px;font-size:14px;cursor:grab}.kb-note.kb-gen [data-n=resolve]{display:none!important}
 html.kb-pen body,html.kb-pen body *{cursor:crosshair}
 html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #kbBuddy button,html.kb-pen .kb-note .kb-nh{cursor:default}
-.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}.kb-note.kb-gen:not(.kb-max) .kb-vrow,.kb-note.kb-gen:not(.kb-max) .kb-chips{padding-right:8px;padding-left:30px}.kb-note.kb-gen:not(.kb-max) .kb-nf{padding-left:30px}
+.kb-note .kb-rz{position:absolute;right:0;bottom:0;width:32px;height:32px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 52%,var(--mute) 52%,var(--mute) 58%,transparent 58%,transparent 68%,var(--mute) 68%,var(--mute) 74%,transparent 74%,transparent 84%,var(--mute) 84%,var(--mute) 90%,transparent 90%);opacity:.55;border-bottom-right-radius:12px}.kb-note:not(.kb-max) .kb-vrow,.kb-note:not(.kb-max) .kb-chips{padding-right:30px}.kb-note.kb-gen:not(.kb-max) .kb-vrow,.kb-note.kb-gen:not(.kb-max) .kb-chips{padding-right:8px}.kb-note.kb-gen:not(.kb-max){padding-bottom:12px}.kb-note.kb-gen .kb-rz{width:16px;height:16px}.kb-note.kb-gen .kb-rz::after{content:'';position:absolute;inset:-10px}
 .kb-note.kb-folded .kb-rz,.kb-note.kb-max .kb-rz,html.kb-narrow .kb-note:not(.kb-active) .kb-rz{display:none}
 #kbOvw{position:fixed;left:0;right:0;top:var(--kb-room,0px);bottom:var(--kb-room-b,0px);z-index:69;overflow:auto;overscroll-behavior:contain;background:var(--bg,#fff);color:var(--ink);font:14px/1.45 system-ui,-apple-system,sans-serif;padding:0 16px 24px}
 #kbOvw[hidden]{display:none}
@@ -315,17 +315,17 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 .kb-maxbg{position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,.3);touch-action:none}
 .kb-note.kb-max{position:fixed!important;left:max(12px,calc(50vw - 440px))!important;top:var(--kb-maxtop,calc(var(--kb-room,0px) + 12px))!important;width:min(880px,calc(100vw - 24px))!important;height:var(--kb-maxh,calc(100dvh - var(--kb-room,0px) - var(--kb-room-b,0px) - 24px));max-width:none;display:flex!important;flex-direction:column;z-index:1000001!important;visibility:visible!important}
 .kb-note.kb-max .kb-nh [data-n=resolve],.kb-note.kb-max .kb-nh [data-n=close]{min-height:36px;min-width:40px;margin-left:4px;border:1px solid var(--line);border-radius:9px;color:var(--ink)}
-.kb-note.kb-max .kb-nb{overscroll-behavior:contain;flex:1;height:auto!important;max-height:none!important;font-size:29px;line-height:40px;background:linear-gradient(to bottom,transparent 0,transparent 39px,color-mix(in srgb,var(--acc) 18%,transparent) 39px,color-mix(in srgb,var(--acc) 18%,transparent) 40px) 0 4px/100% 40px local;padding:4px 28px 14px}.kb-note.kb-max .kb-na{font-size:29px;line-height:40px}.kb-note.kb-max .kb-nq{font-size:17px}.kb-note.kb-max .kb-nb .kb-sk svg{width:min(100%,680px)!important;height:auto!important;max-width:none!important}
+.kb-note.kb-max .kb-nb{overscroll-behavior:contain;flex:1;height:auto!important;max-height:none!important;font-size:16px;line-height:1.65;padding:14px 28px 16px}.kb-note.kb-max .kb-na{font-size:16px;line-height:1.65}.kb-note.kb-max .kb-nq{font-size:15px}.kb-note.kb-max .kb-nb .kb-sk svg{width:min(100%,680px)!important;height:auto!important;max-width:none!important}
 .kb-note.kb-max .kb-nh{cursor:default;padding:8px 10px 2px 18px;font-size:13px}.kb-note.kb-max .kb-nf,.kb-note.kb-max .kb-vrow,.kb-note.kb-max .kb-chips{padding-left:18px;padding-right:18px}
-.kb-note{position:absolute;max-width:calc(100vw - 16px);background:var(--card,var(--bg));border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--acc)}
+.kb-note{position:absolute;max-width:calc(100vw - 16px);background:var(--card,var(--bg));border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 6px 24px rgba(0,0,0,.2));color:var(--ink)}
 .kb-note[hidden]{display:none}
 .kb-note .kb-nh{display:flex;align-items:center;gap:4px;padding:3px 4px 0 12px;font-size:11.5px;color:var(--mute);cursor:move;touch-action:none;-webkit-user-select:none;user-select:none}
 .kb-note .kb-nh .kb-sp{flex:1}
 .kb-note .kb-nh button{border:0;background:transparent;color:var(--mute);font-size:15px;line-height:1;padding:2px 7px;border-radius:6px;cursor:pointer}
 @media (hover:hover){.kb-note .kb-nh button:hover{background:var(--soft)}}
-.kb-note .kb-nb{max-height:44vh;overflow:auto;padding:4px 14px 10px 18px;font-family:${HAND};font-size:23px;line-height:30px;white-space:pre-wrap;overflow-wrap:anywhere;background:linear-gradient(to bottom,transparent 0,transparent 29px,color-mix(in srgb,var(--acc) 18%,transparent) 29px,color-mix(in srgb,var(--acc) 18%,transparent) 30px);background-size:100% 30px;background-position:0 4px;background-attachment:local}
-.kb-note .kb-na{line-height:30px}
-.kb-note .kb-nb .kb-sk svg{max-width:320px;max-height:230px}
+.kb-note .kb-nb{max-height:44vh;overflow:auto;padding:6px 12px 8px;font:14.5px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.kb-note .kb-na{line-height:1.55;margin:0 0 2px}
+.kb-note .kb-nb .kb-sk svg{max-width:320px;max-height:230px}.kb-note .kb-na .kb-sk{display:block;width:fit-content;max-width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--card,var(--bg))}.kb-note .kb-sk text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
 .kb-note .kb-dot{display:none}
 .kb-note.kb-folded{width:auto!important;border:0;background:transparent;box-shadow:none}
 .kb-note.kb-folded .kb-nh,.kb-note.kb-folded .kb-nb{display:none}
@@ -899,7 +899,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
   function replyPieces(text){
     const out = [], rx = /<svg[\s\S]*?<\/svg>/gi; let i = 0, m;
-    while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex }
+    while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex; if (text.charAt(i) === '\n') i++ }   // the line break after a sketch: the sketch is a block of its own
     if (i < text.length) out.push(text.slice(i).replace(/<svg[\s\S]*$/i, ''));
     return out;
   }
@@ -920,7 +920,7 @@ The reader writes to you by hand or by keyboard in a notebook of ruled pages, th
 - If their handwriting is unclear, say what you read and ask if that is right.
 - Where to write: you get an image of the notebook page with free spots outlined in green and lettered, and a list of them with the room each has; N is the top of a fresh page put in right after this one. Choose like a tutor annotating their page, not like a chat that appends: a short remark (one to three lines) goes in a spot beside the words it is about, in the margin next to them; a correction or a comment on one part goes beside that part, with an arrow to it; right below their writing only when the answer needs several sentences; another free stretch of the page when that keeps it close; N only when the page is crowded, or the reply is long or has a sketch. Prefer short replies that fit beside their writing. Keep the reply within the room of the spot you choose.
 - When your reply is about one particular word, line or part of a drawing (in what they just wrote, something earlier on the page, or one of your earlier notes), add <point>x,y</point> right after </read>: the coordinates of that spot in the notebook image, read off its ruler; an arrow is drawn from your reply to it, so they see exactly what you are answering. Use it whenever it makes the link clearer.
-- They also write on the page itself, with pens of several colours and a highlighter: circles, arrows, underlines, highlights, notes in the margin, a sketch for you to finish. Those marks stay on the page, as do your replies to them, which appear as small sticky notes beside the marks. When they have just marked the page, the new marks are outlined NEW on the screen image; answer about exactly what they marked, keeping in mind the note is small. There is no <at> or <point> then. Their older marks on the screen are context: earlier thinking you can build on.
+- They also write on the page itself, with pens of several colours and a highlighter: circles, arrows, underlines, highlights, notes in the margin, a sketch for you to finish. Those marks stay on the page, as do your replies to them, which appear as a small chat beside the marks. When they have just marked the page, the new marks are outlined NEW on the screen image; answer about exactly what they marked, keeping in mind the note is small. There is no <at> or <point> then. Their older marks on the screen are context: earlier thinking you can build on.
 Output format, always: in the notebook first <at>the letter of the spot you choose</at>; then <read>exactly what they wrote, transcribed (handwriting and typed text; describe any sketch or mark of theirs, and what it points at, in a few words in brackets)</read>; then, in the notebook and only if needed, <point>x,y</point>; then your reply as plain text.`;
   // ---- one streamed request; onText gets the text so far ----
   // the page is written to the 1-hour cache; anything else written to the cache (a web tool's results) is at the 5-minute price
@@ -2717,6 +2717,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       else { const b = sketch(w.svg); if (b) { R.appendChild(b); hold = performance.now() + inkIn(b) } }
       S.out.follow(job);
     }, 70) };
+    let skNl = false;
     const words = t => queue.push(...(t.match(/\[\[[^\]]*\]\]\S*\s*|\S+\s*|\s+/g) || []));
     // newly streamed reply text goes into the queue: whole words, and each sketch only once its </svg> has arrived
     const feed = (raw, end) => {
@@ -2727,10 +2728,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         if (a === shown) {
           const z = lo.indexOf('</svg>', a);
           if (z < 0) { if (stopped) shown = r.length; return }
-          queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; pump(); continue;
+          queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; skNl = true; pump(); continue;
         }
         let upto = a > 0 ? a : r.length;
         if (a < 0 && !stopped) { upto = r.lastIndexOf(' ') + 1; const lt = r.lastIndexOf('<'); if (lt >= shown && lt < upto) upto = lt; const lb = r.lastIndexOf('[[', upto); if (lb >= shown && lb < upto) { const rb = r.indexOf(']]', lb); if (rb < 0) upto = lb; else if (rb + 2 > upto) upto = rb + 2 } }   // a [[page link]] is never cut in two
+        if (skNl && r.length > shown) { skNl = false; if (r.charAt(shown) === '\n') { shown++; continue } }   // the line break after a sketch, as in replyPieces
         if (upto <= shown) return;
         words(r.slice(shown, upto)); shown = upto; pump();
         if (a < 0) return;

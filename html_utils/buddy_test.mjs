@@ -300,6 +300,12 @@ async function reading({ context, claude }) {
     assert(texts(body.messages.at(-1)).includes(Q1), 'the question is not in the request');
     await saved(page, 'the answer', R => live(R, 'note').some(n => n.turns.length === 1 && n.turns[0].a === A1));
   });
+  await check('3 the note reads as a chat: Claude in the page\'s own font, the question in a bubble on the right', async () => {
+    const st = await page.evaluate(() => { const a = document.querySelector('.kb-note.kb-active .kb-na'), q = document.querySelector('.kb-note.kb-active .kb-nq'), b = document.querySelector('.kb-note.kb-active .kb-nb'), ra = q.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      return { font: getComputedStyle(a).fontFamily, right: Math.round(rb.right - ra.right), left: Math.round(ra.left - rb.left), tint: getComputedStyle(q).backgroundColor } });
+    assert(!/Caveat|cursive/i.test(st.font), 'Claude writes in handwriting: ' + st.font);
+    assert(st.right < 30 && st.left > 30 && !/rgba\(0, 0, 0, 0\)|transparent/.test(st.tint), 'the question is not a bubble on the right: ' + JSON.stringify(st));
+  });
   await check('3 a follow-up in the note sends the earlier turn, and its answer shows too', async () => {
     claude.say(A2); await page.fill('.kb-note .kb-nf input', Q2); await page.press('.kb-note .kb-nf input', 'Enter');
     await reads(page, '.kb-note .kb-nq', Q1, Q2); await reads(page, '.kb-note .kb-na', A1, A2);
