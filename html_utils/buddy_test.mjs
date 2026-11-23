@@ -543,6 +543,19 @@ async function landing({ context, claude }) {
       return bs.includes('First') && bs.some(t => /^Then Attention variants/.test(t)) && cs[0] === 'x**2' && /# kept as written\n- not a bullet/.test(cs[1] || '') && /\u2022 /.test(a.textContent) && !/###|\*\*F/.test(a.textContent) && /2 \* 3/.test(a.textContent) });
     await page.keyboard.press('Escape');
   });
+  await check('16 nothing a reply writes becomes an attribute or runs: a page link inside a link\'s address, a web source\'s title', async () => {
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').first().click(); await page.click('.kb-note.kb-max [data-n=close]'); await page.click('#kbOvw [data-o=close]');
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    claude.say('See [src](https://example.com/[[x style=animation-name:kbFlash;animation-duration:1s onanimationstart=window.__pwned=1 y]]) and \u27e6uhttps%3A%2F%2Fexample.com%2F|%5B%5Bx%20onmouseover%3Dwindow.__pwned%3D2%20y%5D%5D\u27e7 done.');
+    await page.fill(box, 'Sources?'); await page.press(box, 'Enter');
+    await shows(page, 'the reply did not show', () => /done\./.test(([...document.querySelectorAll('.kb-note.kb-gen.kb-active .kb-na')].pop() || {}).textContent || '')); await sleep(1500);
+    const bad = () => page.evaluate(() => ({ pwned: window.__pwned || 0, attrs: [...document.querySelectorAll('.kb-note *')].flatMap(e => [...e.attributes].filter(a => /^on/i.test(a.name) || (a.name === 'style' && /animation/.test(a.value))).map(a => e.tagName + ' ' + a.name)) }));
+    same(await bad(), { pwned: 0, attrs: [] }, 'what the reply could run');
+    await page.keyboard.press('Escape'); await page.reload(); await page.waitForSelector('#kbBar');
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'Sources?' }).click(); await sleep(1500);
+    same(await bad(), { pwned: 0, attrs: [] }, 'what the saved reply could run after a reload');
+    await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');   // gone again, so the list below holds one
+  });
   await check('16 Conversations on the landing page lists it, as about the knowledge base', async () => {
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q);
     assert(/^\u2733 About the knowledge base/.test(await page.textContent('#kbOvw .kb-ovc small')), 'the card does not say it is about the knowledge base');

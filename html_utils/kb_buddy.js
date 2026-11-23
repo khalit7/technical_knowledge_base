@@ -135,7 +135,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 .kb-note input::placeholder{color:var(--mute);opacity:1}
 #kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-vrow,#kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-blk{display:none!important}
 .kb-note.kb-nodot:not(.kb-active){display:none!important}
-html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow,html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=ask],html.kb-noai .kb-selbar .kb-chips,html.kb-noai .kb-selbar .kb-vrow,html.kb-noai [data-k=text],html.kb-noai [data-k=vis]{display:none!important}
+html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow,html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=ask],html.kb-noai .kb-selbar .kb-chips,html.kb-noai .kb-selbar .kb-vrow,html.kb-noai .kb-blk [data-k=text],html.kb-noai .kb-blk [data-k=vis],html.kb-noai .kb-selbar .kb-pr .kb-go,html.kb-noai [data-bk=ask],html.kb-noai #kbChg .kb-chips,html.kb-noai #kbChg .kb-pr,html.kb-noai #kbChg [data-c=pick],html.kb-noai #kbChg [data-c=stmerge]{display:none!important}
 html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,html[data-kb-home] .kb-note .kb-chips{display:none!important}
 #kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
 #kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
@@ -475,7 +475,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const keepGeom = () => mine.set('geom', JSON.stringify(geom));
   // full screen leaves room for the toolbar on whichever edge it is docked
   function fitFull(){
-    const r = bar.getBoundingClientRect(), m = bar.classList.contains('kb-min') ? 0 : 1;
+    const r = bar.getBoundingClientRect(), m = 1;   // room for the toolbar, small or full
     const v = {T:0, R:0, B:0, L:0};
     if (m) { if (dock.e === 'top') v.T = r.bottom + 6; else v.B = innerHeight - r.top + 6 }
     for (const k in v) P.style.setProperty('--kb' + k, v[k] + 'px');
@@ -576,7 +576,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const W = innerWidth, H = innerHeight, w = Math.ceil(bar.getBoundingClientRect().width) + 1, h = bar.offsetHeight, m = 8;   // rounded up: a fraction short and it wraps
     let x, y;
     {   // centred on its usual width: the buttons that come and go or change width (Send, and sync with its key label) extend it to the right, so the tools never slide
-      const extra = [...bar.querySelectorAll('[data-b=send],[data-b=sync],[data-t=text]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
+      const extra = bar.classList.contains('kb-min') ? 0 : [...bar.querySelectorAll('[data-b=send],[data-b=sync],[data-t=text]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);   // the small toolbar is simply centred
       y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - (w - extra) / 2)) }
     Object.assign(bar.style, {left:x + 'px', top:y + 'px', width:w + 'px'}); placeToast();   // its measured width, so it does not wrap where it lands
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
@@ -881,25 +881,32 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // [[Page title]] becomes a link to that page of the knowledge base
   // the light Markdown of a reply, on escaped text: fenced code as a block, `code` as written, # headings, **bold**, *italics*,
   // [links](https://...) and bullets: a hanging-indent line when the whole reply is drawn (block), "• " while a line streams in
-  const mdInline = t => t.replace(/`([^`\n]{1,200})`/g, (_, c) => '<code>' + c.replace(/\*/g, '&#42;') + '</code>')
+  const mdInline = t => t.replace(/`([^`\n]{1,200})`/g, (_, c) => '<code>' + c.replace(/\*/g, '&#42;').replace(/\[/g, '&#91;') + '</code>')
     .replace(/(^|\n)[ \t]*#{1,4} ([^\n]+)/g, '$1<b>$2</b>').replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>')
     .replace(/(^|[\s(])\*(?=\S)([^*\n]{1,200}?\S)\*(?![\w*])/g, '$1<i>$2</i>')
-    .replace(/\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)"<>]{1,500})\)/g, '<a class="kb-kbl" href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    .replace(/\[([^\]\n\uE000\uE001]{1,200})\]\((https?:\/\/(?:[^\s()"<>\uE000\uE001]|\([^\s()"<>\uE000\uE001]{0,200}\)){1,500})\)/g, '<a class="kb-kbl" href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   const mdx = (h, block) => h.split(/(```[\s\S]*?```)\n?/).map((seg, i) => i % 2 ? '<code class="kb-pre">' + seg.slice(3, -3).replace(/^[^\n]*\n/, '').replace(/\n$/, '') + '</code>'
     : !block ? mdInline(seg).replace(/(^|\n)[ \t]*[-*] (?=\S)/g, '$1\u2022 ')
     : mdInline(seg).split('\n').map(L => { const m = /^([ \t]*)[-*] (?=\S)(.*)$/.exec(L); return m ? '\u0001<span class="kb-li' + (m[1].length >= 2 ? ' kb-li2' : '') + '">\u2022 ' + m[2] + '</span>\u0001' : L }).join('\n').replace(/\u0001\n?/g, '')).join('');
   function renderStr(str, box, md){
     let n = box ? box.querySelectorAll('.kb-cite:not(.kb-web)').length : 0;
-    let h = esc(str).replace(/&lt;(\/?)(sup|sub|b|i|em|strong)&gt;/g, '<$1$2>');   // the few formatting tags Claude sometimes writes, shown, not printed
-    if (md) { const keep = []; h = mdx(h.replace(/⟦[^⟧]*⟧|\[\[[^\]]{1,160}\]\]/g, m => '\uE000' + (keep.push(m) - 1) + '\uE001'), md !== 'line').replace(/\uE000(\d+)\uE001/g, (_, i) => keep[+i]) }
-    return h
-      .replace(/⟦u([^|⟧]{1,2000})\|([^⟧]{0,600})⟧/g, (_, u, t) => {
-        let url = '', title = ''; try { url = decodeURIComponent(unesc(u)); title = decodeURIComponent(unesc(t)) } catch(e) { return '' }
+    // web sources (⟦u...⟧), citations (⟦c...⟧) and page links ([[...]]) are set aside, and each is drawn on its own once everything else is
+    // done: no pass ever runs over the HTML they make. The characters used to set them aside cannot come from the reply
+    const keep = [];
+    let h = esc(String(str).replace(/[\uE000\uE001\u0001]/g, '')).replace(/&lt;(\/?)(sup|sub|b|i|em|strong)&gt;/g, '<$1$2>')   // the few formatting tags Claude sometimes writes, shown, not printed
+      .replace(/⟦u[^|⟧]{1,2000}\|[^⟧]{0,600}⟧|⟦c\d+⟧|\[\[[^\]]{1,160}\]\]/g, m => '\uE000' + (keep.push(m) - 1) + '\uE001');
+    if (md) h = mdx(h, md !== 'line');
+    return h.replace(/\uE000(\d+)\uE001/g, (_, i) => {
+      const m = keep[+i]; let x; if (m == null) return '';
+      if ((x = /^⟦u([^|⟧]{1,2000})\|([^⟧]{0,600})⟧$/.exec(m))) {
+        let url = '', title = ''; try { url = decodeURIComponent(unesc(x[1])); title = decodeURIComponent(unesc(x[2])) } catch(e) { return '' }
         let ok = false; try { ok = /^https?:$/.test(new URL(url).protocol) } catch(e) {} if (!ok) return '';
         let host = ''; try { host = new URL(url).hostname.replace(/^www\./, '') } catch(e) {}
-        return '<a class="kb-cite kb-web" href="' + esc(url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" title="' + esc(title || host).replace(/"/g, '&quot;') + '">\u2197 ' + esc(host) + '</a>' })
-      .replace(/⟦c(\d+)⟧/g, (_, i) => { const B = docBlocks(), t = (B.content[+i] || {}).text || ''; return '<button type="button" class="kb-cite" data-cb="' + i + '" title="' + esc(t.slice(0, 160)) + '">' + (++n) + '</button>' })
-      .replace(/\[\[([^\]]{1,160})\]\]/g, (_, t) => kbLink(unesc(t)));
+        return '<a class="kb-cite kb-web" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" title="' + esc(title || host) + '">\u2197 ' + esc(host) + '</a>';
+      }
+      if ((x = /^⟦c(\d+)⟧$/.exec(m))) { const B = docBlocks(), t = (B.content[+x[1]] || {}).text || ''; return '<button type="button" class="kb-cite" data-cb="' + x[1] + '" title="' + esc(t.slice(0, 160)) + '">' + (++n) + '</button>' }
+      x = /^\[\[([^\]]{1,160})\]\]$/.exec(m); return x ? kbLink(unesc(x[1])) : '';
+    });
   }
   const txt = (str, box, md) => { const sp = el('span'); sp.innerHTML = renderStr(str, box, md); if (!KBI && sp.querySelector('u[data-kbt]')) kbIndex().then(kbLinks); return sp };
   // a page of the knowledge base named in a reply: a link (its short title, the full one as its tooltip), or, until the index has loaded,
@@ -913,9 +920,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.kb-cite:not(.kb-web)'); if (c) { e.preventDefault(); e.stopPropagation(); jumpBlock(+c.dataset.cb) } }, true);
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
   function replyPieces(text, chat){
-    const out = [], rx = /<svg\s[^>]*viewBox[\s\S]*?<\/svg>/gi; let i = 0, m;
+    const out = [], rx = /<svg\s[^>]*>[\s\S]*?<\/svg>/gi; let i = 0, m;
     while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex; if (chat && text.charAt(i) === '\n') i++ }   // in a chat, the line break after a sketch: the sketch is a block of its own
-    if (i < text.length) out.push(text.slice(i).replace(/<svg\s[^>]*viewBox[\s\S]*$/i, ''));   // an unfinished sketch at the end
+    if (i < text.length) out.push(text.slice(i).replace(/<svg\s[\s\S]*$/i, ''));   // an unfinished sketch at the end
     return out;
   }
 
@@ -2734,7 +2741,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       S.out.follow(job);
     }, 70) };
     let skNl = false, lineNodes = [], lineRaw = '';
-    const flushLine = R => { if (!lineNodes.length) return; const raw = lineRaw; for (const x of lineNodes) x.remove(); lineNodes = []; lineRaw = ''; const sp = txt(raw, R, 'line'); sp.classList.add('kb-done'); R.appendChild(sp) };   // a line on the page, drawn again with its Markdown once complete
+    let fence = false;
+    const flushLine = R => { if (!lineNodes.length) return; const raw = lineRaw; for (const x of lineNodes) x.remove(); lineNodes = []; lineRaw = ''; const isF = /^\s*```/.test(raw), md = fence || isF ? false : 'line'; if (isF) fence = !fence; const sp = txt(raw, R, md); sp.classList.add('kb-done'); R.appendChild(sp) };   // a line on the page, drawn again with its Markdown once complete
     const words = t => queue.push(...(t.match(/\[\[[^\]]*\]\]\S*\s*|\S+\s*|\s+/g) || []));
     // newly streamed reply text goes into the queue: whole words, and each sketch only once its </svg> has arrived
     const feed = (raw, end) => {
@@ -3305,7 +3313,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
           const j = Object.assign({}, old, {note:null, newNote:false, early:null, err:null, lastRaw:null, lastReply:null, reuse:n, gid:edits.some(y => y.g === old.gid) ? old.gid : undefined, tab:old.tab});
           (async () => { try { j.scr = await screenBlocks(false, j.marks || [], j.hl) } catch(e2) {}   // the screen as it is now
             if (PG.busy) { PG.queued.push(j); toast('Will ask again after this reply.', 4000) } else send(PG, j) })();
-        } else { const w = old ? old.where : whereOf(t.q || ''); if (w === null) askWhere(e.querySelector('.kb-nb'), t.q, v => followUp(n, t.q, v, t.ink)); else followUp(n, t.q || '', w || undefined, t.ink) }
+        } else { let w = old ? old.where : whereOf(t.q || ''); if (w === null && HOME) w = 'note'; if (w === null) askWhere(e.querySelector('.kb-nb'), t.q, v => followUp(n, t.q, v, t.ink)); else followUp(n, t.q || '', w || undefined, t.ink) }
       }
     });
     const f = e.querySelector('form'), inp = f.querySelector('input'); const strip = drawStrip(n, e, inp); e.insertBefore(strip, f);
@@ -3538,7 +3546,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return null;
   }
   onTap(e => {   // a tap on a note's marks opens it
-    if ((penOn() && e.pointerType !== 'touch') || !onPage(e) || !notes.length) return; const sel = getSelection(); if (sel && !sel.isCollapsed) return;
+    if ((penOn() && e.pointerType !== 'touch') || !onPage(e) || !notes.length || keyState() === 'missing') return; const sel = getSelection(); if (sel && !sel.isCollapsed) return;
     const n = noteAt(e.clientX, e.clientY); if (n) openNote(n);
   });
   // a follow-up in a note's thread: the same marks, the earlier turns, the new question
@@ -3604,7 +3612,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     done(job, text){ if (job.quiet) return; try { const nn = job.note && job.newNote && !job.note.n.g && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.clean || job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
       if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
       job.note.t.a = text;
-      { const a = job.note.d.querySelector('.kb-na'); if (a && /[*`#[]|(^|\n)[ \t]*- /.test(text)) { a.classList.remove('kb-ink'); a.textContent = ''; for (const x of replyPieces(text, true)) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } } } }   // its Markdown shown, now that it is complete
+      { const a = job.note.d.querySelector('.kb-na'); if (a) { a.classList.remove('kb-ink'); a.textContent = ''; for (const x of replyPieces(text, true)) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } } } }   // its Markdown shown, now that it is complete
       linkNote(job); saveBook(); if (job.newNote && job.note.e.classList.contains('kb-active')) { const r = job.note.e.getBoundingClientRect(); if (r.top >= clipLine() && r.top < innerHeight) reveal(job) } },
     empty(job){ const J = job.note; if (!J) return; if (J.n.g) { this.fail(job, null, 'No reply'); return }   // an Ask conversation keeps the question, with Try again
       drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n); forget(J.n) } saveBook(); syncBar() },
@@ -3618,7 +3626,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     } finally { const ne = job.note && noteEl.get(job.note.n); if (!ne || !ne.classList.contains('kb-active')) toast(msg, 9000) } }});
 
   // a reply as plain text, for short previews
-  const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/\*\*|`+/g, '').replace(/(^|\n)[ \t]*(#{1,4}|[-*]) /g, '$1').replace(/⟦[^⟧]*⟧/g, '').replace(/\[\[([^\]]*)\]\]/g, '$1').replace(/\s+/g, ' ').trim();
+  const plain = t => String(t || '').replace(/<svg[\s\S]*?<\/svg>/gi, ' [sketch] ').replace(/\*\*|`+/g, '').replace(/(^|\n)[ \t]*(#{1,4}|[-*]) /g, '$1').replace(/\[([^\]\n]+)\]\(https?:[^\s)]*\)/g, '$1').replace(/(^|[\s(])\*(\S[^*\n]*?)\*(?![\w*])/g, '$1$2').replace(/⟦[^⟧]*⟧/g, '').replace(/\[\[([^\]]*)\]\]/g, '$1').replace(/\s+/g, ' ').trim();
   // ---- the Page changes list (opened from the Conversations overview): every change Claude made to the page, then, only if there are
   // any, the marks and notes that no longer find their place after the page changed, each with Delete ----
   function lostGroups(){   // notes and marks whose words are no longer on the page
