@@ -366,6 +366,17 @@ async function reading({ context, claude }) {
     await reads(page, '#kbBuddy .kd-reply', reply);
     assert(claude.requests.at(-1).body.messages.at(-1).content.some(b => b.type === 'image' && b.source.media_type === 'image/png'), 'the ink was not sent as a picture');
   });
+  await check('6 a loop round ink in the notebook: its question goes to Claude with its pictures, and the answer comes on the paper', async () => {
+    const reply2 = 'That is the line you drew.', b = await page.locator('#kbBuddy .kd-pg canvas').first().boundingBox();
+    await tool(page, 'lasso'); await page.mouse.move(b.x + 60, b.y + 70); await page.mouse.down();
+    for (const [x, y] of [[280, 70], [280, 130], [60, 130], [60, 72]]) await page.mouse.move(b.x + x, b.y + y, { steps: 5 });
+    await page.mouse.up(); await page.waitForSelector('#kbBuddy .kb-selbar input');
+    claude.say('<at>A</at><read>[the line]</read>' + reply2); await page.fill('#kbBuddy .kb-selbar input', 'What is this?'); await page.press('#kbBuddy .kb-selbar input', 'Enter');
+    await shows(page, 'the loop\'s answer is not on the paper', () => [...document.querySelectorAll('#kbBuddy .kd-reply')].some(r => /line you drew/.test(r.textContent)));
+    const c = claude.requests.at(-1).body.messages.at(-1).content;
+    assert(c.filter(x => x.type === 'image').length >= 2 && c.some(x => x.type === 'text' && /What is this\?/.test(x.text)), 'the loop\'s question or its pictures were not sent');
+    await tool(page, 'hand');
+  });
   await check('7 Tom Riddle\'s diary: a typed line gets its reply, written out in full', async () => {
     const reply = 'How curious. Do go on.';
     await page.click('#kbBuddy [data-a=riddle]'); claude.say('<read>Hello, diary</read>' + reply);
@@ -432,6 +443,30 @@ async function reading({ context, claude }) {
     assert(last.some(b => b.type === 'text' && /drew this in the drawing sheet/.test(b.text)) && last.some(b => b.type === 'text' && /Like this\?/.test(b.text)), 'the drawing or the words were not sent');
     assert(await page.$eval('.kb-note.kb-active .kb-nq', q => /Like this\?/.test(q.textContent) && !!q.querySelector('svg')), 'the question does not show the words and the drawing');
     await page.keyboard.press('Escape'); await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'Like this?' }).click(); await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');
+  });
+  await check('9 a drawing left in a box that closes never moves to the next one; the next sheet\'s Undo brings it back; a tap outside the sheet is Done', async () => {
+    const p = (await paragraphs(page, 1))[0]; await tool(page, 'hand'); await drag(page, p, { x: 280, dx: 140 }); await page.waitForSelector('#kbAskPop:not([hidden])');
+    await page.click('#kbAskPop [data-draw]'); await page.waitForSelector('#kbSheet:not([hidden])');
+    await drag(page, page.locator('#kbSheet .kb-shc'), { x: 50, y: 50, dx: 160, dy: 60 }); await page.click('#kbSheet [data-sk=done]');
+    await page.press('#kbAskPop input', 'Escape'); await shows(page, 'Escape did not close the box', () => document.getElementById('kbAskPop').hidden);
+    await drag(page, p, { x: 12, dx: 200 }); await page.waitForSelector('#kbAskPop:not([hidden])');
+    assert(!(await page.$eval('#kbAskPop [data-draw]', b => b.classList.contains('kb-inked'))), 'the drawing moved to the next selection');
+    await page.click('#kbAskPop [data-draw]'); await page.waitForSelector('#kbSheet:not([hidden])');
+    assert(/Undo brings back/.test(await page.$eval('#kbSheet .kb-shint', e => e.textContent)), 'the sheet does not say that Undo brings the drawing back');
+    await page.click('#kbSheet [data-sk=undo]'); same(await page.$$eval('#kbSheet .kb-shc path', ps => ps.length), 1, 'the strokes after Undo');
+    await page.click('#kbSheet [data-sk=clear]'); await page.mouse.click(5, 300);
+    assert(await page.$eval('#kbSheet', e => e.hidden), 'a tap outside the sheet did not close it');
+    await page.press('#kbAskPop input', 'Escape'); await page.evaluate(() => getSelection().removeAllRanges());
+  });
+  await check('9 a drawing waiting in a conversation\'s box is still there after a reload', async () => {
+    await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active');
+    await page.click('.kb-note.kb-active [data-n=draw]'); await page.waitForSelector('#kbSheet:not([hidden])');
+    await drag(page, page.locator('#kbSheet .kb-shc'), { x: 50, y: 50, dx: 120, dy: 30 }); await page.click('#kbSheet [data-sk=done]');
+    await sleep(700); await page.reload(); await ready(page);
+    await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active');
+    assert(await page.$eval('.kb-note.kb-active [data-n=draw]', b => b.classList.contains('kb-inked')), 'the drawing did not wait in its box through a reload');
+    await page.click('.kb-note.kb-active [data-n=draw]'); same(await page.$$eval('#kbSheet .kb-shc path', ps => ps.length), 1, 'the strokes after a reload');
+    await page.click('#kbSheet [data-sk=clear]'); await page.click('#kbSheet [data-sk=done]'); await page.keyboard.press('Escape');
   });
   await check('9 a loop\'s bar on the page: its question, Draw and Send (no one-tap prompts, no picture row); its Draw opens the sheet', async () => {
     await tool(page, 'lasso'); const b = await (await paragraphs(page, 1))[0].boundingBox();
@@ -550,6 +585,13 @@ async function asking({ context, claude }) {
     const s0 = await page.$eval('#kbSheet .kb-shc', e => +e.getAttribute('height')), sb = await (await page.$('#kbSheet .kb-shs')).boundingBox();
     await page.click('#kbSheet [data-sk=erase]'); await page.mouse.move(sb.x + 100, sb.y + sb.height - 70); await page.mouse.down(); await page.mouse.move(sb.x + 260, sb.y + sb.height - 30, { steps: 6 }); await page.mouse.up();
     assert(await page.$eval('#kbSheet .kb-shc', e => +e.getAttribute('height')) > s0, 'the drawing area did not grow when a stroke came near its bottom edge');
+    const ga = await page.$eval('#kbSheet .kb-shc', e => ({ shown: Math.round(e.getBoundingClientRect().height), set: +e.getAttribute('height') }));
+    assert(Math.abs(ga.shown - ga.set) <= 1, 'the page shrank the grown drawing area: ' + JSON.stringify(ga));
+    const X0 = sb.x + 300, Y0 = sb.y + 120;   // the pen is on: the stroke near the bottom was drawn with it
+    await page.mouse.move(X0, Y0); await page.mouse.down(); await page.mouse.move(X0 + 100, Y0, { steps: 5 }); await page.mouse.up();
+    const at = await page.$eval('#kbSheet .kb-shc path:last-of-type', e => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top + r.height / 2)] });
+    assert(Math.abs(at[0] - X0) <= 4 && Math.abs(at[1] - Y0) <= 4, 'the ink is not under the pen after the area grew: ' + JSON.stringify([at, [X0, Y0]]));
+    await page.click('#kbSheet [data-sk=undo]');
     const r0 = await (await page.$('#kbSheet')).boundingBox(), g = await (await page.$('#kbSheet .kb-shrz')).boundingBox();
     await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await page.mouse.down(); await page.mouse.move(g.x - 80, g.y - 60, { steps: 5 }); await page.mouse.up();
     const r1 = await (await page.$('#kbSheet')).boundingBox(); assert(r1.width < r0.width - 60 && r1.height < r0.height - 40, 'the corner did not resize it');
@@ -742,11 +784,21 @@ async function syncing({ context, claude, repo }) {
     assert(await page.$eval('.kb-note.kb-gen.kb-active', e => getComputedStyle(e).display !== 'none'), 'the Ask card is hidden after the sync');
     await page.click('#kbBar [data-b=claude]'); same(await page.evaluate(() => { const a = document.activeElement; return a && a.closest('.kb-gen') ? a.placeholder : null }), 'Ask Claude about this page…', 'the box with the cursor after Ask');
   });
+  await check('10 a big drawing from another device (the sheet\'s full size) shows after a sync; a colour or a width that is not plain is drawn as ink', async () => {
+    const file = repo.read(PAGE_FILE), now = Date.now(), base = live(file.records, 'note').find(n => !n.g);
+    const s = Array.from({ length: 450 }, (_, i) => [[10 + (i % 30) * 150, 10 + Math.floor(i / 30) * 300], [100 + (i % 30) * 150, 200 + Math.floor(i / 30) * 300]]);
+    file.records.big1 = { ...base, id: 'big1', marks: [], turns: [{ q: 'My big diagram', ink: { w: 4600, h: 4600, s, c: s.map((_, i) => i ? '' : 'url(http://127.0.0.1:9/x.svg#g)'), k: s.map((_, i) => i === 1 ? 'x' : 2.6) }, a: 'Seen.', t: now }], t: now, u: now };
+    repo.write(PAGE_FILE, file); await page.click('#kbBar [data-b=sync]');
+    await shows(page, 'the big drawing never arrived', () => [...document.querySelectorAll('.kb-note .kb-nq')].some(q => /My big diagram/.test(q.textContent)));
+    const d = await page.evaluate(() => { const q = [...document.querySelectorAll('.kb-note .kb-nq')].find(x => /My big diagram/.test(x.textContent)), ps = [...q.querySelectorAll('svg path')]; return { n: ps.length, c0: ps[0].getAttribute('stroke'), w1: ps[1].getAttribute('stroke-width') } });
+    same(d, { n: 450, c0: 'currentColor', w1: '2.6' }, 'the big drawing: its strokes, a colour that was not hex, a width that was not a number');
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'My big diagram' }).click(); await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');
+  });
   await check('10 two marks made just before leaving a page reach the notes repo with the next page\'s sync', async () => {
     await page.goto(PAGE_URL); await ready(page); const before = penMarks(repo.read(PAGE_FILE)).length, p = (await paragraphs(page, 1))[0];
     await stroke(page, p); await drag(page, p, { y: 30, dy: 10 }); await page.goto(OTHER_URL);   // a word's two strokes, then away at once, before this page's own sync
     await until('both marks in the notes repo', () => penMarks(repo.read(PAGE_FILE)).length === before + 2);
-    same(await page.evaluate(() => localStorage.getItem('kbBuddy.unsent')), null, 'the pages left with changes not sent');
+    await until('no page left with changes not sent', async () => (await page.evaluate(() => localStorage.getItem('kbBuddy.unsent'))) === null);
   });
 }
 

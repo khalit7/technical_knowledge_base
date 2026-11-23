@@ -122,7 +122,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
-#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not(.kb-last):not(.kb-minon):not([data-b=send]):not([data-b=claude]):not([data-b=sync]),#kbBar.kb-min>[data-t=hand]{display:none!important}
+#kbBar.kb-min>.kb-grip2{order:-2}#kbBar.kb-min>[data-b=undo]{order:-1}#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not(.kb-last):not(.kb-minon):not([data-b=send]):not([data-b=claude]):not([data-b=sync]),#kbBar.kb-min>[data-t=hand]{display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-diary [data-t=hl],#kbBar.kb-diary [data-t=lasso],#kbBar.kb-diary .kb-sws,#kbBar.kb-diary [data-b=width],#kbBar.kb-diary .kb-sep{display:none!important}
 #kbBar .kb-lbl{display:none}
@@ -136,7 +136,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 .kb-note input::placeholder{color:var(--mute);opacity:1}
 .kb-note.kb-nodot:not(.kb-active){display:none!important}
 html.kb-noai #kbMarks>.kb-loop,html.kb-noai #kbMarks .kb-links,html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow:not(.kd-lasso),html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=draw],html.kb-noai .kb-selbar [data-s=ask],html.kb-noai #kbBlkPop [data-bk=draw],html.kb-noai .kb-blk [data-k=text],html.kb-noai .kb-blk [data-k=vis],html.kb-noai [data-bk=ask],html.kb-noai #kbChg .kb-chips,html.kb-noai #kbChg .kb-pr,html.kb-noai #kbChg [data-c=pick],html.kb-noai #kbChg [data-c=stmerge]{display:none!important}
-html[data-kb-home] .kb-note [data-n=draw]{display:none!important}
+
 #kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
 #kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
 #kbBar button[data-b][data-k] svg,#kbBar button[data-b][data-s=missing] svg,#kbBar button[data-b][data-s=bad] svg{opacity:1;color:var(--bad,#c2703a)}
@@ -159,7 +159,8 @@ html[data-kb-home] .kb-note [data-n=draw]{display:none!important}
 #kbAskPop .kb-pr .kb-pen,.kb-selbar .kb-pr .kb-pen{background:var(--soft);color:var(--ink);border:1px solid var(--line);min-width:36px;padding:4px 8px;font-size:15px}
 #kbAskPop .kb-pr [data-ask],.kb-selbar .kb-pr .kb-go{min-width:36px;padding:4px 10px;font-size:16px;font-weight:700}
 .kb-pen.kb-inked{color:var(--acc)!important;border-color:var(--acc)!important;box-shadow:inset 0 0 0 1px var(--acc)}
-#kbSheet{position:fixed;z-index:68;display:flex;flex-direction:column;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 10px 40px rgba(0,0,0,.28));overflow:hidden;font:13px/1.4 system-ui,-apple-system,sans-serif}
+#kbSheetBg{position:fixed;inset:0;z-index:72;background:rgba(0,0,0,.18);touch-action:none}#kbSheetBg[hidden]{display:none}
+#kbSheet{position:fixed;z-index:73;display:flex;flex-direction:column;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 10px 40px rgba(0,0,0,.28));overflow:hidden;font:13px/1.4 system-ui,-apple-system,sans-serif}
 #kbSheet[hidden]{display:none}
 #kbSheet .kb-shh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line)}
 #kbSheet .kb-shh button{height:32px;min-width:32px;border:1px solid transparent;border-radius:9px;background:none;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 8px;font:600 13px system-ui,-apple-system,sans-serif}
@@ -170,7 +171,7 @@ html[data-kb-home] .kb-note [data-n=draw]{display:none!important}
 #kbSheet .kb-shh [data-sk=done]{background:var(--acc);color:var(--card,var(--bg));padding:0 14px}
 #kbSheet .kb-shh .kb-sp{flex:1}
 #kbSheet .kb-shs{position:relative;flex:1;min-height:0;overflow:auto;background:var(--soft);overscroll-behavior:contain}
-#kbSheet .kb-shc{display:block;color:var(--ink);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}
+#kbSheet .kb-shc{display:block;max-width:none!important;max-height:none!important;color:var(--ink);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}
 #kbSheet .kb-shc path{fill:none;stroke-linecap:round;stroke-linejoin:round}
 #kbSheet .kb-shint{position:absolute;left:14px;top:12px;color:var(--mute);pointer-events:none}
 #kbSheet .kb-shf{display:flex;gap:6px;padding:8px 34px 8px 10px;border-top:1px solid var(--line)}
@@ -555,7 +556,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // ---- the toolbar: tools, colours, width, undo, Ask, Send, Conversations, the notebook, sync, settings. It docks to an edge of the screen
   // (dragged by its grip; it snaps to the nearest edge, where it stays) and can be made small ----
   const WIDTHS = {pen:[2.6, 5], hl:[16, 28]};
-  let lastTool = /^(pen|hl|erase|lasso)$/.test(mine.get('lastTool')) ? mine.get('lastTool') : '';   // the last pen used: it stays on the small toolbar
+  let lastTool = /^(pen|hl|erase|lasso)$/.test(mine.get('lastTool')) ? mine.get('lastTool') : /^(pen|hl)$/.test(mine.get('tool')) ? mine.get('tool') : '';   // the last pen used: it stays on the small toolbar
   let tool = !HOME && /^(hand|pen|hl)$/.test(mine.get('tool')) ? mine.get('tool') : 'hand',
       color = mine.get('color') || '', thick = mine.get('thick') === '1';
   let dock = {e:'top', f:0.5}; try { const d = JSON.parse(mine.get('dock') || 'null'); if (d && /^(top|bottom)$/.test(d.e)) dock = {e:d.e, f:Number.isFinite(+d.f) ? Math.max(-1, Math.min(2, +d.f)) : 0.5} } catch(e) {}   // a side dock from before is the top
@@ -565,6 +566,26 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   // every Ask box is its question, Draw (the drawing sheet) and Send; a drawing waits in its box until it is sent or cleared
   const DRAWB = '<button type="button" class="kb-pen" data-draw title="Draw: a big sheet for a diagram or a workflow, sent with your words" aria-label="Draw">&#x270E;</button>';
   const kept = new Map();   // drawings waiting in their box: a conversation's id, 'pop' (a selection), 'blk' (a block's menu), 'psel' and 'nbsel' (loops)
+  // a drawing's colour is a hex colour or '' (the ink), its width a plain number: what comes from storage or the repo is checked with these
+  const inkC = c => c === '' || (typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c)), inkW = w => Number.isFinite(w) && w >= 1 && w <= 12;
+  let lastDrop = null;   // the drawing of a box that closed before it was sent: the next sheet's Undo brings it back
+  function dropKept(key){ const d = kept.get(key); if (d && d.strokes.length) lastDrop = d; if (kept.delete(key)) saveDraws() }
+  // a drawing's points, thinned: none closer than gap px to the one kept before it, at most 4000 per stroke
+  const thinPts = (p, gap) => { const o = [p[0]]; for (let i = 1; i < p.length; i++) { const a = o[o.length - 1]; if (i === p.length - 1 || Math.hypot(p[i][0] - a[0], p[i][1] - a[1]) >= gap) o.push(p[i]) } return o.slice(0, 4000) };
+  // unsent drawings in this browser, by page: a conversation's waits in its box again; one whose box is gone (a selection, a block, a loop,
+  // the one dropped last) comes back with the next sheet's Undo
+  const DRAWS = 'kbBuddy.draws:' + location.pathname;
+  let drawSaveT = 0;
+  function saveDraws(){ clearTimeout(drawSaveT); drawSaveT = setTimeout(() => { try {
+    const pack = d => ({cw:d.cw, ch:d.ch, s:d.strokes.map(st => ({p:thinPts(st.p, 1.5).map(q => [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10]), c:st.c || '', k:st.k}))}), o = {};
+    for (const [k, d] of kept) if (d.strokes.length) o[k] = pack(d);
+    const sh = document.getElementById('kbSheet'); if (sh && !sh.hidden && SH.key && SH.d && SH.d.strokes.length) o[SH.key] = pack(SH.d);
+    if (lastDrop && lastDrop.strokes.length) o.last = pack(lastDrop);
+    if (Object.keys(o).length) localStorage.setItem(DRAWS, JSON.stringify(o)); else localStorage.removeItem(DRAWS) } catch(e) {} }, 400) }
+  try { const o = JSON.parse(localStorage.getItem(DRAWS) || 'null'); if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) {
+    const ok = v && Number.isFinite(v.cw) && Number.isFinite(v.ch) && Array.isArray(v.s) && v.s.length <= 3000 && v.s.every(st => st && Array.isArray(st.p) && st.p.length && st.p.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])));
+    if (!ok) continue; const d = {cw:Math.min(6000, v.cw), ch:Math.min(8000, v.ch), strokes:v.s.map(st => ({p:st.p, c:inkC(st.c) ? st.c : '', k:inkW(st.k) ? st.k : 2.6}))};
+    if (/^(pop|blk|psel|nbsel|last)$/.test(k)) lastDrop = d; else kept.set(k, d) } } catch(e) {}
   // a request for a picture (not a question about one: "what does this chart show?", "draw a conclusion"), then where it should go
   const PIC_VERB = /(^\s*|[.!?;]\s+|\b(can|could|would|will) you\s+|\bplease\s+|\b(now|also|then)\s+)(draw|sketch|visuali[sz]e|animate|plot|graph|chart|diagram)\b(?![^.?!]*\bconclusions?\b)/i;
   const PIC_ASK = /\b(show|give|make|add|create|build|want|need|draw|sketch|put)\b(\s+(me|us))?(?![^.?!]{0,25}\b(to understand|understand|where|what|why|how|conclusions?)\b).{0,25}\b(diagram|picture|chart|graph|plot|figure|visual|visuali[sz]ation|animation|image|illustration|sketch|drawing)s?\b/i;
@@ -690,13 +711,14 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       const inEd = he.closest('[data-ed],[data-edw]');
       if (inEd || he.closest(KB_NODES)) { if (!inEd) return; hl = {text:txt.slice(0, 4000), where:'', el:null, edit:inEd.dataset.ed || inEd.dataset.edw, rects:[...r.getClientRects()].filter(q => q.width > 1 && q.height < 60).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))}; showHl(); if (!penOn()) showPop(); return }
       hl = {text:txt.slice(0, 4000), where:where(he), el:blockEl(he), rects:[...r.getClientRects()].filter(q => q.width > 1 && q.height < 60).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))};
+      { const d = kept.get('pop'); if (d && d.for !== hl) dropKept('pop') }
       showHl(); if (!penOn()) showPop();
     }, 250);
   });
   function showHl(){ hlBox.hidden = !hl || !!sub; if (hl) hlBox.querySelector('q').textContent = hl.text.length > 300 ? hl.text.slice(0, 300) + '…' : hl.text }
 
   // ---- what is in view now ----
-  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet';
+  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg';
   // what the buddy itself puts into the page (visual sections, added text, hidden-block stubs, move placeholders, change badges): never
   // counted as page content, so showing or hiding a change moves no mark, citation or anchor
   const KB_NODES = '.kb-vsp,.kb-vis,.kb-ins,.kb-hidstub,.kb-mvph,.kb-edtag';
@@ -925,7 +947,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       return m ? '\u0001<span class="kb-li' + (m[1].length >= 2 ? ' kb-li2' : '') + '">\u2022 ' + m[2] + '</span>\u0001' : o ? '\u0001<span class="kb-li kb-ol' + (o[1].length >= 2 ? ' kb-li2' : '') + '">' + o[2] + ' ' + o[3] + '</span>\u0001' : L }).join('\n').replace(/\u0001\n?/g, '')).join('');
   function renderStr(str, box, md){
     // a code block never closed (still being written, or cut off) shows as code
-    if (md && (String(str).match(/```/g) || []).length % 2) str = String(str) + (String(str).endsWith('\n') ? '' : '\n') + '```';
+    if (md && (String(str).match(/(^|\n)[ \t]*```/g) || []).length % 2) str = String(str) + (String(str).endsWith('\n') ? '' : '\n') + '```';
     let n = box ? box.querySelectorAll('.kb-cite:not(.kb-web)').length : 0;
     // web sources (⟦u...⟧), citations (⟦c...⟧) and page links ([[...]]) are set aside, and each is drawn on its own once everything else is
     // done: no pass ever runs over the HTML they make. The characters used to set them aside cannot come from the reply
@@ -958,9 +980,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.kb-cite:not(.kb-web)'); if (c) { e.preventDefault(); e.stopPropagation(); jumpBlock(+c.dataset.cb) } }, true);
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
   function replyPieces(text, chat){
-    const out = [], rx = /<svg\s[^>]*>(?:(?!<svg\s)[\s\S])*?<\/svg>/gi; let i = 0, m;
-    while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex; if (chat && text.charAt(i) === '\n') i++ }   // in a chat, the line break after a sketch: the sketch is a block of its own
-    if (i < text.length) out.push(text.slice(i).replace(/<svg\s[^>]*viewBox[\s\S]*$/i, ''));   // an unfinished sketch at the end
+    const out = [], rx = /<svg\s[^>]*>(?:(?!<svg\s)[\s\S])*?<\/svg>/gi, inCode = k => ((text.slice(0, k).match(/(^|\n)[ \t]*```/g) || []).length % 2) === 1; let i = 0, m;
+    while ((m = rx.exec(text))) { if (inCode(m.index)) continue; if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex; if (chat && text.charAt(i) === '\n') i++ }   // in a chat, the line break after a sketch: the sketch is a block of its own
+    if (i < text.length) { const rest = text.slice(i), u = rest.search(/<svg\s[^>]*viewBox/i); out.push(u >= 0 && !inCode(i + u) ? rest.slice(0, u) : rest) }   // an unfinished sketch at the end
     return out;
   }
 
@@ -1155,11 +1177,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     pend.length = 0; pendTyped.length = 0; book.forEach((pg, i) => { for (const st of pg.ink) if (pIds.includes(st.id)) pend.push({pg:i, s:st}); for (const it of pg.items) if (tIds.includes(it.id)) pendTyped.push({pg:i, it}) });
     pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
     book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
-    const nbTops = new Map(); for (const [n, e] of noteEl) { const nb = e.querySelector('.kb-nb'); if (nb && nb.scrollTop) nbTops.set(n.id, nb.scrollTop) }
+    const nbTops = new Map(), nbWords = new Map(); for (const [n, e] of noteEl) { const nb = e.querySelector('.kb-nb'), w = e.querySelector('.kb-nf input'); if (nb && nb.scrollTop) nbTops.set(n.id, nb.scrollTop); if (w && w.value) nbWords.set(n.id, w.value) }
     const draft = genOn && !notes.includes(genOn) ? genOn : null, de = draft && noteEl.get(draft);
     for (const g of markEl.values()) g.remove(); markEl.clear(); for (const [n, e] of noteEl) if (n !== draft) e.remove(); noteEl.clear(); if (de) noteEl.set(draft, de); anchors.clear(); undoStack.length = 0;
     renderEdits(); placeMarks(); if (!ovView.hidden) renderChanges(); syncBar();
-    for (const [n, e] of noteEl) { const v = nbTops.get(n.id), nb = v && e.querySelector('.kb-nb'); if (nb) nb.scrollTop = v }
+    for (const [n, e] of noteEl) { const v = nbTops.get(n.id), nb = v && e.querySelector('.kb-nb'), w = e.querySelector('.kb-nf input'); if (nb) nb.scrollTop = v; if (w && nbWords.has(n.id) && !w.value) w.value = nbWords.get(n.id) }
   }
   // start-up: this page's records from IndexedDB (none yet: an empty start)
   async function loadRecs(){
@@ -1221,7 +1243,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const COLOR_OK = /^#[0-9a-f]{3,8}$/i;
   const SHOT_OK = /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]{16,250000}$/;   // a picture from the repo: only a JPEG of bounded size
   function sheetOpen(){ const x = document.getElementById('kbSheet'); return !!x && !x.hidden }   // drawing: a sync waits (a drawing kept in a box is kept by its box, not in the page's records)
-  function inSheet(t){ const x = document.getElementById('kbSheet'); return !!x && t instanceof Node && x.contains(t) }
+  function inSheet(t){ const x = document.getElementById('kbSheet'), y = document.getElementById('kbSheetBg'); return !!x && t instanceof Node && (x.contains(t) || (!!y && y.contains(t))) }
   function maxOpen(){ try { return !maxBg.hidden } catch(e) { return false } }   // a full-screen conversation is being read: a sync waits for it
   function cleanRecs(R){
     const out = {}; if (!R || typeof R !== 'object') return out;
@@ -1229,7 +1251,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (!r || typeof r !== 'object' || r.id !== id || !/^[0-9a-zA-Z_-]{2,40}$/.test(id) || typeof r.k !== 'string' || r.k === 'read') continue;   // handwriting readings are no longer kept
       if (r.del) { out[id] = {k:r.k, id, del:true, u:+r.u || 0}; if (typeof r.pg === 'string') out[id].pg = r.pg; continue }   // a deletion carries nothing else, so a removed picture or note stays removed on every device
       if (r.c != null && !COLOR_OK.test(String(r.c))) r.c = null;
-      if (r.k === 'note') { if (!Array.isArray(r.turns)) r.turns = []; for (const t of r.turns) if (t && t.ink != null) { const k = t.ink, ok = k && Number.isFinite(k.w) && Number.isFinite(k.h) && k.w > 0 && k.w <= 4000 && k.h > 0 && k.h <= 4000 && Array.isArray(k.s) && k.s.length <= 300 && k.s.every(st => Array.isArray(st) && st.length <= 4000 && st.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))); if (!ok) delete t.ink } }   // a drawing from the repo must be plain numbers
+      if (r.k === 'note') { if (!Array.isArray(r.turns)) r.turns = []; for (const t of r.turns) if (t && t.ink != null) { const k = t.ink, ok = k && Number.isFinite(k.w) && Number.isFinite(k.h) && k.w > 0 && k.w <= 6500 && k.h > 0 && k.h <= 8500 && Array.isArray(k.s) && k.s.length <= 3000 && k.s.every(st => Array.isArray(st) && st.length <= 4000 && st.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))); if (!ok) delete t.ink; else for (const [f, okf, d] of [['c', inkC, ''], ['k', inkW, 2.6]]) { if (k[f] == null) continue; if (!Array.isArray(k[f]) || k[f].length !== k.s.length) delete k[f]; else k[f] = k[f].map(v => okf(v) ? v : d) } } }   // a drawing from the repo must be plain numbers
       if (r.k === 'shot') { if (typeof r.n !== 'string' || !SHOT_OK.test(String(r.img || ''))) continue } else delete r.img; if (r.nbPage != null) r.nbPage = +r.nbPage || 0;
       out[id] = r;
     }
@@ -2062,13 +2084,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }, {passive:true});
   handle.addEventListener('click', e => { e.stopPropagation(); if (hovBlk && hovBlk.isConnected) openBlk(hovBlk) });
   function openBlk(b){
+    { const d = kept.get('blk'); if (d && d.for !== b) dropKept('blk') }
     blkTgt = b; handle.hidden = true;
     blkPop.innerHTML = '<div class="kb-pr"><input type="text" placeholder="Ask Claude about ' + esc(blockName(b).toLowerCase()) + '…" enterkeyhint="send" aria-label="Ask Claude about ' + esc(blockName(b).toLowerCase()) + '">' + DRAWB.replace('data-draw', 'data-bk="draw"') + '<button type="button" class="kb-go" data-bk="ask" title="Send" aria-label="Send">&#x2191;</button><button type="button" data-bk="x" aria-label="Close">✕</button></div>' + blockRowHtml(b);
-    blkPop.hidden = false; posPop(blkPop, b); markDraw(blkPop.querySelector('[data-bk=draw]'), 'blk'); blkPop.querySelector('input').focus();
+    if (keyState() === 'missing') { blkPop.querySelector('.kb-blk').appendChild(blkPop.querySelector('[data-bk=x]')); blkPop.querySelector('.kb-pr').remove() }
+    blkPop.hidden = false; posPop(blkPop, b); markDraw(blkPop.querySelector('[data-bk=draw]'), 'blk'); const bi = blkPop.querySelector('input'); if (bi) bi.focus();
   }
-  function closeBlk(){ blkPop.hidden = true; blkTgt = null }
+  function closeBlk(){ blkPop.hidden = true; blkTgt = null; dropKept('blk') }
   blkPop.addEventListener('click', e => {
-    const inp = blkPop.querySelector('input'), b = blkTgt;
+    const inp = blkPop.querySelector('input'), b = blkTgt;   // no input with no key: only the paragraph row
     if (blockClick(e, b, inp, closeBlk)) return;
     const t = e.target.closest('[data-bk]'); if (!t) return; if (t.dataset.bk === 'x') closeBlk();
     else if (t.dataset.bk === 'draw') drawFor('blk', inp, (q, ink) => blkSend(b, q, ink), t); else sendKept('blk', inp.value.trim(), (q, ink) => blkSend(b, q, ink), blkPop.querySelector('[data-bk=draw]'));
@@ -2448,7 +2472,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // resized (the corner dot), deleted, or asked about (Claude gets it outlined on the page and close up, and answers next to it) ----
   const pip = (x, y, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c } return c };
   let sel = null, lassoSvg = null;
-  function clearSel(){ if (sel) { sel.ui.remove(); sel = null } if (lassoSvg) { lassoSvg.remove(); lassoSvg = null } }
+  function clearSel(){ dropKept('nbsel'); if (sel) { sel.ui.remove(); sel = null } if (lassoSvg) { lassoSvg.remove(); lassoSvg = null } }
   function lassoNb(i, pts, end){
     if (!end) {
       if (pts.length === 1) { clearSel(); lassoSvg = document.createElementNS(NS, 'svg'); lassoSvg.setAttribute('class', 'kd-it kd-arrow kd-lasso'); lassoSvg.setAttribute('viewBox', `0 0 ${PW} ${PH}`); lassoSvg.innerHTML = '<path fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="7 6"/>'; pgs[i].items.appendChild(lassoSvg) }
@@ -2473,7 +2497,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const bx = el('div', {class:'kb-selbox'}), gr = el('div', {class:'kb-selgrip', title:'Drag to resize'});
     const n = ss.length + its.length, br = el('div', {class:'kb-selbar'}, '<div class="kb-pr"><input type="text" placeholder="Ask Claude about this…" enterkeyhint="send" aria-label="Ask Claude about this">' + DRAWB.replace('data-draw', 'data-s="draw"') + '<button type="button" class="kb-go" data-s="ask" title="Send" aria-label="Send">&#x2191;</button>' + (n ? '<button type="button" data-s="del" title="Delete what is selected">Delete</button>' : '') + '<button type="button" data-s="done" title="Close (Esc)" aria-label="Close">&#x2715;</button></div>');
     if (n) bx.appendChild(gr); ui.append(bx, br); pgs[i].items.appendChild(ui);
-    sel = {box, ui};
+    sel = {pg:i, ss, its, box, ui};
     const place = () => { const b = sel.box; Object.assign(bx.style, {left:(b.x0 - pad) + 'px', top:(b.y0 - pad) + 'px', width:(b.x1 - b.x0 + 2 * pad) + 'px', height:(b.y1 - b.y0 + 2 * pad) + 'px'});
       const k = 1 / scale, above = b.y0 - pad - 8 - (br.offsetHeight || 92) * k; Object.assign(br.style, {left:(b.x0 - pad) + 'px', top:(above >= 4 ? above : b.y1 + pad + 10) + 'px', transform:'scale(' + k + ')', transformOrigin:'0 0'}) };   // above the box, or under it when there is no room
     place();
@@ -2762,7 +2786,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     else if (job.where === 'page') content.push({type:'text', text:'They chose to have the picture added to the page: make it with add_visual after the block their question is about (or patch_visual if it is a change to a visual you made), then say in one short sentence what you added.'});
     content.push({type:'text', text:job.kind === 'page'
       ? job.refine ? refineText(job)
-      : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + job.typed + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
+      : job.block && !job.follow ? 'They pointed at one block of the page (' + (blockOf(job.anchorEl) >= 0 ? 'block ' + blockOf(job.anchorEl) + ' of the page document' : 'a figure or box') + ', outlined NEW on the screen image) and asked:\n<question>\n' + askText(job) + '\n</question>\n' + (job.near ? 'The block reads:\n<near>\n' + job.near + '\n</near>\n' : '') + 'Do what they ask; if it is a change to the page, make it with the tools. Then answer in a note that will sit beside it. No <at> or <point> here.'
       : job.follow && job.follow.g && HOME ? (threadText(job) ? 'A follow-up in your conversation with them about their knowledge base. The thread so far:\n<thread>\n' + threadText(job) + '\n</thread>\nTheir follow-up:\n<question>\n' + askText(job) + '\n</question>\n' : 'They asked you about their knowledge base as a whole (they are on its landing page, which lists what is new and the map of its topics):\n<question>\n' + askText(job) + '\n</question>\n') + 'Answer from what the knowledge base says: find the pages with search_kb, read the ones you need with read_kb_page, and name every page you rely on as [[its exact title]] so they can open it. When they want to learn a subject, give the pages in the order to read them, with one line on what each adds. If the knowledge base does not cover it, say so plainly first, then answer briefly from what you know and say which page would be the natural home for it. No <at> or <point> here.'
       : job.follow && job.follow.g && !threadText(job) ? 'They asked you about this page, not about one passage they marked (what is on their screen, when it is above, shows where they are reading):\n<question>\n' + askText(job) + '\n</question>\nAnswer it in a note that sits beside the page. No <at> or <point> here.'
       : job.follow ? (job.follow.g ? 'A follow-up in your conversation with them about this page (not about one passage; what is on their screen, when it is above, shows where they are reading now).' : 'A follow-up in the note thread you keep beside ' + (job.follow.hl ? 'a passage they highlighted (its text is in <highlight> above)' : 'some marks they drew on the page') + ' (outlined NEW on the screen image, though they are not new).') + ' The thread so far:\n<thread>\n' + threadText(job) + '\n</thread>\nTheir follow-up:\n<question>\n' + askText(job) + '\n</question>\nAnswer it in the same note, building on the thread; do not repeat what you already said. No <at> or <point> here.'
@@ -2778,7 +2802,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const pump = () => { if (drip) return; drip = setInterval(() => {
       if (performance.now() < hold) return;
       if (!queue.length) { clearInterval(drip); drip = 0; return }
-      const w = queue.shift(), R = target(), tk = R.querySelector && R.querySelector('.kb-think'); if (tk) tk.remove();   // the answer starts: the thinking line goes
+      const w = queue.shift(), R = target(), tk = R.querySelector && R.querySelector('.kb-think'); if (tk && (typeof w !== 'string' || S !== PG || segShow(segRaw + w).trim())) tk.remove();   // the answer starts: the thinking line goes
       if (typeof w === 'string') { if (S === PG) { segRaw += w; segDraw(R); if (w.includes('\n') && !segOpen(segRaw)) seg = null, segRaw = '' } else R.appendChild(txt(w, R)) }
       else { if (S === PG) seg = null, segRaw = ''; const b = sketch(w.svg); if (b) { R.appendChild(b); hold = performance.now() + inkIn(b) } }
       S.out.follow(job);
@@ -2802,7 +2826,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       while (r.length > shown) {
         const a = lo.indexOf('<svg', shown);
         if (a === shown) {
-          const z = lo.indexOf('</svg>', a);
+          const z = lo.indexOf('</svg>', a), a2 = lo.indexOf('<svg', a + 4);
+          if (a2 >= 0 && (z < 0 || a2 < z)) { words(r.slice(a, a2)); shown = a2; pump(); continue }   // another starts before this one closes: this one was text
           // never closed: an unfinished sketch is left out, and a tag written in the text (no viewBox) is text
           if (z < 0) { if (stopped) { if (!/^<svg\s[^>]*viewBox/i.test(r.slice(a))) words(r.slice(shown)); shown = r.length; pump() } return }
           queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; skNl = S === PG; pump(); continue;
@@ -3125,7 +3150,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // (the marks with it), the marks deleted, or the region asked about (the loop stays as a faint dashed mark the note is pinned to) ----
   const psel$ = el('div', {id:'kbPsel'}); document.body.appendChild(psel$);
   let psel = null;
-  function clearPsel(){ if (psel) { psel.g.remove(); psel = null } psel$.innerHTML = '' }
+  function clearPsel(){ dropKept('psel'); if (psel) { psel.g.remove(); psel = null } psel$.innerHTML = '' }
   function lassoPage(L){
     const poly = L.p; if (poly.length < 4 || plen(poly) < 40) { L.g.remove(); return }
     const o = marksSvg.getBoundingClientRect(), ms = marks.filter(m => { const f = frameOf(m); if (!f || unseen(m)) return false; const pts = m.p.map(q => [f.x - o.left + q[0] * f.s, f.y - o.top + q[1] * f.s]); return pts.filter(q => pip(q[0], q[1], poly)).length >= pts.length * 0.6 });
@@ -3138,7 +3163,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     markDraw(br.querySelector('[data-s=draw]'), 'psel');
     if (!k && keyState() === 'missing') { const bk = br.querySelector('.kb-blk'); if (!bk) { clearPsel(); return } bk.appendChild(br.querySelector('[data-s=done]')); br.querySelector('.kb-pr').remove() }
     { const h = br.offsetHeight; if (b.y1 + o.top + 10 + h > innerHeight - 8 - roomB() && b.y0 + o.top - 10 - h >= clipLine() + 4) Object.assign(br.style, {top:(b.y0 + off[1] - 10) + 'px', transform:'translateY(-100%)'}) }
-    const inp = br.querySelector('input'), ask = (q, where, ink) => { q = (q || '').trim(); if ((!q && !ink) || (ink && !canDraw())) return false; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => askPageLasso(q, v, ink)); return true } where = w || undefined } askPageLasso(q, where, ink); return true };
+    const inp = br.querySelector('input'), ask = (q, where, ink) => { q = (q || '').trim(); if ((!q && !ink) || (ink && !canDraw())) return false; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => { kept.delete('psel'); askPageLasso(q, v, ink) }); return false } where = w || undefined } askPageLasso(q, where, ink); return true };
     br.addEventListener('pointerdown', e => e.stopPropagation(), true);
     br.addEventListener('click', e => {
       if (blockClick(e, psel && psel.tgt, inp, clearPsel)) return;
@@ -3201,8 +3226,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   popIn.addEventListener('focus', () => requestAnimationFrame(placePop));
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (document.activeElement === popIn) placePop() });
   pop.addEventListener('click', e => { if (blockClick(e, hl && hl.el, popIn, () => { hidePop(); try { getSelection().removeAllRanges() } catch(err) {} hl = null; showHl() })) return;
-    const d = e.target.closest('[data-draw]'); if (d) { e.preventDefault(); const h0 = hl; drawFor('pop', popIn, (q, ink) => { if (ink && !canDraw()) return false; askPop(q, ink, h0); return true }, d) } });
-  function askPop(q, ink, h0){ const w = whereOf(q); if (w === null) { askWhere(pop.querySelector('.kb-wherebox'), q, v => askSel(q, v, ink, h0)); return } askSel(q, w || undefined, ink, h0) }
+    const d = e.target.closest('[data-draw]'); if (d) { e.preventDefault(); const h0 = hl; drawFor('pop', popIn, (q, ink) => { if (ink && !canDraw()) return false; return askPop(q, ink, h0) }, d) } });
+  function askPop(q, ink, h0){ const w = whereOf(q); if (w === null) { askWhere(pop.querySelector('.kb-wherebox'), q, v => { kept.delete('pop'); askSel(q, v, ink, h0) }); return false } askSel(q, w || undefined, ink, h0); return true }
   function showPop(){
     if (!hl || !hl.rects.length) return;
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
@@ -3216,10 +3241,10 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const x = Math.max(8, Math.min(innerWidth - w - 8, last.x - scrollX + last.w / 2 - w / 2));
     Object.assign(pop.style, {left:x + 'px', top:y + 'px'});
   }
-  function hidePop(){ pop.hidden = true; popIn.value = '' }
+  function hidePop(){ pop.hidden = true; popIn.value = ''; dropKept('pop') }
   document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target) && !inSheet(e.target) && !kept.has('pop')) setTimeout(() => { if (document.activeElement !== popIn || !popIn.value.trim()) { const sel = getSelection(); if (!sel || sel.isCollapsed) hidePop() } }, 300) }, true);
-  addEventListener('scroll', () => { if (!pop.hidden && !popIn.value.trim() && document.activeElement !== popIn && !kept.has('pop') && !sheetOpen() && hl && hl.rects.length) { const q = hl.rects[hl.rects.length - 1]; const y = q.y - scrollY; if (y < -40 || y > innerHeight + 40) hidePop(); else showPop() } }, {passive:true});
-  const ask = () => sendKept('pop', popIn.value.trim(), (q, ink) => { if (ink && !canDraw()) return false; askPop(q, ink); return true }, pop.querySelector('[data-draw]'));
+  addEventListener('scroll', () => { if (!pop.hidden && !popIn.value.trim() && document.activeElement !== popIn && !sheetOpen() && hl && hl.rects.length) { const q = hl.rects[hl.rects.length - 1]; const y = q.y - scrollY; if ((y < -40 || y > innerHeight + 40) && !kept.has('pop')) hidePop(); else showPop() } }, {passive:true});
+  const ask = () => sendKept('pop', popIn.value.trim(), (q, ink) => { if (ink && !canDraw()) return false; return askPop(q, ink) }, pop.querySelector('[data-draw]'));
   pop.querySelector('[data-ask]').addEventListener('click', ask);
   popIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask() } else if (e.key === 'Escape') hidePop() });
   async function askSel(q, where, ink, h0){
@@ -3286,9 +3311,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   // a drawing kept with its turn: strokes as integer points on a canvas of width w (it scales with the note)
   function inkSvg(ink){ const sv = document.createElementNS(NS, 'svg'); sv.setAttribute('viewBox', '0 0 ' + ink.w + ' ' + ink.h); sv.setAttribute('width', ink.w); sv.setAttribute('aria-label', 'Your drawing');
-    (ink.s || []).forEach((st, i) => { const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M' + st.map(q => q[0] + ' ' + q[1]).join('L') + (st.length === 1 ? 'l.1 0' : '')); Object.entries({fill:'none', stroke:(ink.c && ink.c[i]) || 'currentColor', 'stroke-width':(ink.k && ink.k[i]) || 2.4, 'stroke-linecap':'round', 'stroke-linejoin':'round'}).forEach(([k, v]) => pth.setAttribute(k, v)); sv.appendChild(pth) })
+    (ink.s || []).forEach((st, i) => { const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M' + st.map(q => q[0] + ' ' + q[1]).join('L') + (st.length === 1 ? 'l.1 0' : '')); Object.entries({fill:'none', stroke:(ink.c && inkC(ink.c[i]) && ink.c[i]) || 'currentColor', 'stroke-width':(ink.k && inkW(ink.k[i]) && ink.k[i]) || 2.4, 'stroke-linecap':'round', 'stroke-linejoin':'round', 'vector-effect':'non-scaling-stroke'}).forEach(([k, v]) => pth.setAttribute(k, v)); sv.appendChild(pth) })
     return sv }
-  function inkPng(ink){ const c = document.createElement('canvas'), k = Math.min(2, 1500 / Math.max(ink.w, ink.h)); c.width = Math.round(ink.w * k); c.height = Math.round(ink.h * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.lineCap = g.lineJoin = 'round'; for (const [i, st] of ink.s.entries()) { g.strokeStyle = (ink.c && ink.c[i]) || '#000'; g.lineWidth = (ink.k && ink.k[i]) || 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } return c.toDataURL('image/png') }
+  function inkPng(ink){ const c = document.createElement('canvas'), k = Math.min(2, 1500 / Math.max(ink.w, ink.h)); c.width = Math.round(ink.w * k); c.height = Math.round(ink.h * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.lineCap = g.lineJoin = 'round'; for (const [i, st] of ink.s.entries()) { g.strokeStyle = (ink.c && inkC(ink.c[i]) && ink.c[i]) || '#000'; g.lineWidth = (ink.k && inkW(ink.k[i]) && ink.k[i]) || 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } return c.toDataURL('image/png') }
   // ---- the drawing sheet. Draw in any Ask box opens a big sheet over the page, for a whole diagram or workflow: it resizes from its
   // corner (the size is kept on this device) and grows when a stroke comes near its right or bottom edge. The Pencil, a finger or the
   // mouse draws; two fingers or the wheel scroll. Its bar: the colours, thin or thick, the eraser, Undo, Clear and Done; under the
@@ -3303,14 +3328,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     + '<div class="kb-shs"><svg class="kb-shc" xmlns="http://www.w3.org/2000/svg" aria-label="Your drawing"></svg><span class="kb-shint"></span></div>'
     + '<form class="kb-shf"><input type="text" enterkeyhint="send" aria-label="Your question"><button type="submit" title="Send the drawing with your question" aria-label="Send">&#x2191;</button></form>'
     + '<div class="kb-shrz" title="Drag to resize" aria-hidden="true"></div>');
-  document.body.appendChild(sheet);
+  const sheetBg = el('div', {id:'kbSheetBg', hidden:''}); document.body.append(sheetBg, sheet);
+  sheetBg.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); closeSheet(false) }); sheetBg.addEventListener('wheel', ev => ev.preventDefault(), {passive:false});
   const shS = sheet.querySelector('.kb-shs'), shC = sheet.querySelector('.kb-shc'), shIn = sheet.querySelector('.kb-shf input'), shHint = sheet.querySelector('.kb-shint');
   const SH = {key:null, d:null, cur:null, pid:null, penUp:0, undo:[], erase:false, color:'', thick:false, touch:new Map(), pan:null, gone:null, send:null, inp:null, btn:null};
   const shD = p => 'M' + p.map(q => q[0] + ' ' + q[1]).join('L') + (p.length === 1 ? 'l.1 0' : '');
   function shPath(st){ const e = document.createElementNS(NS, 'path'); e.setAttribute('d', shD(st.p)); e.setAttribute('stroke', st.c || 'currentColor'); e.setAttribute('stroke-width', st.k); return e }
   function shDraw(){ shC.textContent = ''; for (const st of SH.d.strokes) { st.el = shPath(st); shC.appendChild(st.el) } shHint.hidden = SH.d.strokes.length > 0 }
   // the drawing area is at least the sheet's own size, and grows by 400px when a stroke comes within 80px of its right or bottom edge
-  function shSize(){ const d = SH.d; d.cw = Math.max(d.cw, shS.clientWidth); d.ch = Math.max(d.ch, shS.clientHeight); shC.setAttribute('width', d.cw); shC.setAttribute('height', d.ch); shC.setAttribute('viewBox', '0 0 ' + d.cw + ' ' + d.ch) }
+  function shSize(){ const d = SH.d; d.cw = Math.max(d.cw, shS.clientWidth); d.ch = Math.max(d.ch, shS.clientHeight); shC.setAttribute('width', d.cw); shC.setAttribute('height', d.ch); shC.style.width = d.cw + 'px'; shC.style.height = d.ch + 'px'; shC.setAttribute('viewBox', '0 0 ' + d.cw + ' ' + d.ch) }
   function shGrow(x, y){ const d = SH.d; let g = false; if (x > d.cw - 80 && d.cw < 6000) { d.cw += 400; g = true } if (y > d.ch - 80 && d.ch < 8000) { d.ch += 400; g = true } if (g) shSize() }
   function shBar(){
     for (const b of sheet.querySelectorAll('[data-sc]')) b.setAttribute('aria-pressed', String(!SH.erase && b.dataset.sc === SH.color));
@@ -3328,24 +3354,26 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   const shPt = (ev, r) => [Math.round((ev.clientX - r.left) * 10) / 10, Math.round((ev.clientY - r.top) * 10) / 10];
   // the eraser takes every stroke it touches (kept in order, so Undo puts them back where they were)
-  function shErase(q){ const r = 10; for (let i = SH.d.strokes.length - 1; i >= 0; i--) { const st = SH.d.strokes[i]; if (st.p.some(p => Math.hypot(p[0] - q[0], p[1] - q[1]) <= r + st.k / 2)) { SH.d.strokes.splice(i, 1); if (st.el) st.el.remove(); SH.gone.push({st, i}) } } shHint.hidden = SH.d.strokes.length > 0 }
+  function shErase(q){ const r = 10; for (let i = SH.d.strokes.length - 1; i >= 0; i--) { const st = SH.d.strokes[i]; if (nearStroke(st.p, q, r + st.k / 2)) { SH.d.strokes.splice(i, 1); if (st.el) st.el.remove(); SH.gone.push({st, i}) } } shHint.hidden = SH.d.strokes.length > 0 }
   shC.addEventListener('pointerdown', ev => {
     if (ev.button > 0) return;
     if (ev.pointerType === 'touch') {
+      if (Math.max(ev.width || 0, ev.height || 0) > 44) return;   // a palm
       SH.touch.set(ev.pointerId, [ev.clientX, ev.clientY]);
       if (SH.touch.size >= 2) {   // two fingers scroll; a stroke the first one had only just begun was the start of that
         if (SH.cur && SH.cur.touch && (SH.cur.p.length < 8 || performance.now() - SH.cur.t0 < 250)) { SH.cur.el.remove(); SH.cur = null; SH.pid = null }
+        if (SH.erase && SH.gone && SH.pid != null && performance.now() - SH.eT0 < 250) { for (const g of SH.gone.slice().reverse()) SH.d.strokes.splice(g.i, 0, g.st); SH.gone = null; SH.pid = null; shDraw() }
         const ps = [...SH.touch.values()]; SH.pan = {mx:(ps[0][0] + ps[1][0]) / 2, my:(ps[0][1] + ps[1][1]) / 2, sl:shS.scrollLeft, st:shS.scrollTop}; return }
-      if (Math.max(ev.width || 0, ev.height || 0) > 44 || performance.now() - SH.penUp < 400) return;   // a palm, or a finger just after the Pencil
+      if (performance.now() - SH.penUp < 400) return;   // a finger just after the Pencil
     }
-    if (SH.cur || SH.pid != null) return; ev.preventDefault(); try { shC.setPointerCapture(ev.pointerId) } catch(e) {}
+    if (SH.cur || SH.pid != null) return; ev.preventDefault(); if (document.activeElement === shIn) shIn.blur(); try { shC.setPointerCapture(ev.pointerId) } catch(e) {}
     const q = shPt(ev, shC.getBoundingClientRect()); SH.pid = ev.pointerId;
-    if (SH.erase) { SH.gone = []; shErase(q); return }
+    if (SH.erase) { SH.gone = []; SH.eT0 = performance.now(); shErase(q); return }
     SH.cur = {p:[q], c:SH.color, k:SH.thick ? 5 : 2.6, touch:ev.pointerType === 'touch', t0:performance.now()}; SH.cur.el = shPath(SH.cur); shC.appendChild(SH.cur.el); shHint.hidden = true;
   });
   shC.addEventListener('pointermove', ev => {
     if (SH.touch.has(ev.pointerId)) SH.touch.set(ev.pointerId, [ev.clientX, ev.clientY]);
-    if (SH.pan && SH.touch.size >= 2) { const ps = [...SH.touch.values()]; shS.scrollLeft = SH.pan.sl - ((ps[0][0] + ps[1][0]) / 2 - SH.pan.mx); shS.scrollTop = SH.pan.st - ((ps[0][1] + ps[1][1]) / 2 - SH.pan.my); return }
+    if (SH.pan && SH.touch.size >= 2 && SH.touch.has(ev.pointerId)) { const ps = [...SH.touch.values()]; shS.scrollLeft = SH.pan.sl - ((ps[0][0] + ps[1][0]) / 2 - SH.pan.mx); shS.scrollTop = SH.pan.st - ((ps[0][1] + ps[1][1]) / 2 - SH.pan.my); return }
     if (ev.pointerId !== SH.pid) return; const r = shC.getBoundingClientRect();
     if (SH.erase) { if (SH.gone) shErase(shPt(ev, r)); return }
     if (!SH.cur) return; const co = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [];
@@ -3356,13 +3384,13 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     SH.touch.delete(ev.pointerId); if (SH.touch.size < 2) SH.pan = null;
     if (ev.pointerId !== SH.pid) return; SH.pid = null; if (ev.pointerType === 'pen') SH.penUp = performance.now();
     if (SH.erase) { if (SH.gone && SH.gone.length) SH.undo.push({gone:SH.gone}); SH.gone = null; return }
-    if (SH.cur) { const st = SH.cur; SH.cur = null; delete st.touch; delete st.t0; SH.d.strokes.push(st); SH.undo.push({add:st}) }
+    if (SH.cur) { const st = SH.cur; SH.cur = null; delete st.touch; delete st.t0; SH.d.strokes.push(st); SH.undo.push({add:st}) } saveDraws();
   };
   shC.addEventListener('pointerup', shUp); shC.addEventListener('pointercancel', shUp);
   for (const t of ['touchstart', 'touchmove', 'touchend']) shC.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});   // the sheet draws (Scribble never holds the Pencil back); two fingers scroll it here
   function sheetUndo(){ if (sheet.hidden || !SH.d) return; const x = SH.undo.pop(); if (!x) return;
-    if (x.add) drop(SH.d.strokes, x.add); else if (x.gone) for (const g of x.gone.slice().reverse()) SH.d.strokes.splice(g.i, 0, g.st); else if (x.all) SH.d.strokes = x.all;
-    shDraw() }
+    if (x.add) drop(SH.d.strokes, x.add); else if (x.gone) for (const g of x.gone.slice().reverse()) SH.d.strokes.splice(g.i, 0, g.st); else if (x.all) { SH.d.strokes = x.all; if (x.cw) { SH.d.cw = Math.max(SH.d.cw, x.cw); SH.d.ch = Math.max(SH.d.ch, x.ch); shSize() } if (x.last) lastDrop = null }
+    shDraw(); saveDraws() }
   sheet.querySelector('.kb-shh').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; ev.preventDefault();
     if (b.dataset.sc !== undefined) { SH.color = b.dataset.sc; SH.erase = false }
     else if (b.dataset.sk === 'thick') SH.thick = !SH.thick;
@@ -3390,20 +3418,20 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function drawFor(key, inp, send, btn){
     if (!sheet.hidden) return;
     try { const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur() } catch(e) {}   // an iPad's keyboard goes, so the sheet has the screen
-    Object.assign(SH, {key, inp, send, btn, undo:[], erase:false, color, thick, cur:null, pid:null, pan:null, gone:null}); SH.touch.clear();
-    SH.d = kept.get(key) || {strokes:[], cw:0, ch:0};
+    Object.assign(SH, {key, inp, send, btn, undo:[], erase:false, color, thick, cur:null, pid:null, pan:null, gone:null, for:key === 'pop' ? hl : key === 'blk' ? blkTgt : null}); SH.touch.clear();
+    SH.d = kept.get(key) || {strokes:[], cw:0, ch:0}; if (!kept.has(key) && lastDrop) SH.undo.push({all:lastDrop.strokes, cw:lastDrop.cw, ch:lastDrop.ch, last:true});
     shIn.value = inp ? inp.value : ''; shIn.placeholder = (inp && inp.placeholder ? inp.placeholder.replace(/…$/, '') : 'Your question') + ' (optional)…';
-    shHint.textContent = matchMedia('(pointer:fine)').matches ? 'Draw here with the mouse or a pen; the wheel scrolls. It grows as you draw near its edges.' : 'Draw here with the Pencil or a finger; two fingers scroll. It grows as you draw near its edges.';
-    sheet.hidden = false; shPlace(); shS.scrollTop = 0; shS.scrollLeft = 0; shSize(); shDraw(); shBar();
+    shHint.textContent = (matchMedia('(pointer:fine)').matches ? 'Draw here with the mouse or a pen; the wheel scrolls. It grows as you draw near its edges.' : 'Draw here with the Pencil or a finger; two fingers scroll. It grows as you draw near its edges.') + (SH.undo.length ? ' Undo brings back your last drawing, which was not sent.' : '');
+    sheet.hidden = false; sheetBg.hidden = false; shPlace(); shS.scrollTop = 0; shS.scrollLeft = 0; shSize(); shDraw(); shBar();
   }
   // Done keeps the drawing (and the words) in its box; Send asks, and the box is emptied once it has gone
   function closeSheet(go){
     if (sheet.hidden) return; const key = SH.key, d = SH.d, q = shIn.value.trim(), inp = SH.inp;
     if (go && !d.strokes.length && !q) return;
     if (SH.cur) { SH.cur.el.remove(); SH.cur = null } SH.pid = null; SH.touch.clear(); SH.pan = null;
-    sheet.hidden = true; SH.key = null;
-    if (go && SH.send(q, d.strokes.length ? inkOf(d) : null) !== false) { kept.delete(key); if (inp) inp.value = ''; markDraw(SH.btn, key); return }
-    if (d.strokes.length) kept.set(key, d); else kept.delete(key); if (inp) inp.value = shIn.value; markDraw(SH.btn, key);
+    sheet.hidden = true; sheetBg.hidden = true; SH.key = null;
+    if (go) { kept.delete(key); if (SH.send(q, d.strokes.length ? inkOf(d) : null) !== false) { if (inp) inp.value = ''; markDraw(SH.btn, key); saveDraws(); return } }
+    d.for = SH.for; if (d.strokes.length) kept.set(key, d); else kept.delete(key); if (inp) inp.value = shIn.value; markDraw(SH.btn, key); saveDraws();
   }
   // a drawing as it is sent and kept with the question: cropped to what was drawn, its points thinned, each stroke's colour and width
   function inkOf(d){
@@ -3411,12 +3439,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const st of S) for (const q of st.p) { if (q[0] < x0) x0 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[0] > x1) x1 = q[0]; if (q[1] > y1) y1 = q[1] }
     x0 = Math.max(0, x0 - 8); y0 = Math.max(0, y0 - 8); x1 += 8; y1 += 8;
-    const thin = p => { const o = [p[0]]; for (let i = 1; i < p.length; i++) { const a = o[o.length - 1]; if (i === p.length - 1 || Math.hypot(p[i][0] - a[0], p[i][1] - a[1]) >= 1.5) o.push(p[i]) } return o };
-    return {w:Math.round(x1 - x0), h:Math.round(y1 - y0), s:S.map(st => thin(st.p).map(q => [Math.round(q[0] - x0), Math.round(q[1] - y0)])), c:S.map(st => st.c || ''), k:S.map(st => st.k)};
+    let gap = 1.5, ps = S.map(st => thinPts(st.p, gap)); while (gap < 12 && ps.reduce((n, p) => n + p.length, 0) > 40000) { gap *= 2; ps = S.map(st => thinPts(st.p, gap)) }
+    return {w:Math.round(x1 - x0), h:Math.round(y1 - y0), s:ps.slice(0, 3000).map(p => p.map(q => [Math.round(q[0] - x0), Math.round(q[1] - y0)])), c:S.slice(0, 3000).map(st => st.c || ''), k:S.slice(0, 3000).map(st => st.k)};
   }
   function markDraw(b, key){ if (!b) return; const on = kept.has(key); b.classList.toggle('kb-inked', on); b.title = on ? 'Your drawing: tap to open it. It goes with your next question' : 'Draw: a big sheet for a diagram or a workflow, sent with your words'; b.setAttribute('aria-label', on ? 'Open your drawing' : 'Draw') }
   // a box's Send: its words, with the drawing waiting in it if there is one
-  function sendKept(key, q, send, btn){ const d = kept.get(key), ink = d ? inkOf(d) : null; if (!q && !ink) return; if (send(q, ink) !== false && ink) { kept.delete(key); markDraw(btn, key) } }
+  function sendKept(key, q, send, btn){ const d = kept.get(key), ink = d ? inkOf(d) : null; if (!q && !ink) return; kept.delete(key); if (send(q, ink) === false && d) kept.set(key, d); markDraw(btn, key); saveDraws() }
   function canDraw(){ if (keyState()) { needKey(); return false } if (PG.busy && PG.queued.length >= 3) { toast('Claude is still busy with earlier requests; the drawing waits in its box.', 5000); return false } return true }
   function turnEl(t){
     if ((t.q || t.ink) && !t.a && !t.cut && Date.now() - (t.t || 0) > 6e5) t.cut = 'the page was closed before Claude answered';   // older than 10 minutes: not being answered anywhere
@@ -3484,8 +3512,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const sendInk = (q, ink) => {
       if (!ink) { if (q) ask(q); return true }
       const n2 = notes.find(x => x.id === n.id) || (n.g && noteEl.has(n) ? n : null); if (!n2 || !canDraw()) return false;
-      inp.value = ''; let w = whereOf(q); if (w === null && HOME) w = 'note';
-      if (w === null) askWhere(noteEl.get(n2).querySelector('.kb-nb'), q, v => followUp(n2, q, v, ink)); else followUp(n2, q, w || undefined, ink); return true };
+      let w = whereOf(q); if (w === null && HOME) w = 'note';
+      if (w === null) { askWhere(noteEl.get(n2).querySelector('.kb-nb'), q, v => { kept.delete(n.id); markDraw(e.querySelector('[data-n=draw]'), n.id); inp.value = ''; followUp(n2, q, v, ink) }); return false }
+      inp.value = ''; followUp(n2, q, w || undefined, ink); return true };
     f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (kept.has(n.id)) sendKept(n.id, q, sendInk, e.querySelector('[data-n=draw]')); else if (q) ask(q) });
     inp.addEventListener('focus', () => showFoot(e));
     const h = e.querySelector('.kb-nh');
@@ -3611,15 +3640,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       requestAnimationFrame(() => requestAnimationFrame(() => { const a = document.activeElement; if (!a || a === document.body || !a.getClientRects().length) bar.querySelector('[data-b=over]').focus({preventScroll:true}) })) }   // no dot shown (no margin): Conversations
   }
   const deactivate = () => closeNote(activeNote);
-  let draftText = '';   // typed in an Ask card closed before it was sent: put back in the next one
-  const dropDraft = n => { genDrag = false; const e = noteEl.get(n), i = e && e.querySelector('.kb-nf input'); if (i && i.value.trim()) draftText = i.value; if (e) { if (e.contains(document.activeElement)) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); e.remove() } noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
+  let draftText = '', draftDraw = null;   // typed or drawn in an Ask card closed before it was sent: put back in the next one
+  const dropDraft = n => { genDrag = false; const e = noteEl.get(n), i = e && e.querySelector('.kb-nf input'); if (i && i.value.trim()) draftText = i.value; if (kept.has(n.id)) { draftDraw = kept.get(n.id); kept.delete(n.id) } if (e) { if (e.contains(document.activeElement)) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); e.remove() } noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
   // Ask on the toolbar: a new conversation about the page, not tied to a passage (what is on the screen goes with each question). Its
   // card sits under the toolbar and stays while the page scrolls; asking again starts another; Conversations lists them all
   function askGeneral(){
     exitMax(); closeOvw(); if (!P.hidden) close();
     let n = genOn && !turnsOf(genOn).length && noteEl.get(genOn) ? genOn : null;   // the new one, still waiting for its first question
     if (!n) { n = {id:newId(), g:1, turns:[], marks:[], w:Math.min(+mine.get('askW') || 380, innerWidth - 16), t:Date.now()}; const tb = openTab(); if (tb) n.tab = tb; noteNode(n); activate(n); placeNote(n) }
-    const inp = noteEl.get(n).querySelector('.kb-nf input'); if (draftText && !inp.value) { inp.value = draftText; draftText = '' } inp.focus({preventScroll:true});
+    const inp = noteEl.get(n).querySelector('.kb-nf input'); if (draftText && !inp.value) { inp.value = draftText; draftText = '' } if (draftDraw && !kept.has(n.id)) { kept.set(n.id, draftDraw); draftDraw = null; markDraw(noteEl.get(n).querySelector('[data-n=draw]'), n.id) } inp.focus({preventScroll:true});
   }
   // its place: where it was last dragged to on this device, else under the toolbar on the right (just above it, when it is at the bottom);
   // always on the screen and clear of a toolbar docked at the top
