@@ -386,6 +386,9 @@ async function reading({ context, claude }) {
     claude.say('<at>A</at><read>[two lines]</read>Two lines.'); await page.fill('#kbSheet .kb-shf input', 'And these?'); await page.press('#kbSheet .kb-shf input', 'Enter');
     await shows(page, 'the answer is not on the paper', () => [...document.querySelectorAll('#kbBuddy .kd-reply')].some(r => /Two lines\./.test(r.textContent)));
     await saved(page, 'the drawing as strokes on the paper', R => live(R, 'stroke').length === s0 + 2);
+    { const st = live(await savedRecs(page), 'stroke'), bx = s => { const xs = s.p.map(q => q[0]), ys = s.p.map(q => q[1]); return [Math.min(...xs) - 4, Math.min(...ys) - 4, Math.max(...xs) + 4, Math.max(...ys) + 4] };
+      const tmax = Math.max(...st.map(s => s.t || 0)), nw = st.filter(s => s.t === tmax).map(bx), old = st.filter(s => s.t !== tmax).map(bx);
+      assert(nw.length === 2 && nw.every(A => old.every(B => A[2] < B[0] || B[2] < A[0] || A[3] < B[1] || B[3] < A[1])), 'the drawing was put over what is written on the paper') }
     await tool(page, 'hand');
   });
   await check('7 Tom Riddle\'s diary: a typed line gets its reply, written out in full', async () => {

@@ -590,6 +590,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const sh = document.getElementById('kbSheet'), sk = SH.key && keyOf(SH.key); if (sh && !sh.hidden && sk && SH.d && SH.d.strokes.length) o[sk] = Object.assign(pack(SH.d), {q:shIn.value});
     if (lastDrop && lastDrop.strokes.length) o.last = pack(lastDrop);
     if (Object.keys(o).length) localStorage.setItem(DRAWS, JSON.stringify(o)); else localStorage.removeItem(DRAWS) } catch(e) {} }, 400) }
+  document.addEventListener('input', e => { const t = e.target; if (!(t instanceof HTMLInputElement) || !kept.size) return;
+    const ne = t.closest('.kb-note'), n = ne && [...noteEl].find(([, x]) => x === ne), key = t.closest('#kbAskPop') ? 'pop' : t.closest('#kbBlkPop') ? 'blk' : t.closest('#kbPsel') ? 'psel' : t.closest('#kbBuddy .kb-selbar') ? 'nbsel' : n ? n[0].id : null;
+    const d = key && kept.get(key); if (d) { d.q = t.value; saveDraws() } }, true);
   try { const o = JSON.parse(localStorage.getItem(DRAWS) || 'null'); if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) {
     const ok = v && Number.isFinite(v.cw) && Number.isFinite(v.ch) && Array.isArray(v.s) && v.s.length <= 3000 && v.s.every(st => st && Array.isArray(st.p) && st.p.length && st.p.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])));
     if (!ok) continue; const d = {cw:Math.min(6000, v.cw), ch:Math.min(8000, v.ch), q:typeof v.q === 'string' ? v.q.slice(0, 2000) : '', at:+v.at || Date.now(), strokes:v.s.map(st => ({p:st.p, c:inkC(st.c) ? st.c : '', k:inkW(st.k) ? st.k : 2.6}))};
@@ -2539,11 +2542,17 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   async function askLasso(q, ink){
     const S = sel; if (!S) return; clearSel(); if (needKey()) return;
     stat.textContent = 'Looking…';
+    // the drawing goes on the paper as their own ink, whole and never over what is written: in the clear space nearest the loop (just under
+    // it when that is clear), else on a fresh page right after it; then it is scrolled into view
     if (ink && book[S.pg]) {
-      const b = S.box, below = BOT - (b.y1 + 14) >= 140, y0 = below ? b.y1 + 14 : TOP, room = below ? BOT - y0 : Math.max(60, b.y0 - 14 - TOP), x0 = Math.max(MX, Math.min(b.x0, PW - MX - 160));
-      const k = Math.max(0.2, Math.min(1, (PW - MX - x0) / ink.w, room / ink.h)), now = Date.now();
-      ink.s.forEach((p, j) => book[S.pg].ink.push({p:p.map(q => [Math.round((x0 + q[0] * k) * 10) / 10, Math.round((y0 + q[1] * k) * 10) / 10, 0.5]), c:(ink.c && ink.c[j]) || null, w:(ink.k && ink.k[j]) || WIDTHS.pen[0], h:false, t:now}));
-      if (pgs[S.pg]) pgs[S.pg].ink.redraw(); saveBook();
+      const k = Math.min(1, (PW - 2 * MX) / ink.w, (BOT - TOP) / ink.h), w = ink.w * k, h = ink.h * k, b = S.box, o = obstacles(S.pg);
+      const x0 = Math.max(MX, Math.min(b.x0, PW - MX - w)), cy = (b.y0 + b.y1) / 2, cands = [];
+      for (let y = TOP; y + h <= BOT; y += LH) for (const x of [x0, MX, Math.max(MX, PW - MX - w)]) if (clearOf(o, x, y, x + w, y + h)) cands.push([x, y, Math.abs(y + h / 2 - cy) + (y >= b.y1 ? 0 : 30) + (x === x0 ? 0 : 10)]);
+      let pi = S.pg, spot = cands.sort((p, q) => p[2] - q[2])[0] || null;
+      if (!spot) { pi = nextBlank(S.pg); spot = [MX, TOP] }
+      const now = Date.now();
+      ink.s.forEach((p, j) => book[pi].ink.push({p:p.map(q => [Math.round((spot[0] + q[0] * k) * 10) / 10, Math.round((spot[1] + q[1] * k) * 10) / 10, 0.5]), c:(ink.c && ink.c[j]) || null, w:(ink.k && ink.k[j]) || WIDTHS.pen[0], h:false, t:now}));
+      if (pgs[pi]) { pgs[pi].ink.redraw(); see(pi, spot[1], spot[1] + h) } saveBook();
     }
     const job = {kind:'note', typed:q, ink, lasso:true, hl:null, pg:S.pg, A:S.box, fresh:S.ss, img:snapshot(S.ss), scr:await screenBlocks(P.classList.contains('kb-full'), null, null)};
     if (NB.busy) { if (!enqueue(NB, job)) return; stat.textContent = 'Will read after this reply…'; return }
