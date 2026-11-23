@@ -377,6 +377,17 @@ async function reading({ context, claude }) {
     assert(c.filter(x => x.type === 'image').length >= 2 && c.some(x => x.type === 'text' && /What is this\?/.test(x.text)), 'the loop\'s question or its pictures were not sent');
     await tool(page, 'hand');
   });
+  await check('6 a drawing sent with a notebook loop\'s question goes on the paper as their ink', async () => {
+    const s0 = live(await savedRecs(page), 'stroke').length, b = await page.locator('#kbBuddy .kd-pg canvas').first().boundingBox();
+    await tool(page, 'lasso'); await page.mouse.move(b.x + 60, b.y + 70); await page.mouse.down();
+    for (const [x, y] of [[280, 70], [280, 130], [60, 130], [60, 72]]) await page.mouse.move(b.x + x, b.y + y, { steps: 5 });
+    await page.mouse.up(); await page.waitForSelector('#kbBuddy .kb-selbar [data-s=draw]'); await page.click('#kbBuddy .kb-selbar [data-s=draw]'); await page.waitForSelector('#kbSheet:not([hidden])');
+    const c = page.locator('#kbSheet .kb-shc'); await drag(page, c, { x: 50, y: 40, dx: 120, dy: 0 }); await drag(page, c, { x: 50, y: 80, dx: 120, dy: 0 });
+    claude.say('<at>A</at><read>[two lines]</read>Two lines.'); await page.fill('#kbSheet .kb-shf input', 'And these?'); await page.press('#kbSheet .kb-shf input', 'Enter');
+    await shows(page, 'the answer is not on the paper', () => [...document.querySelectorAll('#kbBuddy .kd-reply')].some(r => /Two lines\./.test(r.textContent)));
+    await saved(page, 'the drawing as strokes on the paper', R => live(R, 'stroke').length === s0 + 2);
+    await tool(page, 'hand');
+  });
   await check('7 Tom Riddle\'s diary: a typed line gets its reply, written out in full', async () => {
     const reply = 'How curious. Do go on.';
     await page.click('#kbBuddy [data-a=riddle]'); claude.say('<read>Hello, diary</read>' + reply);
@@ -610,6 +621,20 @@ async function asking({ context, claude }) {
     const last = claude.requests.at(-1).body.messages.at(-1).content;
     assert(last.some(b => b.type === 'image') && last.some(b => b.type === 'text' && /drew this in the drawing sheet/.test(b.text)), 'the drawing was not sent');
     assert(await page.$eval('#kbSheet', e => e.hidden) && await page.$eval(card + ' .kb-nq svg', s => s.querySelectorAll('path').length === 1), 'the sheet stayed open, or the question does not show the drawing');
+  });
+  await check('15 a tap on a drawing in a question shows it large; a tap closes it', async () => {
+    const w0 = await page.$eval(card + ' .kb-nq svg', s => s.getBoundingClientRect().width); await page.click(card + ' .kb-nq svg.kb-inkq'); await page.waitForSelector('#kbInkView:not([hidden]) svg');
+    const w = await page.$eval('#kbInkView svg', s => s.getBoundingClientRect().width); assert(w > w0 * 1.5, 'the drawing is not shown large: ' + w + ' against ' + w0);
+    await page.mouse.click(10, 10); assert(await page.$eval('#kbInkView', e => e.hidden), 'a tap did not close the large drawing');
+  });
+  await check('15 a drawing in an Ask card not asked yet comes back in the next card after a reload', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.click(card + ' [data-n=draw]'); await page.waitForSelector('#kbSheet:not([hidden])');
+    await drag(page, page.locator('#kbSheet .kb-shc'), { x: 60, y: 60, dx: 150, dy: 20 }); await page.click('#kbSheet [data-sk=done]');
+    await sleep(700); await page.reload(); await page.waitForSelector('#kbBar'); await sleep(500);
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    assert(await page.$eval(card + ' [data-n=draw]', b => b.classList.contains('kb-inked')), 'the drawing did not come back in the next card');
+    await page.click(card + ' [data-n=draw]'); same(await page.$$eval('#kbSheet .kb-shc path', ps => ps.length), 1, 'the strokes in the next card');
+    await page.click('#kbSheet [data-sk=clear]'); await page.click('#kbSheet [data-sk=done]'); await page.click(card + ' [data-n=close]');
   });
   await check('15 an empty answer keeps the question, with Try again; Ask keeps working', async () => {
     await page.click('#kbBar [data-b=claude]'); claude.say(''); await page.fill(box, 'Say nothing?'); await page.press(box, 'Enter');

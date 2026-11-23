@@ -160,6 +160,10 @@ html.kb-noai #kbMarks>.kb-loop,html.kb-noai #kbMarks .kb-links,html.kb-noai #kbN
 #kbAskPop .kb-pr [data-ask],.kb-selbar .kb-pr .kb-go{min-width:36px;padding:4px 10px;font-size:16px;font-weight:700}
 .kb-pen.kb-inked{color:var(--acc)!important;border-color:var(--acc)!important;box-shadow:inset 0 0 0 1px var(--acc)}
 #kbSheetBg{position:fixed;inset:0;z-index:72;background:rgba(0,0,0,.18);touch-action:none}#kbSheetBg[hidden]{display:none}
+#kbInkView{position:fixed;inset:0;z-index:74;background:rgba(0,0,0,.45);overflow:auto;overscroll-behavior:contain;padding:5vh 4vw;box-sizing:border-box;cursor:zoom-out}#kbInkView[hidden]{display:none}
+#kbInkView .kb-ivb{width:max-content;max-width:100%;margin:0 auto;padding:16px;background:var(--card,var(--bg));color:var(--ink);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.3)}#kbInkView svg{display:block;max-width:100%;height:auto}
+.kb-nq svg.kb-inkq{cursor:zoom-in}
+@media (prefers-color-scheme:dark){#kbSheetBg{background:rgba(0,0,0,.45)}#kbInkView{background:rgba(0,0,0,.6)}}
 #kbSheet{position:fixed;z-index:73;display:flex;flex-direction:column;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 10px 40px rgba(0,0,0,.28));overflow:hidden;font:13px/1.4 system-ui,-apple-system,sans-serif}
 #kbSheet[hidden]{display:none}
 #kbSheet .kb-shh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line)}
@@ -568,8 +572,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const kept = new Map();   // drawings waiting in their box: a conversation's id, 'pop' (a selection), 'blk' (a block's menu), 'psel' and 'nbsel' (loops)
   // a drawing's colour is a hex colour or '' (the ink), its width a plain number: what comes from storage or the repo is checked with these
   const inkC = c => c === '' || (typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c)), inkW = w => Number.isFinite(w) && w >= 1 && w <= 12;
+  let draftText = '', draftDraw = null;   // typed or drawn in an Ask card closed before it was sent: put back in the next one
+  const samePass = (a, b) => !!a && !!b && a.el === b.el && (a.text === b.text || (a.rects || []).some(p => (b.rects || []).some(q => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h)));
   let lastDrop = null;   // the drawing of a box that closed before it was sent: the next sheet's Undo brings it back
-  function dropKept(key){ const d = kept.get(key); if (d && d.strokes.length) lastDrop = d; if (kept.delete(key)) saveDraws() }
+  function dropKept(key){ const d = kept.get(key); if (d && d.strokes.length) { lastDrop = d; d.at = Date.now() } if (kept.delete(key)) saveDraws() }
   // a drawing's points, thinned: none closer than gap px to the one kept before it, at most 4000 per stroke
   const thinPts = (p, gap) => { const o = [p[0]]; for (let i = 1; i < p.length; i++) { const a = o[o.length - 1]; if (i === p.length - 1 || Math.hypot(p[i][0] - a[0], p[i][1] - a[1]) >= gap) o.push(p[i]) } return o.slice(0, 4000) };
   // unsent drawings in this browser, by page: a conversation's waits in its box again; one whose box is gone (a selection, a block, a loop,
@@ -577,15 +583,17 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const DRAWS = 'kbBuddy.draws:' + location.pathname;
   let drawSaveT = 0;
   function saveDraws(){ clearTimeout(drawSaveT); drawSaveT = setTimeout(() => { try {
-    const pack = d => ({cw:d.cw, ch:d.ch, s:d.strokes.map(st => ({p:thinPts(st.p, 1.5).map(q => [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10]), c:st.c || '', k:st.k}))}), o = {};
-    for (const [k, d] of kept) if (d.strokes.length) o[k] = pack(d);
-    const sh = document.getElementById('kbSheet'); if (sh && !sh.hidden && SH.key && SH.d && SH.d.strokes.length) o[SH.key] = pack(SH.d);
+    const pack = d => ({cw:d.cw, ch:d.ch, q:d.q || '', at:d.at || 0, s:d.strokes.map(st => ({p:thinPts(st.p, 1.5).map(q => [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10]), c:st.c || '', k:st.k}))}), o = {};
+    const keyOf = k => /^(pop|blk|psel|nbsel)$/.test(k) ? k : genOn && genOn.id === k && !notes.includes(genOn) ? 'gen' : notes.some(n => n.id === k) ? k : null;
+    for (const [k, d] of kept) { const kk = keyOf(k); if (kk && d.strokes.length) o[kk] = pack(d) }
+    if (draftDraw && draftDraw.strokes.length && !o.gen) o.gen = pack(draftDraw);
+    const sh = document.getElementById('kbSheet'), sk = SH.key && keyOf(SH.key); if (sh && !sh.hidden && sk && SH.d && SH.d.strokes.length) o[sk] = Object.assign(pack(SH.d), {q:shIn.value});
     if (lastDrop && lastDrop.strokes.length) o.last = pack(lastDrop);
     if (Object.keys(o).length) localStorage.setItem(DRAWS, JSON.stringify(o)); else localStorage.removeItem(DRAWS) } catch(e) {} }, 400) }
   try { const o = JSON.parse(localStorage.getItem(DRAWS) || 'null'); if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) {
     const ok = v && Number.isFinite(v.cw) && Number.isFinite(v.ch) && Array.isArray(v.s) && v.s.length <= 3000 && v.s.every(st => st && Array.isArray(st.p) && st.p.length && st.p.every(q => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])));
-    if (!ok) continue; const d = {cw:Math.min(6000, v.cw), ch:Math.min(8000, v.ch), strokes:v.s.map(st => ({p:st.p, c:inkC(st.c) ? st.c : '', k:inkW(st.k) ? st.k : 2.6}))};
-    if (/^(pop|blk|psel|nbsel|last)$/.test(k)) lastDrop = d; else kept.set(k, d) } } catch(e) {}
+    if (!ok) continue; const d = {cw:Math.min(6000, v.cw), ch:Math.min(8000, v.ch), q:typeof v.q === 'string' ? v.q.slice(0, 2000) : '', at:+v.at || Date.now(), strokes:v.s.map(st => ({p:st.p, c:inkC(st.c) ? st.c : '', k:inkW(st.k) ? st.k : 2.6}))};
+    if (k === 'gen') { draftDraw = d; if (d.q) draftText = d.q } else if (/^(pop|blk|psel|nbsel|last)$/.test(k)) { if (Date.now() - d.at < 864e5) lastDrop = d } else kept.set(k, d) } } catch(e) {}
   // a request for a picture (not a question about one: "what does this chart show?", "draw a conclusion"), then where it should go
   const PIC_VERB = /(^\s*|[.!?;]\s+|\b(can|could|would|will) you\s+|\bplease\s+|\b(now|also|then)\s+)(draw|sketch|visuali[sz]e|animate|plot|graph|chart|diagram)\b(?![^.?!]*\bconclusions?\b)/i;
   const PIC_ASK = /\b(show|give|make|add|create|build|want|need|draw|sketch|put)\b(\s+(me|us))?(?![^.?!]{0,25}\b(to understand|understand|where|what|why|how|conclusions?)\b).{0,25}\b(diagram|picture|chart|graph|plot|figure|visual|visuali[sz]ation|animation|image|illustration|sketch|drawing)s?\b/i;
@@ -711,14 +719,13 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       const inEd = he.closest('[data-ed],[data-edw]');
       if (inEd || he.closest(KB_NODES)) { if (!inEd) return; hl = {text:txt.slice(0, 4000), where:'', el:null, edit:inEd.dataset.ed || inEd.dataset.edw, rects:[...r.getClientRects()].filter(q => q.width > 1 && q.height < 60).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))}; showHl(); if (!penOn()) showPop(); return }
       hl = {text:txt.slice(0, 4000), where:where(he), el:blockEl(he), rects:[...r.getClientRects()].filter(q => q.width > 1 && q.height < 60).slice(0, 60).map(q => ({x:q.left + scrollX, y:q.top + scrollY, w:q.width, h:q.height}))};
-      { const d = kept.get('pop'); if (d && d.for !== hl) dropKept('pop') }
       showHl(); if (!penOn()) showPop();
     }, 250);
   });
   function showHl(){ hlBox.hidden = !hl || !!sub; if (hl) hlBox.querySelector('q').textContent = hl.text.length > 300 ? hl.text.slice(0, 300) + '…' : hl.text }
 
   // ---- what is in view now ----
-  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg';
+  const OURS = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbMarks,#kbNotes,#kbPsel,#kbNib,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg,#kbInkView,#jsErr', OURS_UI = '#kbOvw,#kbBuddy,#kbBar,#kbToast,#kbNotes,#kbPsel,#kbAskPop,#kbChg,#kbUndo,#kbOrig,#kbBlkPop,#kbHandle,#kbSheet,#kbSheetBg,#kbInkView';
   // what the buddy itself puts into the page (visual sections, added text, hidden-block stubs, move placeholders, change badges): never
   // counted as page content, so showing or hiding a change moves no mark, citation or anchor
   const KB_NODES = '.kb-vsp,.kb-vis,.kb-ins,.kb-hidstub,.kb-mvph,.kb-edtag';
@@ -2501,7 +2508,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const place = () => { const b = sel.box; Object.assign(bx.style, {left:(b.x0 - pad) + 'px', top:(b.y0 - pad) + 'px', width:(b.x1 - b.x0 + 2 * pad) + 'px', height:(b.y1 - b.y0 + 2 * pad) + 'px'});
       const k = 1 / scale, above = b.y0 - pad - 8 - (br.offsetHeight || 92) * k; Object.assign(br.style, {left:(b.x0 - pad) + 'px', top:(above >= 4 ? above : b.y1 + pad + 10) + 'px', transform:'scale(' + k + ')', transformOrigin:'0 0'}) };   // above the box, or under it when there is no room
     place();
-    const inp = br.querySelector('input'), ask = (q, ink) => { q = (q || '').trim(); if (!q && !ink) return false; if (ink && keyState()) { needKey(); return false } askLasso(q, ink); return true }; markDraw(br.querySelector('[data-s=draw]'), 'nbsel');
+    const me = sel, inp = br.querySelector('input'), ask = (q, ink) => { q = (q || '').trim(); if (sel !== me || (!q && !ink)) return false; if (ink && keyState()) { needKey(); return false } askLasso(q, ink); return true }; markDraw(br.querySelector('[data-s=draw]'), 'nbsel');
     br.addEventListener('pointerdown', e => e.stopPropagation());
     br.addEventListener('click', e => {
       const b = e.target.closest('[data-s]'); if (!b) return;
@@ -2532,6 +2539,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   async function askLasso(q, ink){
     const S = sel; if (!S) return; clearSel(); if (needKey()) return;
     stat.textContent = 'Looking…';
+    if (ink && book[S.pg]) {
+      const b = S.box, below = BOT - (b.y1 + 14) >= 140, y0 = below ? b.y1 + 14 : TOP, room = below ? BOT - y0 : Math.max(60, b.y0 - 14 - TOP), x0 = Math.max(MX, Math.min(b.x0, PW - MX - 160));
+      const k = Math.max(0.2, Math.min(1, (PW - MX - x0) / ink.w, room / ink.h)), now = Date.now();
+      ink.s.forEach((p, j) => book[S.pg].ink.push({p:p.map(q => [Math.round((x0 + q[0] * k) * 10) / 10, Math.round((y0 + q[1] * k) * 10) / 10, 0.5]), c:(ink.c && ink.c[j]) || null, w:(ink.k && ink.k[j]) || WIDTHS.pen[0], h:false, t:now}));
+      if (pgs[S.pg]) pgs[S.pg].ink.redraw(); saveBook();
+    }
     const job = {kind:'note', typed:q, ink, lasso:true, hl:null, pg:S.pg, A:S.box, fresh:S.ss, img:snapshot(S.ss), scr:await screenBlocks(P.classList.contains('kb-full'), null, null)};
     if (NB.busy) { if (!enqueue(NB, job)) return; stat.textContent = 'Will read after this reply…'; return }
     send(NB, job);
@@ -3163,7 +3176,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     markDraw(br.querySelector('[data-s=draw]'), 'psel');
     if (!k && keyState() === 'missing') { const bk = br.querySelector('.kb-blk'); if (!bk) { clearPsel(); return } bk.appendChild(br.querySelector('[data-s=done]')); br.querySelector('.kb-pr').remove() }
     { const h = br.offsetHeight; if (b.y1 + o.top + 10 + h > innerHeight - 8 - roomB() && b.y0 + o.top - 10 - h >= clipLine() + 4) Object.assign(br.style, {top:(b.y0 + off[1] - 10) + 'px', transform:'translateY(-100%)'}) }
-    const inp = br.querySelector('input'), ask = (q, where, ink) => { q = (q || '').trim(); if ((!q && !ink) || (ink && !canDraw())) return false; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => { kept.delete('psel'); askPageLasso(q, v, ink) }); return false } where = w || undefined } askPageLasso(q, where, ink); return true };
+    const me = psel, inp = br.querySelector('input'), ask = (q, where, ink) => { q = (q || '').trim(); if (psel !== me || (!q && !ink) || (ink && !canDraw())) return false; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => { kept.delete('psel'); askPageLasso(q, v, ink) }); return false } where = w || undefined } askPageLasso(q, where, ink); return true };
     br.addEventListener('pointerdown', e => e.stopPropagation(), true);
     br.addEventListener('click', e => {
       if (blockClick(e, psel && psel.tgt, inp, clearPsel)) return;
@@ -3230,6 +3243,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function askPop(q, ink, h0){ const w = whereOf(q); if (w === null) { askWhere(pop.querySelector('.kb-wherebox'), q, v => { kept.delete('pop'); askSel(q, v, ink, h0) }); return false } askSel(q, w || undefined, ink, h0); return true }
   function showPop(){
     if (!hl || !hl.rects.length) return;
+    { const d = kept.get('pop'); if (d && !samePass(d.for, hl)) dropKept('pop') }   // a drawing meant for another passage
     const last = hl.rects[hl.rects.length - 1], first = hl.rects[0], w = Math.min(380, innerWidth - 16);
     if (pop.hidden) pop.querySelector('.kb-wherebox').innerHTML = ''; pop.querySelector('.kb-blkbox').innerHTML = hl.el ? blockRowHtml(hl.el) : ''; markDraw(pop.querySelector('[data-draw]'), 'pop');
     pop.hidden = false; placePop();
@@ -3310,8 +3324,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     a.insertAdjacentHTML('beforeend', '<span class="kb-cut">' + (t.a ? '\nCut off: ' : /^(No reply|Claude declined)/.test(t.cut) ? '' : 'Not answered: ') + esc(String(t.cut).slice(0, 200)) + '</span>' + (t.q || t.ink ? ' <button type="button" class="kb-retry" data-n="retry">Try again</button>' : ''));
   }
   // a drawing kept with its turn: strokes as integer points on a canvas of width w (it scales with the note)
-  function inkSvg(ink){ const sv = document.createElementNS(NS, 'svg'); sv.setAttribute('viewBox', '0 0 ' + ink.w + ' ' + ink.h); sv.setAttribute('width', ink.w); sv.setAttribute('aria-label', 'Your drawing');
-    (ink.s || []).forEach((st, i) => { const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M' + st.map(q => q[0] + ' ' + q[1]).join('L') + (st.length === 1 ? 'l.1 0' : '')); Object.entries({fill:'none', stroke:(ink.c && inkC(ink.c[i]) && ink.c[i]) || 'currentColor', 'stroke-width':(ink.k && inkW(ink.k[i]) && ink.k[i]) || 2.4, 'stroke-linecap':'round', 'stroke-linejoin':'round', 'vector-effect':'non-scaling-stroke'}).forEach(([k, v]) => pth.setAttribute(k, v)); sv.appendChild(pth) })
+  function inkSvg(ink, big){ const sv = document.createElementNS(NS, 'svg'); sv.setAttribute('viewBox', '0 0 ' + ink.w + ' ' + ink.h); sv.setAttribute('width', ink.w); sv.setAttribute('aria-label', 'Your drawing');
+    (ink.s || []).forEach((st, i) => { const pth = document.createElementNS(NS, 'path'); pth.setAttribute('d', 'M' + st.map(q => q[0] + ' ' + q[1]).join('L') + (st.length === 1 ? 'l.1 0' : '')); Object.entries({fill:'none', stroke:(ink.c && inkC(ink.c[i]) && ink.c[i]) || 'currentColor', 'stroke-width':(ink.k && inkW(ink.k[i]) && ink.k[i]) || 2.4, 'stroke-linecap':'round', 'stroke-linejoin':'round'}).forEach(([k, v]) => pth.setAttribute(k, v)); if (!big) pth.setAttribute('vector-effect', 'non-scaling-stroke'); sv.appendChild(pth) })
     return sv }
   function inkPng(ink){ const c = document.createElement('canvas'), k = Math.min(2, 1500 / Math.max(ink.w, ink.h)); c.width = Math.round(ink.w * k); c.height = Math.round(ink.h * k); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.lineCap = g.lineJoin = 'round'; for (const [i, st] of ink.s.entries()) { g.strokeStyle = (ink.c && inkC(ink.c[i]) && ink.c[i]) || '#000'; g.lineWidth = (ink.k && inkW(ink.k[i]) && ink.k[i]) || 2.6; g.beginPath(); st.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (st.length === 1) g.lineTo(st[0][0] + 0.1, st[0][1]); g.stroke() } return c.toDataURL('image/png') }
   // ---- the drawing sheet. Draw in any Ask box opens a big sheet over the page, for a whole diagram or workflow: it resizes from its
@@ -3329,7 +3343,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     + '<form class="kb-shf"><input type="text" enterkeyhint="send" aria-label="Your question"><button type="submit" title="Send the drawing with your question" aria-label="Send">&#x2191;</button></form>'
     + '<div class="kb-shrz" title="Drag to resize" aria-hidden="true"></div>');
   const sheetBg = el('div', {id:'kbSheetBg', hidden:''}); document.body.append(sheetBg, sheet);
-  sheetBg.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); closeSheet(false) }); sheetBg.addEventListener('wheel', ev => ev.preventDefault(), {passive:false});
+  sheetBg.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation() }); sheetBg.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); closeSheet(false) }); sheetBg.addEventListener('wheel', ev => ev.preventDefault(), {passive:false});
   const shS = sheet.querySelector('.kb-shs'), shC = sheet.querySelector('.kb-shc'), shIn = sheet.querySelector('.kb-shf input'), shHint = sheet.querySelector('.kb-shint');
   const SH = {key:null, d:null, cur:null, pid:null, penUp:0, undo:[], erase:false, color:'', thick:false, touch:new Map(), pan:null, gone:null, send:null, inp:null, btn:null};
   const shD = p => 'M' + p.map(q => q[0] + ' ' + q[1]).join('L') + (p.length === 1 ? 'l.1 0' : '');
@@ -3389,7 +3403,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   shC.addEventListener('pointerup', shUp); shC.addEventListener('pointercancel', shUp);
   for (const t of ['touchstart', 'touchmove', 'touchend']) shC.addEventListener(t, ev => { if (ev.cancelable) ev.preventDefault() }, {passive:false});   // the sheet draws (Scribble never holds the Pencil back); two fingers scroll it here
   function sheetUndo(){ if (sheet.hidden || !SH.d) return; const x = SH.undo.pop(); if (!x) return;
-    if (x.add) drop(SH.d.strokes, x.add); else if (x.gone) for (const g of x.gone.slice().reverse()) SH.d.strokes.splice(g.i, 0, g.st); else if (x.all) { SH.d.strokes = x.all; if (x.cw) { SH.d.cw = Math.max(SH.d.cw, x.cw); SH.d.ch = Math.max(SH.d.ch, x.ch); shSize() } if (x.last) lastDrop = null }
+    if (x.add) drop(SH.d.strokes, x.add); else if (x.gone) for (const g of x.gone.slice().reverse()) SH.d.strokes.splice(g.i, 0, g.st); else if (x.all) { SH.d.strokes = x.all; if (x.cw) { SH.d.cw = Math.max(SH.d.cw, x.cw); SH.d.ch = Math.max(SH.d.ch, x.ch); shSize() } if (x.last) { lastDrop = null; if (x.q && !shIn.value) shIn.value = x.q } }
     shDraw(); saveDraws() }
   sheet.querySelector('.kb-shh').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; ev.preventDefault();
     if (b.dataset.sc !== undefined) { SH.color = b.dataset.sc; SH.erase = false }
@@ -3415,11 +3429,15 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (!sheet.hidden) { shPlace(); shSize() } });
   addEventListener('resize', () => { if (!sheet.hidden) { shPlace(); shSize() } });
   // open it for a box: what that box keeps (a drawing, its words); send(q, ink) asks Claude and says false when it could not (no key, busy)
+  const inkView = el('div', {id:'kbInkView', hidden:'', role:'dialog', 'aria-label':'Your drawing, large'}); document.body.appendChild(inkView);
+  function openInk(ink){ inkView.textContent = ''; const b = el('div', {class:'kb-ivb'}), sv = inkSvg(ink, true); sv.style.width = Math.round(Math.min(innerWidth * 0.92 - 32, ink.w * 2)) + 'px'; b.appendChild(sv); inkView.appendChild(b); inkView.hidden = false }   // up to twice its size, as wide as the screen allows
+  inkView.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation() }); inkView.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); inkView.hidden = true; inkView.textContent = '' });
+  document.addEventListener('keydown', ev => { if (!inkView.hidden && ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); inkView.hidden = true; inkView.textContent = '' } }, true);
   function drawFor(key, inp, send, btn){
     if (!sheet.hidden) return;
     try { const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur() } catch(e) {}   // an iPad's keyboard goes, so the sheet has the screen
     Object.assign(SH, {key, inp, send, btn, undo:[], erase:false, color, thick, cur:null, pid:null, pan:null, gone:null, for:key === 'pop' ? hl : key === 'blk' ? blkTgt : null}); SH.touch.clear();
-    SH.d = kept.get(key) || {strokes:[], cw:0, ch:0}; if (!kept.has(key) && lastDrop) SH.undo.push({all:lastDrop.strokes, cw:lastDrop.cw, ch:lastDrop.ch, last:true});
+    SH.d = kept.get(key) || {strokes:[], cw:0, ch:0}; if (!kept.has(key) && lastDrop) SH.undo.push({all:lastDrop.strokes, cw:lastDrop.cw, ch:lastDrop.ch, q:lastDrop.q, last:true});
     shIn.value = inp ? inp.value : ''; shIn.placeholder = (inp && inp.placeholder ? inp.placeholder.replace(/…$/, '') : 'Your question') + ' (optional)…';
     shHint.textContent = (matchMedia('(pointer:fine)').matches ? 'Draw here with the mouse or a pen; the wheel scrolls. It grows as you draw near its edges.' : 'Draw here with the Pencil or a finger; two fingers scroll. It grows as you draw near its edges.') + (SH.undo.length ? ' Undo brings back your last drawing, which was not sent.' : '');
     sheet.hidden = false; sheetBg.hidden = false; shPlace(); shS.scrollTop = 0; shS.scrollLeft = 0; shSize(); shDraw(); shBar();
@@ -3430,8 +3448,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (go && !d.strokes.length && !q) return;
     if (SH.cur) { SH.cur.el.remove(); SH.cur = null } SH.pid = null; SH.touch.clear(); SH.pan = null;
     sheet.hidden = true; sheetBg.hidden = true; SH.key = null;
-    if (go) { kept.delete(key); if (SH.send(q, d.strokes.length ? inkOf(d) : null) !== false) { if (inp) inp.value = ''; markDraw(SH.btn, key); saveDraws(); return } }
-    d.for = SH.for; if (d.strokes.length) kept.set(key, d); else kept.delete(key); if (inp) inp.value = shIn.value; markDraw(SH.btn, key); saveDraws();
+    if (go) { kept.delete(key); if (SH.send(q, d.strokes.length ? inkOf(d) : null) !== false) { if (d.strokes.length) lastDrop = null; if (inp) inp.value = ''; markDraw(SH.btn, key); saveDraws(); return } }
+    d.for = SH.for; d.q = shIn.value; if (d.strokes.length) kept.set(key, d); else kept.delete(key); if (inp) inp.value = shIn.value; markDraw(SH.btn, key); saveDraws();
   }
   // a drawing as it is sent and kept with the question: cropped to what was drawn, its points thinned, each stroke's colour and width
   function inkOf(d){
@@ -3444,12 +3462,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   function markDraw(b, key){ if (!b) return; const on = kept.has(key); b.classList.toggle('kb-inked', on); b.title = on ? 'Your drawing: tap to open it. It goes with your next question' : 'Draw: a big sheet for a diagram or a workflow, sent with your words'; b.setAttribute('aria-label', on ? 'Open your drawing' : 'Draw') }
   // a box's Send: its words, with the drawing waiting in it if there is one
-  function sendKept(key, q, send, btn){ const d = kept.get(key), ink = d ? inkOf(d) : null; if (!q && !ink) return; kept.delete(key); if (send(q, ink) === false && d) kept.set(key, d); markDraw(btn, key); saveDraws() }
+  function sendKept(key, q, send, btn){ const d = kept.get(key), ink = d ? inkOf(d) : null; if (!q && !ink) return; kept.delete(key); if (send(q, ink) === false) { if (d) kept.set(key, d) } else if (ink) lastDrop = null; markDraw(btn, key); saveDraws() }
   function canDraw(){ if (keyState()) { needKey(); return false } if (PG.busy && PG.queued.length >= 3) { toast('Claude is still busy with earlier requests; the drawing waits in its box.', 5000); return false } return true }
   function turnEl(t){
     if ((t.q || t.ink) && !t.a && !t.cut && Date.now() - (t.t || 0) > 6e5) t.cut = 'the page was closed before Claude answered';   // older than 10 minutes: not being answered anywhere
     const d = el('div', {class:'kb-turn'});
-    if (t.q || t.ink) { const q = el('div', {class:'kb-nq'}, t.q ? esc(t.q) : ''); if (t.ink) q.appendChild(inkSvg(t.ink)); d.appendChild(q) }   // their question in their ink: typed words, a drawing, or both
+    if (t.q || t.ink) { const q = el('div', {class:'kb-nq'}, t.q ? esc(t.q) : ''); if (t.ink) { const sv = inkSvg(t.ink); sv.classList.add('kb-inkq'); sv.setAttribute('role', 'button'); sv.setAttribute('tabindex', '0'); sv.setAttribute('aria-label', 'Your drawing: tap to see it large'); sv.addEventListener('click', ev => { ev.stopPropagation(); openInk(t.ink) }); sv.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openInk(t.ink) } }); q.appendChild(sv) } d.appendChild(q) }   // their question in their ink: typed words, a drawing, or both
     const a = el('div', {class:'kb-na' + (t.a ? '' : ' kb-ink')}); d.appendChild(a);
     for (const x of replyPieces(t.a || '', true)) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
     if (t.cut) showCut(t, d);
@@ -3499,7 +3517,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         } else { let w = old ? old.where : whereOf(t.q || ''); if (w === null && HOME) w = 'note'; if (w === null) askWhere(e.querySelector('.kb-nb'), t.q, v => followUp(n, t.q, v, t.ink)); else followUp(n, t.q || '', w || undefined, t.ink) }
       }
     });
-    const f = e.querySelector('form'), inp = f.querySelector('input'); markDraw(e.querySelector('[data-n=draw]'), n.id);
+    const f = e.querySelector('form'), inp = f.querySelector('input'); markDraw(e.querySelector('[data-n=draw]'), n.id); { const d = kept.get(n.id); if (d && d.q && !inp.value) inp.value = d.q }
     if (n === passOn || n === genOn) e.classList.add('kb-active'); if (n === genOn) e.classList.add('kb-shown');   // rebuilt while it is open (after a sync)
     if (n.g && genRO) genRO.observe(e);
     if (n.g) { e.classList.add('kb-gen'); e.setAttribute('aria-label', 'Your conversation with Claude about this ' + (HOME ? 'knowledge base' : 'page')); if (!turnsOf(n).length) { inp.placeholder = HOME ? 'Ask about the knowledge base…' : 'Ask Claude about this page…'; inp.setAttribute('aria-label', HOME ? 'Ask Claude about the knowledge base' : 'Ask Claude about this page'); e.classList.add('kb-fresh') }
@@ -3640,8 +3658,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       requestAnimationFrame(() => requestAnimationFrame(() => { const a = document.activeElement; if (!a || a === document.body || !a.getClientRects().length) bar.querySelector('[data-b=over]').focus({preventScroll:true}) })) }   // no dot shown (no margin): Conversations
   }
   const deactivate = () => closeNote(activeNote);
-  let draftText = '', draftDraw = null;   // typed or drawn in an Ask card closed before it was sent: put back in the next one
-  const dropDraft = n => { genDrag = false; const e = noteEl.get(n), i = e && e.querySelector('.kb-nf input'); if (i && i.value.trim()) draftText = i.value; if (kept.has(n.id)) { draftDraw = kept.get(n.id); kept.delete(n.id) } if (e) { if (e.contains(document.activeElement)) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); e.remove() } noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
+  const dropDraft = n => { genDrag = false; const e = noteEl.get(n), i = e && e.querySelector('.kb-nf input'); if (i && i.value.trim()) draftText = i.value; if (kept.has(n.id)) { draftDraw = kept.get(n.id); kept.delete(n.id); saveDraws() } if (e) { if (e.contains(document.activeElement)) bar.querySelector('[data-b=claude]').focus({preventScroll:true}); e.remove() } noteEl.delete(n) };   // a general conversation left before its first question: nothing to keep
   // Ask on the toolbar: a new conversation about the page, not tied to a passage (what is on the screen goes with each question). Its
   // card sits under the toolbar and stays while the page scrolls; asking again starts another; Conversations lists them all
   function askGeneral(){
