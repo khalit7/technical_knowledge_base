@@ -324,7 +324,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 .kb-note .kb-nh button{border:0;background:transparent;color:var(--mute);font-size:15px;line-height:1;padding:2px 7px;border-radius:6px;cursor:pointer}
 @media (hover:hover){.kb-note .kb-nh button:hover{background:var(--soft)}}
 .kb-note .kb-nb{max-height:44vh;overflow:auto;padding:6px 12px 8px;font:14.5px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
-.kb-note .kb-na{line-height:1.55;margin:0 0 2px}
+.kb-note .kb-na{line-height:1.55;margin:0 0 2px}.kb-note .kb-na code{font:.9em ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:0 4px;border-radius:4px}
 .kb-note .kb-nb .kb-sk svg{max-width:320px;max-height:230px}.kb-note .kb-na .kb-sk{display:block;width:fit-content;max-width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--card,var(--bg))}.kb-note .kb-sk text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
 .kb-note .kb-dot{display:none}
 .kb-note.kb-folded{width:auto!important;border:0;background:transparent;box-shadow:none}
@@ -875,9 +875,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   }
   // reply text as HTML: a citation marker (⟦c12⟧, added where the API cited block 12) becomes a small numbered chip that jumps there;
   // [[Page title]] becomes a link to that page of the knowledge base
-  function renderStr(str, box){
+  function renderStr(str, box, md){
     let n = box ? box.querySelectorAll('.kb-cite').length : 0;
-    return esc(str).replace(/&lt;(\/?)(sup|sub|b|i|em|strong)&gt;/g, '<$1$2>')   // the few formatting tags Claude sometimes writes, shown, not printed
+    const h = esc(str).replace(/&lt;(\/?)(sup|sub|b|i|em|strong)&gt;/g, '<$1$2>')   // the few formatting tags Claude sometimes writes, shown, not printed
       .replace(/⟦u([^|⟧]{1,2000})\|([^⟧]{0,600})⟧/g, (_, u, t) => {
         let url = '', title = ''; try { url = decodeURIComponent(unesc(u)); title = decodeURIComponent(unesc(t)) } catch(e) { return '' }
         let ok = false; try { ok = /^https?:$/.test(new URL(url).protocol) } catch(e) {} if (!ok) return '';
@@ -885,8 +885,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
         return '<a class="kb-cite kb-web" href="' + esc(url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener noreferrer" title="' + esc(title || host).replace(/"/g, '&quot;') + '">\u2197 ' + esc(host) + '</a>' })
       .replace(/⟦c(\d+)⟧/g, (_, i) => { const B = docBlocks(), t = (B.content[+i] || {}).text || ''; return '<button type="button" class="kb-cite" data-cb="' + i + '" title="' + esc(t.slice(0, 160)) + '">' + (++n) + '</button>' })
       .replace(/\[\[([^\]]{1,160})\]\]/g, (_, t) => kbLink(unesc(t)));
+    return !md ? h : h.replace(/(^|\n)[ \t]*#{1,4} ([^\n]{1,200})/g, '$1<b>$2</b>').replace(/\*\*([^*\n]{1,300}?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]{1,200})`/g, '<code>$1</code>').replace(/(^|\n)[ \t]*[-*] (?=\S)/g, '$1\u2022 ');
   }
-  const txt = (str, box) => { const sp = el('span'); sp.innerHTML = renderStr(str, box); if (!KBI && sp.querySelector('u[data-kbt]')) kbIndex().then(kbLinks); return sp };
+  const txt = (str, box, md) => { const sp = el('span'); sp.innerHTML = renderStr(str, box, md); if (!KBI && sp.querySelector('u[data-kbt]')) kbIndex().then(kbLinks); return sp };
   // a page of the knowledge base named in a reply: a link (its short title, the full one as its tooltip), or, until the index has loaded,
   // a placeholder that kbLinks turns into one
   function kbLink(t){
@@ -3243,7 +3244,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const d = el('div', {class:'kb-turn'});
     if (t.q || t.ink) { const q = el('div', {class:'kb-nq'}, t.q ? esc(t.q) : ''); if (t.ink) q.appendChild(inkSvg(t.ink)); d.appendChild(q) }   // their question in their ink: typed words, a drawing, or both
     const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
-    for (const x of replyPieces(t.a || '')) { if (typeof x === 'string') a.appendChild(txt(x, a)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
+    for (const x of replyPieces(t.a || '')) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
     if (t.cut) showCut(t, d);
     return d;
   }
@@ -3585,7 +3586,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top },
     done(job, text){ if (job.quiet) return; try { const nn = job.note && job.newNote && !job.note.n.g && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.clean || job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
       if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
-      job.note.t.a = text; linkNote(job); saveBook(); if (job.newNote && job.note.e.classList.contains('kb-active')) { const r = job.note.e.getBoundingClientRect(); if (r.top >= clipLine() && r.top < innerHeight) reveal(job) } },
+      job.note.t.a = text;
+      { const a = job.note.d.querySelector('.kb-na'); if (a && /\*\*|`|(^|\n)[ \t]*([-*] |#{1,4} )/.test(text)) { a.classList.remove('kb-ink'); a.textContent = ''; for (const x of replyPieces(text)) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } } } }   // its Markdown shown, now that it is complete
+      linkNote(job); saveBook(); if (job.newNote && job.note.e.classList.contains('kb-active')) { const r = job.note.e.getBoundingClientRect(); if (r.top >= clipLine() && r.top < innerHeight) reveal(job) } },
     empty(job){ const J = job.note; if (!J) return; if (J.n.g) { this.fail(job, null, 'No reply'); return }   // an Ask conversation keeps the question, with Try again
       drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n); forget(J.n) } saveBook(); syncBar() },
     fail(job, reply, msg){ try {

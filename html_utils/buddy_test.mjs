@@ -513,6 +513,12 @@ async function landing({ context, claude }) {
     assert(last.includes(Q) && last.includes('knowledge base as a whole') && last.includes('search_kb'), 'the request does not ask about the knowledge base');
     assert(body.tools.some(t => t.name === 'search_kb') && body.tools.some(t => t.name === 'read_kb_page'), 'the knowledge-base tools are not offered');
   });
+  await check('16 a reply\'s Markdown shows once it is complete: bold, bullets, code and headings, no stars left', async () => {
+    claude.say('Two things:\n- **First**, read it in order\n- `softmax` second\n### Caveats\nnone, and 2 * 3 = 6');
+    await page.fill(box, 'Two things?'); await page.press(box, 'Enter');
+    await shows(page, 'the Markdown is not shown', () => { const a = [...document.querySelectorAll('.kb-note.kb-gen.kb-active .kb-na')].pop(); return a && /Caveats/.test(a.textContent) && a.querySelector('b') && a.querySelector('code') && /\u2022 /.test(a.textContent) && !/\*\*|###/.test(a.textContent) && /2 \* 3/.test(a.textContent) });
+    await page.keyboard.press('Escape');
+  });
   await check('16 Conversations on the landing page lists it, as about the knowledge base', async () => {
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q);
     assert(/^\u2733 About the knowledge base/.test(await page.textContent('#kbOvw .kb-ovc small')), 'the card does not say it is about the knowledge base');
