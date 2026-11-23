@@ -570,15 +570,21 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
   function placeBar(){
     Object.assign(bar.style, {left:'0px', top:'0px', width:''});
+    // the full toolbar is laid out first, even when it is small: the small one's right end is where the full one's is, so + and its −
+    // are under the same finger
+    const small = bar.classList.contains('kb-min'); if (small) bar.classList.remove('kb-min');
     // too wide for one row (an iPad held upright): the colours fold into the current one, which opens the palette
     bar.classList.remove('kb-compact'); bar.classList.toggle('kb-bottom', dock.e === 'bottom');
     const spare = [...bar.querySelectorAll('[data-b=send],[data-t=text]')].filter(b => b.hidden).length * 46;   // room for the buttons that come and go
     if (bar.offsetHeight > 62 || bar.offsetWidth + spare > innerWidth - 16) bar.classList.add('kb-compact');
-    const W = innerWidth, H = innerHeight, w = Math.ceil(bar.getBoundingClientRect().width) + 1, h = bar.offsetHeight, m = 8;   // rounded up: a fraction short and it wraps
-    let x, y;
-    {   // centred on its usual width: the buttons that come and go or change width (Send, and sync with its key label) extend it to the right, so the tools never slide
-      const extra = [...bar.querySelectorAll(bar.classList.contains('kb-min') ? '[data-b=send]' : '[data-b=send],[data-b=sync],[data-t=text]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);   // the small toolbar is centred without Send, which extends it to the right
-      y = dock.e === 'top' ? m : H - h - m; x = Math.max(m, Math.min(W - w - m, dock.f * W - (w - extra) / 2)) }
+    const W = innerWidth, H = innerHeight, m = 8, wf = Math.ceil(bar.getBoundingClientRect().width) + 1;   // rounded up: a fraction short and it wraps
+    // centred on its usual width: the buttons that come and go or change width (Send, and sync with its key label) extend it to the right,
+    // so the tools never slide
+    const extra = [...bar.querySelectorAll('[data-b=send],[data-b=sync],[data-t=text]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
+    const xf = Math.max(m, Math.min(W - wf - m, dock.f * W - (wf - extra) / 2));
+    if (small) bar.classList.add('kb-min');
+    const w = small ? Math.ceil(bar.getBoundingClientRect().width) + 1 : wf, h = bar.offsetHeight;
+    let x = small ? Math.max(m, Math.min(W - w - m, xf + wf - w)) : xf, y = dock.e === 'top' ? m : H - h - m;
     Object.assign(bar.style, {left:x + 'px', top:y + 'px', width:w + 'px'}); placeToast();   // its measured width, so it does not wrap where it lands
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
     const de = document.documentElement.style; de.setProperty('--kb-room', (dock.e === 'top' ? y + h + 6 : 0) + 'px'); de.setProperty('--kb-room-b', (dock.e === 'bottom' ? H - y + 6 : 0) + 'px');

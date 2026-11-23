@@ -415,7 +415,9 @@ async function reading({ context, claude }) {
     await page.evaluate(() => localStorage.removeItem('kbBuddy.min')); await page.reload(); await ready(page);
     const shown = () => page.evaluate(() => [...document.querySelectorAll('#kbBar > button')].filter(b => b.getClientRects().length).map(b => b.dataset.b || b.dataset.t));
     same(await shown(), ['claude', 'sync', 'min'], 'the buttons of the small toolbar');
+    const xMin = () => page.$eval('#kbBar [data-b=min]', b => Math.round(b.getBoundingClientRect().left)), x0 = await xMin();
     await page.click('#kbBar [data-b=min]'); assert((await shown()).includes('pen') && (await shown()).includes('notebook'), 'the full toolbar did not show');
+    const x1 = await xMin(); assert(Math.abs(x1 - x0) <= 2, 'the + and its \u2212 are not in the same place: ' + x0 + ' then ' + x1);
     await page.reload(); await ready(page); assert((await shown()).includes('pen'), 'the full toolbar was not remembered');
   });
   await check('9 resolving a note closes it to its tick', async () => {
