@@ -174,7 +174,7 @@ html.kb-noai #kbMarks>.kb-loop,html.kb-noai #kbMarks .kb-links,html.kb-noai #kbN
 #kbSheet .kb-shh button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
 #kbSheet .kb-shh [data-sk=done]{background:var(--acc);color:var(--card,var(--bg));padding:0 14px}
 #kbSheet .kb-shh .kb-sp{flex:1}
-#kbSheet .kb-shs{position:relative;flex:1;min-height:0;overflow:auto;background:var(--soft);overscroll-behavior:contain}
+#kbSheet .kb-shs{position:relative;flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;background:var(--soft);overscroll-behavior:contain}
 #kbSheet .kb-shc{display:block;max-width:none!important;max-height:none!important;color:var(--ink);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}
 #kbSheet .kb-shc path{fill:none;stroke-linecap:round;stroke-linejoin:round}
 #kbSheet .kb-shint{position:absolute;left:14px;top:12px;color:var(--mute);pointer-events:none}
