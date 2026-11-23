@@ -135,7 +135,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 .kb-note input::placeholder{color:var(--mute);opacity:1}
 #kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-vrow,#kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-blk{display:none!important}
 .kb-note.kb-nodot:not(.kb-active){display:none!important}
-html.kb-noai #kbMarks>.kb-loop,html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow,html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=ask],html.kb-noai .kb-selbar .kb-chips,html.kb-noai .kb-selbar .kb-vrow,html.kb-noai .kb-blk [data-k=text],html.kb-noai .kb-blk [data-k=vis],html.kb-noai .kb-selbar .kb-pr .kb-go,html.kb-noai [data-bk=ask],html.kb-noai #kbChg .kb-chips,html.kb-noai #kbChg .kb-pr,html.kb-noai #kbChg [data-c=pick],html.kb-noai #kbChg [data-c=stmerge]{display:none!important}
+html.kb-noai #kbMarks>.kb-loop,html.kb-noai #kbMarks .kb-links,html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow:not(.kd-lasso),html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=ask],html.kb-noai .kb-selbar .kb-chips,html.kb-noai .kb-selbar .kb-vrow,html.kb-noai .kb-blk [data-k=text],html.kb-noai .kb-blk [data-k=vis],html.kb-noai .kb-selbar .kb-pr .kb-go,html.kb-noai [data-bk=ask],html.kb-noai #kbChg .kb-chips,html.kb-noai #kbChg .kb-pr,html.kb-noai #kbChg [data-c=pick],html.kb-noai #kbChg [data-c=stmerge]{display:none!important}
 html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,html[data-kb-home] .kb-note .kb-chips{display:none!important}
 #kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
 #kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
@@ -174,7 +174,7 @@ html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,h
 #kbAskPop .kb-vrow{padding:6px 0 0}#kbAskPop .kb-vrow button{background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:12.5px;padding:4px 8px;border-radius:8px}@media (hover:hover){#kbAskPop .kb-vrow button:hover{border-color:var(--acc);color:var(--acc)}}.kb-where{padding:6px 8px 2px;font:12.5px/1.4 system-ui,-apple-system,sans-serif;color:var(--mute)}.kb-where .kb-vrow{padding:6px 0 4px}
 .kb-note:has(.kb-where)>.kb-vrow,.kb-chipsbox:has(.kb-where)>.kb-vrow,.kb-selbar:has(.kb-where)>.kb-vrow{display:none!important}.kb-note .kb-where{padding:6px 0 2px}.kb-where .kb-vrow{flex-wrap:wrap}.kb-where .kb-vrow button{white-space:nowrap}
 @media (pointer:coarse){.kb-cite{position:relative}.kb-cite::after{content:'';position:absolute;inset:-12px -6px}.kb-vrow button{min-height:40px}#kbBuddy .kb-row button{min-height:40px}#kbBuddy .kb-h button{min-width:40px}}@media (prefers-reduced-motion:reduce){.kb-tdots i{animation:none;opacity:.6}}
-.kb-think{display:flex;align-items:center;gap:8px;height:30px;padding:0;color:var(--mute);font:13px/1.4 system-ui,-apple-system,sans-serif}
+.kb-think{display:flex;align-items:center;gap:8px;height:22px;padding:0;color:var(--mute);font:13px/1.4 system-ui,-apple-system,sans-serif}
 .kb-think .kb-tdots,.kb-tdots{display:inline-flex;gap:3px}.kb-tdots i{width:6px;height:6px;border-radius:50%;background:var(--acc);opacity:.3;animation:kbDot 1.2s infinite ease-in-out}.kb-tdots i:nth-child(2){animation-delay:.2s}.kb-tdots i:nth-child(3){animation-delay:.4s}
 @keyframes kbDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 .kb-note{--kb-qink:var(--ink,#1f2328)}
@@ -182,6 +182,7 @@ html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,h
 @media (hover:hover){.kb-chips button:hover{border-color:var(--acc)}.kb-selbar .kb-chips button{border-radius:99px;padding:2px 9px;font-size:12px}}
 .kb-note .kb-chips{display:none;padding:0 8px 8px}
 .kb-note>.kb-vrow{display:none}.kb-note.kb-typing>.kb-chips,.kb-note.kb-typing>.kb-vrow{display:flex}
+.kb-note.kb-answering>.kb-chips,.kb-note.kb-answering>.kb-vrow{display:none!important}
 .kb-selbar{position:absolute;display:flex;flex-direction:column;gap:5px;width:max-content;max-width:min(420px,calc(100vw - 24px));padding:6px;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow,0 6px 22px rgba(0,0,0,.2));font:13px/1.4 system-ui,-apple-system,sans-serif;pointer-events:auto;z-index:5}
 .kb-selbar .kb-pr{display:flex;gap:5px;align-items:center}
 .kb-selbar input{flex:1;min-width:150px;font:inherit;font-size:14px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
@@ -325,7 +326,8 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
 .kb-note .kb-nh button{border:0;background:transparent;color:var(--mute);font-size:15px;line-height:1;padding:2px 7px;border-radius:6px;cursor:pointer}
 @media (hover:hover){.kb-note .kb-nh button:hover{background:var(--soft)}}
 .kb-note .kb-nb{max-height:44vh;overflow:auto;padding:6px 12px 8px;font:14.5px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
-.kb-note .kb-na{line-height:1.55;margin:0 0 2px}.kb-note .kb-na code{font:.9em ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:0 4px;border-radius:4px}.kb-note .kb-na code.kb-pre{display:block;white-space:pre;overflow-x:auto;padding:6px 8px;margin:4px 0}.kb-note .kb-na .kb-li{display:block;padding-left:1.1em;text-indent:-1.1em}.kb-note .kb-na .kb-li2{padding-left:2.2em}.kb-ink span.kb-done,.kb-ink span.kb-done *{animation:none}
+.kb-note .kb-na{line-height:1.55;margin:0 0 2px}.kb-note .kb-na code{font:.9em ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:0 4px;border-radius:4px}.kb-note .kb-na code.kb-pre{display:block;white-space:pre;overflow-x:auto;padding:6px 8px;margin:4px 0}.kb-note .kb-na .kb-li{display:block;padding-left:1.1em;text-indent:-1.1em}.kb-note .kb-na .kb-li2{padding-left:2.2em}
+.kb-note .kb-na .kb-ol{padding-left:1.5em;text-indent:-1.5em}.kb-note .kb-na .kb-ol.kb-li2{padding-left:2.6em}.kb-ink span.kb-done,.kb-ink span.kb-done *{animation:none}
 .kb-note .kb-nb .kb-sk svg{max-width:320px;max-height:230px}.kb-note .kb-na .kb-sk{display:block;width:fit-content;max-width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--card,var(--bg))}.kb-note .kb-sk text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
 .kb-note .kb-dot{display:none}
 .kb-note.kb-folded{width:auto!important;border:0;background:transparent;box-shadow:none}
@@ -568,6 +570,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   const penOn = () => tool === 'pen' || tool === 'hl' || tool === 'erase' || tool === 'lasso';   // the tools that act on the page; Read and Text leave it alone
   // what the pen puts down now: colour (null is the page's own ink colour, so it follows light and dark), width, highlighter or not
   const curStyle = () => tool === 'hl' ? {c:color || '#f59f00', w:WIDTHS.hl[+thick], h:true} : {c:color || null, w:WIDTHS.pen[+thick], h:false};
+  let barGeo = {wf:0, extra:0};
   function placeBar(){
     Object.assign(bar.style, {left:'0px', top:'0px', width:''});
     // the full toolbar is laid out first, even when it is small: the small one's right end is where the full one's is, so + and its −
@@ -581,10 +584,11 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     // centred on its usual width: the buttons that come and go or change width (Send, and sync with its key label) extend it to the right,
     // so the tools never slide
     const extra = [...bar.querySelectorAll('[data-b=send],[data-b=sync],[data-t=text]')].filter(b => !b.hidden).reduce((a, b) => a + b.offsetWidth + 3, 0);
-    const xf = Math.max(m, Math.min(W - wf - m, dock.f * W - (wf - extra) / 2));
+    const xf0 = dock.f * W - (wf - extra) / 2, xf = Math.max(m, Math.min(W - wf - m, xf0));
     if (small) bar.classList.add('kb-min');
     const w = small ? Math.ceil(bar.getBoundingClientRect().width) + 1 : wf, h = bar.offsetHeight;
-    let x = small ? Math.max(m, Math.min(W - w - m, xf + wf - w)) : xf, y = dock.e === 'top' ? m : H - h - m;
+    barGeo = {wf, extra};   // for a drop: the place is worked out back from where the toolbar was let go
+    let x = small ? Math.max(m, Math.min(W - w - m, xf0 + wf - w)) : xf, y = dock.e === 'top' ? m : H - h - m;
     Object.assign(bar.style, {left:x + 'px', top:y + 'px', width:w + 'px'}); placeToast();   // its measured width, so it does not wrap where it lands
     // a toolbar along the top or bottom gets its own band, so it never covers the page's title, its sticky section bar or the sticky figures
     const de = document.documentElement.style; de.setProperty('--kb-room', (dock.e === 'top' ? y + h + 6 : 0) + 'px'); de.setProperty('--kb-room-b', (dock.e === 'bottom' ? H - y + 6 : 0) + 'px');
@@ -598,7 +602,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
       g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); bar.classList.remove('kb-drag');
       if (Math.hypot(ev.clientX - (r.left + ox), ev.clientY - (r.top + oy)) < 8) { placeBar(); return }   // a tap on the grip, not a drag: it stays where it is
       const x = ev.clientX, y = ev.clientY, d = y < innerHeight / 2 ? 'top' : 'bottom';   // the nearer of the top and the bottom
-      dock = {e:d, f:x / innerWidth}; mine.set('dock', JSON.stringify(dock)); placeBar();
+      // it stays where it was let go: f is worked out back from its left end (full) or its right end (small, whose right end is the full one's)
+      const L = x - ox, G = barGeo, fx = bar.classList.contains('kb-min') ? L + r.width - (G.wf + G.extra) / 2 : L + (G.wf - G.extra) / 2;
+      dock = {e:d, f:fx / innerWidth}; mine.set('dock', JSON.stringify(dock)); placeBar();
     };
     g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
   });
@@ -646,6 +652,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     const de = document.documentElement, x = Math.max(8, Math.min(r.left, de.clientWidth - 368)) + 'px';   // room for its full width, wherever the toolbar sits along the edge (the layout's size: innerWidth and innerHeight shrink under pinch zoom in Safari)
     if (dock.e === 'top') Object.assign(t.style, {left:x, top:(r.bottom + 6) + 'px', right:'', bottom:''});
     else Object.assign(t.style, {left:x, top:'', right:'', bottom:(de.clientHeight - r.top + 6) + 'px'});
+    try { const g = genOn && noteEl.get(genOn); if (t.hidden || !g || !g.classList.contains('kb-shown')) return;
+      const a = t.getBoundingClientRect(), c = g.getBoundingClientRect(); if (a.right <= c.left || a.left >= c.right || a.bottom <= c.top || a.top >= c.bottom) return;
+      if (c.left - a.width - 8 >= 8) t.style.left = (c.left - a.width - 8) + 'px';
+      else if (dock.e === 'top') t.style.top = (c.bottom + 6) + 'px'; else t.style.bottom = (de.clientHeight - c.top + 6) + 'px' } catch(e) {}
   }
   function toast(s, ms){ clearTimeout(toastT); toastEl.textContent = s || ''; toastEl.hidden = !s; if (s) { placeToast(); if (ms) toastT = setTimeout(() => { toastEl.hidden = true }, ms) } }
 
@@ -897,19 +907,22 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     .replace(/\[([^\]\n\uE000\uE001]{1,200})\]\((https?:\/\/(?:[^\s()"<>\uE000\uE001]|\([^\s()"<>\uE000\uE001]{0,200}\)){1,500})\)/g, '<a class="kb-kbl kb-ext" href="$2" target="_blank" rel="noopener noreferrer">$1 \u2197</a>');
   const mdx = (h, block) => h.split(/(```[\s\S]*?```)\n?/).map((seg, i) => i % 2 ? '<code class="kb-pre">' + seg.slice(3, -3).replace(/^[^\n]*\n/, '').replace(/\n$/, '') + '</code>'
     : !block ? mdInline(seg).replace(/(^|\n)[ \t]*[-*] (?=\S)/g, '$1\u2022 ')
-    : mdInline(seg).split('\n').map(L => { const m = /^([ \t]*)[-*] (?=\S)(.*)$/.exec(L); return m ? '\u0001<span class="kb-li' + (m[1].length >= 2 ? ' kb-li2' : '') + '">\u2022 ' + m[2] + '</span>\u0001' : L }).join('\n').replace(/\u0001\n?/g, '')).join('');
+    : mdInline(seg).split('\n').map(L => { const m = /^([ \t]*)[-*] (?=\S)(.*)$/.exec(L), o = !m && /^([ \t]*)(\d{1,2}[.)]) (?=\S)(.*)$/.exec(L);
+      return m ? '\u0001<span class="kb-li' + (m[1].length >= 2 ? ' kb-li2' : '') + '">\u2022 ' + m[2] + '</span>\u0001' : o ? '\u0001<span class="kb-li kb-ol' + (o[1].length >= 2 ? ' kb-li2' : '') + '">' + o[2] + ' ' + o[3] + '</span>\u0001' : L }).join('\n').replace(/\u0001\n?/g, '')).join('');
   function renderStr(str, box, md){
+    // a code block never closed (still being written, or cut off) shows as code
+    if (md && (String(str).match(/```/g) || []).length % 2) str = String(str) + (String(str).endsWith('\n') ? '' : '\n') + '```';
     let n = box ? box.querySelectorAll('.kb-cite:not(.kb-web)').length : 0;
     // web sources (⟦u...⟧), citations (⟦c...⟧) and page links ([[...]]) are set aside, and each is drawn on its own once everything else is
     // done: no pass ever runs over the HTML they make. The characters used to set them aside cannot come from the reply
     const keep = [];
     let h = esc(String(str).replace(/[\uE000\uE001\u0001]/g, '')).replace(/&lt;(\/?)(sup|sub|b|i|em|strong)&gt;/g, '<$1$2>')   // the few formatting tags Claude sometimes writes, shown, not printed
       .replace(md ? /```[\s\S]*?```|`[^`\n]{1,200}`/g : /(?!)/g, c => c.replace(/\[/g, '&#91;'))   // in code, brackets are written as they are
-      .replace(/⟦u[^|⟧]{1,2000}\|[^⟧]{0,600}⟧|⟦c\d+⟧|\[\[[^\]]{1,160}\]\]/g, m => '\uE000' + (keep.push(m) - 1) + '\uE001');
+      .replace(/⟦u[^|⟧]{1,2000}\|[^⟧]{0,2000}⟧|⟦c\d+⟧|\[\[[^\]]{1,160}\]\]/g, m => '\uE000' + (keep.push(m) - 1) + '\uE001');
     if (md) h = mdx(h, md !== 'line');
     return h.replace(/\uE000(\d+)\uE001/g, (_, i) => {
       const m = keep[+i]; let x; if (m == null) return '';
-      if ((x = /^⟦u([^|⟧]{1,2000})\|([^⟧]{0,600})⟧$/.exec(m))) {
+      if ((x = /^⟦u([^|⟧]{1,2000})\|([^⟧]{0,2000})⟧$/.exec(m))) {
         let url = '', title = ''; try { url = decodeURIComponent(unesc(x[1])); title = decodeURIComponent(unesc(x[2])) } catch(e) { return '' }
         let ok = false; try { ok = /^https?:$/.test(new URL(url).protocol) } catch(e) {} if (!ok) return '';
         let host = ''; try { host = new URL(url).hostname.replace(/^www\./, '') } catch(e) {}
@@ -931,9 +944,9 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.kb-cite:not(.kb-web)'); if (c) { e.preventDefault(); e.stopPropagation(); jumpBlock(+c.dataset.cb) } }, true);
   // a reply as pieces in order: text, and {svg} for each complete sketch (an unfinished one at the end is dropped)
   function replyPieces(text, chat){
-    const out = [], rx = /<svg\s[^>]*>[\s\S]*?<\/svg>/gi; let i = 0, m;
+    const out = [], rx = /<svg\s[^>]*>(?:(?!<svg\s)[\s\S])*?<\/svg>/gi; let i = 0, m;
     while ((m = rx.exec(text))) { if (m.index > i) out.push(text.slice(i, m.index)); out.push({svg:m[0]}); i = rx.lastIndex; if (chat && text.charAt(i) === '\n') i++ }   // in a chat, the line break after a sketch: the sketch is a block of its own
-    if (i < text.length) out.push(text.slice(i).replace(/<svg\s[\s\S]*$/i, ''));   // an unfinished sketch at the end
+    if (i < text.length) out.push(text.slice(i).replace(/<svg\s[^>]*viewBox[\s\S]*$/i, ''));   // an unfinished sketch at the end
     return out;
   }
 
@@ -1019,7 +1032,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
           // a web source: its address and title ride in the marker (escaped, http(s) only when shown)
           const w = b ? b.cites.filter(x => x.type === 'web_search_result_location' && /^https?:/i.test(x.url || '')) : [];
           add += [...new Map(w.map(x => [x.url, x])).values()].map(x => '⟦u' + encodeURIComponent(x.url) + '|' + encodeURIComponent(String(x.title || '').slice(0, 140)) + '⟧').join('');
-          if (add) { raw += add; onText(raw, false) }
+          if (add) { raw = /<\/svg>\n*$/i.test(raw) ? raw + add : raw.replace(/\n*$/, m => add + m); onText(raw, false) }
         }
         else if (d.type === 'message_delta') { if (d.delta && d.delta.stop_reason) stop = d.delta.stop_reason; Object.assign(usage, d.usage || {}) }
         else if (d.type === 'error') throw new Error((d.error && d.error.message) || 'stream error');
@@ -1128,9 +1141,11 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     pend.length = 0; pendTyped.length = 0; book.forEach((pg, i) => { for (const st of pg.ink) if (pIds.includes(st.id)) pend.push({pg:i, s:st}); for (const it of pg.items) if (tIds.includes(it.id)) pendTyped.push({pg:i, it}) });
     pendPage.length = 0; for (const m of marks) if (mIds.includes(m.id)) pendPage.push(m);
     book$.innerHTML = ''; pgs = []; elOf.clear(); book.forEach((_, i) => mountPage(i)); grow(); if (!P.hidden && !nbView.hidden) { layoutBook(); scr.scrollTop = top }
+    const nbTops = new Map(); for (const [n, e] of noteEl) { const nb = e.querySelector('.kb-nb'); if (nb && nb.scrollTop) nbTops.set(n.id, nb.scrollTop) }
     const draft = genOn && !notes.includes(genOn) ? genOn : null, de = draft && noteEl.get(draft);
     for (const g of markEl.values()) g.remove(); markEl.clear(); for (const [n, e] of noteEl) if (n !== draft) e.remove(); noteEl.clear(); if (de) noteEl.set(draft, de); anchors.clear(); undoStack.length = 0;
     renderEdits(); placeMarks(); if (!ovView.hidden) renderChanges(); syncBar();
+    for (const [n, e] of noteEl) { const v = nbTops.get(n.id), nb = v && e.querySelector('.kb-nb'); if (nb) nb.scrollTop = v }
   }
   // start-up: this page's records from IndexedDB (none yet: an empty start)
   async function loadRecs(){
@@ -2420,7 +2435,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   function clearSel(){ if (sel) { sel.ui.remove(); sel = null } if (lassoSvg) { lassoSvg.remove(); lassoSvg = null } }
   function lassoNb(i, pts, end){
     if (!end) {
-      if (pts.length === 1) { clearSel(); lassoSvg = document.createElementNS(NS, 'svg'); lassoSvg.setAttribute('class', 'kd-it kd-arrow'); lassoSvg.setAttribute('viewBox', `0 0 ${PW} ${PH}`); lassoSvg.innerHTML = '<path fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="7 6"/>'; pgs[i].items.appendChild(lassoSvg) }
+      if (pts.length === 1) { clearSel(); lassoSvg = document.createElementNS(NS, 'svg'); lassoSvg.setAttribute('class', 'kd-it kd-arrow kd-lasso'); lassoSvg.setAttribute('viewBox', `0 0 ${PW} ${PH}`); lassoSvg.innerHTML = '<path fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="7 6"/>'; pgs[i].items.appendChild(lassoSvg) }
       if (lassoSvg) lassoSvg.firstChild.setAttribute('d', 'M' + pts.map(q => r1(q[0]) + ' ' + r1(q[1])).join('L') + 'Z');
       return;
     }
@@ -2428,6 +2443,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (pts.length < 4 || plen(pts) < 40) return;
     const d = book[i], ss = d.ink.filter(s2 => s2.p.filter(q => pip(q[0], q[1], pts)).length >= s2.p.length * 0.6);
     const its = d.items.filter(it => unseen(it) ? false : it.kind === 'arrow' ? pip((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, pts) : pip(it.x + Math.min(it.w, measureW(it)) / 2, it.y + (it.h || LH) / 2, pts));
+    if (!ss.length && !its.length && keyState() === 'missing') return;
     const box = ss.length || its.length ? unionBox(ss, its) : pbox(pts);
     showSel(i, ss, its, box);
   }
@@ -2686,7 +2702,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   // an error as the reader should read it
   function plainErr(e){
     const m = String(e && e.message || e);
-    if (/failed to fetch|networkerror|load failed|network connection/i.test(m)) return 'Could not reach Claude: check the connection, then try again.';
+    if (/failed to fetch|networkerror|network ?error|load failed|network connection/i.test(m)) return 'Could not reach Claude: check the connection, then try again.';
     if (/overloaded|\b529\b|\b503\b/i.test(m)) return 'Claude is overloaded right now; try again in a moment.';
     if (/internal server error|\b500\b|api_error/i.test(m)) return 'Claude had a server error; try again in a moment.';
     return m;
@@ -2753,7 +2769,12 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     }, 70) };
     let skNl = false, seg = null, segRaw = '';   // on the page: the line being written, or a code block not yet closed
     const segOpen = t => ((t.match(/(^|\n)[ \t]*```/g) || []).length % 2) === 1;
-    const segDraw = R => { if (seg) seg.remove(); seg = txt(segOpen(segRaw) ? segRaw + (segRaw.endsWith('\n') ? '' : '\n') + '```' : segRaw, R, true); seg.classList.add('kb-done'); R.appendChild(seg) };   // a line on the page, drawn again with its Markdown once complete
+    const segShow = t => { if (segOpen(t)) return t; const i = t.lastIndexOf('\n') + 1; let L = t.slice(i);
+      if (/^[ \t]*(?:[-*+]|#{1,6}|\d{1,2}[.)])[ \t]*$/.test(L)) return t.slice(0, i);
+      if ((L.replace(/`[^`\n]*`/g, '').match(/`/g) || []).length % 2) L += '`';
+      if ((L.replace(/`[^`\n]*`/g, '').match(/\*\*/g) || []).length % 2) L += '**';
+      return t.slice(0, i) + L };
+    const segDraw = R => { if (seg) seg.remove(); seg = txt(segShow(segRaw), R, true); seg.classList.add('kb-done'); R.appendChild(seg) };   // a line on the page, drawn again with its Markdown once complete
     const words = t => queue.push(...(t.match(/\[\[[^\]]*\]\]\S*[^\S\n]*\n*|\S+[^\S\n]*\n*|[^\S\n]+\n*|\n+/g) || []));   // a word with its spaces and line breaks; a line's indent starts the next
     // newly streamed reply text goes into the queue: whole words, and each sketch only once its </svg> has arrived
     const feed = (raw, end) => {
@@ -2763,7 +2784,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         const a = lo.indexOf('<svg', shown);
         if (a === shown) {
           const z = lo.indexOf('</svg>', a);
-          if (z < 0) { if (stopped) shown = r.length; return }
+          // never closed: an unfinished sketch is left out, and a tag written in the text (no viewBox) is text
+          if (z < 0) { if (stopped) { if (!/^<svg\s[^>]*viewBox/i.test(r.slice(a))) words(r.slice(shown)); shown = r.length; pump() } return }
           queue.push({svg:r.slice(a, z + 6)}); shown = z + 6; skNl = S === PG; pump(); continue;
         }
         let upto = a > 0 ? a : r.length;
@@ -2979,15 +3001,16 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       .map(([n, e]) => ({n, e, top:parseFloat(e.style.top), left:parseFloat(e.style.left), w:e.offsetWidth, h:e.offsetHeight})).sort((a, b) => a.top - b.top);
     for (const n of notes) {   // a closed note's dot sits in the margin beside its passage when there is room, not on the words
       if (n === passOn || n.dragged || n.g) continue; const e = noteEl.get(n), f = e && !e.hidden && frameOf(n); if (!f) continue;
+      let wait = false;   // its passage is known but off the screen: the dot waits for its place beside it, never on the words meanwhile
       if (!dotSpot.has(n)) {
         const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms), ae = anchorEl(n.a), ar = ae && ae !== pageRoot() ? ae.getBoundingClientRect() : null;
         const bx = b || (ar && {x0:ar.left, y0:ar.top, x1:ar.right, y1:ar.bottom}), mg = bx && inV(ar || {left:bx.x0, top:bx.y0, right:bx.x1, bottom:bx.y1, width:1, height:1}) ? findMargin(bx, ar ? ar.right : bx.x1, 34, 34) : undefined;
         let sp2 = mg;
         if (mg === null) { const lx = Math.min(ar ? ar.left : bx.x0, pageRoot().getBoundingClientRect().left) - 38, ly = Math.max(bx.y0, clipLine() + 8); if (lx >= 4 && marginFree(lx, ly, 32, 32)) sp2 = {x:lx + 6, y:ly} }   // no room on the right (a figure beside the text): the left margin
-        if (mg !== undefined) dotSpot.set(n, sp2 ? {dx:sp2.x - f.x - 6, dy:sp2.y - f.y} : null);
+        if (mg !== undefined) dotSpot.set(n, sp2 ? {dx:sp2.x - f.x - 6, dy:sp2.y - f.y} : null); else wait = !!bx;
       }
       const sp = dotSpot.get(n); if (sp) { e.style.left = (f.x + sp.dx - ob.left) + 'px'; e.style.top = (f.y + sp.dy - ob.top) + 'px' }
-      e.classList.toggle('kb-nodot', !!n.hl && dotSpot.has(n) && !sp);
+      e.classList.toggle('kb-nodot', wait || (!!n.hl && dotSpot.has(n) && !sp));
     }
     { const placed = [];   // two dots in one place: the later one steps down, so each can be tapped
       for (const n of notes) { const e = noteEl.get(n); if (n === passOn || n.g || !e || e.hidden) continue; const x = parseFloat(e.style.left) || 0; let y = parseFloat(e.style.top) || 0;
@@ -3093,6 +3116,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     const W = Math.min(420, innerWidth - 24); Object.assign(br.style, {left:Math.max(scrollX + 8, Math.min(scrollX + innerWidth - W - 8, b.x0 + off[0])) + 'px', top:(b.y1 + off[1] + 10) + 'px'});
     psel$.append(bx, br);
     br.querySelector('.kb-pr').insertAdjacentHTML('afterend', VROW);
+    if (!k && keyState() === 'missing') { const bk = br.querySelector('.kb-blk'); if (!bk) { clearPsel(); return } bk.appendChild(br.querySelector('[data-s=done]')); br.querySelector('.kb-pr').remove() }
+    { const h = br.offsetHeight; if (b.y1 + o.top + 10 + h > innerHeight - 8 - roomB() && b.y0 + o.top - 10 - h >= clipLine() + 4) Object.assign(br.style, {top:(b.y0 + off[1] - 10) + 'px', transform:'translateY(-100%)'}) }
     const inp = br.querySelector('input'), ask = (q, where) => { q = (q || '').trim(); if (!q) return; if (where === undefined) { const w = whereOf(q); if (w === null) { askWhere(br, q, v => askPageLasso(q, v)); return } where = w || undefined } askPageLasso(q, where) };
     br.addEventListener('pointerdown', e => e.stopPropagation(), true);
     br.addEventListener('click', e => {
@@ -3223,7 +3248,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (lastStrip && lastStrip.box.isConnected && !lastStrip.box.hidden && lastStrip.undo()) return;   // the drawing in a note, first   // in the diary, Undo is the diary's
     const top = undoStack[undoStack.length - 1], topAt = top ? ((top.m && top.m.t) || (top.s && top.s.t) || 0) : 0;
     if (!undoBar.hidden && undos.length && undoAt >= topAt) { undoBar.querySelector('button').click(); return }   // the deletion or change just made, not an older mark
-    const u = undoStack.pop(); if (!u) return;
+    let k = undoStack.length - 1; while (k >= 0 && undoStack[k].m && unseen(undoStack[k].m)) k--;
+    const u = k >= 0 ? undoStack.splice(k, 1)[0] : null; if (!u) return;
     if (u.m) { const hn = isSel(u.m) && notes.find(o => o.hl && (o.marks || []).includes(u.m.id));   // a selection's highlight is one thing: undone whole
       if (hn) for (const id of hn.marks) { const y = marks.find(z => z.id === id); if (isSel(y) && y !== u.m) removeMark(y) }
       removeMark(u.m); schedule(); if (!pendPage.length) PG.out.status('') }
@@ -3280,7 +3306,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if ((t.q || t.ink) && !t.a && !t.cut && Date.now() - (t.t || 0) > 6e5) t.cut = 'the page was closed before Claude answered';   // older than 10 minutes: not being answered anywhere
     const d = el('div', {class:'kb-turn'});
     if (t.q || t.ink) { const q = el('div', {class:'kb-nq'}, t.q ? esc(t.q) : ''); if (t.ink) q.appendChild(inkSvg(t.ink)); d.appendChild(q) }   // their question in their ink: typed words, a drawing, or both
-    const a = el('div', {class:'kb-na kb-ink'}); d.appendChild(a);
+    const a = el('div', {class:'kb-na' + (t.a ? '' : ' kb-ink')}); d.appendChild(a);
     for (const x of replyPieces(t.a || '', true)) { if (typeof x === 'string') a.appendChild(txt(x, a, true)); else { const b = sketch(x.svg); if (b) a.appendChild(b) } }
     if (t.cut) showCut(t, d);
     return d;
@@ -3340,7 +3366,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     f.addEventListener('submit', ev => { ev.preventDefault(); const q = inp.value.trim(); if (!strip.hidden && strip.querySelector('[data-n=dclear]').hidden === false) { strip.sendNow(); return } if (q) ask(q) });   // a waiting drawing goes with the words
     e.querySelector('.kb-vrow').addEventListener('click', ev => { const b = ev.target.closest('[data-v]'); if (!b) return; ev.stopPropagation(); const q = inp.value.trim(); ask(q || VASK[b.dataset.v], b.dataset.v) });
     for (const q of e.querySelectorAll('.kb-chips,.kb-vrow')) q.addEventListener('pointerdown', ev => ev.preventDefault());   // the box keeps the cursor, so they stay
-    inp.addEventListener('focus', () => { e.classList.add('kb-typing'); showFoot(e) }); inp.addEventListener('blur', () => setTimeout(() => { if (!e.contains(document.activeElement)) e.classList.remove('kb-typing') }, 300));
+    inp.addEventListener('focus', () => { e.classList.add('kb-typing'); showFoot(e) }); inp.addEventListener('input', () => e.classList.remove('kb-answering')); inp.addEventListener('blur', () => setTimeout(() => { if (!e.contains(document.activeElement)) e.classList.remove('kb-typing') }, 300));
     e.querySelector('.kb-chips').addEventListener('click', ev => chipClick(ev, inp, q => ask(q)));
     const h = e.querySelector('.kb-nh');
     h.addEventListener('pointerdown', ev => {
@@ -3475,7 +3501,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (!n) { n = {id:newId(), g:1, turns:[], marks:[], w:Math.min(+mine.get('askW') || 380, innerWidth - 16), t:Date.now()}; const tb = openTab(); if (tb) n.tab = tb; noteNode(n); activate(n); placeNote(n) }
     const inp = noteEl.get(n).querySelector('.kb-nf input'); if (draftText && !inp.value) { inp.value = draftText; draftText = '' } inp.focus({preventScroll:true});
   }
-  // its place: where it was last dragged to on this device, else under the toolbar on the right (beside a toolbar docked on the right);
+  // its place: where it was last dragged to on this device, else under the toolbar on the right (just above it, when it is at the bottom);
   // always on the screen and clear of a toolbar docked at the top
   function genAt(e, x, y){
     const r = bar.getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight, w = e.offsetWidth || 340, h = Math.min(e.offsetHeight || 160, H - 16), up = !bar.hidden && r.height, top = up && dock.e === 'top' ? r.bottom + 6 : 8, bot = up && dock.e === 'bottom' ? r.top - 6 : H - 8;
@@ -3499,7 +3525,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (genDrag) return;
     const r = bar.getBoundingClientRect(), W = document.documentElement.clientWidth, w = e.offsetWidth || Math.min(n.w || 340, W - 16), up = !bar.hidden && r.height;
     let at = null; try { at = JSON.parse(mine.get('askAt') || 'null') } catch(err) {}
-    const p = at && isFinite(at.x) && isFinite(at.y) ? genAt(e, at.x * innerWidth, at.y * innerHeight) : genAt(e, W - 12 - w, up && dock.e === 'top' ? r.bottom + 8 : 12);
+    const p = at && isFinite(at.x) && isFinite(at.y) ? genAt(e, at.x * innerWidth, at.y * innerHeight) : genAt(e, W - 12 - w, up && dock.e === 'top' ? r.bottom + 8 : up ? innerHeight : 12);
     e.style.left = p.x + 'px'; e.style.top = p.y + 'px'; fitGen(e);
   }
   // a tap anywhere else on the page closes the open note to its dot (a tap on a note's own marks opens that note again)
@@ -3594,7 +3620,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
         if (n.g && !notes.includes(n)) notes.push(n);   // a general conversation is kept from its first question
         let t, d; if (job.replace && last && !last.a && last.q === job.typed && (Date.now() - (last.t || 0)) < 6e5) { t = last; delete t.cut; d = [...e.querySelectorAll('.kb-turn')].pop(); const sc = d && d.querySelector('.kb-cut'); if (sc) sc.remove() }   // its waiting turn, rebuilt by a sync
         if (!d) { t = {q:job.typed, a:'', t:Date.now()}; if (job.ink) t.ink = job.ink; ts.push(t); d = turnEl(t); e.querySelector('.kb-nb').appendChild(d); const pi = e.querySelector('.kb-nf input'); if (pi) { pi.placeholder = 'Ask a follow-up…'; pi.setAttribute('aria-label', 'Ask a follow-up') } e.classList.remove('kb-fresh') }
-        n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
+        n.fold = false; e.classList.remove('kb-folded'); activate(n); job.note = {n, e, t, d}; e.classList.add('kb-answering'); return d.querySelector('.kb-na');
       }
       const b = (job.marks && job.marks.length && viewBox(job.marks)) || job.box || {x0:innerWidth / 2 - 20, y0:innerHeight / 3, x1:innerWidth / 2 + 20, y1:innerHeight / 3 + 20}, W = innerWidth, w = Math.min(340, W - 16);   // where its marks are now, not when it was asked
       let x, y;
@@ -3618,19 +3644,23 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       const t = {q:job.typed || '', a:'', t:Date.now()};
       const n = {id:newId(), tab:tabTag(anEl, job.tab), a:an.a, qt:an.qt != null ? an.qt : quoteOf(anchorEl(an.a)), aw:an.aw || Math.round(anchorEl('').getBoundingClientRect().width), x:waits === 'mark' ? Math.round(bbox([m0]).x1 + 12) : waits ? 0 : Math.round((x - fr.x) / fr.s), y:waits === 'mark' ? Math.round(bbox([m0]).y0) : waits ? 28 : Math.round((y - fr.y) / fr.s), w, turns:[t], marks:job.marks.map(m => m.id), hl:job.hl ? job.hl.text : '', fold:false, t:Date.now()};
       notes.push(n); const e = noteNode(n); activate(n); placeNote(n, notesBox.getBoundingClientRect()); placeMarks(); job.newNote = true;
-      const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; return d.querySelector('.kb-na');
+      const d = e.querySelector('.kb-turn'); job.note = {n, e, t, d}; e.classList.add('kb-answering'); return d.querySelector('.kb-na');
     },
-    follow(job){ if (!job.note) return; const e = job.note.e, nb = e.querySelector('.kb-nb'), d = job.note.d;   // the newest answer stays readable from its start
-      const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top;
+    // the newest answer stays readable from its start, until the reader scrolls the conversation themselves
+    follow(job){ if (!job.note) return; const e = job.note.e, nb = e.querySelector('.kb-nb'), d = job.note.d;
+      if (job.nbAt != null && Math.abs(nb.scrollTop - job.nbAt) > 4) job.nbOwn = true;
+      if (!job.nbOwn) { const top = d.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop - 4; nb.scrollTop = d.offsetHeight <= nb.clientHeight ? nb.scrollHeight : top; job.nbAt = nb.scrollTop }
       if (!job.newNote || job.note.n.g || !e.classList.contains('kb-active') || e.classList.contains('kb-max') || job.ownScroll === false) return;
+      // drawing on the page: the reader has taken over, and the page stays still under the pen
+      if (live) { job.ownScroll = false; return }
       if (job.ownY != null && Math.abs(scrollY - job.ownY) > 4) { job.ownScroll = false; return }   // they scrolled: the page stays where they put it
       const r = e.getBoundingClientRect(), t0 = clipLine() + 8, b0 = innerHeight - 8 - roomB(); if (r.bottom > b0 && r.top > t0) window.scrollBy(0, Math.min(r.bottom - b0, r.top - t0)); job.ownY = scrollY },
     done(job, text){ if (job.quiet) return; try { const nn = job.note && job.newNote && !job.note.n.g && job.note.n; if (nn && !nn.shot && job.scr && job.scr.img && job.box) shotCrop(job.scr.clean || job.scr.img, job.box, job.scr.k).then(u => { if (u && !nn.shot) { nn.shot = u; saveBook() } }) } catch(e) {}   // the overview's picture: the screen sent with the question
       if (job.gid && edits.some(y => y.g === job.gid)) exitMax();   // the change it made is on the page: shown
-      job.note.t.a = text;
+      job.note.t.a = text; job.note.e.classList.remove('kb-answering');
       drawAnswer(job.note.d.querySelector('.kb-na'), text);   // drawn once more from its whole text
-      linkNote(job); saveBook(); if (job.newNote && job.note.e.classList.contains('kb-active')) { const r = job.note.e.getBoundingClientRect(); if (r.top >= clipLine() && r.top < innerHeight) reveal(job) } },
-    empty(job){ const J = job.note; if (!J) return; if (J.n.g) { this.fail(job, null, 'No reply'); return }   // an Ask conversation keeps the question, with Try again
+      linkNote(job); saveBook(); if (job.newNote && job.ownScroll !== false && job.note.e.classList.contains('kb-active')) { const r = job.note.e.getBoundingClientRect(); if (r.top >= clipLine() && r.top < innerHeight) reveal(job) } },
+    empty(job){ const J = job.note; if (!J) return; J.e.classList.remove('kb-answering'); if (J.n.g) { this.fail(job, null, 'No reply'); return }   // an Ask conversation keeps the question, with Try again
       drop(turnsOf(J.n), J.t); J.d.remove(); if (!J.n.turns.length) { drop(notes, J.n); J.e.remove(); noteEl.delete(J.n); forget(J.n) } saveBook(); syncBar() },
     fail(job, reply, msg){ try {
       if (!job.note && job.typed && !job.lostFollow) try { this.place(job) } catch(e) {}   // it failed before its note was made: made now, so the question is kept
@@ -3638,6 +3668,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
       if (J) {
         const got = J.d.querySelector('.kb-na').textContent.trim(), raw = job.lastReply || '';
         J.t.a = got ? raw || got : ''; J.t.cut = msg; if (J.t.a) drawAnswer(J.d.querySelector('.kb-na'), J.t.a); saveBook(); retryOf.set(J.t, job); showCut(J.t, J.d); try { linkNote(job) } catch(e) {}
+        J.e.classList.remove('kb-answering'); const nb = J.e.querySelector('.kb-nb'); if (nb && !job.nbOwn) nb.scrollTop = nb.scrollHeight;
       } else if (!job.follow) { for (const id of job.made || []) { const m = marks.find(y => y.id === id); if (m && !notes.some(o => (o.marks || []).includes(id))) removeMark(m) } saveBook(); placeMarks() }
     } finally { const ne = job.note && noteEl.get(job.note.n); if (!ne || !ne.classList.contains('kb-active')) toast(msg, 9000) } }});
 

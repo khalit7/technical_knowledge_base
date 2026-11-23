@@ -411,6 +411,17 @@ async function reading({ context, claude }) {
     await page.evaluate(k => localStorage.setItem('kbAsk.key', k), KEY); await page.reload(); await ready(page);
     const back = await st(); assert(back.notes >= 1 && back.over, 'the conversations did not come back with the key: ' + JSON.stringify(back));
   });
+  await check('9 without a key Undo never takes back a hidden highlight: it is still there when the key is back', async () => {
+    // a passage not highlighted yet (the start of the line is): a new highlight, on this visit's Undo stack
+    const m0 = live(await savedRecs(page), 'mark').length, p = (await paragraphs(page, 1))[0]; claude.say('Short.');
+    await tool(page, 'hand'); await drag(page, p, { x: 300, dx: 160 }); await page.fill('#kbAskPop input', 'And this one?'); await page.press('#kbAskPop input', 'Enter');
+    await saved(page, 'the highlight', R => live(R, 'mark').length > m0); await sleep(500); const n0 = live(await savedRecs(page), 'mark').length;
+    await page.keyboard.press('Escape'); await page.evaluate(() => localStorage.removeItem('kbAsk.key'));   // the key forgotten in this same visit: the highlight is still on the Undo stack
+    for (let i = 0; i < 3; i++) await page.click('#kbBar [data-b=undo]');
+    await sleep(800); same(live(await savedRecs(page), 'mark').length, n0, 'the marks saved after three Undos without a key');
+    await page.evaluate(k => localStorage.setItem('kbAsk.key', k), KEY); await page.reload(); await ready(page);
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'And this one?' }).click(); await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');
+  });
   await check('9 the toolbar starts small (Ask, sync and +); + makes it full, and it stays full', async () => {
     await page.evaluate(() => localStorage.removeItem('kbBuddy.min')); await page.reload(); await ready(page);
     const shown = () => page.evaluate(() => [...document.querySelectorAll('#kbBar > button')].filter(b => b.getClientRects().length).map(b => b.dataset.b || b.dataset.t));
@@ -419,6 +430,16 @@ async function reading({ context, claude }) {
     await page.click('#kbBar [data-b=min]'); assert((await shown()).includes('pen') && (await shown()).includes('notebook'), 'the full toolbar did not show');
     const x1 = await xMin(); assert(Math.abs(x1 - x0) <= 2, 'the + and its \u2212 are not in the same place: ' + x0 + ' then ' + x1);
     await page.reload(); await ready(page); assert((await shown()).includes('pen'), 'the full toolbar was not remembered');
+  });
+  await check('9 the toolbar stays where it is let go, full or small, and + is still where \u2212 was', async () => {
+    const at = () => page.evaluate(() => ({ left: Math.round(document.getElementById('kbBar').getBoundingClientRect().left), min: Math.round(document.querySelector('#kbBar [data-b=min]').getBoundingClientRect().left) }));
+    const dragBy = async dx => { const g = await (await page.$('#kbBar .kb-grip2')).boundingBox(), x = g.x + g.width / 2, y = g.y + g.height / 2;
+      await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + dx / 2, y, { steps: 4 }); await page.mouse.move(x + dx, y, { steps: 4 }); await page.mouse.up(); await sleep(250) };
+    const a0 = await at(); await dragBy(-120); const a1 = await at();
+    assert(Math.abs(a1.left - (a0.left - 120)) <= 3, 'the full toolbar did not stay where it was let go: ' + a0.left + ' then ' + a1.left);
+    await page.click('#kbBar [data-b=min]'); const a2 = await at(); assert(Math.abs(a2.min - a1.min) <= 2, 'the + is not where the \u2212 was: ' + a1.min + ' then ' + a2.min);
+    await dragBy(-120); const a3 = await at(); assert(Math.abs(a3.left - (a2.left - 120)) <= 3, 'the small toolbar did not stay where it was let go: ' + a2.left + ' then ' + a3.left);
+    await page.evaluate(() => { localStorage.removeItem('kbBuddy.dock'); localStorage.setItem('kbBuddy.min', '0') }); await page.reload(); await ready(page);
   });
   await check('9 resolving a note closes it to its tick', async () => {
     await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active'); await page.click('.kb-note.kb-active [data-n=resolve]');
@@ -557,6 +578,15 @@ async function landing({ context, claude }) {
     await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'Sources?' }).click(); await sleep(1500);
     same(await bad(), { pwned: 0, attrs: [] }, 'what the saved reply could run after a reload');
     await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');   // gone again, so the list below holds one
+  });
+  await check('16 a reply that writes an <svg> tag as text keeps every word; a numbered list hangs; a code block left open shows as code', async () => {
+    await page.click('#kbBar [data-b=claude]'); await page.waitForSelector(card);
+    claude.say('Give it a size: `<svg width="200" height="100">`. Then it scales.\n1. First step\n2. Second step\n```python\n# one step\n- x');
+    await page.fill(box, 'Sizes?'); await page.press(box, 'Enter');
+    await shows(page, 'the reply is not whole, or its list or its code is not drawn', () => { const a = [...document.querySelectorAll('.kb-note.kb-gen.kb-active .kb-na')].pop(); if (!a || !/Then it scales\./.test(a.textContent)) return false;
+      const pre = a.querySelector('code.kb-pre'); return a.querySelectorAll('.kb-ol').length === 2 && !!pre && /# one step\n- x/.test(pre.textContent) && !a.querySelector('.kb-sk') && !/```/.test(a.textContent) });
+    await page.keyboard.press('Escape');
+    await page.click('#kbBar [data-b=over]'); await page.locator('#kbOvw .kb-ovc').filter({ hasText: 'Sizes?' }).click(); await page.click('.kb-note.kb-max [data-n=del]'); await page.click('#kbOvw [data-o=close]');
   });
   await check('16 Conversations on the landing page lists it, as about the knowledge base', async () => {
     await page.click('#kbBar [data-b=over]'); await reads(page, '#kbOvw .kb-ovc b', Q);
