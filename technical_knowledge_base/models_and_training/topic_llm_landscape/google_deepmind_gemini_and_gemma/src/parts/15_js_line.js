@@ -31,7 +31,8 @@
     ['2026-10-13','g','Argon generally available','Paid API, AI Studio, Antigravity, Enterprise; $2 / $10 to 30 November, then $4 / $20; first on the Vals Index at 68.90%.','{{VentureBeat|@vbargon}}'],
     ['2026-10-28','g','Gemini 4 Carbon','Google\'s strongest model, gated to vetted cyber defenders through Fairwind first; 59 at the launch of the Artificial Analysis index v5.','{{Google|@bcarbon}}'],
     ['2026-11-10','g','Carbon generally available','Paid Gemini API, AI Studio and Gemini for business; the Gemini app for AI Ultra subscribers.','{{Google|@bcarbonga}}'],
-    ['2026-11-12','g','Gemini 4 Hydrogen','The Flash line\'s successor at twice 3.8 Flash\'s introductory price; adds the xhigh thinking level.','{{Google|@bhyd}}']
+    ['2026-11-12','g','Gemini 4 Hydrogen','The Flash line\'s successor at twice 3.8 Flash\'s introductory price; adds the xhigh thinking level.','{{Google|@bhyd}}'],
+    ['2026-11-18','g','Gemini 4 Neon','Adapted from Carbon, between Hydrogen and Carbon at $3 / $15; replaces Argon in the Gemini app; 61 at xhigh on the Artificial Analysis index v5.0.1.','{{Google|@bneon}}']
   ].map(([d,k,n,t,src],i)=>({d:new Date(d+'T00:00:00Z'),ds:d,k,n,t,src,id:'ln'+i}));
   let range='all';
   const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

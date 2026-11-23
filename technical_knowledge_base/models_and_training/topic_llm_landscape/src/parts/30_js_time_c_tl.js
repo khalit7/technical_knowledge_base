@@ -3,7 +3,7 @@
   const RH=window.RH,R=RH.ROWS,$=id=>document.getElementById(id),esc=RH.esc;
   const LANES=['OpenAI','Anthropic','Google DeepMind','Meta','xAI/SpaceXAI','Microsoft (Phi)','Ai2 (OLMo)','Mistral','Cohere','DeepSeek','Alibaba (Qwen)','Moonshot (Kimi)','Zhipu (GLM)','MiniMax','Xiaomi (MiMo)','StepFun','Tencent (Hunyuan)','Others'];
   const lane=r=>LANES.indexOf(r.l)>=0?r.l:'Others';
-  const RANGES={all:[Date.UTC(2023,0,1),Date.UTC(2026,10,17),'q'],y26:[Date.UTC(2026,0,1),Date.UTC(2026,10,17),'m'],rec:[Date.UTC(2026,7,1),Date.UTC(2026,10,17),'w']};
+  const RANGES={all:[Date.UTC(2023,0,1),Date.UTC(2026,10,24),'q'],y26:[Date.UTC(2026,0,1),Date.UTC(2026,10,24),'m'],rec:[Date.UTC(2026,7,1),Date.UTC(2026,10,24),'w']};
   const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const st={rg:'all',firsts:false,sel:null};
   // each lab's first row matching the filters (rows are in date order); the Firsts section sets this up too

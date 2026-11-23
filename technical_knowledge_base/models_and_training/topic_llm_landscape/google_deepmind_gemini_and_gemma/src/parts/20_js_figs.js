@@ -13,7 +13,7 @@
     const W=Math.max(300,Math.min(860,RD.width($('heroSvg')))),g=12,cw=(W-g)/2,c2=cw+g;
     let s='<defs><marker id="ggah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
     let y=2;
-    s+=box(1,y,W-2,52,'var(--closed)',['Frontier: Gemini 4 Carbon and Argon, 3.1 Pro','sparse MoE, natively multimodal, 1M-token window']);y+=52;
+    s+=box(1,y,W-2,52,'var(--closed)',['Frontier: Gemini 4 Carbon, Neon, Argon; 3.1 Pro','sparse MoE, natively multimodal, 1M-token window']);y+=52;
     s+=arrow(cw/2,y+2,cw/2,y+38)+arrow(c2+cw/2,y+2,c2+cw/2,y+38);
     s+=T(W/2,y+24,'distil: k-sparse teacher logits',{a:'middle',fs:11,fill:'var(--acc)',w:600});y+=40;
     s+=box(1,y,cw-2,52,'var(--closed)',['Flash, Flash-Lite','closed, Gemini API'])+box(c2+1,y,cw-2,52,'var(--open)',['Gemma','open weights, Apache 2.0']);y+=52;

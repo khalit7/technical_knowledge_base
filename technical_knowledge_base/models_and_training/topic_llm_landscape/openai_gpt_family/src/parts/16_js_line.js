@@ -34,14 +34,16 @@
     ['2026-10-26','u','GPT-6.1 Terra','The balanced tier back in the new generation: $1/$5 with cached input $0.05, half GPT-6.1 Sol per token; aimed at computer use.','not disclosed','{{DataCamp|@terra61dc}}'],
     ['2026-09-29','u','GPT-6.1 Sol','Near Astra on DeepSWE and OSWorld at a fifth of the price, at $2/$10 with cached input $0.10; Ultrafast launched for Astra.','not disclosed','{{VentureBeat|@vb61}}'],
     ['2026-10-06','p','Decisions API (beta)','POST /v1/decisions on GPT-6 Luna only: typed answers for routing and classification at $0.10 per 1M input tokens, no output charge.','','{{Decisions guide|@dec}}'],
-    ['2026-10-07','p','GPT-6 in ChatGPT Chat','Sol for paid plans, Luna for Free and Go (from 8 October), with Intelligent UI; Work and Codex unchanged.','','{{ghacks|@gh6}}']
+    ['2026-10-07','p','GPT-6 in ChatGPT Chat','Sol for paid plans, Luna for Free and Go (from 8 October), with Intelligent UI; Work and Codex unchanged.','','{{ghacks|@gh6}}'],
+    ['2026-11-17','u','GPT-6.2 Astra, Sol','Astra $8/$40, 20% below GPT-6 Astra; Sol unchanged at $2/$10; Astra the first OpenAI release rated High for AI self-improvement; 62 and 57 on the Artificial Analysis index v5.0.1.','not disclosed','{{OpenAI|@o62}}'],
+    ['2026-11-17','p','ARC-AGI-3: 70.3% or 100.0%','GPT-6.2 Astra, standard harness against Provider Adapter; the "first to 100%" headline is the adapter column.','','{{ARC Prize|@arclb}}']
   ].map(([d,k,n,t,sz,src],i)=>({d:Date.parse(d+'T00:00:00Z'),ds:d,k,n,t,sz,src,id:'ln'+i}));
-  const BETS=[['2018-06-01','2022-01-01','pretraining scale'],['2022-01-01','2024-09-01','post-training'],['2024-09-01','2025-08-01','inference compute'],['2025-08-01','2026-07-01','router'],['2026-07-01','2026-09-02','tiers'],['2026-09-02','2026-10-20','inside the network, behind the API']].map(([a,b,n])=>[Date.parse(a),Date.parse(b),n]);
+  const BETS=[['2018-06-01','2022-01-01','pretraining scale'],['2022-01-01','2024-09-01','post-training'],['2024-09-01','2025-08-01','inference compute'],['2025-08-01','2026-07-01','router'],['2026-07-01','2026-09-02','tiers'],['2026-09-02','2026-11-24','inside the network, behind the API']].map(([a,b,n])=>[Date.parse(a),Date.parse(b),n]);
   const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dl=e=>{const d=new Date(e.d);return d.getUTCDate()+' '+mon[d.getUTCMonth()]+' '+d.getUTCFullYear()};
   let range='all';
   function draw(){
-    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,10,1),T25=Date.UTC(2025,0,1);
+    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,10,24),T25=Date.UTC(2025,0,1);
     const W=Math.max(640,Math.min(900,Math.round(RD.width($('lnSvg').parentElement)))),pl=118,pr=14,w=W-pl-pr; // measured: the timeline sits in the right column of its split
     const x=t=>range!=='all'?pl+w*(t-t0)/(t1-t0):(t<T25?pl+w*.42*(t-t0)/(T25-t0):pl+w*(.42+.58*(t-T25)/(t1-T25)));
     const ev=E.filter(e=>e.d>=t0).sort((a,b)=>a.d-b.d);
@@ -55,7 +57,7 @@
     LANES.forEach(([k,n])=>{const L=ly[k];s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+(L.y0+8)+'" y2="'+(L.y0+8)+'" stroke="var(--line)"/><text x="6" y="'+(L.y0+12)+'" font-size="11" font-weight="600" fill="var(--mute)">'+n+'</text>'});
     const tick=(t,l)=>{const xx=x(t);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+(top-4)+'" y2="'+(H-16)+'" stroke="var(--line)" stroke-dasharray="3 3"/><text x="'+(xx+2)+'" y="'+(H-4)+'" font-size="10.5" fill="var(--mute)">'+l+'</text>'};
     if(range==='all'){[2019,2020,2021,2022,2023,2024].forEach(yr=>tick(Date.UTC(yr,0,1),yr));tick(T25,'2025 (scale widened)');tick(Date.UTC(2026,0,1),'2026')}
-    else{[6,7,8,9].forEach(m=>tick(Date.UTC(2026,m,1),mon[m]+' 2026'))}
+    else{[6,7,8,9,10].forEach(m=>tick(Date.UTC(2026,m,1),mon[m]+' 2026'))}
     const C={b:'var(--c1)',o:'var(--c2)',u:'var(--closed)',w:'var(--open)',p:'var(--c6)',x:'var(--bad)'};
     pos.forEach(({e,xx,r,end})=>{const L=ly[e.k],yy=L.y0+8,ty=yy+14+r*15;
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx+'" cy="'+yy+'" r="5" fill="'+C[e.k]+'"/>'+(r?'<line x1="'+xx+'" x2="'+xx+'" y1="'+yy+'" y2="'+(ty-9)+'" stroke="'+C[e.k]+'" stroke-opacity=".4"/>':'')+'<text x="'+(xx+(end?-3:3))+'" y="'+ty+'" font-size="10.5"'+(end?' text-anchor="end"':'')+'>'+sn(e)+'</text><title>'+dl(e)+': '+e.n+'</title></g>'});
