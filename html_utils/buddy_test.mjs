@@ -514,9 +514,10 @@ async function landing({ context, claude }) {
     assert(body.tools.some(t => t.name === 'search_kb') && body.tools.some(t => t.name === 'read_kb_page'), 'the knowledge-base tools are not offered');
   });
   await check('16 a reply\'s Markdown shows once it is complete: bold, bullets, code and headings, no stars left', async () => {
-    claude.say('Two things:\n- **First**, read it in order\n- `softmax` second\n### Caveats\nnone, and 2 * 3 = 6');
+    claude.say('Two things:\n- **First**, read it in order\n- `x**2` second\n### Then [[Attention variants]]\nnone, and 2 * 3 = 6\n```\n# kept as written\n- not a bullet\n```');
     await page.fill(box, 'Two things?'); await page.press(box, 'Enter');
-    await shows(page, 'the Markdown is not shown', () => { const a = [...document.querySelectorAll('.kb-note.kb-gen.kb-active .kb-na')].pop(); return a && /Caveats/.test(a.textContent) && a.querySelector('b') && a.querySelector('code') && /\u2022 /.test(a.textContent) && !/\*\*|###/.test(a.textContent) && /2 \* 3/.test(a.textContent) });
+    await shows(page, 'the Markdown is not shown', () => { const a = [...document.querySelectorAll('.kb-note.kb-gen.kb-active .kb-na')].pop(); if (!a) return false; const bs = [...a.querySelectorAll('b')].map(b => b.textContent), cs = [...a.querySelectorAll('code')].map(c => c.textContent);
+      return bs.includes('First') && bs.some(t => /^Then Attention variants/.test(t)) && cs[0] === 'x**2' && /# kept as written\n- not a bullet/.test(cs[1] || '') && /\u2022 /.test(a.textContent) && !/###|\*\*F/.test(a.textContent) && /2 \* 3/.test(a.textContent) });
     await page.keyboard.press('Escape');
   });
   await check('16 Conversations on the landing page lists it, as about the knowledge base', async () => {
