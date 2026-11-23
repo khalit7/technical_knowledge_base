@@ -121,7 +121,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 #kbBar button.kb-sw{min-width:0;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);border:2px solid var(--card,var(--bg));box-shadow:0 0 0 1px var(--line)}
 #kbBar button.kb-sw[aria-pressed=true]{box-shadow:0 0 0 2px var(--acc)}
 #kbBar button[data-b=send]{background:var(--acc);color:var(--card,var(--bg))}
-#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-b=send]):not([data-b=claude]):not([data-s=missing]):not([data-s=bad]):not([data-s=error]),#kbBar.kb-min>[data-t=hand]{display:none!important}
+#kbBar.kb-min>:not(.kb-grip2):not([data-b=min]):not(.kb-cur):not([data-b=send]):not([data-b=claude]):not([data-b=sync]),#kbBar.kb-min>[data-t=hand]{display:none!important}
 #kbBar [hidden]{display:none!important}
 #kbBar.kb-diary [data-t=hl],#kbBar.kb-diary [data-t=lasso],#kbBar.kb-diary .kb-sws,#kbBar.kb-diary [data-b=width],#kbBar.kb-diary .kb-sep{display:none!important}
 #kbBar .kb-lbl{display:none}
@@ -135,6 +135,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:var(--kb-ro
 .kb-note input::placeholder{color:var(--mute);opacity:1}
 #kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-vrow,#kbAskPop:not(.kb-typing) .kb-chipsbox>.kb-blk{display:none!important}
 .kb-note.kb-nodot:not(.kb-active){display:none!important}
+html.kb-noai #kbNotes,html.kb-noai #kbOvw,html.kb-noai #kbAskPop,html.kb-noai .kb-selhl,html.kb-noai #kbBar [data-b=over],html.kb-noai #kbBuddy [data-a=riddle],html.kb-noai #kbBuddy .kd-reply,html.kb-noai #kbBuddy svg.kd-arrow,html.kb-noai .kb-selbar .kb-pr input,html.kb-noai .kb-selbar [data-s=ask],html.kb-noai .kb-selbar .kb-chips,html.kb-noai .kb-selbar .kb-vrow,html.kb-noai [data-k=text],html.kb-noai [data-k=vis]{display:none!important}
 html[data-kb-home] .kb-note [data-n=draw],html[data-kb-home] .kb-note .kb-vrow,html[data-kb-home] .kb-note .kb-chips{display:none!important}
 #kbBar.kb-home [data-t],#kbBar.kb-home .kb-sws,#kbBar.kb-home [data-b=width],#kbBar.kb-home [data-b=undo],#kbBar.kb-home [data-b=send],#kbBar.kb-home [data-b=notebook],#kbBar.kb-home .kb-sep{display:none!important}
 #kbBar button[data-b][data-k],#kbBar button[data-b][data-s=missing],#kbBar button[data-b][data-s=bad]{color:var(--ink);background:color-mix(in srgb,var(--bad,#c2703a) 14%,transparent);border:1.5px solid var(--bad,#c2703a);padding:0 9px 0 7px}
@@ -603,6 +604,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     cb.title = ks === 'bad' ? 'Your Claude key was not accepted. Tap to change it' : ks ? 'No Claude key on this device. Tap to add one' : HOME ? 'Ask Claude about anything in the knowledge base: a new conversation' : 'Ask Claude about this page: a new conversation, with what is on your screen'; cb.setAttribute('aria-label', ks ? cb.querySelector('span').textContent + ': ' + cb.title : 'Ask Claude');
     bar.querySelector('[data-b=send]').hidden = !!ks || (!P.hidden && sub === 'riddle') || !(pendPage.length || pend.length || pendTyped.length || (ed && ed.ta.value.trim()));
     bar.querySelector('[data-b=notebook]').setAttribute('aria-pressed', String(!P.hidden && sub !== 'set' && sub !== 'marks')); bar.querySelector('[data-b=set]').setAttribute('aria-pressed', String(!P.hidden && sub === 'set'));
+    const noAI = keyState() === 'missing'; document.documentElement.classList.toggle('kb-noai', noAI); if (noAI && !pop.hidden) { hidePop(); hl = null; showHl() }   // no key: no AI on the page
     bar.querySelector('[data-t=text]').hidden = P.hidden || !!sub; bar.classList.toggle('kb-diary', !P.hidden && sub === 'riddle');
     document.documentElement.classList.toggle('kb-pen', penOn());
     P.classList.toggle('kd-hand', tool === 'hand'); P.classList.toggle('kd-erasing', tool === 'erase'); P.classList.toggle('kd-texting', tool === 'text');
@@ -623,9 +625,10 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
     else if (b.dataset.b === 'set') { if (!P.hidden && sub === 'set') close(); else open('set') }
     else if (b.dataset.b === 'sync') { if (syncState !== 'missing' && syncState !== 'bad') { if (syncState === 'error' || syncState === 'offline') toast(syncSay, 6000); syncNow() } else if (!P.hidden && sub === 'set') close(); else askFor('gh') }
     else if (b.dataset.b === 'over') toggleOvw();
-    else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? '1' : null); b.innerHTML = m ? MAXI : MINI; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; b.setAttribute('aria-label', b.title); placeBar() }
+    else if (b.dataset.b === 'min') { const m = !bar.classList.contains('kb-min'); bar.classList.toggle('kb-min', m); mine.set('min', m ? null : '0'); b.innerHTML = m ? MAXI : MINI; b.title = m ? 'Show the whole toolbar' : 'Make the toolbar small'; b.setAttribute('aria-label', b.title); placeBar() }
   });
-  if (mine.get('min') === '1') { bar.classList.add('kb-min'); const mb = bar.querySelector('[data-b=min]'); mb.innerHTML = MAXI; mb.title = 'Show the whole toolbar'; mb.setAttribute('aria-label', mb.title) }
+  // the toolbar is small unless it was made full on this device
+  if (mine.get('min') !== '0') { bar.classList.add('kb-min'); const mb = bar.querySelector('[data-b=min]'); mb.innerHTML = MAXI; mb.title = 'Show the whole toolbar'; mb.setAttribute('aria-label', mb.title) }
   // a short status line beside the toolbar (for the page; the notebook has its own)
   let toastT = 0;
   function placeToast(){
@@ -640,7 +643,7 @@ html.kb-pen #kbBar,html.kb-pen #kbBar *,html.kb-pen #kbBuddy .kb-h,html.kb-pen #
   let hl = null, selT = 0;
   const pageRoot = () => (!HOME && document.querySelector('.w')) || document.body;
   document.addEventListener('selectionchange', () => {
-    if (HOME) return;   // the landing page has no passages to ask about or change
+    if (HOME || keyState() === 'missing') return;   // the landing page has no passages to ask about or change; with no Claude key a selection is a plain one
     clearTimeout(selT);
     selT = setTimeout(() => {
       const s = window.getSelection(), txt = s && String(s).trim();
@@ -2476,7 +2479,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     pgs[i].items.appendChild(t); ed = {pg:i, x, y, w, c, ta:t, t0:old ? old.t : Date.now()};
     const fit = () => { t.style.height = 'auto'; t.style.height = Math.max(LH, Math.ceil(t.scrollHeight / LH) * LH) + 'px' }; fit();
     t.addEventListener('input', () => { fit(); arm(NB) });
-    t.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); commit(NB) } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finishEd() } });
+    t.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); if (keyState() === 'missing') finishEd(); else commit(NB) } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finishEd() } });
     t.addEventListener('blur', () => setTimeout(() => { if (ed && ed.ta === t && document.activeElement !== t) finishEd() }, 150));
     t.addEventListener('pointerdown', ev => ev.stopPropagation());
     // the keyboard only comes up for a focus made while handling the tap itself, so focus on the pointer's release (and now, for a mouse)
@@ -3387,7 +3390,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   const regionOf = n => { const ms = (n.marks || []).map(id => marks.find(m => m.id === id)).filter(Boolean), b = ms.length && viewBox(ms); if (b) return b; const a = anchorEl(n.a); if (!a || a === pageRoot()) return null; const r = a.getBoundingClientRect(); return r.width ? {x0:r.left, y0:r.top, x1:r.right, y1:r.bottom} : null };
   let shotBusy = false; const shotTry = new Map();
   setInterval(async () => {   // pictures for older notes, one at a time, only when the passage is fully on screen and nothing covers it
-    if (shotBusy || document.hidden || live || !ovw.hidden || PG.busy || [...noteEl.values()].some(x => x.classList.contains('kb-max'))) return;
+    if (shotBusy || document.hidden || keyState() === 'missing' || live || !ovw.hidden || PG.busy || [...noteEl.values()].some(x => x.classList.contains('kb-max'))) return;
     const openR = passOn && noteEl.get(passOn) ? noteEl.get(passOn).getBoundingClientRect() : null, now = Date.now();
     const top = clipLine() + 4, due = notes.map(n => [n, !n.shot && frameOf(n) && regionOf(n)]).filter(([n, b]) => b && b.y0 >= top && b.y1 <= innerHeight - 4 && b.x1 - b.x0 >= 4 && b.y1 - b.y0 >= 4 && b.y1 - b.y0 <= innerHeight * 0.8 && !(openR && openR.left < b.x1 + 70 && openR.right > b.x0 - 70 && openR.top < b.y1 + 70 && openR.bottom > b.y0 - 70) && (shotTry.get(n.id) || 0) < now);
     if (!due.length) return;

@@ -153,7 +153,7 @@ const texts = message => typeof message.content === 'string' ? message.content :
 // one visit: a fresh context with these localStorage values and the fakes in place of the outside world; it ends with the check every visit shares
 async function visit(browser, name, prefs, fn, origin = ORIGIN, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...opts,
-    storageState: { cookies: [], origins: [{ origin, localStorage: Object.entries(prefs).map(([name, value]) => ({ name, value })) }] } });
+    storageState: { cookies: [], origins: [{ origin, localStorage: Object.entries({ 'kbBuddy.min': '0', ...prefs }).map(([name, value]) => ({ name, value })) }] } });
   context.setDefaultTimeout(8000);
   const errors = [], claude = fakeClaude(e => errors.push(e)), repo = fakeRepo();
   // WebKit reports a request to the test's own server that a reload cancels as "access control checks"; a same-origin request cannot fail
@@ -236,6 +236,14 @@ async function firstVisit({ context, claude, repo }) {
     await reads(page, '#kbBar [data-b=claude] span', 'Claude key'); await reads(page, '#kbBar [data-b=sync] .kb-lbl', 'Sync key');
     same([await page.getAttribute('#kbBar [data-b=claude]', 'data-k'), await page.getAttribute('#kbBar [data-b=sync]', 'data-s')], ['missing', 'missing'], 'the two buttons\' states');
   });
+  await check('1 no key, no AI: a selection is a plain highlight (no Ask box), no Conversations button, no Tom Riddle', async () => {
+    para = await paragraphs(page, 1); await select(page, para[0]); await sleep(900);
+    assert(await page.$eval('#kbAskPop', p => p.hidden || !p.getClientRects().length), 'the Ask box opened without a key');
+    assert(await page.evaluate(() => { const s = getSelection(); return !!s && !s.isCollapsed }), 'the selection is not kept as a plain one');
+    assert(await page.locator('#kbBar [data-b=over]').isHidden(), 'Conversations shows without a key');
+    await page.evaluate(() => getSelection().removeAllRanges());
+    await page.click('#kbBar [data-b=notebook]'); assert(await page.locator('#kbBuddy [data-a=riddle]').isHidden(), 'Tom Riddle shows without a key'); await page.click('#kbBar [data-b=notebook]');
+  });
   await check('1 without a key a pen stroke is a note: nothing opens, nothing is sent, no Send button', async () => {
     para = await paragraphs(page, 1); await stroke(page, para[0]); await sleep(1500);
     assert(await page.$eval('#kbBuddy', P => P.hidden), 'a panel opened by itself'); same(claude.requests.length, 0, 'the requests to Claude');
@@ -247,6 +255,7 @@ async function firstVisit({ context, claude, repo }) {
     same(await focused(), 'kbBuddyKey', 'the field with the cursor'); await reads(page, '#kbBuddyKey + .kb-row .kb-meta', 'Needed to ask Claude');
     await page.fill('#kbBuddyKey', KEY); await page.click('#kbBuddy [data-a=save]');
     assert(await page.$eval('#kbBuddy', P => P.hidden), 'Settings stayed open'); await reads(page, '#kbBar [data-b=claude] span', 'Ask');
+    assert(await page.locator('#kbBar [data-b=over]').isVisible(), 'Conversations did not come with the key');
     await sleep(1500); same(claude.requests.length, 0, 'the requests to Claude (the mark made without a key stays a note)');
   });
   await check('1 a key the API refuses turns the Claude button into Fix Claude key, which opens the key field', async () => {
@@ -394,6 +403,20 @@ async function reading({ context, claude }) {
     const dragTo = async (x, y) => { const g = await page.locator('#kbBar .kb-grip2').boundingBox(); await page.mouse.move(g.x + 5, g.y + 8); await page.mouse.down(); await page.mouse.move(x, y, { steps: 8 }); await page.mouse.up() };
     await dragTo(4, 700); r = await at(); assert(r.bottom < 20 && r.wide, 'dragged to the left, low down, it did not dock at the bottom: ' + JSON.stringify(r));
     await dragTo(1276, 120); r = await at(); assert(r.top < 20 && r.wide, 'dragged to the right, high up, it did not dock at the top: ' + JSON.stringify(r));
+  });
+  await check('9 without a key a page hides its conversations (dots, notes, highlights, Conversations), and shows them again with it', async () => {
+    await page.evaluate(() => localStorage.removeItem('kbAsk.key')); await page.reload(); await ready(page);
+    const st = () => page.evaluate(() => ({ notes: [...document.querySelectorAll('#kbNotes .kb-note')].filter(e => e.getClientRects().length).length, over: !!document.querySelector('#kbBar [data-b=over]').getClientRects().length, hl: [...document.querySelectorAll('.kb-selhl rect')].filter(e => e.getClientRects().length).length }));
+    same(await st(), { notes: 0, over: false, hl: 0 }, 'what shows of the conversations without a key');
+    await page.evaluate(k => localStorage.setItem('kbAsk.key', k), KEY); await page.reload(); await ready(page);
+    const back = await st(); assert(back.notes >= 1 && back.over, 'the conversations did not come back with the key: ' + JSON.stringify(back));
+  });
+  await check('9 the toolbar starts small (Ask, sync and +); + makes it full, and it stays full', async () => {
+    await page.evaluate(() => localStorage.removeItem('kbBuddy.min')); await page.reload(); await ready(page);
+    const shown = () => page.evaluate(() => [...document.querySelectorAll('#kbBar > button')].filter(b => b.getClientRects().length).map(b => b.dataset.b || b.dataset.t));
+    same(await shown(), ['claude', 'sync', 'min'], 'the buttons of the small toolbar');
+    await page.click('#kbBar [data-b=min]'); assert((await shown()).includes('pen') && (await shown()).includes('notebook'), 'the full toolbar did not show');
+    await page.reload(); await ready(page); assert((await shown()).includes('pen'), 'the full toolbar was not remembered');
   });
   await check('9 resolving a note closes it to its tick', async () => {
     await page.click('.kb-note .kb-dot'); await page.waitForSelector('.kb-note.kb-active'); await page.click('.kb-note.kb-active [data-n=resolve]');
