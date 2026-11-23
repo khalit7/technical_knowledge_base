@@ -1,0 +1,43 @@
+
+<div class="s3sp"><div class="s3R"><div class="card bi-fig s3stick" id="biForce">
+<h4>Fig. 4 · The base model can stop early; the trained one cannot think its way back</h4>
+<div class="an-svg" id="biForceSvg"></div>
+<div class="an-cap" id="biForceCap"></div>
+<div class="an-ctl" id="biForceCtl"></div>
+</div></div><div class="s3L">
+<section id="s-force"><h2>Did it learn to stop early, or lose the ability?</h2>
+[[S2.SS3|§2.3]]
+<p><b>Two decoding interventions separate the two readings, and the answer is "lost".</b> If the trained model had only learned to stop, making it keep thinking should bring back the base model's high-budget accuracy. The paper uses budget forcing in both directions, plus a third test that states the budget in the prompt; Fig. 4 shows each as a change in accuracy, on Qwen3.5-4B ({{§2.3|ax:S2.SS3}}, {{Appendix B|ax:A2}}, {{Appendix C|ax:A3}}).</p>
+<p class="sxh">Fig. 4 · Each intervention's change in accuracy, points</p>
+<ol class="sx" id="sx-force">
+<li><b>Force the base model to answer.</b> At a matched total budget, cutting the base model's thinking at the 4k setting and demanding an answer lifts AIME from 0.56% to 9.44% (+8.9), GPQA from 4.04% to 60.27% (+56.2) and LiveCodeBench from 5.33% to 19.81% (+14.5) ({{Table 7|ax:A3.T7}}). The base model often has an answer long before it stops thinking.</li>
+<li><b>Force the 4k-trained model to keep thinking, read at 4k.</b> Delete its answer, append "Wait", up to four times: at 4k it now runs out of tokens, −36.1 on AIME, −51.0 on GPQA and −5.1 on LiveCodeBench against its own ordinary decoding.</li>
+<li><b>The same, read at 64k.</b> With room to spare it spends 2.58k to 2.74k more tokens and changes accuracy by 0.0 on AIME, +2.7 on GPQA and +5.0 on LiveCodeBench, nowhere near the 30.2 AIME points it trails its base model by at 64k. Its extra tokens do not reason the way the base model's do.</li>
+<li><b>Tell the model its budget instead.</b> Inserting "You have a 4k-token reasoning budget." leaves the base model at 76.1% on AIME and shortens its answers only from 27.3k to 23.4k tokens; a checkpoint trained with that cue shortens from 5.6k to 2.5k but drops from 52.2% to 38.3% (−13.9) ({{Appendix B|ax:A2}}). Moving the cue between system prompt, user prompt and the start of the thinking changes little.</li>
+</ol>
+<p>The paper concludes that fixed-budget training "genuinely compresses the reasoning needed to reach its answers rather than only teaching the model to stop early". Two cautions: the forcing-up numbers exist only as deltas in the text and as a figure (no table of the levels), and only on Qwen; the base-model answer forcing is repeated on Gemma and Nemotron with mixed results (Gemma GPQA −3.0 at 4k, Nemotron +21.9; {{Appendix H|ax:A8}}).</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div class="card bi-fig s3stick" id="biObj">
+<h4>Fig. 5 · Every fix trades the in-budget gain for scaling</h4>
+<div class="bi-eq" id="biEq" aria-label="GRPO objective with the budget made explicit">J(θ) = E<sub><span class="tm" data-t="D">q ∼ 𝒟</span></sub> E<sub><span class="tm" data-t="B">{o<sub>i</sub>} ∼ π<sub>old</sub>(· | q; B, Π)</span></sub> [ <span class="tm" data-t="w">w<sub>B</sub></span> Σ<sub>i</sub> <span class="tm" data-t="c">c<sub>B</sub>(|o<sub>i</sub>|)</span> Σ<sub>t</sub> <span class="tm" data-t="m">m<sub>ε</sub>(r<sub>i,t</sub>)</span> Â<sub>i</sub>(<span class="tm" data-t="R">R<sub>Π</sub>(o<sub>i</sub>; B)</span>) − <span class="tm" data-t="K">β D<sub>KL</sub>(π<sub>θ</sub> ‖ π<sub>ref</sub>)</span> ]</div>
+<div class="an-svg" id="biObjSvg"></div>
+<div class="an-cap" id="biObjCap"></div>
+<div class="an-ctl" id="biObjCtl"></div>
+</div></div><div class="s3L">
+<section id="s-where"><h2>Where the budget enters training</h2>
+[[S3|§3]]
+<p><b>The paper writes GRPO's objective with every place the budget touches made explicit, then changes one place at a time</b> ({{Eq. 1|ax:S3.E1}}). <i>B</i> limits how long a rollout can run and the termination protocol Π says what happens at the limit; the reward <i>R</i><sub>Π</sub> scores finished and truncated rollouts; <i>c</i><sub><i>B</i></sub> weights responses by length; <i>w</i><sub><i>B</i></sub> decides which groups are kept; <i>m</i> is the clipping rule; β anchors the policy to the base model; and the data 𝒟 decides how often the cap binds at all. The mechanics of each term belong to {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}. Every ablation is one run of Qwen3.5-4B at an 8k cap, scored with avg@16 on AIME; Fig. 5 places each at its gain over the base model at 8k (across) and its difference from the base model at 64k (up), from {{Table 3|ax:S3.T3}}. The shaded corner, a gain at the cap with no loss at 64k, is what nobody reaches.</p>
+<p class="sxh">Fig. 5 · One term at a time</p>
+<ol class="sx" id="sx-obj">
+<li><b>The standard run.</b> DeepScaleR, <i>B</i> = 8k, reward 0 for a truncated rollout, 1/(<i>G</i>|<i>o</i><sub><i>i</i></sub>|) normalisation, every group kept, no KL: +41.3 at 8k, −22.3 at 64k, where it sits flat at 56.5% against the base model's 78.8%.</li>
+<li><b>The data 𝒟.</b> Only the training set changes. GSM8K, whose answers Qwen finishes inside 8k three times in four (24% truncated, median 3,744 tokens), gains 11.6 and loses only 6.8; Nemotron-RL-Math-v2 (99% truncated, median 60,879 tokens) gains 34.2 and loses 24.2, like DeepScaleR (79% truncated) ({{Table 6|ax:A1.T6}}). The more often the cap binds, the more gain and the more internalization.</li>
+<li><b>How truncated rollouts are scored, <i>R</i><sub>Π</sub>.</b> Dropping them from the loss (masking): +29.2, −19.1. DAPO's soft penalty, 0 falling to −1 over the last 512 tokens: +35.0, −28.8. Closing the truncated reasoning and letting the model answer in 120 more tokens (forced answer): −2.2, −1.6, close to the base model at both ends: internalization gone, and the gain with it.</li>
+<li><b>Length normalisation <i>c</i><sub><i>B</i></sub>.</b> Dr. GRPO divides by the fixed budget instead of each response's length, removing the bias toward short correct answers: +39.3, −23.1, the same as GRPO. The length bias is not the cause here.</li>
+<li><b>KL anchoring β.</b> β = 0.001: +37.9, −22.5, no change. β = 0.01: +23.2, −8.6 (70.1% at 64k). A stronger anchor keeps more scaling and gives up in-budget gain, gradually.</li>
+<li><b>Not RL at all.</b> Supervised fine-tuning on the model's own correct answers that finished naturally under 4k tokens: −1.4 at 8k, +4.3 at 64k (83.0%, above the base model). The same on answers cut at 4,096 tokens and forced to a correct answer: +9.3, −38.4. Both sets are at most 4k tokens long; only the truncation differs ({{§3|ax:S3}}).</li>
+</ol>
+<p><b>Two terms were never varied</b>: group retention <i>w</i><sub><i>B</i></sub> (every group is kept, so DAPO-style dynamic sampling is untested) and the clipping rule. The paper's reading of the ablations: no single objective term is the cause; what matters is which response lengths receive a successful training signal, through the data and through the scoring of truncated rollouts. "Stronger in-budget gains generally coincide with greater budget internalization, and none preserves both."</p>
+</section>
+</div></div>

@@ -1,0 +1,4043 @@
+Source: https://arxiv.org/html/2611.26172v1 (extracted by extract_paper.py)
+
+
+\jbauthor
+Ilia Zavidnyi1,2
+\jbauthorAlexander Kovrigin1
+\jbauthorArina Puchkova1
+\jbauthorKirill Gelvan1
+\jbauthorSergey Titov1
+\jbaffiliation1JetBrains Research
+\jbaffiliation2Czech Technical University in Prague
+\[email removed]
+\jbmetadataCheckpointshuggingface.co/collections/JetBrains-Research/budget-internalization
+
+Budget Internalization: Fixed-Budget RLVR Trades Test-Time Scaling for In-Budget Accuracy
+
+{jbabstract}
+Reasoning models often become more accurate when they can generate longer answers at test time.
+This behavior is known as test-time scaling.
+However, RL with verifiable rewards (RLVR) usually trains them with a fixed rollout cap.
+We find that this cap changes model behavior, not only training cost.
+After training, models use few additional tokens beyond the training budget.
+They outperform the base models near that budget, but their accuracy stops improving and falls below the base model at larger budgets.
+The rollout cap thus becomes a learned constraint, that limits model’s test-time scaling.
+We call this effect budget internalization.
+We observe it across Qwen3.5-4B, Gemma4-E2B, and Nemotron-3-Nano-4B and two reasoning training tasks: mathematical reasoning and diverse, procedurally generated problems.
+This effect also transfers from math training to science and coding tasks.
+Training-objective level ablations on Qwen3.5-4B show that most changes recover little test-time scaling.
+Stronger KL regularization and lower training-data truncation preserve more scaling, but stronger KL reduces in-budget accuracy.
+Forcing an answer on truncated training rollouts largely removes budget internalization, but also removes most of the in-budget gain.
+SFT on artificially truncated traces reproduces budget internalization, whereas SFT on naturally short traces does not, which shows that the effect is not specific to RL.
+This result links budget internalization to length-censored post-training rather than to an RL-specific objective term.
+Thus, a rollout cap does not only control training cost.
+It can trade low-budget gains for lower performance when additional inference compute is available.
+
+Figure 1: Budget internalization after fixed-budget math RLVR.
+Trained points and labels are means over three validation-selected checkpoints; shading shows the seed minimum–maximum.
+Blue curves are base-model evaluations. Appendix I reports selected and final results for each seed.
+
+1 Introduction
+
+††footnotetext: We release all our trained checkpoints (including ablations) at https://huggingface.co/collections/JetBrains-Research/budget-internalization.
+
+One promise of reasoning models is that they can solve harder problems when given more tokens at test time (Guo et al., 2025; Snell et al., 2025).
+This makes test-time compute a useful scaling axis: a deployment can spend more compute when a problem is difficult or when higher accuracy is required.
+
+Unlike test-time scaling, RL with verifiable rewards (RLVR) usually does not let the model reason until it emits an end-of-sequence token.
+Instead, training uses a fixed rollout cap, often below the length of the model could otherwise utilize(Team et al., 2025; Luo et al., 2025; He et al., 2025).
+This is usually done to cut training costs, since it can scale quadratically with the sequence length (Aghajohari et al., 2026).
+The resulting model is then often evaluated at only one budget, at or close to the training cap.
+This evaluation shows whether training helps near that budget, but not whether the model can still benefit from more compute.
+A model can look better than its base model at the training budget and become worse when both receive a larger budget.
+
+We show that this failure occurs after fixed-budget GRPO on two hard reasoning training tasks: competition mathematics (AIME, DeepScaler Luo et al. (2025)) and diverse procedurally generated reasoning problems (Reasoning Gym Stojanovski et al. (2025)).
+For Qwen3.5-4B trained with a 4k rollout cap, the model moves from a large gain over the base model at the matching evaluation budget to a large deficit when given more tokens (4K: $+34.8$ pp; 64K: $-30.2$ pp, averaged over three training seeds).
+Gemma4-E2B (Gemma Team, 2026) and Nemotron-3-Nano-4B (NVIDIA, 2026) show the same saturation after math training, and Reasoning Gym training reproduces it for all three models.
+A similar pattern also transfers from math training to GPQA-Diamond (Rein et al., 2024) and LiveCodeBench (Jain et al., 2025).
+We call this effect budget internalization: the training budget becomes part of the model’s learned behavior rather than remaining only a limit on training cost.
+
+Budget internalization changes how RLVR results should be interpreted.
+Accuracy measured only at the training cap can hide a reversal in model ranking.
+Increasing the deployment budget may then fail to recover the base model’s performance, even though the base model benefits from the same additional compute.
+The training cap can therefore trade future test-time scaling for better performance at the budget used during training.
+
+Our goal is to investigate budget internalization and understand why it occurs.
+To do this, we measure accuracy and output-length curves across model families, training caps, and reasoning benchmarks.
+We then run training ablations to study which training choices affect above-budget scaling.
+This analysis makes three contributions:
+
+• 
+
+We show that fixed-budget training hurts test-time scaling.
+Across Qwen, Gemma, and Nemotron, AIME accuracy improves near the training cap but stops improving at larger budgets.
+Across all six checkpoints, gains over the base model range from $+11.7$ to $+46.7$ pp at the training cap, while deficits at the largest evaluation budget shown for each model range from $-17.2$ to $-35.0$ pp.
+
+• 
+
+The effects of fixed-budget RLVR transfer beyond the training task and can improve efficiency.
+For Qwen’s 8k-trained checkpoint, the high-budget differences from the base model are much smaller (GPQA, 64K: $-2.2$ pp; LCB-v6, 64K: $-1.0$ pp).
+At the same time, mean output length falls compared to the base Qwen3.5-4B from $11.15$ k to $4.56$ k tokens on GPQA and from $38.32$ k to $8.31$ k on LiveCodeBench.
+Gemma and Nemotron show the same pattern of much shorter responses with smaller accuracy differences on these tasks.
+Therefore, losing some test-time scaling is not always harmful and can reduce inference cost while retaining similar accuracy.
+
+• 
+
+Our ablations reveal a persistent trade-off between in-budget gains and test-time scaling.
+We examine objective variants, truncation handling, KL regularization, and SFT approaches.
+Scaling remains impaired under alternative length normalization and overlength penalties, but improves when truncation exposure is reduced or KL anchoring is strengthened.
+The scoring of truncated rollouts strongly affects budget internalization, suggesting that the responses reinforced during training matter more than any single GRPO objective term.
+SFT experiments support this interpretation: scaling is retained with naturally completed trajectories, but deteriorates with artificially shortened ones.
+Despite these partial mitigations, no tested intervention combines the full in-budget improvement with the base model’s high-budget performance.
+
+Budget internalization is therefore neither always good nor always bad.
+It is harmful when a task requires longer reasoning to solve harder problems, but useful when the same accuracy can be reached with fewer tokens on tasks where the model tends to overthink.
+Evaluating only at the training cap cannot distinguish these cases.
+We therefore recommend reporting accuracy and output length at several budgets, so that the effect of fixed-budget training is clear before choosing a model for deployment.
+
+2 How Fixed-Budget Training Changes Test-Time Scaling
+
+We study Qwen3.5-4B, Gemma4-E2B, and NVIDIA-Nemotron-3-Nano-4B.
+We run GRPO on the DeepScaleR math dataset with 4k and 8k rollouts cap for Qwen, and 1k and 2k caps for Gemma and Nemotron.
+We additionally train Qwen with 4k cap and Gemma and Nemotron with 2k caps on Nemotron-RL-ReasoningGym-v1 (NVIDIA Corporation, 2026), which contains 15,000 examples from 104 procedurally generated and verifiable Reasoning Gym environments (Stojanovski et al., 2025).
+These runs use the same training hyperparameters as the corresponding DeepScaleR runs.
+We choose these caps below the budgets at which the base models usually complete their AIME responses, so base-model generations are frequently truncated at every chosen cap; Appendix Table 12 reports the exact rates.
+We evaluate the selected checkpoints on AIME 2024 and 2025.
+We then test whether the resulting behavior transfers to out-of-domain benchmarks, GPQA-Diamond and LiveCodeBench v6.
+All runs use the NeMo RL framework (NeMo RL, ); the reward verifies the final answer and assigns zero reward to rollouts that end at the cap without one.
+
+We run all evaluations with the Inspect AI framework (UK AI Security
+Institute, 2024) and report avg@k, the accuracy averaged over $k$ sampled generations per problem, with the evaluation budget as the generated-token limit.
+For DeepScaleR/AIME, each model/cap condition uses seeds 42, 43, and 44, evaluated at both its in-budget validation-selected checkpoint and final step 300 (Appendix I).
+Other experiments retain the original single-seed checkpoints and base-model evaluations.
+Appendix A reports the complete training and evaluation configuration.
+
+2.1 Fixed-Budget Training Limits Test-Time Scaling
+
+Table 1: Mean AIME output length at each model’s largest budget in Figure 1 (Qwen: 64k; Gemma and Nemotron: 16k). Trained entries are seed mean [min, max]; bases use one evaluation.
+
+Checkpoint	
+Mean length	
+
+Qwen3.5-4B base	
+27.32	
+
+4k-trained	
+4.97 [4.71, 5.25]	
+
+8k-trained	
+6.22 [5.64, 6.95]	
+
+Gemma4-E2B base	
+6.85	
+
+1k-trained	
+1.05 [0.99, 1.11]	
+
+2k-trained	
+1.90 [1.57, 2.48]	
+
+Nemotron-3-Nano-4B base	
+6.11	
+
+1k-trained	
+1.01 [0.93, 1.08]	
+
+2k-trained	
+1.97 [1.75, 2.16]	
+
+Figure 1 reports seed means and minimum–maximum bands.
+All 18 runs reproduce the crossover under both checkpoint choices (Appendix I).
+Accuracy deltas below compare seed means with the base model at the same budget.
+Training gives large gains where the base model frequently reaches the evaluation cap, but these gains quickly saturate once the evaluation budget exceeds the training budget.
+Both Qwen checkpoints show this reversal: the 4k-trained checkpoint moves from 4K: $+34.8$ pp to 64K: $-30.2$ pp, while the 8k-trained checkpoint moves from 8K: $+42.4$ pp to 64K: $-24.6$ pp.
+The same pattern holds for both Gemma checkpoints: the 1k-trained checkpoint moves from 1K: $+10.9$ pp to 16K: $-24.8$ pp, while the 2k-trained checkpoint moves from 2K: $+14.8$ pp to 16K: $-20.6$ pp.
+For Nemotron, the 1k-trained checkpoint moves from 1K: $+23.3$ pp to 16K: $-25.4$ pp, while the 2k-trained checkpoint moves from 2K: $+12.6$ pp to 16K: $-13.1$ pp.
+
+The output-length curves show that this is not only an accuracy plateau.
+The trained models rarely use the full additional token allowance.
+Table 1 reports the mean and sed range of mean output length at these endpoints.
+The base models average 6.11k–27.32k tokens, whereas the trained checkpoints average only 1.01k–6.22k tokens.
+Smaller training caps therefore shorten the model’s overall response distribution rather than imposing a hard decoding limit.
+
+2.2 Budget Internalization Across Training Tasks
+
+We next test whether this pattern is specific to mathematical-reasoning training by replacing DeepScaleR with the diverse procedural tasks in Nemotron-RL-ReasoningGym-v1 (NVIDIA Corporation, 2026).
+Figure 2 shows that it is not.
+For Qwen, the 4k-trained checkpoint moves from 4K: $+31.1$ pp to 64K: $-25.0$ pp.
+Gemma’s 2k-trained checkpoint moves from 2K: $+21.7$ pp to 16K: $-15.0$ pp.
+Nemotron shows a smaller in-budget effect: its 2k-trained checkpoint gains only 2K: $+0.6$ pp, but it then saturates at $49.4\%$ while the base model reaches $60.0\%$ at 16k (16K: $-10.6$ pp).
+The in-budget gain therefore depends on the model and training task, but the loss of test-time scaling appears after fixed-budget training on both hard reasoning datasets.
+
+Figure 2: AIME accuracy after fixed-budget Reasoning Gym training across three model families, with dashed lines for trained checkpoints and colors matching Figure 1.
+Appendix Table 9 reports the exact values.
+
+2.3 Transfer to Other Tasks and Budget Forcing
+
+The behavior transfers from both training datasets to GPQA-Diamond, a graduate-level science benchmark, and LiveCodeBench v6, a code-generation benchmark with hidden tests (Figure 3).
+The trained checkpoints gain accuracy near their training budget and saturate while producing shorter responses, although the high-budget damage is smaller than on AIME.
+On GPQA and LiveCodeBench, both Qwen checkpoints preserve much more of the base model’s high-budget accuracy than on AIME (GPQA at 64k: 4k-trained: $-9.1$ pp, 8k-trained: $-2.2$ pp; LCB-v6 at 64k: 4k-trained: $-9.0$ pp, 8k-trained: $-1.0$ pp).
+Gemma’s 1k-trained checkpoint follows the same pattern on GPQA (16K: $-1.0$ pp) and LiveCodeBench (16K: $-8.2$ pp).
+Its 2k-trained checkpoint also remains close to the base model on GPQA (16K: $-1.3$ pp) and reduces the LiveCodeBench deficit (16K: $-5.1$ pp).
+Nemotron’s 1k-trained checkpoint exceeds the base model on GPQA at high budget (64K: $+1.0$ pp) but not on LiveCodeBench (64K: $-9.0$ pp).
+Its 2k-trained checkpoint strengthens the GPQA improvement (64K: $+4.0$ pp) and narrows the LiveCodeBench deficit (64K: $-4.2$ pp).
+Reasoning Gym checkpoints follow the same pattern: Qwen remains below the base model on GPQA (64K: $-6.7$ pp) and LiveCodeBench (64K: $-3.8$ pp), as does Gemma (GPQA, 16K: $-4.4$ pp; LCB-v6, 16K: $-4.6$ pp), while Nemotron slightly exceeds the base model on GPQA (64K: $+0.7$ pp) but not on LiveCodeBench (64K: $-4.8$ pp).
+Because these differences are smaller, Appendix G additionally reports pass@3 curves for a more stable comparison.
+We hypothesize that these tasks often require less extended reasoning, so the base model sometimes overreasons rather than making productive use of additional tokens.
+
+Figure 3: Accuracy on GPQA-Diamond and LiveCodeBench v6 after fixed-budget math (solid budget colors) and Reasoning Gym (brown dashed diamonds) training.
+Appendix Tables 10 and 11 report exact values; Appendix Figure 21 reports DeepScaleR output lengths.
+
+This behavior makes the low-budget comparison difficult to interpret.
+At low budgets, the base model often overreasons until it reaches the cap and fails to produce a final answer.
+Table 2 shows that this is common across all three benchmarks.
+
+Table 2: Qwen3.5-4B base-model truncation rate (%) across evaluation budgets.
+Appendix E reports the corresponding curves and exact values for every model family and fixed-budget checkpoint.
+
+Task	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+AIME	
+100.00	
+100.00	
+95.00	
+66.67	
+33.33	
+6.67	
+
+GPQA-Diamond	
+100.00	
+95.79	
+67.00	
+16.67	
+0.51	
+0.00	
+
+LiveCodeBench v6	
+99.81	
+97.14	
+81.52	
+70.86	
+51.81	
+45.14	
+
+We therefore first test whether the base model could answer correctly without continuing to overreason.
+We apply the budget-forcing procedure from Muennighoff et al. (2025).
+If a response reaches budget $B$ without a parseable answer, we retain its reasoning prefix, insert the model-specific end-of-thinking delimiter and answer cue, and allow a short answer window.
+Naturally completed responses remain unchanged.
+Examples showing the prompt, model response, and budget-forcing intervention for all models and benchmarks are provided in Section C.1.
+
+Budget forcing substantially improves low-budget accuracy across all three tasks (AIME, 4K: $+8.9$ pp; GPQA, 4K: $+56.2$ pp; LCB-v6, 4K: $+14.5$ pp; Figure 4).
+The same trend persists at larger budgets, where answer forcing generally preserves or improves accuracy.
+Appendix Figures 25 and 26 report the corresponding base-model intervention for Gemma and Nemotron.
+
+Figure 4: Qwen3.5-4B accuracy under ordinary base-model decoding, base-model answer forcing, the 4k-trained checkpoint, and forcing the trained checkpoint upward.
+Appendix Figure 18 and Table 7 report truncation rates and output lengths.
+
+Next, we apply the reverse intervention to the 4k-trained checkpoint to test whether its loss of test-time scaling only reflects early stopping.
+We remove its end-of-thinking delimiter and final answer, append Wait, and ask it to continue the same trace, repeating this intervention up to four times under a 64k cap.
+Relative to ordinary decoding of the same checkpoint, forcing up lowers accuracy at the 4k training budget (AIME, 4K: $-36.1$ pp; GPQA, 4K: $-51.0$ pp; LCB-v6, 4K: $-5.1$ pp) and produces the same or only modestly higher accuracy at 64k (AIME, 64K: $0.0$ pp; GPQA, 64K: $+2.7$ pp; LCB-v6, 64K: $+5.0$ pp), despite using $2.58$ – $2.74$ k more tokens (Section C.2).
+Stating the budget explicitly in the prompt offers no reliable alternative, as models not trained on such cues largely ignore them (Appendix B).
+
+Budget forcing can therefore improve base-model accuracy at a matched total token allowance, while making the trained model spend more tokens does not restore its test-time scaling.
+This suggests that fixed-budget training genuinely compresses the reasoning needed to reach its answers rather than only teaching the model to stop early.
+Appendix C.1 gives complete examples of both procedures, while Appendix Figures 25 and 26 report the corresponding results showing the same pattern for Gemma and Nemotron.
+
+2.4 Budget Internalization
+
+Fixed-budget training therefore has three distinct effects: it can improve low-budget accuracy, make reasoning more economical, and reduce how much the model benefits from additional inference compute.
+We call the last effect budget internalization.
+A model internalizes its training budget when, above that budget, its base model continues to use more tokens and improve with additional compute while the trained model’s response length and accuracy largely saturate.
+
+3 What Affects Budget Internalization?
+
+Having established this behavior, we now inspect the potential causes of budget internalization.
+We hypothesize that it arises from how the training objective treats truncated rollouts.
+To understand where this behavior may come from, let us inspect the GRPO objective and identify where the generation budget enters training (Shao et al., 2024):
+
+ $\mathcal{J}(\theta)=\mathbb{E}_{q\sim\mathcal{D}}\mathbb{E}_{\{o_{i}\}\sim\pi_{\theta_{\mathrm{old}}}(\cdot\mid q;B,\Pi)}\left[w_{B}(q,\{o_{i}\})\sum_{i}c_{B}(|o_{i}|)\ell_{i}-\beta D_{\mathrm{KL}}(\pi_{\theta}\|\pi_{\mathrm{ref}})\right].$ 	
+
+(1)	
+
+The budget $B$ first enters the rollout policy by limiting how long a response can be generated, while the termination protocol $\Pi$ determines what happens when this limit is reached.
+Here, the per-response update is $\ell_{i}=\sum_{t}m_{\epsilon^{-},\epsilon^{+}}(r_{i,t})\hat{A}_{i}(R_{\Pi}(o_{i};B))$ .
+The budget enters the reward $R_{\Pi}(o_{i};B)$ through the score assigned to complete and truncated responses, the normalization $c_{B}(|o_{i}|)$ through the weight given to responses of different lengths, and the prompt-selection term $w_{B}$ through which sampled groups are retained for training.
+The token-level likelihood ratio $r_{i,t}$ is transformed by the clipping rule $m_{\epsilon^{-},\epsilon^{+}}$ , while $\beta$ and the reference policy determine how strongly the update remains anchored to the base model.
+Finally, the dataset $\mathcal{D}$ determines how often the cap binds in the first place.
+In our standard GRPO run, Qwen3.5-4B is trained on $\mathcal{D}=$ DeepScaleR with $B=8$ k, $R_{\Pi}$ assigns $1$ to a correct completed response and $0$ to an incorrect or truncated one, $\hat{A}_{i}$ standardizes this reward within a group of $G=8$ rollouts, $c_{B}(|o_{i}|)=1/(G|o_{i}|)$ , $w_{B}=1$ so that every group is retained, $m_{\epsilon^{-},\epsilon^{+}}$ is PPO clipping with $\epsilon^{-}=\epsilon^{+}=0.2$ , and $\beta=0$ .
+Each ablation below changes exactly one of these factors and keeps everything else, including the optimizer, update count, and evaluation protocol, identical to this run.
+For these ablations, we report avg@16 and compute every accuracy delta relative to the base model at the same evaluation budget.
+
+Does high truncation exposure on hard datasets cause budget internalization?
+
+Beyond the RL algorithm, budget internalization depends heavily on the dataset’s difficulty relative to the token cap.
+When a dataset requires long reasoning, many rollouts hit the cap and receive zero reward, creating a strong negative gradient against extended thinking.
+To isolate this data effect, we vary only the training dataset while holding the algorithm and 8K budget fixed.
+We compare GSM8K (Cobbe et al., 2021), DeepScaleR (Luo et al., 2025), and Nemotron-RL-Math-v2 (Du et al., 2025), which span a wide range of natural reasoning lengths (Table 6).
+We observe a trade-off between in-budget learning and test-time scaling.
+DeepScaleR provides the largest in-budget gain but loses it above the training budget (8K: $+41.3$ pp; 64K: $-22.3$ pp).
+Nemotron-RL-Math-v2 follows the same pattern (8K: $+34.2$ pp; 64K: $-24.2$ pp), while the simpler GSM8K dataset produces a smaller gain but preserves more of the base model’s high-budget accuracy (8K: $+11.6$ pp; 64K: $-6.8$ pp).
+High truncation exposure on hard datasets causes the model to internalize the budget as a hard limit, whereas training on simpler datasets preserves the model’s ability to reason beyond the training budget.
+
+Table 3: AIME avg@16 accuracy (%) of Qwen3.5-4B after GRPO ablations at an 8k training budget and after rejection fine-tuning.
+Gray $\pm$ values are 95% confidence intervals across the 60 problem-level avg@16 scores.
+Green and red values improve or degrade relative to the base model; bold and underlined values are best and second best in each column.
+
+Ablation	
+Variant	
+
+2k
+
+4k
+
+8k (train)
+
+16k
+
+32k
+
+64k
+
+Base model	
+
+0.0 $\pm 0.0$ 
+
+0.3 $\pm 0.6$ 
+
+9.2 $\pm 6.2$ 
+
+34.2 $\pm 10.8$ 
+
+65.4 $\pm 10.1$ 
+
+78.8 $\pm 8.5$ 
+
+GRPO	
+DeepScaleR	
+
+1.1 $\pm 1.7$ 
+
+22.7 $\pm 9.8$ 
+
+50.4 $\pm 10.4$ 
+
+56.5 $\pm 10.0$ 
+
+56.5 $\pm 10.0$ 
+
+56.5 $\pm 10.0$ 
+
+Data	
+GSM8K	
+
+0.0 $\pm 0.0$ 
+
+2.8 $\pm 2.7$ 
+
+20.7 $\pm 9.2$ 
+
+52.7 $\pm 11.2$ 
+
+70.6 $\pm 9.4$ 
+
+72.0 $\pm 9.2$ 
+
+Nemotron-RL-Math-v2	
+
+3.4 $\pm 2.5$ 
+
+19.9 $\pm 8.0$ 
+
+43.3 $\pm 10.1$ 
+
+54.0 $\pm 9.4$ 
+
+54.6 $\pm 9.5$ 
+
+54.6 $\pm 9.5$ 
+
+Truncation	
+Loss masking	
+
+1.0 $\pm 1.0$ 
+
+16.1 $\pm 7.6$ 
+
+38.3 $\pm 10.7$ 
+
+56.8 $\pm 9.9$ 
+
+59.7 $\pm 9.4$ 
+
+59.7 $\pm 9.4$ 
+
+DAPO overlength penalty	
+
+6.4 $\pm 4.2$ 
+
+27.2 $\pm 9.9$ 
+
+44.2 $\pm 10.5$ 
+
+49.7 $\pm 10.2$ 
+
+50.0 $\pm 10.2$ 
+
+50.0 $\pm 10.2$ 
+
+Forced answer	
+
+0.0 $\pm 0.0$ 
+
+0.1 $\pm 0.2$ 
+
+7.0 $\pm 5.3$ 
+
+31.6 $\pm 10.4$ 
+
+66.1 $\pm 9.8$ 
+
+77.2 $\pm 8.5$ 
+
+Normalization	
+Dr.GRPO	
+
+1.5 $\pm 2.1$ 
+
+21.9 $\pm 9.5$ 
+
+48.4 $\pm 10.9$ 
+
+55.6 $\pm 10.5$ 
+
+55.6 $\pm 10.5$ 
+
+55.6 $\pm 10.5$ 
+
+KL anchoring	
+ $\beta=0.001$ 	
+
+0.6 $\pm 0.9$ 
+
+18.3 $\pm 8.6$ 
+
+47.1 $\pm 10.7$ 
+
+56.2 $\pm 10.1$ 
+
+56.2 $\pm 10.1$ 
+
+56.2 $\pm 10.1$ 
+
+ $\beta=0.01$ 	
+
+0.0 $\pm 0.0$ 
+
+8.9 $\pm 5.9$ 
+
+32.4 $\pm 11.0$ 
+
+57.5 $\pm 10.5$ 
+
+69.4 $\pm 8.8$ 
+
+70.1 $\pm 8.7$ 
+
+RFT	
+Short traces ( $<$ 4K)	
+
+0.0 $\pm 0.0$ 
+
+0.3 $\pm 0.6$ 
+
+7.8 $\pm 4.8$ 
+
+30.3 $\pm 10.5$ 
+
+63.5 $\pm 10.5$ 
+
+83.0 $\pm 7.9$ 
+
+Budget-forced traces (4K)	
+
+0.0 $\pm 0.0$ 
+
+7.1 $\pm 3.1$ 
+
+18.5 $\pm 7.3$ 
+
+26.1 $\pm 9.2$ 
+
+37.7 $\pm 8.9$ 
+
+40.4 $\pm 8.5$ 
+
+Does the way we treat truncated rollouts cause budget internalization?
+A rollout does not always finish before reaching its token budget, at which point the training procedure has to decide what to do with it.
+Standard GRPO assigns it zero reward, so we try three augmentations that treat such rollouts differently: loss masking removes it from the policy-gradient objective; DAPO applies a soft overlength penalty that decreases from $0$ to $-1$ over the final 512 tokens (Yu et al., 2025); and forced-answer training closes the truncated rollout’s reasoning
+and forces an answer prefix, giving the model up to 120 extra tokens to answer, similarly to the budget-forcing control in Section 3.
+These choices produce substantially different outcomes.
+Standard GRPO produces a large in-budget gain but falls below the base model at high budget (8K: $+41.3$ pp; 64K: $-22.3$ pp).
+DAPO worsens this trade-off (8K: $+35.0$ pp; 64K: $-28.8$ pp), while loss masking also does not help (8K: $+29.2$ pp; 64K: $-19.1$ pp).
+Forced-answer training nearly removes the high-budget gap but gives up the in-budget gain (8K: $-2.2$ pp; 64K: $-1.6$ pp).
+Thus, how truncated rollouts are scored has a direct effect on budget internalization: penalizing them makes it stronger, masking them is insufficient, and recovering an answer can nearly remove it at the cost of in-budget learning.
+This also suggests that the effect depends on the response-length distribution seen during training--in particular, on whether short or long responses provide the successful training signal.
+
+Does response-level length normalization cause budget internalization?
+Standard GRPO averages token losses within each response using the $1/|o_{i}|$ factor, where $o_{i}$ is the completion.
+This normalization introduces a length bias: it amplifies positive updates on short correct responses and dilutes negative updates on long incorrect responses (Liu et al., 2025b).
+Because budget internalization reduces long-horizon reasoning, this bias is a plausible algorithmic mechanism.
+We test this by rerunning the 8K-budget Qwen experiment with Dr.GRPO (Liu et al., 2025b), changing only the normalization from response length $|o_{i}|$ to the fixed generation budget $B$ , while keeping the data, reward, optimizer, and update count fixed.
+Dr.GRPO (8K: $+39.3$ pp; 64K: $-23.1$ pp) performs similarly to standard GRPO (8K: $+41.3$ pp; 64K: $-22.3$ pp).
+Response-level length bias is not the cause of budget internalization in our setting.
+
+Can anchoring the policy to the base model preserve elasticity?
+Budget internalization might emerge because the RL update allows the policy to drift too far from its capable initialization.
+Because the base model already possesses significant long-budget reasoning capabilities, anchoring the trained policy to the base model via a Kullback-Leibler (KL) penalty, which keeps the policy closer to the reference as the penalty grows (Mroueh, 2025), might prevent the model from forgetting how to extrapolate.
+We evaluate KL regularization ( $\beta=0.001$ and $\beta=0.01$ ) while holding the dataset and 8K training budget fixed.
+The weak penalty performs similarly to standard GRPO ( $\beta=0.001$ : 8K: $+37.9$ pp; 64K: $-22.5$ pp).
+Increasing the penalty preserves more high-budget accuracy but reduces the in-budget gain ( $\beta=0.01$ : 8K: $+23.2$ pp; 64K: $-8.6$ pp).
+KL regularization serves as a highly effective control for preserving above-budget capability at the cost of in-budget learning.
+
+Is budget internalization an artifact of RL?
+The preceding results suggest that budget internalization depends on the response-length distribution and how truncated rollouts are penalized in RL.
+However, the dynamics of GRPO might also play a key role and be critical for this effect to emerge.
+To isolate the influence of the training data, we ablate the training method.
+We test supervised fine-tuning (SFT) on the model’s own successful rollouts (rejection fine-tuning, RFT), keeping only those that terminate naturally within 4K tokens.
+We then compare this to artificially shortened traces of the same length constructed via budget forcing (Figure 3). Specifically, we take rollouts that naturally exceed 4K tokens, truncate their reasoning at 4096 tokens, prompt the model for its final answer with the budget-forcing mechanism, and keep only the trajectories whose forced answer matches the ground truth.
+Both sets of traces are at most 4K tokens long and differ only in whether the reasoning ends naturally.
+To match training exposure, both runs use the same hyperparameters and the same number of optimization steps.
+Short-trace RFT does not produce the elasticity drop seen in GRPO and exceeds the base model at high budget despite no in-budget gain (8K: $-1.4$ pp; 64K: $+4.3$ pp), whereas budget-forced RFT reproduces the GRPO failure (8K: $+9.3$ pp; 64K: $-38.4$ pp).
+Budget internalization is therefore not specific to RL: supervised training induces it as well, but only when the training traces contain truncation.
+Naturally terminated traces reinforce concise reasoning where the model already concludes within the budget, without imposing the budget as a stopping rule, which parallels the GSM8K results, where few rollouts reach the cap.
+Avoiding truncation thus mitigates budget internalization, but yields no improvement at 4K or 8K, unlike standard GRPO (8K: $+41.3$ pp).
+Overall, budget internalization emerges whenever the training signal explicitly enforces a budget constraint (whether through truncation penalties on hard datasets in RL, or artificially shortened trajectories in SFT).
+
+Taken together, the ablations point away from a single GRPO-specific objective term and toward the distribution of responses reinforced during training.
+Changing response-length normalization or applying an overlength penalty does not restore scaling, while reducing truncation exposure preserves substantially more high-budget accuracy.
+The way truncated rollouts are scored has the largest effect: penalizing them strengthens internalization, masking them is insufficient, and recovering an answer nearly removes the high-budget gap only by giving up the in-budget gain.
+KL regularization exposes the same trade-off more gradually, preserving more of the base model’s high-budget capability as anchoring increases but reducing accuracy at the training budget.
+The SFT controls show that this behavior is not specific to RL, since naturally completed trajectories preserve scaling whereas artificially shortened trajectories reproduce the contraction.
+Across these interventions, stronger in-budget gains generally coincide with greater budget internalization, and none preserves both the full low-budget improvement and the base model’s test-time scaling.
+Table 3 reports the exact comparison, and Appendix Figure 5 shows the complete response curves.
+
+4 Related Work
+
+Reasoning in LLMs.
+
+Reasoning has become a central capability of recent large language models.
+It was first elicited through chain-of-thought (CoT) prompting (Wei et al., 2022; Kojima et al., 2022), and theoretical work shows that some problems cannot be solved without such intermediate computation (Feng et al., 2023; Merrill & Sabharwal, 2024; Li et al., 2024).
+Subsequent work moved from eliciting reasoning at inference time to training it directly.
+Guo et al. (2025) showed that reinforcement learning with verifiable rewards (RLVR) alone can induce extended reasoning without human demonstrations, and current models typically combine supervised bootstrapping on externally generated traces with a subsequent RL stage (Yang et al., 2025; NVIDIA et al., 2026).
+This RL stage runs under a fixed generation budget, and it is the setting in which we study budget internalization.
+Some recent models additionally expose a reasoning-effort setting that selects the amount of reasoning at inference time (Qwen Team, 2026b; DeepSeek-AI et al., 2026).
+Such explicit budget conditioning may mitigate budget internalization by turning the training cap from an implicit prior into a clearly defined condition.
+
+Limits of test-time reasoning.
+
+The benefits of reasoning are uneven.
+Gains concentrate on mathematical and symbolic tasks and are weaker or negative elsewhere (Sprague et al., 2025; Liu et al., 2025a), and even where reasoning helps, performance remains brittle under counterfactual or perturbed problems (Wu et al., 2024; Mirzadeh et al., 2025; Dziri et al., 2023).
+Longer reasoning is also not uniformly better: models overthink, and accuracy can plateau or decline as the budget grows (Ma et al., 2025; Gema et al., 2025; Zhao et al., 2026; Shojaee et al., 2025).
+Our budget-forcing experiments are consistent with this picture, as base models often reach a correct answer well before they stop reasoning.
+Budget internalization adds a complementary failure mode, in which training removes the model’s ability to benefit from additional sequential compute.
+
+Efficient and budget-aware reasoning.
+
+Overthinking has motivated a large body of methods that reduce unnecessary inference.
+Some allocate compute adaptively by deciding when to think, estimating a token budget, or conditioning on a user-specified budget (Damani et al., 2025; Zhang et al., 2025; Li et al., 2026; Wen et al., 2025; Xu et al., 2026), while others directly optimize reasoning length through length-controlled training, pruning, anytime objectives, or adaptive length penalties (Aggarwal & Welleck, 2025; Hou et al., 2026; Qi et al., 2025; Liu et al., 2026; Xiang et al., 2025; Yi et al., 2025).
+These approaches shorten reasoning by design.
+We instead show that standard fixed-budget RLVR shortens it as a side effect, and that this compression transfers beyond the training domain.
+The effect can be desirable when additional tokens bring little gain, as on LiveCodeBench, but harmful when they do, as on AIME.
+Related studies examine how the training horizon should relate to the base policy’s solution length (Wachi et al., 2026; Xue et al., 2026) and how exploration can let test-time compute extrapolate beyond the training budget (Setlur et al., 2026).
+We complement them by isolating which components of the training signal cause budget internalization.
+
+5 Limitations and Future Work
+
+Our experiments show that fixed-budget post-training can change test-time scaling, but they do not establish how universal this effect is.
+The tested models have four to five billion active parameters, and most experiments use mathematical reasoning; larger scales and different reasoning tasks remain to be tested.
+Only the main DeepScaleR/AIME comparison uses three training seeds and both selected and final checkpoints; other runs have one training seed.
+Algorithmic generality is also unresolved because our RL experiments focus on GRPO and its variants.
+However, the signals implicated by our results are not specific to GRPO: any RL algorithm must decide how to score truncated trajectories, whether to anchor the policy with KL regularization, and which response lengths enter through the training data.
+We therefore expect budget internalization to depend as much on these shared choices as on the optimizer itself, but direct comparisons with other RL algorithms are needed to test this hypothesis.
+Our behavioral measurements also cannot determine whether the model represents the cap explicitly or whether shorter successful trajectories simply shift its response distribution.
+The ablations suggest that changing a single objective term is insufficient, while changing which response lengths receive a successful training signal has a larger effect.
+Training across multiple rollout budgets, conditioning explicitly on available inference compute, and retaining long successful responses are promising ways to provide that signal.
+The central open problem is whether such training can preserve the low-budget gains of fixed-cap RLVR without removing the model’s ability to benefit from more compute, which we leave to future work.
+
+6 Conclusion
+
+In this work, we introduce the term budget internalization: a learned constraint on test-time scaling induced by fixed-budget training. Across three model families and multiple benchmarks, we demonstrate that accuracy improves near the cap while response length and performance saturate beyond it, effectively damaging the model’s capacity for test-time scaling.
+No tested method removes this trade-off, and the largest changes come from the training-data distribution and the treatment of truncated rollouts.
+Evaluation across reasoning budgets is therefore essential, since evaluation only near the training cap can miss a substantial loss of test-time scaling.
+At the same time, budget internalization is not always harmful.
+On AIME, it limits the model’s ability to solve problems that require longer reasoning.
+On GPQA and LiveCodeBench, however, fixed-budget checkpoints often perform better with shorter responses, showing that internalization can improve inference efficiency.
+Budget forcing further shows that even base models can often produce an answer earlier without completing their natural reasoning trace, suggesting that overthinking is itself an important problem.
+This efficiency effect could be deliberately exploited on tasks that benefit little from extended reasoning, provided that accuracy and output-length curves are used to separate useful compression from lost capability.
+
+AI use statement
+
+In this work, we used generative AI tools to assist with language editing, code development, figure generation, and document formatting.
+All research decisions, experiments, numerical results, citations, and AI-assisted outputs were reviewed and verified by the authors.
+The authors take responsibility for the final content of the paper.
+
+Reproducibility statement
+
+We release all trained checkpoints, including ablations, at https://huggingface.co/collections/JetBrains-Research/budget-internalization.
+Appendix A reports the complete training and evaluation configuration.
+The remaining appendices provide the evaluation prompts, exact values underlying the main figures, and additional results needed to reproduce the reported comparisons.
+
+References
+
+Aggarwal & Welleck (2025)
+
+Pranjal Aggarwal and Sean Welleck.
+
+L1: Controlling how long a reasoning model thinks with reinforcement
+learning.
+
+In Second Conference on Language Modeling, 2025.
+
+URL https://openreview.net/forum?id=4jdIxXBNve.
+
+Aghajohari et al. (2026)
+
+Milad Aghajohari et al.
+
+The markovian thinker: Architecture-agnostic linear scaling of
+reasoning.
+
+In C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and
+A. Faust (eds.), International Conference on Learning Representations,
+volume 2026, pp. 46743–46765, 2026.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2026/file/4dd0cfda282c778a21b38fd1d637f37b-Paper-Conference.pdf.
+
+Cobbe et al. (2021)
+
+Karl Cobbe et al.
+
+Training verifiers to solve math word problems, 2021.
+
+URL https://arxiv.org/abs/2110.14168.
+
+Damani et al. (2025)
+
+Mehul Damani, Idan Shenfeld, Andi Peng, Andreea Bobu, and Jacob Andreas.
+
+Learning how hard to think: Input-adaptive allocation of lm
+computation.
+
+In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu (eds.),
+International Conference on Learning Representations, volume 2025,
+pp. 102783–102802, 2025.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2025/file/ff414825df833edb8b1839e3d5d495e9-Paper-Conference.pdf.
+
+DeepSeek-AI et al. (2026)
+
+DeepSeek-AI et al.
+
+Deepseek-v4.1-flash: Pushing the limits of kv cache compression,
+2026.
+
+URL https://arxiv.org/abs/2609.19969.
+
+Du et al. (2025)
+
+Wei Du et al.
+
+Nemotron-math: Efficient long-context distillation of mathematical
+reasoning from multi-mode supervision, 2025.
+
+URL https://arxiv.org/abs/2512.15489.
+
+Dziri et al. (2023)
+
+Nouha Dziri et al.
+
+Faith and fate: Limits of transformers on compositionality.
+
+In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and
+S. Levine (eds.), Advances in Neural Information Processing Systems,
+volume 36, pp. 70293–70332. Curran Associates, Inc., 2023.
+
+10.52202/075280-3081.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2023/file/deb3c28192f979302c157cb653c15e90-Paper-Conference.pdf.
+
+Feng et al. (2023)
+
+Guhao Feng, Bohang Zhang, Yuntian Gu, Haotian Ye, Di He, and Liwei Wang.
+
+Towards revealing the mystery behind chain of thought: A theoretical
+perspective.
+
+In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and
+S. Levine (eds.), Advances in Neural Information Processing Systems,
+volume 36, pp. 70757–70798. Curran Associates, Inc., 2023.
+
+10.52202/075280-3100.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2023/file/dfc310e81992d2e4cedc09ac47eff13e-Paper-Conference.pdf.
+
+Gema et al. (2025)
+
+Aryo Pradipta Gema et al.
+
+Inverse scaling in test-time compute.
+
+Transactions on Machine Learning Research, 2025.
+
+ISSN 2835-8856.
+
+URL https://openreview.net/forum?id=NXgyHW1c7M.
+
+Featured Certification, J2C Certification.
+
+Gemma Team (2026)
+
+Gemma Team.
+
+Gemma 4 technical report, 2026.
+
+URL https://arxiv.org/abs/2607.02770.
+
+Guo et al. (2025)
+
+Daya Guo et al.
+
+DeepSeek-R1 incentivizes reasoning in LLMs through
+reinforcement learning.
+
+Nature, 645(8081):633–638, September
+2025.
+
+ISSN 1476-4687.
+
+10.1038/s41586-025-09422-z.
+
+URL https://doi.org/10.1038/s41586-025-09422-z.
+
+He et al. (2025)
+
+Jujie He et al.
+
+Skywork open reasoner 1 technical report, 2025.
+
+URL https://arxiv.org/abs/2505.22312.
+
+Hou et al. (2026)
+
+Bairu Hou et al.
+
+ThinkPrune: Pruning long chain-of-thought of LLMs via
+reinforcement learning.
+
+Transactions on Machine Learning Research, 2026.
+
+URL https://openreview.net/forum?id=V51gPu1uQD.
+
+Jain et al. (2025)
+
+Naman Jain et al.
+
+Livecodebench: Holistic and contamination free evaluation of large
+language models for code.
+
+In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu (eds.),
+International Conference on Learning Representations, volume 2025,
+pp. 58791–58831, 2025.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2025/file/94074dd5a072d28ff75a76dabed43767-Paper-Conference.pdf.
+
+Kojima et al. (2022)
+
+Takeshi Kojima, Shixiang Shane Gu, Machel Reid, Yutaka Matsuo, and Yusuke
+Iwasawa.
+
+Large language models are zero-shot reasoners.
+
+In Advances in Neural Information Processing Systems, 2022.
+
+Li et al. (2026)
+
+Zheng Li, Qingxiu Dong, Jingyuan Ma, Di Zhang, Kai Jia, and Zhifang Sui.
+
+SelfBudgeter: Adaptive token allocation for efficient LLM
+reasoning.
+
+In Maria Liakata, Viviane P. Moreira, Jiajun Zhang, and David Jurgens
+(eds.), Findings of the Association for Computational
+Linguistics: ACL 2026, pp. 21135–21156, San Diego, California, United
+States, July 2026. Association for Computational Linguistics.
+
+ISBN 979-8-89176-395-1.
+
+10.18653/v1/2026.findings-acl.1063.
+
+URL https://aclanthology.org/2026.findings-acl.1063/.
+
+Li et al. (2024)
+
+Zhiyuan Li, Hong Liu, Denny Zhou, and Tengyu Ma.
+
+Chain of thought empowers transformers to solve inherently serial
+problems.
+
+In B. Kim, Y. Yue, S. Chaudhuri, K. Fragkiadaki, M. Khan, and Y. Sun
+(eds.), International Conference on Learning Representations, volume
+2024, pp. 11911–11943, 2024.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2024/file/3309b4112c9f04a993f2bbdd0274bba1-Paper-Conference.pdf.
+
+Liu et al. (2025a)
+
+Ryan Liu, Jiayi Geng, Addison J. Wu, Ilia Sucholutsky, Tania Lombrozo, and
+Thomas L. Griffiths.
+
+Mind your step (by step): Chain-of-thought can reduce performance on
+tasks where thinking makes humans worse.
+
+In Aarti Singh, Maryam Fazel, Daniel Hsu, Simon Lacoste-Julien, Felix
+Berkenkamp, Tegan Maharaj, Kiri Wagstaff, and Jerry Zhu (eds.),
+Proceedings of the 42nd International Conference on Machine Learning,
+volume 267 of Proceedings of Machine Learning Research, pp. 38489–38517. PMLR, 13–19 Jul 2025a.
+
+URL https://proceedings.mlr.press/v267/liu25t.html.
+
+Liu et al. (2026)
+
+Wei Liu et al.
+
+Learn to reason efficiently with adaptive length-based reward
+shaping.
+
+In C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and
+A. Faust (eds.), International Conference on Learning Representations,
+volume 2026, pp. 43279–43308, 2026.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2026/file/47795c4ae2f7d07ea2fb0d11fa2c3c90-Paper-Conference.pdf.
+
+Liu et al. (2025b)
+
+Zichen Liu et al.
+
+Understanding r1-zero-like training: A critical perspective.
+
+In Conference on Language Modeling (COLM), 2025b.
+
+Luo et al. (2025)
+
+Michael Luo et al.
+
+Deepscaler: Surpassing o1-preview with a 1.5b model by scaling rl.
+
+https://pretty-radio-b75.notion.site/DeepScaleR-Surpassing-O1-Preview-with-a-1-5B-Model-by-Scaling-RL-19681902c1468005bed8ca303013a4e2,
+2025.
+
+Notion Blog.
+
+Ma et al. (2025)
+
+Wenjie Ma, Jingxuan He, Charlie Snell, Tyler Griggs, Sewon Min, and Matei
+Zaharia.
+
+Reasoning models can be effective without thinking, 2025.
+
+URL https://arxiv.org/abs/2504.09858.
+
+Merrill & Sabharwal (2024)
+
+William Merrill and Ashish Sabharwal.
+
+The expressive power of transformers with chain of thought.
+
+In B. Kim, Y. Yue, S. Chaudhuri, K. Fragkiadaki, M. Khan, and Y. Sun
+(eds.), International Conference on Learning Representations, volume
+2024, pp. 7690–7706, 2024.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2024/file/1f59721c106ea80f613299039112f651-Paper-Conference.pdf.
+
+Mirzadeh et al. (2025)
+
+Iman Mirzadeh, Keivan Alizadeh-Vahid, Hooman Shahrokhi, Oncel Tuzel, Samy
+Bengio, and Mehrdad Farajtabar.
+
+Gsm-symbolic: Understanding the limitations of mathematical reasoning
+in large language models.
+
+In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu (eds.),
+International Conference on Learning Representations, volume 2025,
+pp. 94743–94765, 2025.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2025/file/ec2e7a896f8250986b3907f57621ce94-Paper-Conference.pdf.
+
+Mroueh (2025)
+
+Youssef Mroueh.
+
+Reinforcement learning with verifiable rewards: Grpo’s effective
+loss, dynamics, and success amplification, 2025.
+
+URL https://arxiv.org/abs/2503.06639.
+
+Muennighoff et al. (2025)
+
+Niklas Muennighoff et al.
+
+s1: Simple test-time scaling.
+
+In Christos Christodoulopoulos, Tanmoy Chakraborty, Carolyn Rose, and
+Violet Peng (eds.), Proceedings of the 2025 Conference on Empirical
+Methods in Natural Language Processing, pp. 20275–20321, Suzhou, China,
+November 2025. Association for Computational Linguistics.
+
+10.18653/v1/2025.emnlp-main.1025.
+
+URL https://aclanthology.org/2025.emnlp-main.1025/.
+
+(27)
+
+NeMo RL.
+
+Nemo rl: A scalable and efficient post-training library.
+
+https://github.com/NVIDIA-NeMo/RL, 2025.
+
+GitHub repository.
+
+NVIDIA (2026)
+
+NVIDIA.
+
+NVIDIA-Nemotron-3-Nano-4B-BF16.
+
+Hugging Face model card, March 2026.
+
+URL
+https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16.
+
+NVIDIA et al. (2026)
+
+NVIDIA et al.
+
+Nemotron 3 ultra: Open, efficient mixture-of-experts hybrid
+mamba-transformer model for agentic reasoning, 2026.
+
+URL https://arxiv.org/abs/2606.15007.
+
+NVIDIA Corporation (2026)
+
+NVIDIA Corporation.
+
+Nemotron-RL-ReasoningGym-v1.
+
+Hugging Face dataset, January 2026.
+
+URL
+https://huggingface.co/datasets/nvidia/Nemotron-RL-ReasoningGym-v1.
+
+CC BY 4.0.
+
+Qi et al. (2025)
+
+Penghui Qi, Zichen Liu, Tianyu Pang, Chao Du, Wee Sun Lee, and Min Lin.
+
+Optimizing anytime reasoning via budget relative policy optimization.
+
+In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz,
+M. Ghassemi, and N. Chen (eds.), Advances in Neural Information
+Processing Systems, volume 38, Main Conference, pp. 23429–23451. Curran
+Associates, Inc., 2025.
+
+10.52202/085713-0793.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2025/file/21efcb6a9fe5c90d660d3f560bb6094d-Paper-Conference.pdf.
+
+Qwen Team (2026a)
+
+Qwen Team.
+
+Qwen3.5: Towards native multimodal agents, February
+2026a.
+
+URL https://qwen.ai/blog?id=qwen3.5.
+
+Qwen Team (2026b)
+
+Qwen Team.
+
+Qwen3.8-Max: A new bar for coding and cowork, August
+2026b.
+
+URL https://qwen.ai/blog?id=qwen3.8.
+
+Rein et al. (2024)
+
+David Rein et al.
+
+GPQA: A graduate-level google-proof q&a benchmark.
+
+In First Conference on Language Modeling, 2024.
+
+URL https://openreview.net/forum?id=Ti67584b98.
+
+Setlur et al. (2026)
+
+Amrith Setlur et al.
+
+e3: Learning to explore enables extrapolation of test-time compute
+for llms.
+
+In C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and
+A. Faust (eds.), International Conference on Learning Representations,
+volume 2026, pp. 127323–127361, 2026.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2026/file/ced46a50befedcb884ccf0cbe8c3ad23-Paper-Conference.pdf.
+
+Shao et al. (2024)
+
+Zhihong Shao et al.
+
+Deepseekmath: Pushing the limits of mathematical reasoning in open
+language models, 2024.
+
+URL https://arxiv.org/abs/2402.03300.
+
+Shojaee et al. (2025)
+
+Parshin Shojaee, Iman Mirzadeh, Keivan Alizadeh vahid, Maxwell Horton, Samy
+Bengio, and Mehrdad Farajtabar.
+
+The illusion of thinking: Understanding the strengths and limitations
+of reasoning models via the lens of problem complexity.
+
+In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz,
+M. Ghassemi, and N. Chen (eds.), Advances in Neural Information
+Processing Systems, volume 38, Main Conference, pp. 108018–108059. Curran
+Associates, Inc., 2025.
+
+10.52202/085713-3603.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2025/file/9b26ad15462c81548c0689188d2e8018-Paper-Conference.pdf.
+
+Snell et al. (2025)
+
+Charlie Snell, Jaehoon Lee, Kelvin Xu, and Aviral Kumar.
+
+Scaling llm test-time compute optimally can be more effective than
+scaling parameters for reasoning.
+
+In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu (eds.),
+International Conference on Learning Representations, volume 2025,
+pp. 10131–10165, 2025.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2025/file/1b623663fd9b874366f3ce019fdfdd44-Paper-Conference.pdf.
+
+Sprague et al. (2025)
+
+Zayne Sprague et al.
+
+To cot or not to cot? chain-of-thought helps mainly on math and
+symbolic reasoning.
+
+In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu (eds.),
+International Conference on Learning Representations, volume 2025,
+pp. 94118–94162, 2025.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2025/file/ead542f13a38179d1b55b88610f959a1-Paper-Conference.pdf.
+
+Stojanovski et al. (2025)
+
+Zafir Stojanovski et al.
+
+Reasoning gym: Reasoning environments for reinforcement learning with
+verifiable rewards.
+
+In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz,
+M. Ghassemi, and N. Chen (eds.), Advances in Neural Information
+Processing Systems, volume 38, Main Conference. Curran Associates, Inc.,
+2025.
+
+10.52202/085713-1913.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2025/file/528d56195a2c77c808494c86fa7c77ad-Paper-Datasets_and_Benchmarks_Track.pdf.
+
+Team et al. (2025)
+
+Kimi Team et al.
+
+Kimi k1.5: Scaling reinforcement learning with llms, 2025.
+
+URL https://arxiv.org/abs/2501.12599.
+
+UK AI Security
+Institute (2024)
+
+UK AI Security Institute.
+
+Inspect ai: Framework for large language model evaluations, May 2024.
+
+URL https://inspect.aisi.org.uk/.
+
+Wachi et al. (2026)
+
+Akifumi Wachi, Hirota Kinoshita, Shokichi Takakura, Rei Higuchi, and Taiji
+Suzuki.
+
+A relative-budget theory for reinforcement learning with verifiable
+rewards in large language model reasoning, 2026.
+
+URL https://arxiv.org/abs/2602.01523.
+
+Wei et al. (2022)
+
+Jason Wei et al.
+
+Chain-of-thought prompting elicits reasoning in large language
+models.
+
+In Advances in Neural Information Processing Systems, 2022.
+
+Wen et al. (2025)
+
+Hao Wen et al.
+
+Budgetthinker: Empowering budget-aware llm reasoning with control
+tokens, 2025.
+
+URL https://arxiv.org/abs/2508.17196.
+
+Wu et al. (2024)
+
+Zhaofeng Wu et al.
+
+Reasoning or reciting? exploring the capabilities and limitations of
+language models through counterfactual tasks.
+
+In Kevin Duh, Helena Gomez, and Steven Bethard (eds.),
+Proceedings of the 2024 Conference of the North American Chapter of the
+Association for Computational Linguistics: Human Language Technologies
+(Volume 1: Long Papers), pp. 1819–1862, Mexico City, Mexico, June 2024.
+Association for Computational Linguistics.
+
+10.18653/v1/2024.naacl-long.102.
+
+URL https://aclanthology.org/2024.naacl-long.102/.
+
+Xiang et al. (2025)
+
+Violet Xiang et al.
+
+Just enough thinking: Efficient reasoning with adaptive length
+penalties reinforcement learning, 2025.
+
+URL https://arxiv.org/abs/2506.05256.
+
+Xu et al. (2026)
+
+Yuhui Xu, Hanze Dong, Lei Wang, Doyen Sahoo, Junnan Li, and Caiming Xiong.
+
+Scalable chain of thoughts via elastic reasoning.
+
+In C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and
+A. Faust (eds.), International Conference on Learning Representations,
+volume 2026, pp. 145390–145412, 2026.
+
+URL
+https://proceedings.iclr.cc/paper_files/paper/2026/file/eb0965da1d2cb3fbbbb8dbbad5fa0bfc-Paper-Conference.pdf.
+
+Xue et al. (2026)
+
+Yihao Xue, Allan Zhang, Jianhao Huang, Amit Sahai, and Baharan Mirzasoleiman.
+
+Beyond what seems necessary: Hidden gains from scaling training-time
+reasoning length under outcome supervision, 2026.
+
+URL https://arxiv.org/abs/2602.00927.
+
+Yang et al. (2025)
+
+An Yang et al.
+
+Qwen3 technical report, 2025.
+
+URL https://arxiv.org/abs/2505.09388.
+
+Yi et al. (2025)
+
+Jingyang Yi, Jiazheng Wang, and Sida Li.
+
+Shorterbetter: Guiding reasoning models to find optimal inference
+length for efficient reasoning.
+
+In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz,
+M. Ghassemi, and N. Chen (eds.), Advances in Neural Information
+Processing Systems, volume 38, Main Conference, pp. 39011–39043. Curran
+Associates, Inc., 2025.
+
+10.52202/085713-1302.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2025/file/377ca194437916417e3dbe0dc67254f1-Paper-Conference.pdf.
+
+Yu et al. (2025)
+
+Qiying Yu et al.
+
+Dapo: An open-source llm reinforcement learning system at scale.
+
+In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz,
+M. Ghassemi, and N. Chen (eds.), Advances in Neural Information
+Processing Systems, volume 38, Main Conference, pp. 113222–113244. Curran
+Associates, Inc., 2025.
+
+10.52202/085713-3775.
+
+URL
+https://proceedings.neurips.cc/paper_files/paper/2025/file/a4277440d50f1f15d2cb4c14f7e0c0d2-Paper-Conference.pdf.
+
+Zhang et al. (2025)
+
+Jiajie Zhang, Nianyi Lin, Lei Hou, Ling Feng, and Juanzi Li.
+
+AdaptThink: Reasoning models can learn when to think.
+
+In Christos Christodoulopoulos, Tanmoy Chakraborty, Carolyn Rose, and
+Violet Peng (eds.), Proceedings of the 2025 Conference on Empirical
+Methods in Natural Language Processing, pp. 3716–3730, Suzhou, China,
+November 2025. Association for Computational Linguistics.
+
+ISBN 979-8-89176-332-6.
+
+10.18653/v1/2025.emnlp-main.184.
+
+URL https://aclanthology.org/2025.emnlp-main.184/.
+
+Zhao et al. (2026)
+
+James Xu Zhao, Bryan Hooi, and See-Kiong Ng.
+
+Test-time scaling in reasoning models is not effective for
+knowledge-intensive tasks yet.
+
+In Agentic AI in the Wild: From Hallucinations to Reliable
+Autonomy, 2026.
+
+URL https://openreview.net/forum?id=FQcrZAuVXR.
+
+Appendix A Training and Evaluation Details
+
+Table 4 reports the hyperparameters shared by the headline DeepScaleR and Reasoning Gym GRPO runs.
+All runs use 32 prompts per step, eight generations per prompt, a global rollout batch of 256, a micro-batch size of one, three epochs, and at most 300 optimizer steps.
+We use a 10-step linear warmup followed by cosine decay, bfloat16 precision, GRPO ratio clipping at $0.2$ , no reference-policy KL penalty, and seeds 42, 43, and 44 for the main DeepScaleR/AIME replications; all other training conditions use seed 42.
+The rollout sampler uses temperature 1.0 and top- $p$ 1.0.
+Each generated-token cap reserves an additional 2,048 tokens for the input.
+We validate every 10 steps and select the checkpoint with the highest validation accuracy.
+
+Model	
+Training caps	
+Peak LR	
+Minimum LR	
+Optimizer	
+Weight decay	
+Training backend	
+
+Qwen3.5-4B	
+4k, 8k	
+ $5\times 10^{-7}$ 	
+ $5\times 10^{-8}$ 	
+Adam	
+0.01	
+Megatron	
+
+Gemma4-E2B	
+1k, 2k	
+ $3\times 10^{-6}$ 	
+ $3\times 10^{-7}$ 	
+FusedAdam	
+0.1	
+FSDP2	
+
+Nemotron-3-Nano-4B	
+1k, 2k	
+ $2\times 10^{-6}$ 	
+ $2\times 10^{-7}$ 	
+FusedAdam	
+0.1	
+FSDP2	
+
+Table 4: Hyperparameters for the headline fixed-budget GRPO runs.
+Settings not shown in the table are shared across model families as described above.
+
+For evaluation, we follow each model’s Hugging Face model-card recommendation.
+Table 5 lists the sampling parameters.
+All evaluations enable thinking, use sampling, draw multiple generations per problem, and set the generated-token limit to the evaluation budget.
+We explicitly set only temperature and top- $k$ ; all other sampling parameters use the defaults from the corresponding model card.
+
+Model	
+Temperature	
+Top- $k$ 	
+
+Qwen3.5-4B	
+1.0	
+20	
+
+Gemma4-E2B	
+1.0	
+64	
+
+Nemotron-3-Nano-4B	
+1.0	
+Model-card default	
+
+Table 5: Evaluation sampling hyperparameters from the corresponding Hugging Face model cards (Qwen Team, 2026a; Gemma Team, 2026; NVIDIA, 2026).
+For Qwen, we use the recommended reasoning parameters across all benchmarks.
+
+The reported token budget counts generated tokens and excludes prompt tokens.
+Truncated generations receive zero reward during training and zero accuracy credit during evaluation.
+Task-specific parsers and verifiers determine whether a completed final answer is correct.
+
+Figure 5: AIME avg@16 response curves for the Qwen3.5-4B 8k training ablations.
+The plot includes the base model, the standard 8k GRPO run, and all eight completed ablations.
+The two KL runs use $\beta=0.001$ and $\beta=0.01$ .
+The vertical line marks the 8k training budget.
+Table 3 reports the exact values.
+
+Table 6: Difficulty and length statistics for the math training datasets, measured with Qwen3.5-4B in thinking mode.
+Truncation at 8K is the share of responses that do not finish within 8K tokens.
+
+Dataset	
+Pass Rate at 64K	
+Truncation at 8K	
+Median Output Tokens	
+
+GSM8K	
+92%	
+24%	
+3,744	
+
+DeepScaleR	
+77%	
+79%	
+19,056	
+
+Nemotron-RL-Math-v2	
+31%	
+99%	
+60,879	
+
+Appendix B Weak Budget Conditioning
+
+We test whether a stated numeric budget can control generation without changing the available compute.
+In the budget-cue condition, we insert You have a $N$ -token reasoning budget. immediately after the opening <think> tag.
+The no-cue condition leaves the prompt unchanged.
+Both conditions use the same 64k generation cap, while the cue states either 4k or 16k tokens.
+The checkpoints trained with these cues receive the same modified prompt during evaluation and are mechanically truncated at the stated budget.
+These 4k and 16k cue-conditioned checkpoints are separate training runs from the headline fixed-budget checkpoints, and the base-model control was rerun as part of this experiment.
+The resulting 66.7% no-cue base accuracy at 32k in Figure 7 therefore differs from the 64.4% headline value because it comes from an independent evaluation sample.
+
+Figure 6: Budget-cue ablation under a shared 64k generation cap.
+Left: no cue versus a 4k cue for the base model and 4k cue-conditioned checkpoint.
+Right: no cue versus a 16k cue for the base model and 16k cue-conditioned checkpoint.
+The stated budget changes, but the available generation budget does not.
+
+The results are presented in Figure 6. The base model does not follow either stated budget as a hard limit.
+The 4k cue leaves its AIME accuracy unchanged at $76.1\%$ and shortens its mean response only from 27.3k to 23.4k tokens.
+For the 4k cue-conditioned checkpoint, the cue shortens the mean response from 5.6k to 2.5k tokens but also reduces accuracy from $52.2\%$ to $38.3\%$ .
+The 16k cue has a milder effect: the base model changes from $76.1\%$ to $77.2\%$ while again averaging 23.4k tokens, and the 16k cue-conditioned checkpoint shortens from 10.6k to 9.3k while accuracy falls from $65.0\%$ to $59.4\%$ .
+Thus, a cue can shift length, particularly for a checkpoint trained with that cue, but it does not provide calibrated budget control and can reduce accuracy.
+
+B.1 Cue Placement Ablations
+
+The base-model ablation varies whether the cue is placed in the user prompt, system prompt, or immediately after the opening <think>
+tag. We evaluate no-cue and stated-budget-cue conditions at a shared 32k-token
+generation cap. The prompt states that the reasoning budget is either 4k or 16k tokens. We report these results in Figure 7.
+
+Additionally, we train the base model with three listed budget cue placement variants at 4k reasoning cap (the prompt during training is faithful, meaning that it always states that the reasoning budget is 4k tokens). We evaluate with
+the cue in the same location used during training, also stating that the available budget is 4k, while the real truncation happens only at 32k. The results are displayed in Figure 8.
+
+We observe that these alternative budget cue placements have a marginal effect on both base and trained models’ output length and accuracy.
+
+Figure 7: Base-model placement ablation at a shared 32k generation cap. Columns
+show 4k- and 16k-token budget cues; rows show combined AIME avg@3 and mean
+output tokens. The no-cue control is shared across cue placements.
+
+Figure 8: Matched-placement ablation for separately trained 4k cue-conditioned checkpoints at a shared 32k
+generation cap. Within each placement, the base model and the checkpoint trained
+with that placement are evaluated with no cue (blue) or a 4k budget cue (green).
+Rows show combined AIME avg@3 and mean output tokens.
+
+Appendix C Prompt and Termination Protocols
+
+C.1 Budget-Forcing Prompt Presets
+
+We match each budget-forcing preset to the model’s chat template and the domain’s answer format.
+Figures 9–17 report the complete rendered prompt for every preset.
+For each of them, we apply the same procedure: take a truncated model answer, insert the end-of-thinking token and benchmark-specific prefill, and allow the model a short response window for completing the answer.
+
+For AIME, we allow 120 tokens for continuation and apply the standard last-5-lines scorer (meaning that we look for a parseable answer in the last five lines of the response).
+For GPQA, we allow 16 tokens and stop once the model has generated a newline.
+For LiveCodeBench v6, we allow 1024 additional tokens and attempt to extract a fenced Python block from the answer.
+
+System
+
+<|im_start|>system
+<|im_end|>
+
+User
+
+<|im_start|>user
+Solve the following math problem step by step.
+The last line of your response should be of the form "ANSWER: ANSWER" (without quotes) where ANSWER is the answer to the problem.
+Let N be the greatest four-digit positive integer with the property that whenever one of its digits is changed to 1, the resulting number is divisible by 7. Let Q and R be the quotient and remainder, respectively, when N is divided by 1000. Find Q+R.
+Remember to put your answer on its own line at the end in the form "ANSWER: ANSWER" (without quotes) where ANSWER is the answer to the problem, and you do not need to use a \{}boxed command.
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+<think>
+Let N be the greatest four-digit positive integer such that whenever one of its digits is changed to 1, the resulting number is divisible by 7.
+Let the decimal representation of N be $d_{3}d_{2}d_{1}d_{0}$ , so $N=1000d_{3}+100d_{2}+10d_{1}+d_{0}$ .
+Since N is a four-digit integer, $d_{3}\in{1,2,...,9}$ and $d_{2},d_{1},d_{0}\in{0,1,...,9}$ .
+The condition states that for each position $i\in{0,1,2,3}$ , if we replace $d_{i}$ with 1, the new number must be divisible by 7.
+Let $M_{i}$ denote the number obtained by changing the digit at position i to 1.
+We are given $M\_i\equiv 0\pmod{7}$ for all i=0, 1, 2, 3.
+Let’s write N in terms of its digits.
+ $d_{0}$ : units place, coefficient 1.
+ $d_{1}$ : tens place, coefficient 10.
+ $d_{2}$ : hundreds place, coefficient 100.
+ $d_{3}$ : thousands place, coefficient 1000.
+…
+Diffs:
+ $(1)-(2):(6d_{3}-6d_{3})+(2d_{2}-2d_{2})+(3d_{1}-d_{0})+(1-3)\equiv 0\implies 3d_{1}-d_{0}-2\equiv 0\implies 3d_{1}-d_{0}\equiv 2.$ 
+My previous calc was $3d_{1}-d_{0}-4\equiv 0,$ which was using $d_{0}$ term in (2) having coeff 1, and 3 term in (1)?
+Wait, Eq 2 has constant term 3? No, $d_{1}$ becomes 1. The coefficient is 10 -> 3.
+In N, term is $d_{1}\cdot 10\to 3d_{1}$ . In $M_{1}$ , term is $1\cdot 10\to 3$ . Constant term is $d_{0}\cdot 1$ .
+So Eq 2 is $6d_{3}+2d_{2}+3+d_{0}\equiv 0$ . Correct.
+Eq 1 is $6d_{3}+2d_{2}+3d_{1}+1\equiv 0$ 
+</think>
+Final Answer:
+\boxed{10}
+
+Evaluator insertion     Generated continuation
+
+Figure 9: Complete math budget-forced example for Qwen3.5-4B on AIME 2024. The initial reasoning call reached the 4,096-token cap and was shortened here.
+Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<bos><|turn>system
+<|think|>
+<turn|>
+
+User
+
+<|turn>user
+Solve the following math problem step by step.
+The last line of your response should be of the form “ANSWER: $ANSWER”
+(without quotes) where $ANSWER is the answer to the problem.
+Every morning Aya goes for a $9$ -kilometer-long walk and stops at a coffee shop
+afterwards. When she walks at a constant speed of $s$ kilometers per hour, the
+walk takes her 4 hours, including $t$ minutes spent in the coffee shop. When
+she walks $s+2$ kilometers per hour, the walk takes her 2 hours and 24 minutes,
+including $t$ minutes spent in the coffee shop. Suppose Aya walks at
+ $s+\frac{1}{2}$ kilometers per hour. Find the number of minutes the walk takes
+her, including the $t$ minutes spent in the coffee shop.
+Remember to put your answer on its own line at the end in the form
+“ANSWER: $ANSWER” (without quotes) where $ANSWER is the answer to the
+problem, and you do not need to use a \boxed command.
+<turn|>
+
+Assistant
+
+<|turn>model
+<|channel>thought
+Let $D$ be the distance of the walk, $D=9$ kilometers.
+Let $s$ be the speed of walking in kilometers per hour (km/h).
+Let $t$ be the time spent in the coffee shop in minutes.
+We are given two scenarios.
+Scenario 1:
+Speed is $s$ km/h.
+Time taken for the walk is 4 hours, including $t$ minutes in the coffee shop.
+The time spent walking is $T_{1}$ .
+ $T_{1}=D/s=9/s$ hours.
+The total time elapsed is $T_{1}+t/60$ hours.
+We are given that the total time is 4 hours.
+ $9/s+t/60=4$ (Equation 1)
+Scenario 2:
+Speed is $s+2$ km/h.
+Time taken for the walk is 2 hours and 24 minutes, including $t$ minutes in the coffee shop.
+2 hours and 24 minutes is $2+24/60=2+0.4=2.4$ hours.
+ $T_{2}=D/(s+2)=9/(s+2)$ hours.
+The total time elapsed is $T_{2}+t/60$ hours.
+ $9/(s+2)+t/60=2.4$ (Equation 2)
+We have a system of two equations with two variables $s$ and $t$ .
+Let’s simplify the equations.
+Equation 1:
+ $9/s+t/60=4$ 
+ $t/60=4-9/s$ 
+ $t=60(4-9/s)$ 
+ $t=240-540/s$ (Equation 1’)
+Equation 2:
+ $9/(s+2)+t/60=2.4$ 
+ $t/60=2.4-9/(s+2)$ 
+ $t=60(2.4-9/(s+2))$ 
+ $t=144-540/(s+2)$ (Equation 2’)
+Now we equate the expressions for $t$ :
+ $240-540/s=144-540/(s+2)$ 
+Let’s solve for $s$ .
+ $240-144=540/s-540/(s+2)$ 
+ $96=540[1/s-1/(s+2)]$ 
+ $96=540[(s+2-s)/(s(s+2))]$ 
+ $96=540[(2)/(s^{2}+2s)]$ 
+ $96=1080/(s^{2}+2s)$ 
+ $s^{2}+2s=1080/96$ 
+Let’s simplify the fraction $1080/96$ .
+ $1080/96$ . Both are divisible by 12.
+ $1080/12=90$ 
+ $96/12=8$ 
+ $1080/96=90/8$ .
+ $90/8=45/4$ .
+ $s^{2}+2s=45/4$ 
+ $4s^{2}+8s=45$ 
+ $4s^{2}+8s-45=0$ 
+We can solve this quadratic equation for $s$ using the quadratic formula:
+ $s=[-8\pm\sqrt{8^{2}-4(4)(-45)}]/(2\cdot 4)$ 
+ $s=[-8\pm\sqrt{64+16(45)}]/8$ 
+ $16\times 45=16\times(40+5)=640+80=720$ .
+ $s=[-8\pm\sqrt{64+720}]/8$ 
+ $s=[-8\pm\sqrt{784}]/8$ 
+We need $\sqrt{784}$ . $20^{2}=400$ , $30^{2}=900$ . It ends in 4, so the root ends
+<channel|>
+Final Answer:
+\boxed{30}
+  Evaluator insertion     Generated continuation
+
+Figure 10: Complete math budget-forced example for Gemma4-E2B on AIME 2024. The initial
+reasoning call reached the 1,024-token cap and is presented in full here.
+Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<|im_start|>system
+<|im_end|>
+
+User
+
+<|im_start|>user
+Solve the following math problem step by step.
+The last line of your response should be of the form "ANSWER: ANSWER" (without quotes) where ANSWER is the answer to the problem.
+Let N be the greatest four-digit positive integer with the property that whenever one of its digits is changed to 1, the resulting number is divisible by 7. Let Q and R be the quotient and remainder, respectively, when N is divided by 1000. Find Q+R.
+Remember to put your answer on its own line at the end in the form "ANSWER: ANSWER" (without quotes) where ANSWER is the answer to the problem, and you do not need to use a \{}boxed command.
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+<think>
+We need largest four-digit number N such that if you change any digit to 1 (presumably any single digit, any position), the resulting number is divisible by 7.
+Interpretation: For each digit position i (thousands, hundreds, tens, ones), replace that digit with 1, keep other digits same, resulting 4-digit number divisible by 7.
+We need N such that all four numbers formed by changing one digit to 1 are multiples of 7.
+We need greatest such N (largest). Then compute Q = floor(N/1000) (the thousand digit), R = N mod 1000 (last three digits). Then Q+R.
+Let’s denote N = abcd (digits a,b,c,d each 0-9, a $\geq$ 1). Changing each digit to 1 gives:
+N_a = 1bcd (thousands digit becomes 1) = 1000*1 + 100*b + 10*c + d = 1000 + 100b + 10c + d
+N_b = a1cd = 1000a + 100*1 + 10c + d = 1000a + 100 + 10c + d
+N_c = ab1d = 1000a + 100b + 10*1 + d = 1000a + 100b + 10 + d
+N_d = abc1 = 1000a + 100b + 10c + 1
+All must be $\equiv$ 0 mod7.
+Thus we have congruences:
+(1) 1000 + 100b + 10c + d $\equiv$ 0 (mod7)
+(2) 1000a + 100 + 10c + d $\equiv$ 0 (mod7)
+(3) 1000a + 100b + 10 + d $\equiv$ 0 (mod7)
+(4) 1000a + 100b + 10c + 1 $\equiv$ 0 (mod7)
+…
+Now d $\equiv$ 4c mod7: if c=0 $\to$ d $\equiv$ 0. d digit 0-9 $\to$ d=0 or 7? but must satisfy 0-9 with mod condition maybe 0 or 7 (since 7 $\equiv$ 0 mod7). Both okay.
+Check (3): 6a +2b + d $\equiv$ 4. Compute 6a $\equiv$ 12 $\equiv$ 5. 2b=8 $\equiv$ 1. So 5+1+d $\equiv$ 4 $\to$ 6+d $\equiv$ 4 $\to$ d $\equiv$ 4-6 $\equiv$ -2 $\equiv$ 5 mod7. So d $\equiv$ 5 mod7. But we previously got d $\equiv$ 0 mod7. Conflict. So a=2 not possible.
+Thus a must be 9.
+Now a=9, b=4.
+Compute (4): 6a =6*9=54 $\equiv$ 54 mod7: 7*7=49 remainder5. So 5. 2b=8 $\equiv$ 1. So 5+1+3c $\equiv$ 6 $\to$ 6 +3c $\equiv$ 6 $\to$ 3c $\equiv$ 0 $\to$ c $\equiv$ 0 mod7 $\to$ c =0 or7.
+Now (3): 6a +2b + d $\equiv$ 4. 6a $\equiv$ 5, 2b $\equiv$ 1 $\to$ sum 6 + d $\equiv$ 4 $\to$ d $\equiv$ 5 (since -2 $\equiv$ 5). So d $\equiv$ 5 mod7. So d =5 or 12? digit 5 only (since 5 $<$ 10). Also d $\equiv$ ? check also d $\equiv$ 4c mod7 from earlier.
+If c=0 $\to$ d $\equiv$ 0 mod7, but we need d $\equiv$ 5 mod7 $\to$ conflict.
+If
+</think>
+Final Answer:
+\boxed{1300}
+
+Evaluator insertion     Generated continuation
+
+Figure 11: Complete math budget-forced example for Nemotron-3-Nano-4B on AIME 2024. The initial reasoning call reached the 2,048-token cap and was shortened here. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<|im_start|>system
+<|im_end|>
+
+User
+
+<|im_start|>user
+Answer the following multiple choice question. The last line of your response should be of the following format: ’ANSWER: LETTER’ (without quotes) where LETTER is one of A,B,C,D. Think step by step before answering.
+Two quantum states with energies E1 and E2 have a lifetime of $10^{-9}$ sec and $10^{-8}$ sec, respectively. We want to clearly distinguish these two energy levels. Which one of the following options could be their energy difference so that they can be clearly resolved?
+A) $10^{-9}eV$ 
+B) $10^{-4}eV$ 
+C) $10^{-11}eV$ 
+D) $10^{-8}eV$ 
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+The user wants me to answer a multiple-choice question about quantum states, energy levels, and time-energy uncertainty principle.
+**1. Analyze the problem:**
+* Two quantum states have energies E_1 and E_2.
+* They have lifetimes $\tau_{1}=10^{-9}$ sec and $\tau_{2}=10^{-8}$ sec.
+* We want to "clearly distinguish" or resolve these two energy levels. This means we need to determine the minimum energy separation (resolution) required given the natural linewidth associated with their finite lifetimes.
+* The relevant physics principle is the Time-Energy Uncertainty Principle: $\Delta E\cdot\tau\geq\hbar/2$ (or sometimes approximated as $\Delta E\approx\hbar/\tau or\Delta E\cdot\tau\sim h$ ). The width of the energy level line shape (natural broadening) is directly related to the lifetime of the state. Specifically, the full width at half maximum (FWHM) for a Lorentzian distribution is often taken as $\Gamma=\hbar/\tau$ in many contexts, though strictly speaking $\Delta E\Delta t\sim\hbar$ . Let’s assume the criterion for resolution is that the energy difference $\Delta E_{level}=|E_{1}-E_{2}|$ must be greater than or comparable to the sum of the uncertainties (widths) of the individual states.
+…
+Is there any nuance where the answer might be derived differently?
+Some texts use $\Delta E=h/\tau$ .
+ $h\approx 4.14\times 10^{-15}$ eV $\cdot$ s.
+ $\Delta E_{1}\approx 4.14\times 10^{-6}$ eV.
+ $\Delta E_{2}\approx 4.14\times 10^{-7}$ eV.
+Still, the critical threshold is $\sim 10^{-6}$ eV.
+Option B $(10^{-4})$ is still the only one exceeding this.
+The order of magnitude remains consistent.
+Are there cases where "clearly resolved" means much larger than the linewidth?
+Usually "clearly resolved" implies seeing two distinct peaks. Rayleigh criterion suggests sum of widths.
+Even sum is $\sim 10^{-6}$ eV.
+So $10^{-4}$ eV is very clear.
+10
+</think>
+ANSWER: B
+
+Evaluator insertion     Generated continuation
+
+Figure 12: Complete science budget-forced example for Qwen3.5-4B on GPQA-Diamond. The initial reasoning call reached the 4,096-token cap and was shortened here. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<bos><|turn>system
+<|think|>
+<turn|>
+
+User
+
+<|turn>user
+Answer the following multiple choice question. The last line of your response should be of the following format: ’ANSWER: LETTER’ (without quotes) where LETTER is one of A,B,C,D. Think step by step before answering.
+Consider a system of three spins $S_{1}$ , $S_{2}$ , and $S_{3}$ , each of which can take spin $+1$ or $-1$ . The energy is $E=-J(S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3})$ .
+Find the partition function $Z$ of the system ( $\beta=1/(kT)$ , where $k$ is the Boltzmann constant and $T$ is temperature).
+A) $Z=6e^{2J\beta}+2e^{-2J\beta}$ 
+B) $Z=2e^{2J\beta}+6e^{-2J\beta}$ 
+C) $Z=2e^{3J\beta}+6e^{-J\beta}$ 
+D) $Z=2e^{-3J\beta}+6e^{J\beta}$ 
+<turn|>
+
+Assistant
+
+<|turn>model
+<|channel>thought
+The user has presented a problem asking for the partition function $Z$ of three spins $S_{1}$ , $S_{2}$ , and $S_{3}$ , with interaction energy $E=-J(S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3})$ .
+The spins can take values +1 or -1.
+The partition function Z is defined as:
+ $Z=\sum_{\text{states}}e^{-\beta E}$ 
+where $\beta=1/(kT)$ .
+The system has $2^{3}=8$ possible microstates. We calculate $E$ for each state and sum the Boltzmann factors $e^{-\beta E}$ .
+The energy function is $E=-J(S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3})$ .
+Let’s list the possible spin configurations $(S_{1},S_{2},S_{3})$ and calculate E.
+The term $S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3}$ is the sum of interaction terms. Since $S_{i}\in\{-1,+1\}$ , the product $S_{i}S_{j}$ is either +1 (if $S_{i}=S_{j}$ ) or -1 (if $S_{i}\neq S_{j}$ ).
+Let $N_{\mathrm{same}}$ be the number of pairs (i, j) such that $S_{i}=S_{j}$ .
+ $S_{1}S_{2}=1$ if $S_{1}=S_{2}$ , -1 otherwise.
+ $S_{1}S_{3}=1$ if $S_{1}=S_{3}$ , -1 otherwise.
+ $S_{2}S_{3}=1$ if $S_{2}=S_{3}$ , -1 otherwise.
+ $E=-J\sum_{i<j}S_{i}S_{j}$ .
+We can analyze the configurations based on the number of +1 spins and -1 spins.
+Case 1: All spins are the same (3 states).
+1a) (+1, +1, +1):
+ $S_{1}S_{2}=1$ , $S_{1}S_{3}=1$ , and $S_{2}S_{3}=1$ .
+ $S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3}=1+1+1=3$ .
+ $E=-3J$ .
+ $e^{-\beta E}=e^{3J\beta}$ .
+There is 1 such state.
+1b) (-1, -1, -1):
+ $S_{1}S_{2}=1$ , $S_{1}S_{3}=1$ , and $S_{2}S_{3}=1$ .
+ $S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3}=3$ .
+ $E=-3J$ .
+ $e^{-\beta E}=e^{3J\beta}$ .
+There is 1 such state.
+Total contribution from Case 1: $2e^{3J\beta}$ .
+Case 2: Two spins are the same, one is different (6 states).
+2a) (+1, +1, -1): (and permutations: (+1, -1, +1), (-1, +1, +1)).
+For (+1, +1, -1):
+ $S_{1}S_{2}=1$ , $S_{1}S_{3}=-1$ , and $S_{2}S_{3}=-1$ .
+ $S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3}=1-1-1=-1$ .
+ $E=-J(-1)=J$ .
+ $e^{-\beta E}=e^{-J\beta}$ .
+There are 3 such states with energy J.
+Contribution: $3e^{-J\beta}$ .
+2b) (-1, -1, +1): (and permutations: (-1, +1, -1), (+1, -1, -1)).
+For (-1, -1, +1):
+ $S_{1}S_{2}=1$ , $S_{1}S_{3}=-1$ , and $S_{2}S_{3}=-1$ .
+ $S_{1}S_{2}+S_{1}S_{3}+S_{2}S_{3}=1-1-1=-1$ .
+ $E=J$ .
+ $e^{-\beta E}=e^{-J\beta}$ .
+There are 3 such states
+<channel|>
+ANSWER: B
+
+Evaluator insertion     Generated continuation
+
+Figure 13: Complete science budget-forced example for Gemma4-E2B on GPQA-Diamond. The initial reasoning call reached the 1,024-token cap and is presented in full here. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<|im_start|>system
+<|im_end|>
+
+User
+
+<|im_start|>user
+Answer the following multiple choice question. The last line of your response should be of the following format: ’ANSWER: LETTER’ (without quotes) where LETTER is one of A,B,C,D. Think step by step before answering.
+A spin-half particle is in a linear superposition 0.5| $\uparrow\rangle$ + $\sqrt{3}/2$ | $\downarrow\rangle$ of its spin-up and spin-down states. If | $\uparrow\rangle$ and | $\downarrow\rangle$ are the eigenstates of $\sigma_{z}$ , then what is the expectation value up to one decimal place, of the operator 10 $\sigma_{z}$ +5 $\sigma_{x}$ ? Here, symbols have their usual meanings
+A) 1.65
+B) -0.7
+C) 0.85
+D) -1.4
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+<think>
+We need to answer a multiple choice about expectation value of operator O = 10 $\sigma_{z}$ + 5 $\sigma_{x}$ for a spin-1/2 state $|\psi\rangle$ = 0.5 $|\uparrow\rangle$ + $\sqrt{3}/2$ $|\downarrow\rangle$ , where $|\uparrow\rangle$ and $|\downarrow\rangle$ are eigenstates of $\sigma_{z}$ .
+We are to find expectation value $\langle\psi|O|$ $\psi\rangle$ up to one decimal place.
+We need to compute expectation for O = 10 $\sigma_{z}$ + 5 $\sigma_{x}$ .
+We have expectation = 10 $\langle\psi|\sigma_{z}|\psi\rangle$ + 5 $\langle\psi|\sigma\_x|\psi\rangle$ .
+First compute $\langle\psi|\sigma_{z}|\psi\rangle$ .
+We know $\sigma_{z}$ $|\uparrow\rangle$ = +1 $|\uparrow\rangle$ , $\sigma_{z}$ $|\downarrow\rangle$ = -1 $|\downarrow\rangle$ .
+Hence $\langle\psi|\sigma_{z}|\psi\rangle=(0.5)^{*}\langle\uparrow|+(\sqrt{3}/2)^{*}\langle\downarrow|(\sigma_{z})(0.5|\uparrow\rangle+\sqrt{3}/2|\downarrow\rangle)=?$ 
+Simplify: $\sigma_{z}|\psi\rangle=0.5|\uparrow\rangle-(\sqrt{3}/2)|\downarrow\rangle$ (since $\sigma_{z}$ flips sign on $\downarrow$ ). Then expectation = $\langle\psi|\sigma_{z}|\psi\rangle=\langle\psi|(0.5|\uparrow\rangle-(\sqrt{3}/2)|\downarrow\rangle)=(0.5*0.5)+((\sqrt{3}/2)*(\sqrt{3}/2))?$ Wait careful.
+Let’s compute: $\langle\psi|\sigma_{z}|\psi\rangle=(0.5*\langle\uparrow|+(\sqrt{3}/2)*\langle\downarrow|)(\sigma_{z}(0.5|\uparrow\rangle+(\sqrt{3}/2)|\downarrow\rangle))$ 
+But ( $\sigma_{z}(0.5|\uparrow\rangle)=0.5|\uparrow\rangle,(\sigma_{z}((\sqrt{3}/2)|\downarrow\rangle)=-(\sqrt{3}/2)|\downarrow\rangle)$ . So we have = $(0.5*\langle\uparrow|)(0.5|\uparrow\rangle)+(\sqrt{3}/2*\langle\downarrow|)(-(\sqrt{3}/2)|\downarrow\rangle)=0.5*0.5-(\sqrt{3}/2)*(\sqrt{3}/2)=0.25-(3/4)=0.25-0.75=-0.5$ .
+Thus $\langle\psi|\sigma_{z}|\psi\rangle=-0.5$ .
+Alternatively could compute directly using probabilities: Expectation value of $\sigma_{z}=(p\_up-p\_down)=(p\_up-p\_down)$ because eigenstates with eigenvalues +1 and -1. Here $p\_up=|0.5|^{2}=0.25,p\_down=|\sqrt{3}/2|^{2}=3/4=0.75$ . So expectation = 0.25 - 0.75 = -0.5. Yes consistent.
+Thus $10*\langle\sigma_{z}\rangle=10*(-0.5)=-5$ .
+Now compute $\langle\psi|\sigma_{x}|\psi\rangle$ .
+ $\sigma_{x}$ flips spin: $\sigma_{x}|\uparrow\rangle=|\downarrow\rangle,\sigma_{x}|\downarrow\rangle=|\uparrow\rangle$ .
+Thus $\sigma_{x}|\psi\rangle=0.5|\downarrow\rangle+(\sqrt{3}/2)|\uparrow\rangle$ .
+Thus $\langle\psi|\sigma_{x}|\psi\rangle=\langle\psi|(0.5|\downarrow\rangle+(\sqrt{3}/2)|\uparrow\rangle)$ . Compute:
+ $\langle\psi|=0.5\langle\uparrow|+\sqrt{3}/2)\langle\downarrow|$ .
+So expectation = $(0.5\langle\uparrow|)(0.5|\downarrow\rangle)+(\sqrt{3}/2\langle\downarrow|)(\sqrt{3}/2|\uparrow\rangle)=0.5*0+(\sqrt{3}/2)*(\sqrt{3}/2)\langle\downarrow|\uparrow\rangle$ ?? Wait need inner product: $\langle\downarrow|\uparrow\rangle=0$ . So the first term is zero because $\langle\uparrow|\downarrow\rangle=0$ . So expectation = $(\sqrt{3}/2)*(\sqrt{3}/2)*\langle\downarrow|\uparrow\rangle$ ? That’s zero.
+Thus $\langle\psi|\sigma_{x}|\psi\rangle=0$ .
+Alternatively expectation value of $\sigma_{x}$ = $\langle$ $\sigma_{x}$ $\rangle$ = 0 if the state is real phase? Actually generic expectation depends on off-diagonal elements of $\sigma_{x}$ in the state basis. Since state is (a,b) with a=0.5, b= $\sqrt{3}/2$ , real. Then expectation < $\sigma_{x}$ > = 2 Im(a* b). Since a and b are both real, Im = 0. So expectation = 0. Yes.
+Thus 5 * $\langle\sigma_{x}\rangle$ = 0.
+Hence expectation value = -5 + 0 = -5.
+But expected answer choices: A) 1.65, B) -0.7, C) 0.85, D) -1.4. None is -5. Something off? Let’s double-check the scaling: The operator is 10 $\sigma_{z}$ + 5 $\sigma_{x}$ . Could they intend expectation per unit? Something else? Let’s compute again but consider that expectation of $\sigma_{z}$ = (p_up - p_down) = -0.5. So 10 * (-0.5) = -5. Then plus 5*0 = -5. So result -5.
+But choices are much smaller magnitude. Could we have mistaken sign of $\langle\sigma_{z}\rangle$ ? Perhaps expectation = $(p\_up-p\_down)=0.25-0.75=-0.5$ . Yes.
+Thus answer -5.
+But options are far off. Maybe they want expectation value per operator components: like expectation of $\sigma_{z}=p\_up-p\_down=-0.5$ . So expectation value of 10 $\sigma_{z}$ is -5. Add 5 $\sigma_{x}$ expectation of $\sigma_{x}$ = (2 Im( a* b )) = 0. So final -5. But none matches.
+Let’s verify calculations for $\langle\psi|\sigma_{x}|\psi\rangle=2\operatorname{Re}(a^{*}b)$ ? Wait formula: $\langle\sigma_{x}\rangle=2\operatorname{Im}(a^{*}b)$ ? Actually for any state $|\psi\rangle=a|\uparrow\rangle+b|\downarrow\rangle$ (real coefficients), expectation of $\sigma_{x}$ = $2\operatorname{Im}(a^{*}b)$ ? That’s for off-diagonal in Pauli basis? Let’s recall: $\sigma_{x}=[[0,1],[1,0]]$ .
+ $\langle\psi|\sigma_{x}|\psi\rangle=|a*b+b*a|=2Re(a*b)$ . Actually let’s compute: $\langle\psi|\sigma_{x}|\psi\rangle=a*(\sigma_{x}|\psi\rangle)$ ?? Actually compute:
+ $|\psi\rangle=a|\uparrow\rangle+b|\downarrow\rangle$ .
+ $\sigma_{x}|\psi\rangle=a|\downarrow\rangle+b|\uparrow\rangle$ .
+Thus $\langle\psi|\sigma_{x}|\psi\rangle=(a^{*}\langle\uparrow|+b^{*}\langle\downarrow|)(a|\downarrow\rangle+b|\uparrow\rangle)=a^{*}a\langle\uparrow|\downarrow\rangle+a^{*}b\langle\uparrow|\uparrow\rangle+b^{*}a\langle\downarrow|\uparrow\rangle+b^{*}b\langle\downarrow|\downarrow\rangle=0+a^{*}b+0+b^{*}b$ ? Wait careful:
+ $\langle\uparrow|\uparrow\rangle=1=>a*b*1=a*b$ .
+ $\langle\downarrow|\downarrow\rangle=1=>b*b=|b|^{2}$ .
+But also cross term $a*b\langle\uparrow|\uparrow\rangle=a*b$ .
+Also $b*a\langle\downarrow|\uparrow\rangle=0$ .
+Thus expectation = $a*b+b*b$ ? Actually let’s recalc:
+ $\langle\psi|\sigma_{x}|\psi\rangle=(a*\langle\uparrow|+b*\langle\downarrow|)(\sigma_{x}|\psi\rangle)=(a*\langle\uparrow|+b*\langle\downarrow|)(a|\downarrow\rangle+b|\uparrow\rangle)=a*a\langle\uparrow|\downarrow\rangle+a*b\langle\uparrow|\uparrow\rangle+b*a\langle\downarrow|\uparrow\rangle+b*b\langle\downarrow|\downarrow\rangle$ .
+Now $\langle\uparrow|$ 
+</think>
+ANSWER: B
+
+Evaluator insertion     Generated continuation
+
+Figure 14: Complete science budget-forced example for Nemotron-3-Nano-4B on GPQA-Diamond. The initial reasoning call reached the 2,048-token cap and is presented in full here. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<|im_start|>system
+You are an expert Python programmer. You will be given a question (problem specification) and will generate a correct Python program that matches the specification and passes all tests.
+<|im_end|>
+
+User
+
+<|im_start|>user
+### Question:
+You are given an integer X not less than 2.
+Find the positive integer N such that N! = X.
+Here, N! denotes the factorial of N, and it is guaranteed that there is exactly one such N.
+Input
+The input is given from Standard Input in the following format:
+X
+Output
+Print the answer.
+Constraints
+- $2\leq X\leq 3\times 10^{18}$ 
+- There is exactly one positive integer N such that N! = X.
+- All input values are integers.
+…
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+<think>
+The user wants a Python program to solve the following problem:
+Given an integer $X$ ( $2\leq X\leq 3\times 10^{18}$ ), find a positive integer $N$ such that $N!=X$ .
+It is guaranteed that such an N exists and is unique.
+Constraints analysis:
+ $X$ can be up to $3\times 10^{18}$ .
+Let’s estimate the maximum value of N.
+ $10!=3{,}628{,}800\approx 3.6\times 10^{6}$ .
+ $20!\approx 2.4\times 10^{18}$ .
+ $21!\approx 5.1\times 10^{19}$ .
+Since $X\leq 3\times 10^{18}$ , $N$ will not exceed $20$ . Wait, checking exact values.
+ $20!=2{,}432{,}902{,}008{,}176{,}640{,}000<3\times 10^{18}$ .
+ $21!=51{,}090{,}942{,}171{,}709{,}440{,}000>3\times 10^{18}$ .
+…
+Is there any interpretation where X is not an integer? "All input values are integers." OK.
+Format: "Print the answer."
+Let’s double check the sample outputs.
+Sample 1:
+Input: 6
+Output: 3
+Matches.
+Sample 2:
+Input: 2432902008176640000
+Output: 20
+Matches.
+Corner cases:
+X = 2. Loop runs once. ‘fact‘ becomes 2. ‘n‘ becomes 2. Prints 2. Correct.
+X = 20!.
+Suppose X = 20!.
+Loop continues until ‘fact‘ becomes 20!.
+Inside loop, ‘fact‘ is initially 19!. Condition ‘ $fact<X$ ‘ holds ( $19!<20!$ ).
+Body executes: ‘fact‘ becomes 20!
+</think>
+‘‘‘python
+import sys
+def solve():
+# Read all input from standard input
+input_data = sys.stdin.read().split()
+not input_data:
+return
+# Parse the integer X
+# Using int() automatically handles large integers in Python
+x_val = int(input_data[0])
+n = 1
+fact = 1
+# We need to find N such that N! = X.
+# Given $X<=3*10^{18}$ , N will be at most 20 because $21!>3*10^{18}$ .
+# Therefore, a simple loop calculating factorials sequentially is efficient enough.
+while fact < x_val:
+n += 1
+fact *= n
+# The problem guarantees that exactly one such positive integer N exists.
+# With this logic, ’fact’ will eventually equal ’x_val’ and the loop terminates.
+print(n)
+if __name__ == ’__main__’:
+solve()
+‘‘‘
+
+Evaluator insertion     Generated continuation
+
+Figure 15: Complete code budget-forced example for Qwen3.5-4B on LiveCodeBench v6. The initial reasoning call reached the 4,096-token cap and was shortened here; full task description was also shortened. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<bos><|turn>system
+<|think|>
+You are an expert Python programmer. You will be given a question (problem specification) and will generate a correct Python program that matches the specification and passes all tests.
+<turn|>
+
+User
+
+<|turn>user
+### Question:
+You are given an integer array nums of size $n$ . For each index i where $0<=i<n$ , define a subarray nums[start … i] where start = max(0, i - nums[i]).
+Return the total sum of all elements from the subarray defined for each index in the array.
+Example 1:
+Input: nums = [2,3,1]
+Output: 11
+Explanation:
+…
+<turn|>
+
+Assistant
+
+<|turn>model
+<|channel>thought
+Thinking Process:
+1. **Understand the Goal:** The task is to calculate the sum of elements for a specific subarray defined for every index i in the input array ‘nums‘.
+For each index $i$ , the subarray is nums[start ... i], where $\mathrm{start}=\max(0,i-\texttt{nums}[i])$ . We need the total of these subarray sums.
+2. **Analyze the definition:**
+Let $n$ be the length of nums. We iterate $i$ from $0$ to $n-1$ .
+For a given i:
+a. Calculate $\mathrm{start}_{i}=\max(0,i-\texttt{nums}[i])$ .
+b. The subarray is $\texttt{nums}[\mathrm{start}_{i}],\ldots,\texttt{nums}[i]$ .
+c. Calculate $S_{i}=\sum_{j=\mathrm{start}_{i}}^{i}\texttt{nums}[j]$ .
+d. The final result is $\sum_{i=0}^{n-1}S_{i}$ .
+3. **Example 1 Walkthrough: ‘nums = [2, 3, 1]‘ (n=3)**
+* **i = 0:**
+nums[0] = 2.
+ $\mathrm{start}_{0}=\max(0,0-2)=\max(0,-2)=0$ .
+Subarray: nums[0..0] = $[2]$ ; $S_{0}=2$ .
+* **i = 1:**
+nums[1] = 3.
+ $\mathrm{start}_{1}=\max(0,1-3)=\max(0,-2)=0$ .
+Subarray: nums[0..1] = $[2,3]$ ; $S_{1}=5$ .
+* **i = 2:**
+nums[2] = 1.
+ $\mathrm{start}_{2}=\max(0,2-1)=\max(0,1)=1$ .
+Subarray: nums[1..2] = $[3,1]$ ; $S_{2}=4$ .
+* Total sum: $S_{0}+S_{1}+S_{2}=2+5+4=11$ . (Matches example output.)
+…
+5. **Implementation Strategy (Direct Simulation):**
+A straightforward approach is to iterate through i. For each i, calculate start, and then calculate the sum from start to i.
+* N is up to 100. An $O(N^{2})$ solution is perfectly acceptable.
+* Outer loop for i: 0 to N-1.
+* Inner calculation (finding start and summing): O(i - start + 1), which is O(
+<channel|>
+‘‘‘python
+from typing import List
+class Solution:
+def subarraySum(self, nums: List[int]) -> int:
+n = len(nums)
+total_sum = 0
+# Iterate through all ending indices i
+for i in range(n):
+# 1. Determine the starting index: start = max(0, i - nums[i])
+start = max(0, i - nums[i])
+# 2. Calculate the sum of the subarray nums[start … i]
+current_subarray_sum = 0
+for j in range(start, i + 1):
+current_subarray_sum += nums[j]
+# 3. Add this sum to the total
+total_sum += current_subarray_sum
+return total_sum
+‘‘‘
+
+Evaluator insertion     Generated continuation
+
+Figure 16: Complete code budget-forced example for Gemma4-E2B on LiveCodeBench v6. The initial reasoning call reached the 1,024-token cap and was shortened here; full task description was also shortened. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+System
+
+<|im_start|>system
+You are an expert Python programmer. You will be given a question (problem specification) and will generate a correct Python program that matches the specification and passes all tests.
+<|im_end|>
+
+User
+
+<|im_start|>user
+### Question:
+You are given an integer X not less than 2.
+Find the positive integer N such that N! = X.
+Here, N! denotes the factorial of N, and it is guaranteed that there is exactly one such N.
+Input
+The input is given from Standard Input in the following format:
+X
+Output
+Print the answer.
+Constraints
+- $2\leq X\leq 3\times 10^{18}$ 
+- There is exactly one positive integer N such that N!=X.
+- All input values are integers.
+…
+<|im_end|>
+
+Assistant
+
+<|im_start|>assistant
+<think>
+Okay, let’s see. The problem is: given an integer X (at least 2), find the positive integer N such that N! equals X. And it’s guaranteed there’s exactly one such N.
+First, I need to think about how factorials grow. N! for N starting at 1 is 1, 2, 6, 24, 120, etc. Since X is at least 2, N is at least 2. But the input X can be as large as 3e18. So, what’s the maximum possible N here?
+Let me calculate some factorials to estimate. Let’s see:
+1! = 1
+2! = 2
+3! = 6
+4! = 24
+5! = 120
+6! = 720
+7! = 5040
+8! = 40320
+9! = 362880
+…
+But note: X can be as large as 3e18, but the factorial for n=20 is 2.43e18, which is within the range of Python integers (Python integers can be arbitrarily large, but for n up to 20, the factorial is manageable).
+So the code:
+Read X.
+n = 1
+fact = 1
+while $fact<X$ :
+n += 1
+fact *= n
+print(n)
+Yes.
+Wait, but what if X is 1? But constraints say $X>=2$ , so no problem.
+Another edge case: X=2 (n=2). The loop runs once: n becomes 2, fact=2, then
+</think>
+‘‘‘python
+def main():
+X = int(input().strip())
+n = 1
+fact = 1
+while $fact<X$ :
+n += 1
+fact *= n
+print(n)
+if __name__ == ’__main__’:
+main()
+‘‘‘
+
+Evaluator insertion     Generated continuation
+
+Figure 17: Complete code budget-forced example for Nemotron-3-Nano-4B on LiveCodeBench v6. The initial reasoning call reached the 2,048-token cap and was shortened here; full task description was also shortened. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+C.2 Extending Reasoning with Wait
+
+We take the 4k-trained Qwen3.5-4B checkpoint’s initial generation, discard its final answer, remove the end-of-thinking delimiter, append Wait, and ask it to continue the same reasoning trace.
+We repeat the insertion up to four times under a maximum 64k response length and evaluate on AIME24&25, GPQA-Diamond, and LiveCodeBench v6.
+For comparison, we report ordinary base and trained-checkpoint decoding together with answer forcing on the base model.
+
+Figure 18: Termination diagnostics and cumulative generation length for ordinary base-model decoding, base-model answer forcing, the 4k-trained checkpoint, and forcing the trained checkpoint upward with Wait.
+For answer forcing, truncation includes continuations shortened at the stated answer window and saved final calls that exhaust their limit; length counts both stages.
+Answer forcing receives an additional answer window at each nominal reasoning setting; Table 7 gives the comparison at matched total caps.
+
+Table 7: Qwen3.5-4B base decoding and answer forcing at matched total generated-token budgets.
+Columns identify the nominal answer-forcing reasoning setting; the exact total cap is shown for each task.
+Accuracy entries list ordinary base decoding / base answer forcing in percent; separate rows report mean generated tokens in thousands.
+Answer-forcing lengths include both the reasoning prefix and the answer continuation.
+A dash marks the unavailable AIME base comparison at a total budget of $65{,}656$ tokens: the saved base run was capped at $65{,}536$ and still contained unfinished responses.
+LCB base means are ranges bounding two API-error attempts with missing usage between zero and the total token budget each.
+
+Task	
+Quantity	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+AIME	
+Total budget (tokens)	
+4,216	
+8,312	
+16,504	
+32,888	
+65,656	
+
+Accuracy (%)	
+0.56 / 9.44	
+5.56 / 21.67	
+34.44 / 45.56	
+65.00 / 69.44	
+– / 79.44	
+
+Mean base tokens (k)	
+4.22	
+8.18	
+14.70	
+22.86	
+–	
+
+Mean BF tokens (k)	
+4.18	
+8.09	
+14.27	
+21.76	
+25.87	
+
+GPQA-Diamond	
+Total budget (tokens)	
+4,112	
+8,208	
+16,400	
+32,784	
+65,552	
+
+Accuracy (%)	
+4.04 / 60.27	
+31.31 / 66.84	
+69.53 / 75.76	
+78.11 / 77.27	
+78.28 / 79.46	
+
+Mean base tokens (k)	
+4.08	
+7.46	
+10.49	
+11.15	
+11.15	
+
+Mean BF tokens (k)	
+4.07	
+7.23	
+9.70	
+10.01	
+10.12	
+
+LCB-v6	
+Total budget (tokens)	
+5,120	
+9,216	
+17,408	
+33,792	
+66,560	
+
+Accuracy (%)	
+5.33 / 19.81	
+19.62 / 29.52	
+28.76 / 36.38	
+42.67 / 48.38	
+44.38 / 54.29	
+
+Mean base tokens (k)	
+5.04–5.06	
+8.52–8.56	
+14.56–14.63	
+24.11–24.24	
+39.23–39.48	
+
+Mean BF tokens (k)	
+4.76	
+8.34	
+14.23	
+22.69	
+33.29	
+
+At the lowest AIME setting, answer forcing uses $4.18$ k tokens on average after shortening the answer continuation, including the $4{,}096$ -token reasoning stage when it is exhausted.
+Its accuracy is $9.4\%$ , compared with $0.6\%$ for ordinary decoding under the same $4{,}216$ -token total cap.
+The comparison matches the maximum generated-token allowance; realized generation lengths are reported separately.
+Ordinary-decoding accuracy at each total budget is calculated from the saved base-model response lengths with the same post-hoc cutoff rule used for the budget curves: a response receives credit only if it is correct and completes within that budget.
+Mean generation length clips each saved completion at the same total budget.
+Answer-forcing accuracy uses the rescored shortened response; its token count sums the logged reasoning usage and the answer usage clipped at the stated answer window.
+
+At 64k, upward forcing increases mean generation length by $2.58$ k tokens on AIME, $2.74$ k on GPQA-Diamond, and $2.65$ k on LiveCodeBench v6, but accuracy saturates by 16k on AIME and GPQA-Diamond and by 32k on LiveCodeBench v6.
+The intervention therefore makes the checkpoint spend more tokens without restoring test-time scaling.
+
+System
+
+<|im_start|>system
+<|im_end|>
+
+User
+
+<|im_start|>user
+Solve the following math problem step by step.
+The last line of your response should be of the form "ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to the problem.
+There exist real numbers $x$ and $y$ , both greater than 1, such that $\log_{x}\left(y^{x}\right)=\log_{y}\left(x^{4y}\right)=10$ . Find $xy$ .
+Remember to put your answer on its own line at the end in the form "ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to the problem, and you do not need to use a \{}boxed command.
+
+Assistant
+
+<|im_start|>assistant
+<think>
+Here’s a thinking process that leads to the solution:
+1. **Understand the Problem:**
+We are given two equations involving logarithms with bases $x$ and $y$ , where $x>1$ and $y>1$ :
+ $\log_{x}(y^{x})=10$ 
+ $\log_{y}(x^{4y})=10$ 
+We need to find the product $xy$ .
+2. **Simplify Each Logarithmic Equation:**
+Recall the logarithmic property: $\log_{b}(a^{c})=c\log_{b}(a)$ .
+- First equation:
+ $\log_{x}(y^{x})=x\log_{x}(y)=10$ 
+So, $\log_{x}(y)=\frac{10}{x}$ … (1)
+- Second equation:
+ $\log_{y}(x^{4y})=4y\log_{y}(x)=10$ 
+So, $\log_{y}(x)=\frac{10}{4y}=\frac{5}{2y}$ … (2)
+…
+6. **Finalize the Answer:**
+The value of $xy$ is 25.
+Wait, I need to double-check my multiplication in step 4.
+Expression: $\frac{10}{x}\cdot\frac{5}{2y}$ 
+Numerator: $10\cdot 5=50$ 
+Denominator: $x\cdot 2y=2xy$ 
+Equation: $\frac{50}{2xy}=1$ 
+Simplify: $\frac{25}{xy}=1$ 
+Result: $xy=25$ .
+
+Everything looks correct.
+Wait, check again. Actually I already did this twice and it’s correct.
+
+Wait, one more verification:
+First eq: $x\log_{x}y=10\implies\frac{\ln y}{\ln x}\cdot x=10$ 
+Second eq: $4y\log_{y}x=10\implies 4y\cdot\frac{\ln x}{\ln y}=10$ 
+Multiply both sides together:
+ $(x\cdot 4y)\cdot\left(\frac{\ln y}{\ln x}\cdot\frac{\ln x}{\ln y}\right)=10\cdot 10$ 
+ $4xy\cdot 1=100$ 
+ $4xy=100$ 
+ $xy=25$ .
+
+Yes, this confirms the previous result. Final answer is 25.
+Wait, the first method gave 25 directly. The second method also gives 25. Okay, confident now.
+</think>
+
+We are given the following equations with $x>1$ and $y>1$ :
+
+ $\log_{x}(y^{x})=10$ 
+
+ $\log_{y}(x^{4y})=10$ 
+
+**Step 1: Simplify the first equation.**
+Using the power rule for logarithms, $\log_{b}(a^{c})=c\log_{b}(a)$ , we can rewrite the first equation as:
+
+ $x\log_{x}(y)=10$ 
+
+Dividing both sides by $x$ , we get:
+
+ $\log_{x}(y)=\frac{10}{x}\hskip 8.19447pt\text{(1)}$ 
+
+**Step 2: Simplify the second equation.**
+Similarly, applying the power rule to the second equation:
+
+ $4y\log_{y}(x)=10$ 
+
+Dividing both sides by $4y$ , we get:
+
+ $\log_{y}(x)=\frac{10}{4y}=\frac{5}{2y}\hskip 8.19447pt\text{(2)}$ 
+
+**Step 3: Use the reciprocal property of logarithms.**
+We know that for any positive real numbers $a$ and $b$ (where $a\neq 1$ and $b\neq 1$ ):
+
+ $\log_{a}(b)\cdot\log_{b}(a)=1$ 
+
+Substituting the expressions from (1) and (2) into this identity:
+
+ $\left(\frac{10}{x}\right)\cdot\left(\frac{5}{2y}\right)=1$ 
+
+**Step 4: Solve for $xy$ .**
+Multiply the numerators and the denominators:
+
+ $\frac{50}{2xy}=1$ 
+
+Simplify the fraction:
+
+ $\frac{25}{xy}=1$ 
+
+Multiply both sides by $xy$ :
+
+ $xy=25$ 
+
+ANSWER: 25
+
+Evaluator insertion     Generated continuation
+
+Figure 19: Complete math Wait-exended example for Qwen3.5-4B on AIME 2024. The initial reasoning call reached the 2,048-token cap and was shortened here. Pink text is injected by the evaluator; blue text is generated by the model afterward.
+
+Appendix D Exact Main-Figure Values
+
+Table 8: Exact means underlying Figure 1. Trained values average three validation-selected training seeds; base values use one evaluation. Accuracy is in percent and mean output length in thousands of tokens. Per-seed results for both checkpoint choices appear in Appendix I.
+
+Checkpoint	
+Metric	
+Evaluation budget	
+
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen3.5-4B	
+
+Base	
+Accuracy	
+0.00	
+1.11	
+7.78	
+38.89	
+65.56	
+78.33	
+
+Length	
+2.00	
+3.99	
+7.82	
+14.17	
+21.77	
+27.32	
+
+4k-trained	
+Accuracy	
+17.22	
+35.93	
+44.26	
+47.59	
+48.15	
+48.15	
+
+Length	
+1.90	
+3.15	
+4.37	
+4.93	
+4.97	
+4.97	
+
+8k-trained	
+Accuracy	
+1.30	
+24.26	
+50.19	
+53.70	
+53.70	
+53.70	
+
+Length	
+2.00	
+3.73	
+5.61	
+5.96	
+6.04	
+6.22	
+
+Checkpoint	
+Metric	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+
+Gemma4-E2B	
+
+Base	
+Accuracy	
+0.00	
+0.00	
+1.11	
+16.11	
+37.22	
+41.11	
+
+Length	
+0.51	
+1.00	
+2.00	
+3.84	
+6.27	
+6.85	
+
+1k-trained	
+Accuracy	
+2.41	
+10.93	
+15.74	
+16.30	
+16.30	
+16.30	
+
+Length	
+0.50	
+0.85	
+1.04	
+1.05	
+1.05	
+1.05	
+
+2k-trained	
+Accuracy	
+0.00	
+3.33	
+15.93	
+20.37	
+20.56	
+20.56	
+
+Length	
+0.51	
+0.99	
+1.64	
+1.89	
+1.90	
+1.90	
+
+Checkpoint	
+Metric	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+
+Nemotron-3-Nano-4B	
+
+Base	
+Accuracy	
+0.56	
+3.33	
+23.33	
+40.00	
+52.22	
+59.44	
+
+Length	
+0.51	
+0.99	
+1.84	
+3.09	
+4.69	
+6.11	
+
+1k-trained	
+Accuracy	
+8.15	
+26.67	
+33.33	
+34.07	
+34.07	
+34.07	
+
+Length	
+0.49	
+0.81	
+0.99	
+1.01	
+1.01	
+1.01	
+
+2k-trained	
+Accuracy	
+2.22	
+15.93	
+35.93	
+45.00	
+46.30	
+46.30	
+
+Length	
+0.51	
+0.95	
+1.53	
+1.87	
+1.94	
+1.97	
+
+Table 9: Exact AIME accuracy values underlying Figure 2, reported in percent.
+
+Model	
+Checkpoint	
+Evaluation budget	
+
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen3.5-4B	
+Base	
+0.00	
+0.00	
+5.00	
+33.33	
+64.44	
+75.56	
+
+RG 4k-trained	
+11.11	
+31.11	
+43.89	
+50.56	
+50.56	
+50.56	
+
+Model	
+Checkpoint	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+
+Gemma4-E2B	
+Base	
+0.00	
+0.00	
+1.11	
+14.44	
+34.44	
+39.44	
+
+RG 2k-trained	
+0.00	
+3.89	
+22.78	
+24.44	
+24.44	
+24.44	
+
+Nemotron-3-Nano-4B	
+Base	
+0.00	
+5.00	
+23.33	
+40.56	
+55.00	
+60.00	
+
+RG 2k-trained	
+0.00	
+5.00	
+23.89	
+42.78	
+49.44	
+49.44	
+
+Table 10: Exact accuracy values underlying Figure 3, reported in percent.
+
+Task	
+Checkpoint	
+Evaluation budget	
+
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen3.5-4B	
+
+GPQA	
+Base	
+0.00	
+3.70	
+30.30	
+69.02	
+78.11	
+78.28	
+
+4k-trained	
+32.66	
+67.17	
+69.19	
+69.19	
+69.19	
+69.19	
+
+8k-trained	
+4.88	
+41.92	
+73.06	
+76.09	
+76.09	
+76.09	
+
+LCB-v6	
+Base	
+0.00	
+2.67	
+17.52	
+27.81	
+41.90	
+44.38	
+
+4k-trained	
+26.86	
+31.05	
+35.05	
+35.43	
+35.43	
+35.43	
+
+8k-trained	
+14.10	
+23.43	
+36.19	
+43.05	
+43.43	
+43.43	
+
+Task	
+Checkpoint	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+
+Gemma4-E2B	
+
+GPQA	
+Base	
+0.00	
+8.25	
+30.30	
+40.57	
+40.57	
+40.57	
+
+1k-trained	
+11.45	
+31.82	
+39.39	
+39.56	
+39.56	
+39.56	
+
+2k-trained	
+6.06	
+27.95	
+38.72	
+39.23	
+39.23	
+39.23	
+
+LCB-v6	
+Base	
+9.52	
+12.95	
+21.33	
+33.52	
+41.52	
+41.90	
+
+1k-trained	
+13.14	
+22.67	
+31.62	
+33.71	
+33.71	
+33.71	
+
+2k-trained	
+12.57	
+24.00	
+33.14	
+36.76	
+36.76	
+36.76	
+
+Task	
+Checkpoint	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Nemotron-3-Nano-4B	
+
+GPQA	
+Base	
+0.67	
+3.20	
+13.97	
+27.61	
+37.04	
+43.60	
+50.00	
+51.52	
+
+1k-trained	
+4.04	
+16.84	
+31.31	
+42.42	
+50.67	
+51.85	
+52.53	
+52.53	
+
+2k-trained	
+1.85	
+5.89	
+20.20	
+35.19	
+45.79	
+52.69	
+55.39	
+55.56	
+
+LCB-v6	
+Base	
+7.05	
+13.71	
+18.86	
+24.76	
+34.48	
+42.29	
+50.10	
+51.81	
+
+1k-trained	
+16.38	
+21.33	
+25.90	
+27.43	
+32.57	
+37.33	
+42.67	
+42.86	
+
+2k-trained	
+8.38	
+17.14	
+23.24	
+27.43	
+32.95	
+39.24	
+47.05	
+47.62	
+
+Table 11: Exact GPQA-Diamond and LiveCodeBench v6 accuracy values for the Reasoning Gym checkpoints in Figure 3, reported in percent.
+
+Model	
+Task	
+Evaluation budget	
+
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen3.5-4B, RG 4k	
+GPQA	
+26.77	
+59.09	
+71.21	
+71.55	
+71.55	
+71.55	
+
+LCB-v6	
+23.62	
+29.71	
+33.52	
+39.43	
+40.57	
+40.57	
+
+Model	
+Task	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+
+Gemma4-E2B, RG 2k	
+GPQA	
+2.02	
+21.21	
+35.86	
+36.20	
+36.20	
+36.20	
+
+LCB-v6	
+16.76	
+23.62	
+33.14	
+37.33	
+37.33	
+37.33	
+
+Model	
+Task	
+Evaluation budget	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Nemotron-3-Nano-4B, RG 2k	
+GPQA	
+0.67	
+4.38	
+17.85	
+34.51	
+43.43	
+51.01	
+52.02	
+52.19	
+
+LCB-v6	
+10.29	
+16.76	
+21.14	
+26.10	
+31.43	
+38.29	
+45.52	
+47.05	
+
+Appendix E Truncation-Rate Curves
+
+Figure 20 reports the fraction of responses that reach the evaluation cap without completing across all model families, tasks, and fixed-budget checkpoints.
+Table 12 reports the exact values.
+
+Figure 20: Truncation rates across evaluation budgets on AIME, GPQA-Diamond, and LiveCodeBench v6.
+Fixed-budget training substantially reduces truncation, particularly near and above the training budget.
+
+Table 12: Exact truncation rates (%) underlying Figure 20.
+
+Qwen3.5-4B
+
+Checkpoint	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+AIME	
+
+Base	
+100.00	
+100.00	
+95.00	
+66.67	
+33.33	
+6.67	
+
+4k-trained	
+85.56	
+22.22	
+1.11	
+1.11	
+1.11	
+1.11	
+
+8k-trained	
+98.33	
+75.56	
+33.33	
+0.00	
+0.00	
+0.00	
+
+GPQA-Diamond	
+
+Base	
+100.00	
+95.79	
+67.00	
+16.67	
+0.51	
+0.00	
+
+4k-trained	
+60.77	
+5.22	
+0.00	
+0.00	
+0.00	
+0.00	
+
+8k-trained	
+94.28	
+54.38	
+6.23	
+0.00	
+0.00	
+0.00	
+
+LiveCodeBench v6	
+
+Base	
+99.81	
+97.14	
+81.52	
+70.86	
+51.81	
+45.14	
+
+4k-trained	
+61.71	
+44.00	
+22.48	
+3.62	
+1.71	
+1.33	
+
+8k-trained	
+79.43	
+65.33	
+43.62	
+14.86	
+0.19	
+0.00	
+
+Gemma4-E2B
+
+Checkpoint	
+1k	
+2k	
+4k	
+8k	
+16k	
+64k	
+
+AIME	
+
+Base	
+100.00	
+98.89	
+84.44	
+32.78	
+0.56	
+0.00	
+
+1k-trained	
+62.78	
+11.67	
+0.56	
+0.00	
+0.00	
+0.00	
+
+2k-trained	
+72.78	
+14.44	
+0.00	
+0.00	
+0.00	
+0.00	
+
+GPQA-Diamond	
+
+Base	
+79.97	
+28.28	
+0.17	
+0.00	
+0.00	
+0.00	
+
+1k-trained	
+18.69	
+0.34	
+0.00	
+0.00	
+0.00	
+0.00	
+
+2k-trained	
+30.47	
+0.84	
+0.00	
+0.00	
+0.00	
+0.00	
+
+LiveCodeBench v6	
+
+Base	
+86.67	
+76.57	
+50.48	
+3.43	
+0.00	
+0.00	
+
+1k-trained	
+67.62	
+33.14	
+2.67	
+0.00	
+0.00	
+0.00	
+
+2k-trained	
+70.48	
+35.62	
+1.33	
+0.00	
+0.00	
+0.00	
+
+Nemotron-3-Nano-4B
+
+Checkpoint	
+1k	
+2k	
+4k	
+8k	
+16k	
+64k	
+
+AIME	
+
+Base	
+95.00	
+74.44	
+49.44	
+21.67	
+9.44	
+0.00	
+
+1k-trained	
+43.89	
+6.11	
+0.56	
+0.56	
+0.56	
+0.56	
+
+2k-trained	
+81.11	
+36.67	
+5.56	
+0.00	
+0.00	
+0.00	
+
+GPQA-Diamond	
+
+Base	
+93.77	
+79.97	
+58.92	
+43.60	
+25.25	
+0.84	
+
+1k-trained	
+75.42	
+52.36	
+27.61	
+6.73	
+1.52	
+0.17	
+
+2k-trained	
+91.41	
+72.05	
+48.99	
+28.11	
+8.59	
+0.00	
+
+LiveCodeBench v6	
+
+Base	
+84.95	
+76.95	
+67.24	
+52.00	
+35.62	
+0.57	
+
+1k-trained	
+66.86	
+48.57	
+44.19	
+37.90	
+29.14	
+0.38	
+
+2k-trained	
+80.57	
+67.05	
+51.43	
+43.43	
+34.29	
+0.38	
+
+Appendix F Transfer Output Lengths
+
+Figure 21: Mean output-length response curves on GPQA-Diamond and LiveCodeBench v6 after fixed-budget mathematical-reasoning training.
+
+Appendix G Pass@3 Response Curves
+
+Figures 22–24 report pass@3 across evaluation budgets for each model family.
+The metric counts a problem as solved when at least one of three sampled responses is correct.
+It preserves the main-text pattern: fixed-budget training gives large gains at small budgets, while above-budget gains are more limited and depend on the task.
+
+Figure 22: Pass@3 response curves for Qwen3.5-4B on AIME, GPQA-Diamond, and LiveCodeBench v6.
+
+Figure 23: Pass@3 response curves for Gemma4-E2B on AIME, GPQA-Diamond, and LiveCodeBench v6.
+
+Figure 24: Pass@3 response curves for Nemotron-3-Nano-4B on AIME, GPQA-Diamond, and LiveCodeBench v6.
+
+Appendix H Budget Forcing Across Model Families
+
+Figures 25 and 26 include the additional answer allowance in the horizontal axis; Tables 13 and 14 report accuracy and mean generation at matched total generated-token budgets.
+The benefit is task- and model-dependent: at the 4k reasoning setting on GPQA, Gemma loses accuracy (4K: $-3.0$ pp) while mean generation rises from $1.64$ k to $2.88$ k tokens, whereas Nemotron improves (4K: $+21.9$ pp) with similar mean usage ( $3.28$ k versus $3.24$ k).
+Each setting uses 180 AIME, 594 GPQA, and 525 LiveCodeBench attempts per method; AIME base results use the first three attempts per problem from the pass@128 runs.
+
+Figure 25: Gemma4-E2B accuracy versus total generated-token allowance, including the additional answer window for answer forcing.
+Each panel compares ordinary base decoding, base answer forcing, and the 2k-trained checkpoint; ordinary curves include the matched total caps reported in Table 13.
+
+Table 13: Gemma4-E2B ordinary base decoding and base answer forcing at matched total generated-token budgets.
+Columns give the nominal reasoning setting; accuracy entries list base / answer forcing (%), and mean lengths count all generated output in thousands of tokens.
+The answer allowance is 120 tokens for AIME, 16 for GPQA, and 1,024 for LiveCodeBench; saved answer continuations are shortened and rescored as described in Appendix C.1.
+
+Task	
+Quantity	
+1k	
+2k	
+4k	
+8k	
+
+AIME	
+Total budget (tokens)	
+1,144	
+2,168	
+4,216	
+8,312	
+
+Accuracy (%)	
+0.00 / 3.33	
+2.78 / 17.78	
+17.22 / 30.56	
+35.00 / 37.22	
+
+Mean base tokens (k)	
+1.14	
+2.16	
+4.03	
+6.29	
+
+Mean BF tokens (k)	
+1.04	
+2.06	
+3.95	
+6.19	
+
+GPQA-Diamond	
+Total budget (tokens)	
+1,040	
+2,064	
+4,112	
+8,208	
+
+Accuracy (%)	
+9.09 / 22.56	
+30.98 / 28.28	
+40.57 / 37.54	
+40.57 / 42.93	
+
+Mean base tokens (k)	
+0.98	
+1.49	
+1.64	
+1.64	
+
+Mean BF tokens (k)	
+1.02	
+1.89	
+2.88	
+3.14	
+
+LCB-v6	
+Total budget (tokens)	
+2,048	
+3,072	
+5,120	
+9,216	
+
+Accuracy (%)	
+21.52 / 30.29	
+27.81 / 35.05	
+38.48 / 38.29	
+41.90 / 42.10	
+
+Mean base tokens (k)	
+1.79	
+2.50	
+3.48	
+3.88	
+
+Mean BF tokens (k)	
+1.77	
+2.63	
+4.03	
+5.66	
+
+Figure 26: Nemotron-3-Nano-4B accuracy versus total generated-token allowance, including the additional answer window for answer forcing.
+Each panel compares ordinary base decoding, base answer forcing, and the 2k-trained checkpoint; ordinary curves include the matched total caps reported in Table 14.
+
+Table 14: Nemotron-3-Nano-4B ordinary base decoding and base answer forcing at matched total generated-token budgets, using the same accounting and accuracy convention as Table 13.
+
+Task	
+Quantity	
+2k	
+4k	
+8k	
+16k	
+
+AIME	
+Total budget (tokens)	
+2,168	
+4,216	
+8,312	
+16,504	
+
+Accuracy (%)	
+26.11 / 30.56	
+42.22 / 39.44	
+55.00 / 55.00	
+60.00 / 62.22	
+
+Mean base tokens (k)	
+1.95	
+3.16	
+4.50	
+5.52	
+
+Mean BF tokens (k)	
+1.94	
+3.22	
+4.52	
+5.83	
+
+GPQA-Diamond	
+Total budget (tokens)	
+2,064	
+4,112	
+8,208	
+16,400	
+
+Accuracy (%)	
+14.48 / 43.10	
+27.95 / 49.83	
+37.71 / 49.16	
+44.11 / 51.85	
+
+Mean base tokens (k)	
+1.90	
+3.28	
+5.31	
+7.99	
+
+Mean BF tokens (k)	
+1.88	
+3.24	
+5.26	
+7.91	
+
+LCB-v6	
+Total budget (tokens)	
+3,072	
+5,120	
+9,216	
+17,408	
+
+Accuracy (%)	
+22.29 / 33.33	
+28.57 / 40.95	
+36.38 / 42.48	
+44.00 / 47.62	
+
+Mean base tokens (k)	
+2.53	
+3.89	
+6.12	
+9.45	
+
+Mean BF tokens (k)	
+2.04	
+3.48	
+5.91	
+9.25	
+
+Appendix I Multi-Seed Replications and Checkpoint Selection
+
+We repeat all six main DeepScaleR GRPO conditions with training seeds 42, 43, and 44 (18 runs, 300 steps each). For each seed, we evaluate the checkpoint selected by validation accuracy at its training budget and the fixed final checkpoint at step 300. Each evaluation averages three sampled responses on each of the 60 AIME 2024/2025 problems. Budget curves replay one 65,536-token collection per checkpoint, assigning zero accuracy to unfinished responses. Both checkpoint choices reproduce the low-budget gain and high-budget deficit relative to the base model in all 18 runs. These replications cover DeepScaleR training and AIME evaluation.
+
+Table 15: Validation-selected checkpoints for every training seed. Accuracy is AIME avg@3 in percent; mean response length is in thousands of tokens at each evaluation budget. Lengths are capped at the stated budget and averaged over all 180 responses. Step is the optimizer checkpoint step.
+
+Condition	
+Seed	
+Step	
+Accuracy (%)	
+Mean response length (k tokens)	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen 4k	
+42	
+290	
+0.00	
+0.00	
+11.67	
+33.89	
+42.78	
+46.11	
+46.67	
+46.67	
+0.51	
+1.00	
+1.95	
+3.27	
+4.58	
+5.18	
+5.25	
+5.25	
+
+43	
+290	
+0.00	
+0.00	
+18.89	
+36.11	
+43.33	
+45.56	
+46.11	
+46.11	
+0.51	
+1.00	
+1.90	
+3.13	
+4.20	
+4.68	
+4.71	
+4.71	
+
+44	
+300	
+0.00	
+3.89	
+21.11	
+37.78	
+46.67	
+51.11	
+51.67	
+51.67	
+0.51	
+0.99	
+1.86	
+3.06	
+4.34	
+4.93	
+4.95	
+4.95	
+
+Qwen 8k	
+42	
+290	
+0.00	
+0.00	
+2.22	
+27.78	
+48.89	
+50.56	
+50.56	
+50.56	
+0.51	
+1.00	
+1.99	
+3.61	
+4.95	
+5.10	
+5.28	
+5.64	
+
+43	
+160	
+0.00	
+0.00	
+0.56	
+19.44	
+47.78	
+55.00	
+55.00	
+55.00	
+0.51	
+1.00	
+2.00	
+3.84	
+6.29	
+6.95	
+6.95	
+6.95	
+
+44	
+290	
+0.00	
+0.00	
+1.11	
+25.56	
+53.89	
+55.56	
+55.56	
+55.56	
+0.51	
+1.00	
+2.00	
+3.75	
+5.60	
+5.81	
+5.90	
+6.08	
+
+Gemma 1k	
+42	
+250	
+2.78	
+8.33	
+12.78	
+13.33	
+13.33	
+13.33	
+13.33	
+13.33	
+0.50	
+0.81	
+0.98	
+0.99	
+0.99	
+0.99	
+0.99	
+0.99	
+
+43	
+300	
+3.89	
+13.33	
+17.22	
+17.78	
+17.78	
+17.78	
+17.78	
+17.78	
+0.51	
+0.87	
+1.05	
+1.06	
+1.06	
+1.06	
+1.06	
+1.06	
+
+44	
+280	
+0.56	
+11.11	
+17.22	
+17.78	
+17.78	
+17.78	
+17.78	
+17.78	
+0.51	
+0.89	
+1.09	
+1.11	
+1.11	
+1.11	
+1.11	
+1.11	
+
+Gemma 2k	
+42	
+300	
+0.00	
+3.33	
+17.22	
+20.00	
+20.00	
+20.00	
+20.00	
+20.00	
+0.51	
+0.99	
+1.51	
+1.57	
+1.57	
+1.57	
+1.57	
+1.57	
+
+43	
+170	
+0.00	
+1.67	
+11.67	
+20.56	
+21.11	
+21.11	
+21.11	
+21.11	
+0.51	
+1.00	
+1.84	
+2.45	
+2.48	
+2.48	
+2.48	
+2.48	
+
+44	
+230	
+0.00	
+5.00	
+18.89	
+20.56	
+20.56	
+20.56	
+20.56	
+20.56	
+0.51	
+0.99	
+1.56	
+1.66	
+1.66	
+1.66	
+1.66	
+1.66	
+
+Nemotron 1k	
+42	
+290	
+8.89	
+24.44	
+32.22	
+33.33	
+33.33	
+33.33	
+33.33	
+33.33	
+0.49	
+0.81	
+0.99	
+1.00	
+1.00	
+1.00	
+1.00	
+1.00	
+
+43	
+290	
+7.78	
+29.44	
+34.44	
+35.00	
+35.00	
+35.00	
+35.00	
+35.00	
+0.49	
+0.79	
+0.93	
+0.93	
+0.93	
+0.93	
+0.93	
+0.93	
+
+44	
+240	
+7.78	
+26.11	
+33.33	
+33.89	
+33.89	
+33.89	
+33.89	
+33.89	
+0.49	
+0.83	
+1.05	
+1.08	
+1.08	
+1.08	
+1.08	
+1.08	
+
+Nemotron 2k	
+42	
+240	
+2.78	
+17.78	
+36.67	
+46.11	
+48.89	
+48.89	
+48.89	
+48.89	
+0.51	
+0.95	
+1.58	
+2.04	
+2.16	
+2.16	
+2.16	
+2.16	
+
+43	
+290	
+2.78	
+17.22	
+36.11	
+45.56	
+46.67	
+46.67	
+46.67	
+46.67	
+0.51	
+0.94	
+1.46	
+1.68	
+1.71	
+1.75	
+1.84	
+2.02	
+
+44	
+280	
+1.11	
+12.78	
+35.00	
+43.33	
+43.33	
+43.33	
+43.33	
+43.33	
+0.51	
+0.96	
+1.54	
+1.89	
+1.94	
+1.99	
+2.08	
+2.26	
+
+Table 16: Final step-300 checkpoints for every training seed. Accuracy and mean response length at each evaluation budget use the same definitions and units as Table 15.
+
+Condition	
+Seed	
+Step	
+Accuracy (%)	
+Mean response length (k tokens)	
+
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+512	
+1k	
+2k	
+4k	
+8k	
+16k	
+32k	
+64k	
+
+Qwen 4k	
+42	
+300	
+0.00	
+0.00	
+16.67	
+34.44	
+43.89	
+47.78	
+47.78	
+47.78	
+0.51	
+1.00	
+1.93	
+3.25	
+4.67	
+5.34	
+5.44	
+5.44	
+
+43	
+300	
+0.00	
+0.56	
+22.78	
+41.67	
+47.78	
+50.00	
+50.56	
+50.56	
+0.51	
+1.00	
+1.91	
+3.08	
+4.26	
+4.72	
+4.76	
+4.76	
+
+44	
+300	
+0.00	
+3.89	
+21.11	
+37.78	
+46.67	
+51.11	
+51.67	
+51.67	
+0.51	
+0.99	
+1.86	
+3.06	
+4.34	
+4.93	
+4.95	
+4.95	
+
+Qwen 8k	
+42	
+300	
+0.00	
+0.00	
+2.78	
+27.78	
+55.56	
+55.56	
+55.56	
+55.56	
+0.51	
+1.00	
+1.99	
+3.61	
+4.95	
+5.02	
+5.11	
+5.28	
+
+43	
+300	
+0.00	
+0.00	
+0.00	
+18.33	
+50.00	
+53.89	
+53.89	
+53.89	
+0.51	
+1.00	
+2.00	
+3.83	
+6.11	
+6.47	
+6.47	
+6.47	
+
+44	
+300	
+0.00	
+0.00	
+3.33	
+25.00	
+51.67	
+54.44	
+54.44	
+54.44	
+0.51	
+1.00	
+1.99	
+3.72	
+5.67	
+5.83	
+5.83	
+5.83	
+
+Gemma 1k	
+42	
+300	
+2.22	
+8.89	
+11.67	
+12.22	
+12.22	
+12.22	
+12.22	
+12.22	
+0.50	
+0.83	
+1.02	
+1.04	
+1.04	
+1.04	
+1.04	
+1.04	
+
+43	
+300	
+3.89	
+13.33	
+17.22	
+17.78	
+17.78	
+17.78	
+17.78	
+17.78	
+0.51	
+0.87	
+1.05	
+1.06	
+1.06	
+1.06	
+1.06	
+1.06	
+
+44	
+300	
+2.22	
+15.56	
+24.44	
+24.44	
+24.44	
+24.44	
+24.44	
+24.44	
+0.51	
+0.89	
+1.09	
+1.11	
+1.11	
+1.11	
+1.11	
+1.11	
+
+Gemma 2k	
+42	
+300	
+0.00	
+3.33	
+17.22	
+20.00	
+20.00	
+20.00	
+20.00	
+20.00	
+0.51	
+0.99	
+1.51	
+1.57	
+1.57	
+1.57	
+1.57	
+1.57	
+
+43	
+300	
+0.00	
+2.78	
+12.78	
+17.78	
+17.78	
+17.78	
+17.78	
+17.78	
+0.51	
+0.98	
+1.67	
+1.99	
+2.00	
+2.00	
+2.00	
+2.00	
+
+44	
+300	
+0.00	
+5.56	
+18.33	
+18.89	
+18.89	
+18.89	
+18.89	
+18.89	
+0.51	
+0.99	
+1.61	
+1.75	
+1.75	
+1.75	
+1.75	
+1.75	
+
+Nemotron 1k	
+42	
+300	
+7.78	
+27.22	
+33.33	
+34.44	
+34.44	
+34.44	
+34.44	
+34.44	
+0.50	
+0.82	
+1.01	
+1.04	
+1.04	
+1.04	
+1.04	
+1.04	
+
+43	
+300	
+8.33	
+26.67	
+34.44	
+34.44	
+34.44	
+34.44	
+34.44	
+34.44	
+0.49	
+0.80	
+0.94	
+0.94	
+0.94	
+0.94	
+0.94	
+0.94	
+
+44	
+300	
+7.78	
+24.44	
+30.00	
+30.00	
+30.00	
+30.00	
+30.00	
+30.00	
+0.50	
+0.82	
+0.98	
+0.98	
+0.98	
+0.98	
+0.98	
+0.98	
+
+Nemotron 2k	
+42	
+300	
+4.44	
+16.67	
+36.11	
+46.11	
+48.33	
+48.33	
+48.33	
+48.33	
+0.51	
+0.95	
+1.58	
+2.05	
+2.15	
+2.15	
+2.15	
+2.15	
+
+43	
+300	
+2.78	
+15.00	
+37.22	
+42.22	
+42.22	
+42.22	
+42.22	
+42.22	
+0.51	
+0.94	
+1.45	
+1.68	
+1.73	
+1.82	
+2.00	
+2.35	
+
+44	
+300	
+1.11	
+11.11	
+35.56	
+44.44	
+45.00	
+45.00	
+45.00	
+45.00	
+0.51	
+0.97	
+1.53	
+1.84	
+1.86	
+1.86	
+1.86	
+1.86	
+
+For Qwen 4k seed 44, Gemma 1k seed 43, and Gemma 2k seed 42, the selected checkpoint is also the final checkpoint; the two tables therefore contain 33 distinct trained checkpoints. The accompanying data files retain per-seed accuracy, length, and truncation curves at every budget.
+

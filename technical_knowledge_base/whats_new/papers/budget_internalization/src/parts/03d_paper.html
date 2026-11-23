@@ -1,0 +1,56 @@
+
+<div class="s3sp"><div class="s3L">
+<section id="s-rft"><h2>The cause is truncated training signal, in RL or not</h2>
+[[S3|§3]]
+<p><b>Supervised fine-tuning on truncated answers reproduces the failure; on naturally short answers it does not.</b> This is the paper's sharpest control (Fig. 6, last step of Fig. 5). Both arms fine-tune Qwen3.5-4B on its own correct answers of at most 4k tokens, with the same hyperparameters and number of steps. In one arm the answers ended by themselves under 4k; in the other, answers that would have run longer were cut at 4,096 tokens, forced to answer, and kept when the forced answer was right ({{§3|ax:S3}}). The natural arm tracks the base model and ends above it at 64k (83.0% against 78.8%), with no gain at 8k (7.8% against 9.2%). The truncated arm gains a little at 4k and 8k and then flattens at 40.4%, worse than any GRPO run.</p>
+<p><b>So "the cap" acts through the training data, not through a quirk of GRPO.</b> RL on hard problems keeps rewarding only the rollouts that happened to finish under <i>B</i> and punishing those that ran long; truncation-forced traces teach the same stopping rule by imitation. Answers that end naturally reinforce concise reasoning where the model already concludes in time, without teaching it to stop at <i>B</i>, which matches GSM8K's mild result. The catch, again: the natural arm gains nothing in budget, while standard GRPO gains 41.3 points at 8k.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card bi-fig" id="biRft">
+<h4>Fig. 6 · Same length limit, different endings</h4>
+<div class="an-svg" id="biRftSvg"></div>
+<p class="bi-sum small mute" id="biRftSum"></p>
+</div></div></div></div>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S5|§5]]
+<p><b>What holds up.</b> The crossover itself is solid. It appears in all 18 seeded runs under both checkpoint choices (36 of 36 evaluations, recomputed from {{Tables 15 and 16|ax:A9}}), on three model families from three labs, with two training sets, and the seeds sit close together next to the effect (Qwen 4k-trained at 64k: 46.11% to 51.67% across seeds, against the base model's 78.33%). Every number in section 2 recomputes from the appendix tables (<span id="biRcLine">see {{the tables tab|tab:t-tables}}</span>), Table 8's means are exactly the means of the per-seed Table 15, and the mechanism is visible in two independent measurements, length and truncation. The forcing controls test the obvious alternative explanation and reject it. All checkpoints, ablations included, are public, so anyone can re-run the evaluation. Most of the limits below are the authors' own ({{§5|ax:S5}}), which counts in their favour.</p>
+<div class="box warn"><b>Does not reproduce: the introduction's headline ranges.</b> The introduction says that across the six checkpoints the gain at the training cap ranges from +11.7 to +46.7 points and the deficit at the largest budget from −17.2 to −35.0 ({{§1|ax:S1}}). The paper's own means for those six checkpoints ({{Table 8|ax:A4.T8}}, which section 2.1 quotes) give <b>+10.9 to +42.4</b> and <b>−13.1 to −30.2</b>; no per-seed or final checkpoint gives the printed ranges either (over all 36 seed evaluations: +8.3 to +47.8 and −10.6 to −32.2). The ranges probably come from an earlier set of single-seed runs; the takeaway on this page uses Table 8. A smaller slip of the same kind: Appendix B calls 64.4% the "headline" base accuracy at 32k, where Table 8 prints 65.56%.</div>
+<p><b>Where to be careful.</b></p>
+<ul>
+<li><b>The ablations are single runs, and most of their gaps are inside the noise.</b> Each Table 3 interval is about ±8 to ±11 points at 64k, over 60 problems. By the crudest screen, intervals that do not overlap, only forced-answer training and short-trace fine-tuning differ from the standard run at 64k; the standard recipe itself varies by 5.0 points at 64k across its three seeds (Qwen 8k-trained, avg@3, {{Table 15|ax:A9.T15}}). So "DAPO worsens the trade-off" (50.0% against 56.5%) and the no-change results for masking, Dr. GRPO and β = 0.001 are not distinguishable from seed noise. The large qualitative moves (forced answer, β = 0.01, GSM8K, the two fine-tuning arms) are bigger than the seed spread; a paired test on the same problems would be tighter, but the per-problem scores are not released.</li>
+<li><b>Which standard run?</b> Table 3's GRPO row (+41.3 at 8k, avg@16) is one run, not the three-seed mean of section 2 (+42.4, avg@3), and the paper does not say which seed or checkpoint it is.</li>
+<li><b>Caps well below natural length.</b> Every cap (1k to 8k) is chosen to bind hard: base Qwen is truncated on 95% of AIME answers at 8k. Whether a cap near or above the model's natural length also internalizes is not tested in v1, and the AIME sweep stops at 16k for Gemma and Nemotron, where base Nemotron is still improving.</li>
+<li><b>Small models, mostly math, one RL family.</b> Four to five billion active parameters, GRPO and its variants only, and two of the objective's levers (group retention and clipping) never varied. The authors argue the implicated choices (scoring truncation, KL, data lengths) exist in every RL algorithm; that is a hypothesis.</li>
+<li><b>Out-of-domain results are single runs with small differences.</b> The GPQA and LiveCodeBench cells come from one seed each; the paper adds pass@3 curves for stability ({{Appendix G|ax:A7}}) but no intervals.</li>
+<li><b>The "lost capability" test rests on Qwen and on deltas only.</b> Forcing the trained model upward is reported as differences in the text plus a figure, without the levels, and only for Qwen's 4k checkpoint.</li>
+<li><b>A description to check against code when it appears.</b> The released Qwen 8k model card describes GRPO with a "leave-one-out baseline", while the paper standardises rewards within the group ({{§3|ax:S3}}); with no training code public, which one ran cannot be checked.</li>
+</ul>
+<p><b>Verdict.</b> Believe the main claim: a fixed rollout cap well below a model's natural reasoning length makes GRPO trade test-time scaling for in-budget accuracy, on these small models, and evaluating only at the cap hides it. Believe that truncated training signal, not a GRPO term, is the main driver; the fine-tuning control shows it cleanly. Treat the ranking of the individual fixes, and the no-change results for normalisation, masking and weak KL, as provisional until repeated with seeds; and quote the effect sizes from the tables, not from the introduction.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+[[S6|§6]]
+<p>The paper's practical output is a reporting rule rather than a method: if you train RLVR under a rollout cap, evaluate accuracy and output length at several budgets above it before choosing a checkpoint, because a model that wins at the cap can lose at deployment budgets ({{§1|ax:S1}}, {{§6|ax:S6}}). Whether that loss matters depends on the task: on AIME it is lost capability, on GPQA and LiveCodeBench it is mostly a cheaper answer. No tested training change keeps the full gain and the scaling; the authors' suggestions (train across several caps, condition on the available compute, keep long successful responses) are untested here.</p>
+<details class="mist"><summary>Code, checkpoints, compute and when it applies</summary><div>
+<ul>
+<li><b>Checkpoints</b>: all trained checkpoints, ablations included, in the {{JetBrains-Research Hugging Face collection|https://huggingface.co/collections/JetBrains-Research/budget-internalization}}. Each inherits its base model's licence (Apache 2.0 for the Qwen and Gemma derivatives, the NVIDIA Nemotron open model licence for Nemotron, per the model cards). The cards give the training prompt and recipe.</li>
+<li><b>Code</b>: none released. Training used the public {{NeMo RL|https://github.com/NVIDIA-NeMo/RL}} framework and evaluation Inspect AI; the per-seed data files the paper mentions ({{Appendix I|ax:A9}}) are not linked.</li>
+<li><b>Compute</b>: the paper does not report hardware or GPU-hours. Each run is 300 steps of 256 rollouts at 1k to 8k tokens on a 2B to 4B model; evaluation at 64k with several samples per problem is likely the larger cost.</li>
+<li><b>Where it bites</b>: tasks whose accuracy keeps rising with thinking length (competition math), trained under a cap the base model routinely exceeds, on hard data where many rollouts truncate. Where the base model overthinks (GPQA, LiveCodeBench here), the same compression can be a feature.</li>
+<li><b>Cheap mitigations the paper measured</b>: easier training data (GSM8K: −6.8 at 64k instead of −22.3, but +11.6 in budget instead of +41.3); a stronger KL anchor (β = 0.01); forced-answer scoring of truncated rollouts (no internalization, no gain).</li>
+</ul></div></details>
+</section>
+
+<details class="mist" id="s-since"><summary>Since the paper (checked 23 November 2026)</summary><div>
+<ul>
+<li>arXiv 2611.26172 has one version, v1 of 19 November 2026, licensed CC BY 4.0.</li>
+<li>The Hugging Face collection (last updated 20 November 2026) holds 78 model repositories, 33 of them the multi-seed checkpoints of Appendix I. It also holds runs v1 of the paper does not describe: Qwen at 16k and 32k caps, Gemma and Nemotron at 4k and above, and Qwen trained on Lean, spreadsheet and LiveCodeBench tasks; so a later version may add results.</li>
+<li>The model cards' citation field reads "TODO"; no training or evaluation code repository is linked from the paper or the collection.</li>
+<li>Not checked: later citations, replications or discussion of the paper.</li>
+</ul></div></details>
+
+<section id="s-conn"><h2>Why it matters, and connections</h2>
+<p class="small mute">Beyond the paper.</p>
+<p>Most open RLVR recipes train under a cap far shorter than the reasoning their models later get at deployment, and report accuracy near it; this paper says that number can rank a trained model above its base model when the deployment budget would reverse the ranking. It is the token-budget twin of the {{Sharpening Tax|n:3fe5c17b0d0d81efa2a9f532c14c87a3}} result, where post-training trades pass@k for pass@1, and another case, like {{Are Dense Rewards Worth Their Tokens in GRPO?|n:41a5c17b0d0d81eb8e0cc16195491027}}, of an RL comparison changing once you count what the usual yardstick leaves out. It also sharpens the overthinking debate owned by {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}: the base models here often have an answer long before they stop, so some of what fixed-budget training removes is waste. {{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}}'s RL ran with a 32,768-token cap, raised to 65,536 later, and its response length grew during training rather than shrinking; that fits the paper's account that a cap the model rarely hits teaches no stopping rule, though the two recipes differ in many other ways.</p>
+</section>
+</section>

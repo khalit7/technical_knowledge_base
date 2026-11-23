@@ -1,0 +1,38 @@
+
+<section id="s-setup"><h2>The problem and the setup</h2>
+[[S2|§2]]
+<p><b>RLVR is trained under a cap and usually evaluated at one budget near it.</b> The cap keeps training affordable, since rollout cost grows with sequence length, and it is often set below the length the model would otherwise use ({{§1|ax:S1}}). An evaluation at the cap shows whether training helped there; it cannot show whether the trained model still gains from more tokens. The paper measures both, by sweeping the evaluation budget over a factor of 32 for every checkpoint.</p>
+<p><b>Three small reasoning models, two caps each, chosen so the cap binds.</b> Qwen3.5-4B is trained at 4k and 8k generated tokens, Gemma4-E2B and Nemotron-3-Nano-4B at 1k and 2k, with GRPO in NeMo RL on the DeepScaleR math set ({{§2|ax:S2}}). The caps sit below where the base models finish: base Qwen is cut off on 100% of AIME answers at 4k, 95% at 8k and still 6.67% at 64k ({{Table 2|ax:S2.T2}}). A second training set, Nemotron-RL-ReasoningGym-v1 (15,000 problems from 104 procedurally generated environments), checks that the effect is not about math data. The standard recipe: reward 1 for a correct finished answer and 0 for a wrong or truncated one, groups of 8, every group kept, clipping 0.2, no KL penalty, 300 steps of 32 prompts, and the checkpoint with the best validation accuracy ({{Appendix A|ax:A1}}). The main comparison has three training seeds (42, 43, 44) and reports both the validation-selected and the final checkpoint; every other condition is one run.</p>
+<details class="mist"><summary>Recipe details: learning rates, evaluation sampling, how budgets are counted</summary><div>
+<ul>
+<li>Peak learning rates (10-step warmup, cosine decay to a tenth): Qwen3.5-4B 5×10<sup>−7</sup> with Adam on Megatron, weight decay 0.01; Gemma4-E2B 3×10<sup>−6</sup> and Nemotron-3-Nano-4B 2×10<sup>−6</sup> with FusedAdam on FSDP2, weight decay 0.1. bfloat16, micro-batch 1, at most three epochs and 300 optimizer steps; validation every 10 steps ({{Table 4|ax:A1.T4}}).</li>
+<li>Rollouts sample at temperature 1.0 and top-<i>p</i> 1.0; each cap reserves 2,048 more tokens for the prompt. Budgets count generated tokens only.</li>
+<li>Evaluation in Inspect AI with thinking on and each model card's sampling: Qwen temperature 1.0, top-<i>k</i> 20; Gemma 1.0, top-<i>k</i> 64; Nemotron temperature 1.0 and its card's default top-<i>k</i> ({{Table 5|ax:A1.T5}}).</li>
+<li>The per-seed curves replay one 65,536-token generation per checkpoint and score an answer as wrong if it is unfinished at the budget being read, so all budgets of a curve share the same samples ({{Appendix I|ax:A9}}). Base models are evaluated once.</li>
+<li>Out of domain: GPQA-Diamond (graduate science, multiple choice) and LiveCodeBench v6 (code with hidden tests).</li>
+</ul></div></details>
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-cross"><h2>The crossover, and the length behind it</h2>
+[[S2.SS1|§2.1]]
+<p><b>All six checkpoints gain at their cap and lose at the largest budget.</b> In seed means against the base model at the same budget ({{§2.1|ax:S2.SS1}}): Qwen 4k-trained +34.8 at 4k and −30.2 at 64k; Qwen 8k-trained +42.4 at 8k and −24.6 at 64k; Gemma 1k-trained +10.9 and −24.8 at 16k; Gemma 2k-trained +14.8 and −20.6; Nemotron 1k-trained +23.3 and −25.4; Nemotron 2k-trained +12.6 and −13.1. Each of the 18 seeded runs shows a gain at its cap and a deficit at the largest budget, with the validation-selected checkpoint and with the final step-300 checkpoint ({{Appendix I|ax:A9}}; 36 of 36 evaluations, recomputed from Tables 15 and 16). The largest budget is 64k for Qwen but only 16k for Gemma and Nemotron; base Nemotron is still climbing there (59.44% at 16k, 9.44% of answers still cut off), so its deficits are, if anything, understated.</p>
+<p><b>The trained models stop using tokens they are given.</b> At the largest budget the base models average 6.11k to 27.32k tokens per AIME answer and the trained checkpoints 1.01k to 6.22k (Fig. 2, {{Table 1|ax:S2.T1}}). Qwen's 4k-trained model writes 4.97k tokens on average at 64k, a fifth of its base model's 27.32k, although nothing stops it from writing more: the cap moved the whole length distribution instead of acting as a hard limit at decoding. Truncation tells the same story: at its own 4k cap the 4k-trained Qwen is cut off on 22.22% of AIME answers against the base model's 100% ({{Table 12|ax:A5.T12}}).</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card bi-fig" id="biLen">
+<h4>Fig. 2 · Trained models write a fraction of the base model's tokens</h4>
+<div class="an-svg" id="biLenSvg"></div>
+<p class="bi-sum small mute" id="biLenSum"></p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-transfer"><h2>Other training data, other tasks</h2>
+[[S2.SS2|§2.2–2.3]]
+<p><b>Reasoning Gym training reproduces the loss of scaling on all three models.</b> Qwen trained at 4k on the procedural tasks gains 31.1 points on AIME at 4k and loses 25.0 at 64k; Gemma at 2k gains 21.7 and loses 15.0 at 16k ({{§2.2|ax:S2.SS2}}). Nemotron gains only 0.6 at its 2k cap but flattens at 49.44% while its base model reaches 60.00% at 16k (−10.6). So the in-budget gain depends on the model and the data; the flattening does not. Fig. 1 shows these curves under its Reasoning Gym button.</p>
+<p><b>On GPQA-Diamond and LiveCodeBench the damage is small, and sometimes a gain.</b> Fig. 3 lists every checkpoint's difference from its base model at the largest budget ({{§2.3|ax:S2.SS3}}). Qwen's 8k-trained checkpoint is within 2.2 points of the base model on GPQA and 1.0 on LiveCodeBench at 64k, while its mean answer shrinks from 11.15k to 4.56k tokens on GPQA and from 38.32k to 8.31k on LiveCodeBench ({{§1|ax:S1}}). Nemotron's math-trained checkpoints beat their base model on GPQA at 64k (+1.0 and +4.0). The authors' reading: on tasks that need less extended reasoning, the base model overthinks, and the trained model's shorter answers cost little. The same short answers that hurt on AIME save tokens here, which is why the paper says the effect is "neither always good nor always bad".</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card bi-fig" id="biHm">
+<h4>Fig. 3 · The loss is largest on AIME, the task trained for</h4>
+<div class="tw" id="biHmT"></div>
+<p class="small mute" style="margin:6px 0 0">Trained minus base accuracy, points, at the largest budget evaluated for that model and task (Qwen 64k; Gemma 16k; Nemotron 16k on AIME, 64k on GPQA and LiveCodeBench). "At cap": AIME at the training cap. Math rows are three-seed means; Reasoning Gym rows and every GPQA and LiveCodeBench cell are single runs. Data: {{Tables 8 to 11|ax:A4}}.</p>
+</div></div></div></div>
