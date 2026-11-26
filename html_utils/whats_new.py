@@ -108,7 +108,7 @@ def papers(pages, url, by_id, latest=None):
 def check(pages=None):
     """problems that would leave a card thin: every issue needs top stories (bold leads under "# Top stories"), the
     newest needs its intro line; every paper needs a date (arxiv, or a month in paper.json), lab, takeaway and topics
-    that resolve to pages"""
+    that resolve to pages, and a paper on arXiv its paper reader ("reader" in pages.json, the same arXiv id)"""
     pages = pages or json.loads((ROOT / "technical_knowledge_base/pages.json").read_text())["pages"]
     by_id = {p["id"].replace("-", ""): p for p in pages}
     u = lambda p: p["path"]
@@ -131,6 +131,11 @@ def check(pages=None):
         miss += [f"topic id {t} not in pages.json" for t in ids if t not in by_id]
         if miss:
             bad.append(f'{p["path"]}/src/paper.json: ' + ", ".join(miss))
+        # the paper reader (html_utils/kb_reader.js): every paper on arXiv has one, pinned to a version of the paper this page is about
+        rd = (p.get("reader") or {}).get("arxiv", "")
+        if j.get("arxiv") and rd.split("v")[0] != str(j["arxiv"]).split("v")[0]:
+            bad.append(f'{p["path"]}: pages.json "reader": {{"arxiv": "<id>v<n>"}} missing or not the paper.json arxiv id {j["arxiv"]} '
+                       f'(its latest version: https://export.arxiv.org/api/query?id_list={j["arxiv"]})')
     return bad
 
 

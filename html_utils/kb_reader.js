@@ -1,154 +1,92 @@
 // ---- The paper reader: an original paper on the site, with the AI buddy on it (html_utils/build_site.py writes the reader pages) ----
-// A paper page whose pages.json entry has "reader": {"arxiv": "<id>v<n>"} gets two reader pages next to it: paper/ (arXiv's HTML
-// version of the paper, fetched live, cleaned and set in the site's look) and paper/pdf/ (the PDF itself, drawn by pdf.js with a text
-// layer, so it can be selected, marked and asked about). Each view has its own notes: the buddy keys notes by the page's address.
+// A paper page whose pages.json entry has "reader": {"arxiv": "<id>v<n>"} gets paper/ next to it: the paper's PDF, fetched from arXiv
+// by the browser (the site keeps no copy), drawn by pdf.js (vendored in html_utils/lib/pdfjs), with a text layer so it can be
+// selected, marked and asked about. Notes on it are the reader page's own (the buddy keys notes by the page's address).
 // The buddy loads only after the paper is on the page, because it reads the page as a document once, when it starts.
-// Offline: the paper (its arXiv file, pinned to one version, so it never changes) is kept in the browser's Cache Storage the first time
-// it is opened, with the reader's own files and the paper's figures; a small service worker (paper/sw.js, html_utils/kb_reader_sw.js)
-// serves them when there is no network. The Claude and GitHub calls never pass through it.
-// Fetched HTML is not trusted: it is rebuilt element by element from an allow-list (no scripts, styles, frames, forms, event
-// attributes or script URLs), and SVG figures arXiv embeds as <object> are shown as images, which cannot run scripts.
+// Offline: the PDF (pinned to one arXiv version, so it never changes) is kept in the browser's Cache Storage the first time it is
+// opened, with the reader's own files; a small service worker (paper/sw.js, html_utils/kb_reader_sw.js) serves them when there is no
+// network. The Claude and GitHub calls never pass through it.
 // No literal closing-head or opening-body tag may appear in this file (build_site.py inserts its bar at the first of each).
 (function(){
-  const me = document.currentScript, D = me.dataset, ID = D.arxiv, MODE = D.mode;
+  const me = document.currentScript, D = me.dataset, ID = D.arxiv;
   const ART = document.getElementById('kbPaper'), CACHE = 'kb-reader-v1';
   if (!ART || !/^\d{4}\.\d{4,5}v\d+$/.test(ID || '')) return;
-  const HTML_URL = 'https://arxiv.org/html/' + ID, PDF_URL = 'https://arxiv.org/pdf/' + ID;
+  const PDF_URL = 'https://arxiv.org/pdf/' + ID;
   const status = (s, err) => { let p = document.getElementById('kbPaperStatus'); if (!p) { p = document.createElement('p'); p.id = 'kbPaperStatus'; ART.prepend(p) } p.className = 'rd-st' + (err ? ' err' : ''); p.textContent = ''; if (typeof s === 'string') p.textContent = s; else p.append(...s) };
   const link = (href, text) => { const a = document.createElement('a'); a.href = href; a.textContent = text; return a };
 
-  // ---- Cache Storage: the arXiv file once fetched is kept (its version is pinned, so it never goes stale) ----
-  // ok says whether a response is really the paper (an error page sent with 200 must not be kept for good)
-  async function cached(url, ok){
+  // ---- the PDF: from Cache Storage when it was opened before (its version is pinned, so it never goes stale), else downloaded from
+  // arXiv with its progress shown, and kept only when it really is a PDF (an error page sent with 200 must not be kept for good) ----
+  const mb = n => (n / 1048576).toFixed(n < 10485760 ? 1 : 0);
+  async function bytes(){
     let c = null; try { c = await caches.open(CACHE) } catch(e) {}
-    if (c) { try { const r = await c.match(url); if (r) return r } catch(e) {} }
-    const r = await fetch(url, {mode:'cors', credentials:'omit'});
-    if (r.ok && c && ok(r)) { try { await c.put(url, r.clone()) } catch(e) {} }
-    return r;
+    if (c) { try { const r = await c.match(PDF_URL); if (r) return new Uint8Array(await r.arrayBuffer()) } catch(e) {} }
+    const r = await fetch(PDF_URL, {mode:'cors', credentials:'omit'});
+    if (!r.ok) throw Object.assign(new Error('status'), {status:r.status});
+    const total = +r.headers.get('content-length') || 0, isPdf = /pdf/i.test(r.headers.get('content-type') || '');
+    let buf;
+    if (r.body && r.body.getReader) {
+      const rd = r.body.getReader(), parts = []; let got = 0, shown = 0;
+      for (;;) { const {done, value} = await rd.read(); if (done) break; parts.push(value); got += value.length;
+        if (got - shown > 262144) { shown = got; status('Downloading the paper from arXiv: ' + mb(got) + (total ? ' of ' + mb(total) : '') + ' MB') } }
+      buf = new Uint8Array(got); let o = 0; for (const x of parts) { buf.set(x, o); o += x.length }
+    } else buf = new Uint8Array(await r.arrayBuffer());
+    if (c && isPdf) { try { await c.put(PDF_URL, new Response(buf.slice(), {headers:{'content-type':'application/pdf'}})) } catch(e) {} }
+    return buf;
   }
   async function forget(url){ try { await (await caches.open(CACHE)).delete(url) } catch(e) {} }
-  // the reader's own files and the paper's figures, so a second visit works offline (each on its own: one failure stops none)
+  // the reader's own files, so a second visit works offline (each on its own: one failure stops none)
   async function keep(urls){
     let c; try { c = await caches.open(CACHE) } catch(e) { return }
     // an older version of a versioned file (the reader, the buddy, pdf.js) is dropped: only the current ones are kept
-    // (an entry goes only when another version of the same file is being kept now: the other view's files stay)
+    // (an entry goes only when another version of the same file is being kept now)
     try { const base = u => { const x = new URL(u, location.href); return x.origin + x.pathname.replace(/\/lib\/pdfjs-[^/]+\//, '/lib/pdfjs/') + (x.search.startsWith('?v=') ? '' : x.search) };
       const now = new Set(urls.filter(Boolean).map(u => new URL(u, location.href).href)), nowBase = new Set([...now].map(base));
-      for (const q of await c.keys()) { const u = new URL(q.url); if (u.origin === location.origin && (u.search.startsWith('?v=') || /\/lib\/pdfjs-/.test(u.pathname)) && !now.has(u.href) && nowBase.has(base(u.href))) await c.delete(q) } } catch(e) {}
+      const lib = new URL(D.pdfjs, location.href).pathname;   // every file of another pdf.js version goes (its fonts and decoders too)
+      for (const q of await c.keys()) { const u = new URL(q.url); if (u.origin !== location.origin) continue;
+        if ((/\/lib\/pdfjs-[^/]+\//.test(u.pathname) && !u.pathname.startsWith(lib)) || ((u.search.startsWith('?v=') || /\/lib\/pdfjs-/.test(u.pathname)) && !now.has(u.href) && nowBase.has(base(u.href)))) await c.delete(q) } } catch(e) {}
     for (const u of new Set(urls.filter(Boolean))) { try { if (!(await c.match(u))) { const r = await fetch(u, {mode:new URL(u, location.href).origin === location.origin ? 'same-origin' : 'cors', credentials:'omit'}); if (r.ok) await c.put(u, r) } } catch(e) {} }
   }
   function worker(){
     try { if (D.sw && 'serviceWorker' in navigator) navigator.serviceWorker.register(D.sw, {scope:D.scope}).catch(() => {}) } catch(e) {}
   }
-  const shell = () => [location.href.split('#')[0], me.src, D.buddy, D.other, D.kbindex];
+  const shell = () => [location.href.split('#')[0], me.src, D.buddy, D.kbindex];
 
   // the buddy, once the paper is on the page (it reads the page as a document when it starts)
   function buddy(){
     if (!D.buddy || window.__kbBuddyLoader) return; window.__kbBuddyLoader = 1;
     const s = document.createElement('script'); s.src = D.buddy; s.async = true; document.head.appendChild(s);
   }
-  function fail(msg){
-    const kids = [msg + ' '];
-    if (MODE === 'html' && D.other) kids.push(link(D.other, 'Open the PDF view'), ' or ');
-    kids.push(link(MODE === 'pdf' ? PDF_URL : HTML_URL, 'open it on arXiv'), '.');
-    status(kids, true);
-  }
+  function fail(msg){ status([msg + ' ', link(PDF_URL, 'Open it on arXiv'), '.'], true) }
 
-  // ---- the HTML view: arXiv's LaTeXML page, rebuilt from an allow-list ----
-  const MATHNS = 'http://www.w3.org/1998/Math/MathML';
-  const TAGS = new Set('a abbr article b blockquote br caption cite code dd del dfn div dl dt em figcaption figure h1 h2 h3 h4 h5 h6 hr i img kbd li mark ol p pre q s samp section small span strong sub sup table tbody td tfoot th thead tr tt u ul var'.split(' '));
-  const MTAGS = new Set('math semantics mrow mi mn mo ms mtext mspace mfrac msqrt mroot msub msup msubsup munder mover munderover mtable mtr mtd mlabeledtr mstyle mpadded mphantom menclose merror mmultiscripts mprescripts none'.split(' '));
-  const DROP = new Set('script style link meta base iframe frame frameset embed applet form input button textarea select option label noscript template annotation annotation-xml svg dialog nav footer header audio video source track canvas map area portal'.split(' '));
-  const ATTR = new Set('class id title lang dir colspan rowspan alt width height'.split(' '));
-  const MATTR = new Set('display mathvariant stretchy lspace rspace fence separator accent accentunder movablelimits linethickness columnalign rowalign columnspacing rowspacing columnlines rowlines frame mathsize minsize maxsize symmetric largeop width height depth voffset notation scriptlevel displaystyle form intent'.split(' '));
-  const STYLE = /^(width|height|aspect-ratio|list-style-type|vertical-align|--ltx-fg-color|--ltx-bg-color)$/;
-  const SAFEV = /^[-#\w.%/ ,]+$/;
-  const ident = s => 'p-' + s, undo = s => { try { return decodeURIComponent(s) } catch(e) { return s } };
-  function clean(src, base){
-    const out = document.createDocumentFragment(), imgs = [];
-    const walk = (n, into) => {
-      for (const c of n.childNodes) {
-        if (c.nodeType === 3) { into.append(c.nodeValue); continue }
-        if (c.nodeType !== 1) continue;
-        let tag = c.localName.toLowerCase(); const isM = c.namespaceURI === MATHNS || tag === 'math';
-        if (tag === 'object' && /^image\/svg\+xml$/i.test(c.getAttribute('type') || '') && c.getAttribute('data')) tag = 'img';   // an SVG figure: shown as an image, which cannot run scripts
-        if (DROP.has(tag)) continue;
-        const ok = isM ? MTAGS.has(tag) : TAGS.has(tag);
-        if (!ok) { walk(c, into); continue }   // an unknown wrapper: its content stays, the element goes
-        const e = isM ? document.createElementNS(MATHNS, tag) : document.createElement(tag);
-        for (const a of c.attributes) {
-          const k = a.name.toLowerCase(), v = a.value;
-          if (k.startsWith('on')) continue;
-          if (k === 'id') { e.id = ident(v); continue }
-          if (k === 'class') { const cl = v.split(/\s+/).filter(t => /^ltx_[\w-]+$/.test(t)).join(' '); if (cl) e.setAttribute('class', cl); continue }   // LaTeXML's own classes only: nothing can pass for the buddy's or the reader's
-          if (k === 'style') {
-            const keep = v.split(';').map(d => d.trim()).filter(Boolean).map(d => { const i = d.indexOf(':'); return i < 0 ? null : [d.slice(0, i).trim().toLowerCase(), d.slice(i + 1).trim()] })
-              .filter(d => d && STYLE.test(d[0]) && SAFEV.test(d[1]));
-            for (const [p, val] of keep) e.style.setProperty(p, val);
-            continue;
-          }
-          if (isM ? MATTR.has(k) : ATTR.has(k)) e.setAttribute(k, v);
-        }
-        if (tag === 'a') {
-          const h = c.getAttribute('href') || '';
-          if (h.startsWith('#')) e.setAttribute('href', '#' + ident(undo(h.slice(1))));
-          else { try { const u = new URL(h, base); if (/^https?:$/.test(u.protocol)) { if (u.origin + u.pathname === new URL(base).origin + new URL(base).pathname && u.hash) e.setAttribute('href', '#' + ident(undo(u.hash.slice(1)))); else { e.href = u.href; e.target = '_blank'; e.rel = 'noopener noreferrer' } } } catch(err) {} }
-        }
-        if (tag === 'img') {
-          const s = c.getAttribute(c.localName.toLowerCase() === 'object' ? 'data' : 'src') || '';
-          try { const u = new URL(s, base); if (/^https?:$/.test(u.protocol)) { e.crossOrigin = 'anonymous'; e.src = u.href; e.loading = 'lazy'; e.decoding = 'async'; imgs.push(u.href) } } catch(err) {}
-          if (!e.hasAttribute('alt')) e.alt = '';
-        }
-        into.append(e);
-        walk(c, e);
-        // a formula's TeX goes beside it, hidden from the eye, and the rendered MathML is hidden from the buddy: Claude reads the formula
-        // as TeX (from MathML text alone a square root, a fraction or a transpose is lost)
-        const tex = tag === 'math' && (c.getAttribute('alttext') || '').trim();
-        if (tex) { e.setAttribute('aria-hidden', 'true'); const t = document.createElement('span'); t.className = 'rd-tex'; t.textContent = c.getAttribute('display') === 'block' ? ' $$' + tex + '$$ ' : '$' + tex + '$'; into.append(t) }
-      }
-    };
-    walk(src, out);
-    return {frag:out, imgs};
-  }
-  async function html(){
-    let r; try { r = await cached(HTML_URL, x => /text\/html/i.test(x.headers.get('content-type') || '')) } catch(e) { fail(navigator.onLine === false ? 'You are offline, and this paper has not been opened on this device yet.' : 'The paper could not be loaded from arXiv.'); return false }
-    if (!r.ok) { if (D.other && r.status === 404) { location.replace(D.other); return false } fail('arXiv has no HTML version of this paper (' + r.status + ').'); return false }
-    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');   // an inert document: nothing in it runs or loads
-    const src = doc.querySelector('article.ltx_document');
-    if (!src) await forget(HTML_URL);   // not the paper: asked for again next time
-    if (!src) { if (D.other) { location.replace(D.other); return false } fail('The arXiv page has no paper in it.'); return false }
-    const {frag, imgs} = clean(src, HTML_URL);
-    ART.textContent = ''; ART.append(frag);
-    // footnotes open on a tap (arXiv shows them on hover, which a tablet has not)
-    ART.addEventListener('click', ev => { const m = ev.target.closest('.ltx_note_mark'), n = m && m.closest('.ltx_note'); if (n && ART.contains(n)) { ev.preventDefault(); n.classList.toggle('open') } });
-    keep(shell().concat(imgs));
-    return true;
-  }
-
-  // ---- the PDF view: pdf.js draws each page; its text layer is regrouped into paragraphs so the buddy can cite and anchor them ----
+  // ---- pdf.js draws each page; its text layer is regrouped into paragraphs so the buddy can cite and anchor them ----
   let pdfjs = null, pdoc = null; const pages = [];
   async function pdf(){
     try { pdfjs = await import(D.pdfjs + 'pdf.min.mjs') } catch(e) { fail('The PDF viewer could not be loaded.'); return false }
     pdfjs.GlobalWorkerOptions.workerSrc = D.pdfjs + 'pdf.worker.min.mjs';
     let data;
-    try { const r = await cached(PDF_URL, x => /pdf/i.test(x.headers.get('content-type') || '')); if (!r.ok) { fail('arXiv did not send the PDF (' + r.status + ').'); return false } data = new Uint8Array(await r.arrayBuffer()) }
-    catch(e) { fail(navigator.onLine === false ? 'You are offline, and this PDF has not been opened on this device yet.' : 'The PDF could not be loaded from arXiv.'); return false }
-    try { pdoc = await pdfjs.getDocument({data, isEvalSupported:false, enableXfa:false}).promise } catch(e) { await forget(PDF_URL); fail('The PDF could not be read.'); return false }
+    try { data = await bytes() }
+    catch(e) { fail(e.status ? 'arXiv did not send the PDF (' + e.status + ').' : navigator.onLine === false ? 'You are offline, and this PDF has not been opened on this device yet.' : 'The PDF could not be loaded from arXiv.'); return false }
+    // its fonts for text a paper does not embed, the character maps of non-Latin text, colour profiles and the image decoders
+    // (JPEG 2000, JBIG2) come from the same vendored folder; scripts inside a PDF never run (no eval, no XFA, no scripting)
+    const opt = {data, isEvalSupported:false, enableXfa:false, standardFontDataUrl:D.pdfjs + 'standard_fonts/', cMapUrl:D.pdfjs + 'cmaps/', cMapPacked:true, wasmUrl:D.pdfjs + 'wasm/', iccUrl:D.pdfjs + 'iccs/'};
+    try { pdoc = await pdfjs.getDocument(opt).promise } catch(e) { await forget(PDF_URL); fail('The PDF could not be read.'); return false }
     status('Setting out ' + pdoc.numPages + ' pages...');
+    const all = await Promise.all(Array.from({length:pdoc.numPages}, (_, k) => pdoc.getPage(k + 1)));
     const box = document.createDocumentFragment();
-    for (let i = 1; i <= pdoc.numPages; i++) {
-      const page = await pdoc.getPage(i), vp = page.getViewport({scale:1});
-      const pg = document.createElement('div'); pg.className = 'pg'; pg.dataset.n = i; pg.style.aspectRatio = vp.width + ' / ' + vp.height;
+    all.forEach((page, k) => {
+      const vp = page.getViewport({scale:1});
+      const pg = document.createElement('div'); pg.className = 'pg'; pg.dataset.n = k + 1; pg.style.aspectRatio = vp.width + ' / ' + vp.height;
       const cv = document.createElement('canvas'); cv.setAttribute('aria-hidden', 'true');
       const tl = document.createElement('div'); tl.className = 'textLayer';
       pg.append(cv, tl); box.append(pg);
-      pages.push({i, page, vp, pg, cv, tl, w:0, task:null});
-    }
+      pages.push({i:k + 1, page, vp, pg, cv, tl, w:0, task:null});
+    });
     ART.textContent = ''; ART.append(box); fit();
-    for (const p of pages) {
-      try { await new pdfjs.TextLayer({textContentSource:p.page.streamTextContent(), container:p.tl, viewport:p.vp}).render(); paras(p) } catch(e) {}
-      const end = document.createElement('div'); end.className = 'endOfContent'; p.tl.append(end);
-    }
+    // the pages are drawn when near the screen and let go when far from it (a tablet has little canvas memory); drawing starts now,
+    // before the text layers, so the paper shows at once
+    const io = new IntersectionObserver(es => { for (const e of es) { const p = pages[+e.target.dataset.n - 1]; if (e.isIntersecting) draw(p); else drop(p) } }, {rootMargin:'150% 0px'});
+    for (const p of pages) io.observe(p.pg);
     // selecting across absolutely placed words: a cover behind the words keeps the selection in the page, while a mouse is down, or with a finger while a selection is open
     let down = false, mouse = false;
     ART.addEventListener('pointerdown', ev => { down = true; mouse = ev.pointerType === 'mouse'; const t = ev.target.closest && ev.target.closest('.textLayer'); if (t) t.classList.add('selecting') });
@@ -160,14 +98,21 @@
     // on a tablet the selection grows by its handles, with no pointer events: the cover stays while a selection is open in a page
     const sel = () => { const s = getSelection(); return s && s.rangeCount && !s.isCollapsed ? s.getRangeAt(0) : null };
     document.addEventListener('selectionchange', () => { if (down) return; const r = sel(); for (const t of ART.querySelectorAll('.textLayer')) t.classList.toggle('selecting', !mouse && !!r && r.intersectsNode(t)) });
-    // the pages are drawn when near the screen and let go when far from it (a tablet has little canvas memory)
-    const io = new IntersectionObserver(es => { for (const e of es) { const p = pages[+e.target.dataset.n - 1]; if (e.isIntersecting) draw(p); else drop(p) } }, {rootMargin:'150% 0px'});
-    for (const p of pages) io.observe(p.pg);
     // the text layer follows the width at once (the buddy places marks by it); the pages are drawn again a moment later
     let rt = 0; const refit = () => { if (!fit()) return; dispatchEvent(new Event('resize')); clearTimeout(rt); rt = setTimeout(() => { for (const p of pages) if (p.w) { p.w = -1; draw(p) } }, 150) };
     new ResizeObserver(refit).observe(ART);
     // a window moved to a screen of another pixel density is drawn again, sharp (no resize happens then)
     const dens = () => { try { matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)').addEventListener('change', () => { refit(); dens() }, {once:true}) } catch(e) {} }; dens();
+    // then each page's text (the handlers above already work on the pages that have it), with a pause between pages so the drawing goes on; the buddy starts once all of it is there (it reads
+    // the page as a document once). A line in the top bar says how far it is
+    const bar = document.querySelector('.rd-bar'), prep = document.createElement('span'); prep.className = 'rd-prep'; if (bar) bar.insertBefore(prep, bar.querySelector('.rd-src'));
+    for (const p of pages) {
+      if (pages.length > 8) prep.textContent = 'Preparing the text for the AI buddy: page ' + p.i + ' of ' + pages.length;
+      try { await new pdfjs.TextLayer({textContentSource:p.page.streamTextContent(), container:p.tl, viewport:p.vp}).render(); paras(p) } catch(e) {}
+      const end = document.createElement('div'); end.className = 'endOfContent'; p.tl.append(end);
+      await new Promise(z => setTimeout(z, 0));
+    }
+    prep.remove();
     keep(shell().concat([D.pdfjs + 'pdf.min.mjs', D.pdfjs + 'pdf.worker.min.mjs']));
     return true;
   }
@@ -198,13 +143,16 @@
   // to it and put a note beside it. A space ends each line, so words across a line break do not run together.
   function paras(p){
     const L = p.tl, lr = L.getBoundingClientRect(); if (!lr.width || !lr.height) return;
-    const items = [];
-    for (const s of [...L.children]) {
-      if (s.tagName !== 'SPAN') { if (s.tagName === 'BR' && items.length) items[items.length - 1].eol = true; s.remove(); continue }
+    // every run is measured first and the page changed only after: a change between two measurements would lay the page out again
+    // each time (a figure full of text can hold 20,000 runs)
+    const items = [], gone = [];
+    for (const s of L.children) {
+      if (s.tagName !== 'SPAN') { if (s.tagName === 'BR' && items.length) items[items.length - 1].eol = true; gone.push(s); continue }
       const r = s.getBoundingClientRect();
       items.push({s, x0:(r.left - lr.left) / lr.width * 100, x1:(r.right - lr.left) / lr.width * 100, y0:(r.top - lr.top) / lr.height * 100, y1:(r.bottom - lr.top) / lr.height * 100, eol:false,
         l:parseFloat(s.style.left) || 0, t:parseFloat(s.style.top) || 0});
     }
+    for (const g of gone) g.remove();
     if (!items.length) return;
     // lines: consecutive spans at about the same height
     const lines = []; let cur = null;
@@ -247,9 +195,7 @@
   (async () => {
     worker();
     let ok = false;
-    try { ok = MODE === 'pdf' ? await pdf() : await html() } catch(e) { fail('The paper could not be shown.') }
-    if (!ok) return;
-    if (location.hash.length > 1 && location.hash !== '#kb-resume') { const t = document.getElementById(undo(location.hash.slice(1))); if (t) t.scrollIntoView() }
-    buddy();
+    try { ok = await pdf() } catch(e) { fail('The paper could not be shown.') }
+    if (ok) buddy();
   })();
 })();

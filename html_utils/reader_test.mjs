@@ -2,14 +2,15 @@
 // laptop size and an iPad size. usage: node html_utils/reader_test.mjs [chromium|webkit]   (screenshots: html_utils/.shots/reader/)
 // It builds the site into a temporary folder and serves it under /technical_knowledge_base/ as GitHub Pages does. arXiv is real (the test
 // needs the network for its first visit); Claude is faked (a fixed answer; the request is read to check the paper is the document Claude
-// gets); any other outside request is aborted. For each view (paper/ and paper/pdf/ of the Attention paper):
-//   1 the paper is on the page: the title, the paragraphs, the maths and the figures (HTML), or every page with its text in paragraphs (PDF)
+// gets); any other outside request is aborted. On the Attention paper's reader (paper/):
+//   1 the paper is on the page: every page, with its text in paragraphs
 //   2 nothing from arXiv can run: no script, frame, object, form, event attribute or script URL in the paper
-//   3 the AI buddy loads after the paper; a passage selected with the mouse opens its Ask box (with the paragraph row of page changes in
-//     the HTML view only: a printed page cannot be changed), and the question sent to Claude carries the paper as its document (the
-//     formulas as TeX in the HTML view)
-//   4 the page drawn (PDF): the pages near the screen are drawn, the selection's words sit on the printed words
-//   5 offline: the same page reloaded with no network still shows the paper (the cache and the service worker)
+//   3 the AI buddy loads after the paper; a passage selected with the mouse opens its Ask box (with no row of page changes: a printed
+//     page cannot be changed), and the question sent to Claude carries the paper as its document
+//   4 the pages near the screen are drawn, and the text layer lies on the printed words
+//   5 offline: the page reloaded with no network still shows the paper (the cache and the service worker), with the buddy's toolbar;
+//     with no Claude key the block handle does not show; the old address paper/pdf/ lands on paper/
+//   6 another paper (BERT) opens too
 import { chromium, webkit } from 'playwright';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -23,7 +24,7 @@ const PAPER = '/technical_knowledge_base/whats_new/papers/attention_is_all_you_n
 const OUT = mkdtempSync(join(tmpdir(), 'kb-reader-'));
 execFileSync('python3', [join(H, 'build_site.py'), OUT, '/technical_knowledge_base/'], { stdio: 'inherit' });
 mkdirSync(SHOTS, { recursive: true });
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.png': 'image/png', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
 const server = createServer((q, r) => {
   let p = decodeURIComponent(new URL(q.url, 'http://x').pathname);
   if (!p.startsWith('/technical_knowledge_base/')) { r.writeHead(404); return r.end() }
@@ -45,8 +46,8 @@ async function visit(browserType, size) {
   const browser = await browserType.launch();
   const tag = browserType.name() + '-' + size.name;
   console.log(`\n${tag} (${size.width}x${size.height})`);
-  for (const mode of ['html', 'pdf']) {
-    const url = SITE + PAPER + (mode === 'pdf' ? 'paper/pdf/' : 'paper/');
+  for (const mode of ['pdf']) {
+    const url = SITE + PAPER + 'paper/';
     const context = await browser.newContext({ viewport: { width: size.width, height: size.height }, deviceScaleFactor: size.dpr, hasTouch: false, serviceWorkers: 'block',   // a service worker hides the page's requests from route() in WebKit, so the fake Claude would be missed
 
       storageState: { cookies: [], origins: [{ origin: SITE, localStorage: [{ name: 'kbAsk.key', value: KEY }, { name: 'kbBuddy.min', value: '0' }] }] } });
@@ -69,19 +70,10 @@ async function visit(browserType, size) {
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(url);
     await check(`${mode} 1 the paper is on the page`, async () => {
-      if (mode === 'html') {
-        await page.waitForSelector('#kbPaper h1.ltx_title_document', { timeout: 30000 });
-        const s = await page.evaluate(() => ({ h1: document.querySelector('#kbPaper h1').textContent.trim(), p: document.querySelectorAll('#kbPaper p').length,
-          math: document.querySelectorAll('#kbPaper math').length, img: document.querySelectorAll('#kbPaper img').length, status: !!document.getElementById('kbPaperStatus') }));
-        assert(s.h1 === 'Attention Is All You Need' && s.p > 50 && s.math > 50 && s.img >= 5 && !s.status, JSON.stringify(s));
-        await page.evaluate(() => document.querySelector('#kbPaper figure img').scrollIntoView());
-        await page.waitForFunction(() => { const i = document.querySelector('#kbPaper figure img'); return i.complete && i.naturalWidth > 0 }, null, { timeout: 20000 });
-      } else {
-        await page.waitForFunction(() => document.querySelectorAll('#kbPaper .pg').length > 10 && document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 45000 });
-        const s = await page.evaluate(() => ({ pages: document.querySelectorAll('#kbPaper .pg').length, paras: document.querySelectorAll('#kbPaper .kb-pp').length,
-          first: [...document.querySelectorAll('#kbPaper .pg')[0].querySelectorAll('.kb-pp')].map(p => p.textContent).join(' | ').slice(0, 400) }));
-        assert(s.pages === 15 && /Attention Is All You Need/.test(s.first), JSON.stringify(s));
-      }
+      await page.waitForFunction(() => document.querySelectorAll('#kbPaper .pg').length > 10 && document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 45000 });
+      const s = await page.evaluate(() => ({ pages: document.querySelectorAll('#kbPaper .pg').length, paras: document.querySelectorAll('#kbPaper .kb-pp').length,
+        first: [...document.querySelectorAll('#kbPaper .pg')[0].querySelectorAll('.kb-pp')].map(p => p.textContent).join(' | ').slice(0, 400) }));
+      assert(s.pages === 15 && /Attention Is All You Need/.test(s.first), JSON.stringify(s));
     });
     await check(`${mode} 2 nothing from arXiv can run`, async () => {
       const bad = await page.evaluate(() => [...document.querySelectorAll('#kbPaper *')].filter(e => /^(script|iframe|object|embed|form|style|link|meta|base|svg)$/i.test(e.localName) ||
@@ -90,7 +82,7 @@ async function visit(browserType, size) {
     });
     await check(`${mode} 3 the buddy loads after the paper; a selected passage asked about sends the paper as Claude's document`, async () => {
       await page.waitForSelector('#kbBar', { timeout: 20000 });
-      const target = mode === 'html' ? '#kbPaper section.ltx_subsection p.ltx_p' : '#kbPaper .pg:nth-child(3) .kb-pp';
+      const target = '#kbPaper .pg:nth-child(3) .kb-pp';
       const el = await page.evaluateHandle(sel => { const es = [...document.querySelectorAll(sel)].filter(e => e.textContent.length > 200); return es[0] }, target);
       await el.evaluate(e => e.scrollIntoView({ block: 'center' }));
       await page.waitForTimeout(400);
@@ -101,12 +93,11 @@ async function visit(browserType, size) {
       await page.waitForSelector('#kbAskPop:not([hidden])', { timeout: 8000 }).catch(async e => { await page.screenshot({ path: join(SHOTS, `${tag}-${mode}-noselect.png`) }); throw new Error('no Ask box; the selection is "' + await page.evaluate(() => String(getSelection()).slice(0, 80)) + '"') });
       await page.screenshot({ path: join(SHOTS, `${tag}-${mode}-select.png`) });
       const row = await page.evaluate(() => !!document.querySelector('#kbAskPop .kb-blk'));
-      assert(mode === 'pdf' ? !row : row, mode === 'pdf' ? 'the PDF view offers page changes (Hide, move, + Text, + Visual) on a printed page' : 'the HTML view lost its paragraph row');
+      assert(!row, 'the reader offers page changes (Hide, move, + Text, + Visual) on a printed page');
       await page.fill('#kbAskPop input', 'What does this say?'); await page.press('#kbAskPop input', 'Enter');
       await page.waitForFunction(() => [...document.querySelectorAll('.kb-note .kb-na')].some(a => a.textContent.includes('A test answer')), null, { timeout: 15000 });
       const body = JSON.stringify(requests.at(-1) || {});
       assert(/Scaled Dot-Product Attention/.test(body) && /multi-head attention/i.test(body), 'the request does not carry the paper');
-      if (mode === 'html') assert(/\\\\sqrt\{d_\{k\}\}/.test(body), 'the formulas do not reach Claude as TeX');
       await page.screenshot({ path: join(SHOTS, `${tag}-${mode}-note.png`) });
     });
     if (mode === 'pdf') await check('pdf 4 the pages near the screen are drawn, and the text layer lies on the printed words', async () => {
@@ -122,11 +113,6 @@ async function visit(browserType, size) {
       assert(s.dark > 100 && s.ink > 0.05 && s.far > 3, JSON.stringify(s));
       await page.screenshot({ path: join(SHOTS, `${tag}-pdf-top.png`) });
     });
-    if (mode === 'html') await check('html 6 a selection across a formula stays inside the column (the hidden TeX takes no room)', async () => {
-      const bad = await page.evaluate(() => { const p = [...document.querySelectorAll('#kbPaper p.ltx_p')].find(e => e.querySelector('math') && e.textContent.length > 200), g = document.createRange(); g.selectNodeContents(p);
-        const a = document.getElementById('kbPaper').getBoundingClientRect(); return [...g.getClientRects()].filter(q => q.width > 1 && q.height < 60 && (q.right > a.right + 2 || q.left < a.left - 2)).length });
-      assert(!bad, bad + ' selection rects run outside the column');
-    });
     await check(`${mode} no page errors, no stray requests`, async () => { assert(!errors.length && !stray.length, errors.concat(stray).join(' ; ')) });
     await context.close();
     // offline, in a visit of its own with the service worker and no Claude key (so the buddy calls nothing outside)
@@ -134,14 +120,12 @@ async function visit(browserType, size) {
     await off.route(u => /^https?:$/.test(u.protocol) && u.origin !== SITE && u.hostname !== 'arxiv.org', route => route.abort());
     await check(`${mode} 5 offline: the page reloaded with no network still shows the paper, with the buddy's toolbar`, async () => {
       const p2 = await off.newPage(); await p2.goto(url);
-      if (mode === 'html') await p2.waitForSelector('#kbPaper h1.ltx_title_document', { timeout: 30000 });
-      else await p2.waitForFunction(() => document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 45000 });
+      await p2.waitForFunction(() => document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 45000 });
       await p2.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 10000 }).catch(() => {});
       await p2.waitForTimeout(3000);   // the reader keeps its files in the background
       await off.setOffline(true);
       await p2.reload();
-      if (mode === 'html') await p2.waitForSelector('#kbPaper h1.ltx_title_document', { timeout: 20000 });
-      else await p2.waitForFunction(() => document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 30000 });
+      await p2.waitForFunction(() => document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 30000 });
       await p2.waitForSelector('#kbBar', { timeout: 15000 });
       await p2.screenshot({ path: join(SHOTS, `${tag}-${mode}-offline.png`) });
       if (mode === 'pdf') {   // with no Claude key, the hover handle on a printed page would open an empty menu: it is not shown
@@ -152,12 +136,14 @@ async function visit(browserType, size) {
         assert(!errs.length, errs.join(' ; '));
       }
     });
-    if (mode === 'pdf') await check('both views opened, then offline: each still opens (one view keeps the other\'s files)', async () => {
+    await check('pdf 5 the old address paper/pdf/ lands on paper/', async () => {
       await off.setOffline(false);
-      const p3 = await off.newPage(); await p3.goto(SITE + PAPER + 'paper/'); await p3.waitForSelector('#kbPaper h1.ltx_title_document', { timeout: 30000 }); await p3.waitForTimeout(3000);
-      await off.setOffline(true);
-      await p3.goto(SITE + PAPER + 'paper/pdf/'); await p3.waitForFunction(() => document.querySelectorAll('#kbPaper .kb-pp').length > 100, null, { timeout: 30000 });
-      await p3.goto(SITE + PAPER + 'paper/'); await p3.waitForSelector('#kbPaper h1.ltx_title_document', { timeout: 20000 });
+      const p3 = await off.newPage(); await p3.goto(SITE + PAPER + 'paper/pdf/'); await p3.waitForURL(u => u.pathname.endsWith('/paper/'), { timeout: 15000 });
+    });
+    await check('pdf 6 another paper (BERT) opens, its pages and text', async () => {
+      const p4 = await off.newPage(); await p4.goto(SITE + '/technical_knowledge_base/whats_new/papers/bert/paper/');
+      await p4.waitForFunction(() => document.querySelectorAll('#kbPaper .pg').length > 10 && [...document.querySelectorAll('#kbPaper .kb-pp')].some(p => /BERT/.test(p.textContent)), null, { timeout: 60000 });
+      await p4.waitForSelector('#kbBar', { timeout: 20000 });
     });
     await off.close();
   }

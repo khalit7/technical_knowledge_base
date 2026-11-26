@@ -44,8 +44,8 @@ RESUME = ('<style>html.kb-resuming body{visibility:hidden}</style><script>if(loc
 # the loader every page carries (written by apply_buddy.py), for the home page, which this script writes
 HOME_BUDDY = (f'<script id="kb-buddy" data-src="{BUDDY_SRC}">\n' + (ROOT / "html_utils/kb_buddy_loader.js").read_text().rstrip("\n")
               + '\n</script><!--/kb-buddy-->')
-# the paper reader (html_utils/kb_reader.js): a paper page whose pages.json entry has "reader": {"arxiv": "<id>v<n>"} gets paper/ (arXiv's
-# HTML version) and paper/pdf/ (the PDF, drawn by pdf.js) next to it, each with the AI buddy and its own notes, readable offline once opened
+# the paper reader (html_utils/kb_reader.js): a paper page whose pages.json entry has "reader": {"arxiv": "<id>v<n>"} gets paper/ next to
+# it: the paper's PDF from arXiv (the site keeps no copy), drawn by pdf.js, with the AI buddy and its own notes, readable offline once opened
 READER = (ROOT / "html_utils/kb_reader.js").read_text()
 READER_SRC = BASE + "kb_reader.js?v=" + hashlib.sha1(READER.encode()).hexdigest()[:10]
 READER_CSS = (ROOT / "html_utils/kb_reader.css").read_text()
@@ -240,28 +240,27 @@ document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e
 
 
 def reader(p):
-    """the paper reader pages of a paper page with a "reader" field: paper/ (the HTML view) and paper/pdf/ (the PDF view)"""
+    """the paper reader of a paper page with a "reader" field: paper/, the paper's PDF from arXiv (drawn by pdf.js) with the AI buddy;
+    paper/pdf/ (where the PDF view was while the reader also had an HTML view, 2026-11-26) redirects to it"""
     aid = p["reader"]["arxiv"]
     assert re.fullmatch(r"\d{4}\.\d{4,5}v\d+", aid), p["path"] + ': "reader": {"arxiv": "<id>v<n>"}, pinned to a version'
-    d0 = OUT / p["path"].removeprefix("technical_knowledge_base/") / "paper"
+    d = OUT / p["path"].removeprefix("technical_knowledge_base/") / "paper"
     assert p["path"] + "/paper" not in by_path, p["path"] + "/paper is a page: the reader needs that folder"
-    u0 = url(p) + "paper/"
+    u = url(p) + "paper/"
     t = html.escape(title(p))
-    for mode, d, u, other in (("html", d0, u0, u0 + "pdf/"), ("pdf", d0 / "pdf", u0 + "pdf/", u0)):
-        d.mkdir(parents=True, exist_ok=True)
-        seg = (f'<span class="seg" role="group" aria-label="View"><a href="{u0}"{" aria-current=page" if mode == "html" else ""}>HTML</a>'
-               f'<a href="{u0}pdf/"{" aria-current=page" if mode == "pdf" else ""}>PDF</a></span>')
-        src = f"https://arxiv.org/{'pdf' if mode == 'pdf' else 'abs'}/{aid}"
-        (d / "index.html").write_text(
-            f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{t}: the original paper{" (PDF)" if mode == "pdf" else ""}</title><meta name="robots" content="noindex">\n{THEME}<style>{READER_CSS}</style>'
-            f'{BAR_CSS}{APP}<meta name="kb-title" content="{t}: the original paper{" (PDF)" if mode == "pdf" else ""}">{RESUME}</head>'
-            f'<body>{bar(p, "paper")}<div class="w" data-pagefind-ignore="all"><nav class="rd-bar"><a href="{url(p)}">Back to the explainer</a>{seg}'
-            f'<a class="rd-src" href="{src}" target="_blank" rel="noopener noreferrer">arXiv {aid}</a></nav>'
-            f'<article id="kbPaper" class="rd-{mode}"{" data-kb-noedit" if mode == "pdf" else ""}><p id="kbPaperStatus" class="rd-st">Loading the paper from arXiv...</p></article></div>'
-            f'<script src="{READER_SRC}" data-arxiv="{aid}" data-mode="{mode}" data-buddy="{BUDDY_SRC}" data-pdfjs="{PDFJS}" data-other="{other}"'
-            f' data-kbindex="{BASE}kb_index.json" data-sw="{u0}sw.js" data-scope="{u0}"></script></body></html>')
-    (d0 / "sw.js").write_text((ROOT / "html_utils/kb_reader_sw.js").read_text())
+    (d / "pdf").mkdir(parents=True, exist_ok=True)
+    (d / "index.html").write_text(
+        f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{t}: the original paper</title><meta name="robots" content="noindex">\n{THEME}<style>{READER_CSS}</style>'
+        f'{BAR_CSS}{APP}<meta name="kb-title" content="{t}: the original paper">{RESUME}</head>'
+        f'<body>{bar(p, "paper")}<div class="w" data-pagefind-ignore="all"><nav class="rd-bar"><a href="{url(p)}">Back to the explainer</a>'
+        f'<a class="rd-src" href="https://arxiv.org/abs/{aid}" target="_blank" rel="noopener noreferrer">arXiv {aid}</a></nav>'
+        f'<article id="kbPaper" class="rd-pdf" data-kb-noedit><p id="kbPaperStatus" class="rd-st">Loading the paper from arXiv...</p></article></div>'
+        f'<script src="{READER_SRC}" data-arxiv="{aid}" data-buddy="{BUDDY_SRC}" data-pdfjs="{PDFJS}"'
+        f' data-kbindex="{BASE}kb_index.json" data-sw="{u}sw.js" data-scope="{u}"></script></body></html>')
+    (d / "pdf" / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><title>Redirect</title><meta name="robots" content="noindex">'
+                                          f'<script>location.replace({json.dumps(u)}+location.hash)</script><a href="{u}">{t}: the original paper</a>')
+    (d / "sw.js").write_text((ROOT / "html_utils/kb_reader_sw.js").read_text())
 
 
 def kb_index():
@@ -309,6 +308,14 @@ def main():
         f = src / "index.html"
         if f.exists():
             s = relink(f.read_text())
+            if p.get("reader"):   # the paper card's "read it" link (and the PDF link after it) opens the paper reader instead
+                aid, rd = p["reader"]["arxiv"], f'<a href="{url(p)}paper/">read the paper here, with the AI buddy</a>'
+                s, k = re.subn(r'<a href="https://arxiv\.org/(?:html|pdf)/[0-9.]+(?:v\d+)?"[^>]*>read it \([^<]*\)</a> · <a href="https://arxiv\.org/pdf/[0-9.]+(?:v\d+)?"[^>]*>PDF</a>',
+                               rd + f' · <a href="https://arxiv.org/abs/{aid}" target="_blank" rel="noopener noreferrer">arXiv</a>', s, count=1)
+                if not k:
+                    s, k = re.subn(r'<a href="https://arxiv\.org/(?:html|pdf)/[0-9.]+(?:v\d+)?"[^>]*>read it \([^<]*\)</a>', rd, s, count=1)
+                if not k:   # a card without a "read it" link (a page on two papers): the reader's link goes first in its link line
+                    s = s.replace('<div class="hero-l">', '<div class="hero-l">' + rd.replace(">read the paper here", f">read arXiv {aid.split('v')[0]} here") + " · ", 1)
             s = s.replace("</head>", BAR_CSS + APP + f'<meta name="kb-title" content="{html.escape(title(p))}">' + RESUME + "</head>", 1)
             s = s.replace('<script id="kb-buddy">', f'<script id="kb-buddy" data-src="{BUDDY_SRC}">', 1)
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
