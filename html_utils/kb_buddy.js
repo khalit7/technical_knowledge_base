@@ -1523,6 +1523,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     if (R && !sameKind) return 'Not done: in a refinement you may only make a new version of this change, with ' + (R.kind === 'visual' ? 'patch_visual or add_visual' : R.kind === 'insert' ? 'insert_text' : 'rewrite_block') + '.';
     if (sameKind) e = anchorOf(R) || e;   // a new version stays where its change is
     if (!e) return 'There is no block ' + i + ' (or it is a tab heading). Use the index of a block in the page document.';
+    if (noEdit(e)) return 'Not done: this page is a printed paper (the PDF view of the paper reader) and cannot be changed. Answer in your note instead (a sketch there can show a picture), or suggest the HTML view of the paper, where the page can be changed.';
     let x = null, msg = '';
     if (u.name === 'rewrite_block' || u.name === 'insert_text') {
       const text = String(inp.text || '').trim(); if (!text) return 'The new text was empty.';
@@ -2059,7 +2060,9 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     return e.closest('figure') || wideBlock(e);
   }
   const blockName = e => e.tagName === 'FIGURE' ? 'This figure' : e.tagName === 'TABLE' ? 'This table' : /^(UL|OL|DL)$/.test(e.tagName) ? 'This list' : e.tagName === 'LI' ? 'This item' : /^H[1-6]$/.test(e.tagName) ? 'This heading' : e.tagName === 'P' ? 'This paragraph' : 'This block';
-  const blockRowHtml = e => '<div class="kb-blk"><span>' + blockName(e) + ':</span><button type="button" data-k="hide">Hide</button><button type="button" data-k="up" aria-label="Move up" title="Move up">↑</button><button type="button" data-k="down" aria-label="Move down" title="Move down">↓</button><button type="button" data-k="text">+ Text</button><button type="button" data-k="vis">+ Visual</button></div>';
+  // a part of the page marked data-kb-noedit (the paper reader's PDF view: a printed page) cannot be hidden, moved, rewritten or added to
+  const noEdit = e => !!(e && e.closest && e.closest('[data-kb-noedit]'));
+  const blockRowHtml = e => noEdit(e) ? '' : '<div class="kb-blk"><span>' + blockName(e) + ':</span><button type="button" data-k="hide">Hide</button><button type="button" data-k="up" aria-label="Move up" title="Move up">↑</button><button type="button" data-k="down" aria-label="Move down" title="Move down">↓</button><button type="button" data-k="text">+ Text</button><button type="button" data-k="vis">+ Visual</button></div>';
   function blockClick(ev, e, input, done){
     const b = ev.target.closest && ev.target.closest('.kb-blk [data-k]'); if (!b) return false; ev.preventDefault(); ev.stopPropagation(); if (!e || !e.isConnected) return true;
     const k = b.dataset.k;
@@ -2069,6 +2072,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
   }
   const sibBlock = (e, d) => { let s2 = e; do { s2 = d < 0 ? s2.previousElementSibling : s2.nextElementSibling } while (s2 && (s2.matches(KB_NODES + ',script,style,template') || s2.classList.contains('kb-hid'))); return s2 };
   function blockAct(k, e){
+    if (noEdit(e)) return;
     origView = false;
     if (k === 'hide') { if (edits.some(y => y.kind === 'hide' && anchorOf(y) === e)) return; const x = newEdit('hide', e, {}, {st:'kept', by:'you'}); edits.push(x); renderEdits(); saveBook(); refreshOv(); offerUndo('Hidden', {add:[x.id]}); return }
     const m = moveTo(e, sibBlock(e, k === 'up' ? -1 : 1), k === 'up' ? 'before' : 'after', {}); if (typeof m === 'string') { toast(m, 3500); return }
@@ -2087,6 +2091,8 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     clearTimeout(hovT); const tgt = e.target;
     hovT = setTimeout(() => {
       const b = blockEl(tgt); if (!b) { setTimeout(() => { if (!handle.matches(':hover') && !(hovBlk && hovBlk.matches(':hover'))) handle.hidden = true }, 450); return }
+      const ne = noEdit(b); if (ne && keyState() === 'missing') { handle.hidden = true; return }   // a printed page with no Claude key: the menu would be empty
+      handle.title = ne ? 'Ask about this block' : keyState() === 'missing' ? 'Hide this block or move it' : 'Ask about this block, hide it, move it, add text or a visual after it';
       hovBlk = b; const r = b.getBoundingClientRect(), hx = Math.max(2, r.left - 28), hy = r.top + 2;
       if ([...noteEl.values()].some(x => { if (x.hidden) return false; const q = x.getBoundingClientRect(); return q.width && q.left < hx + 30 && q.right > hx - 8 && q.top < hy + 30 && q.bottom > hy - 8 })) { handle.hidden = true; return }   // never over or beside a note's dot
       Object.assign(handle.style, {left:(hx + scrollX) + 'px', top:(hy + scrollY) + 'px'}); handle.hidden = false;
@@ -2097,7 +2103,7 @@ Output format, always: in the notebook first <at>the letter of the spot you choo
     { const d = kept.get('blk'); if (d && d.for !== b) dropKept('blk') }
     blkTgt = b; handle.hidden = true;
     blkPop.innerHTML = '<div class="kb-pr"><input type="text" placeholder="Ask Claude about ' + esc(blockName(b).toLowerCase()) + '…" enterkeyhint="send" aria-label="Ask Claude about ' + esc(blockName(b).toLowerCase()) + '">' + DRAWB.replace('data-draw', 'data-bk="draw"') + '<button type="button" class="kb-go" data-bk="ask" title="Send" aria-label="Send">&#x2191;</button><button type="button" data-bk="x" aria-label="Close">✕</button></div>' + blockRowHtml(b);
-    if (keyState() === 'missing') { blkPop.querySelector('.kb-blk').appendChild(blkPop.querySelector('[data-bk=x]')); blkPop.querySelector('.kb-pr').remove() }
+    if (keyState() === 'missing') { if (!blkPop.querySelector('.kb-blk')) { closeBlk(); return } blkPop.querySelector('.kb-blk').appendChild(blkPop.querySelector('[data-bk=x]')); blkPop.querySelector('.kb-pr').remove() }
     blkPop.hidden = false; posPop(blkPop, b); markDraw(blkPop.querySelector('[data-bk=draw]'), 'blk'); const bi = blkPop.querySelector('input'); if (bi) bi.focus();
   }
   function closeBlk(){ blkPop.hidden = true; blkTgt = null; dropKept('blk') }

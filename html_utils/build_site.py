@@ -44,6 +44,14 @@ RESUME = ('<style>html.kb-resuming body{visibility:hidden}</style><script>if(loc
 # the loader every page carries (written by apply_buddy.py), for the home page, which this script writes
 HOME_BUDDY = (f'<script id="kb-buddy" data-src="{BUDDY_SRC}">\n' + (ROOT / "html_utils/kb_buddy_loader.js").read_text().rstrip("\n")
               + '\n</script><!--/kb-buddy-->')
+# the paper reader (html_utils/kb_reader.js): a paper page whose pages.json entry has "reader": {"arxiv": "<id>v<n>"} gets paper/ (arXiv's
+# HTML version) and paper/pdf/ (the PDF, drawn by pdf.js) next to it, each with the AI buddy and its own notes, readable offline once opened
+READER = (ROOT / "html_utils/kb_reader.js").read_text()
+READER_SRC = BASE + "kb_reader.js?v=" + hashlib.sha1(READER.encode()).hexdigest()[:10]
+READER_CSS = (ROOT / "html_utils/kb_reader.css").read_text()
+PDFJS_VERSION = "6.5.438"   # html_utils/lib/pdfjs (its README says how to update it); published in a folder named by its version
+PDFJS = BASE + f"lib/pdfjs-{PDFJS_VERSION}/"
+THEME = re.search(r"<style>.*?</style>", (ROOT / ".claude/skills/explainer-page/build/templates/01_head.html").read_text(), re.S).group(0)
 NEWS, PAPERS = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers"
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]  # What's new sits above them
 
@@ -93,7 +101,8 @@ MANIFEST = {"name": "Technical knowledge base", "short_name": "Knowledge base", 
             "icons": [{"src": BASE + "app_icon.png", "sizes": "512x512", "type": "image/png"}]}
 
 
-def bar(p):
+def bar(p, here=None):
+    """the bar above a page; here: on a reader page, what it is (its crumbs end with the paper's own page)"""
     crumbs, q = [], parent(p)
     while q:
         crumbs.insert(0, q)
@@ -103,7 +112,11 @@ def bar(p):
     parts = [f'<a href="{BASE}">Knowledge base</a>'] + [f'<a href="{url(c)}">' + ('<i class="d"></i>' if k is not None and i == 0 else "")
                                                       + f'{html.escape(title(c))}</a>' for i, c in enumerate(crumbs)]
     cls = f' class="k{k}"' if k is not None else ""
-    return f'<nav id="kb-bar"{cls} data-pagefind-ignore>{" / ".join(parts)}<a class="s" href="{BASE}#search">Search</a></nav>'
+    if here:   # a reader page: the paper's own page is the last crumb
+        parts.append(f'<a href="{url(p)}">' + ('<i class="d"></i>' if k is not None and not crumbs else "") + f'{html.escape(title(p))}</a>')
+    rd = f'<a class="s" href="{url(p)}paper/">Original paper</a>' if p.get("reader") and not here else ""
+    sc = "" if rd else ' class="s"'
+    return f'<nav id="kb-bar"{cls} data-pagefind-ignore>{" / ".join(parts)}{rd}<a{sc} href="{BASE}#search">Search</a></nav>'
 
 
 def relink(s):
@@ -226,6 +239,31 @@ document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e
 </body></html>"""
 
 
+def reader(p):
+    """the paper reader pages of a paper page with a "reader" field: paper/ (the HTML view) and paper/pdf/ (the PDF view)"""
+    aid = p["reader"]["arxiv"]
+    assert re.fullmatch(r"\d{4}\.\d{4,5}v\d+", aid), p["path"] + ': "reader": {"arxiv": "<id>v<n>"}, pinned to a version'
+    d0 = OUT / p["path"].removeprefix("technical_knowledge_base/") / "paper"
+    assert p["path"] + "/paper" not in by_path, p["path"] + "/paper is a page: the reader needs that folder"
+    u0 = url(p) + "paper/"
+    t = html.escape(title(p))
+    for mode, d, u, other in (("html", d0, u0, u0 + "pdf/"), ("pdf", d0 / "pdf", u0 + "pdf/", u0)):
+        d.mkdir(parents=True, exist_ok=True)
+        seg = (f'<span class="seg" role="group" aria-label="View"><a href="{u0}"{" aria-current=page" if mode == "html" else ""}>HTML</a>'
+               f'<a href="{u0}pdf/"{" aria-current=page" if mode == "pdf" else ""}>PDF</a></span>')
+        src = f"https://arxiv.org/{'pdf' if mode == 'pdf' else 'abs'}/{aid}"
+        (d / "index.html").write_text(
+            f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{t}: the original paper{" (PDF)" if mode == "pdf" else ""}</title><meta name="robots" content="noindex">\n{THEME}<style>{READER_CSS}</style>'
+            f'{BAR_CSS}{APP}<meta name="kb-title" content="{t}: the original paper{" (PDF)" if mode == "pdf" else ""}">{RESUME}</head>'
+            f'<body>{bar(p, "paper")}<div class="w" data-pagefind-ignore="all"><nav class="rd-bar"><a href="{url(p)}">Back to the explainer</a>{seg}'
+            f'<a class="rd-src" href="{src}" target="_blank" rel="noopener noreferrer">arXiv {aid}</a></nav>'
+            f'<article id="kbPaper" class="rd-{mode}"{" data-kb-noedit" if mode == "pdf" else ""}><p id="kbPaperStatus" class="rd-st">Loading the paper from arXiv...</p></article></div>'
+            f'<script src="{READER_SRC}" data-arxiv="{aid}" data-mode="{mode}" data-buddy="{BUDDY_SRC}" data-pdfjs="{PDFJS}" data-other="{other}"'
+            f' data-kbindex="{BASE}kb_index.json" data-sw="{u0}sw.js" data-scope="{u0}"></script></body></html>')
+    (d0 / "sw.js").write_text((ROOT / "html_utils/kb_reader_sw.js").read_text())
+
+
 def kb_index():
     """every page for the AI buddy (html_utils/kb_buddy.js): path from the site root, title, id, prerequisite ids, section headings and a
     one-line summary (the first real paragraph); the buddy searches it and links pages Claude names"""
@@ -276,6 +314,8 @@ def main():
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)
             n += 1
+            if p.get("reader"):
+                reader(p)
         else:  # a parent with no page of its own (Papers, Tech news): its children as cards (html_utils/whats_new.py)
             main_ = (whats_new.papers_index(pages, url, by_id) if p["path"] == PAPERS else whats_new.news_index(pages, url) if p["path"] == NEWS
                      else "<h1>" + html.escape(p["title"]) + "</h1><ul>" + "".join(f'<li><a href="{url(c)}">{html.escape(c["title"])}</a></li>' for c in children(p)) + "</ul>")
@@ -299,6 +339,8 @@ def main():
                                           f'<script>location.replace({json.dumps(url(p))}+location.hash)</script><a href="{url(p)}">{html.escape(p["title"])}</a>')
     (OUT / "index.html").write_text(home())
     (OUT / "kb_buddy.js").write_text(BUDDY)
+    (OUT / "kb_reader.js").write_text(READER)
+    shutil.copytree(ROOT / "html_utils/lib/pdfjs", OUT / f"lib/pdfjs-{PDFJS_VERSION}", ignore=shutil.ignore_patterns("README.md"))
     (OUT / "kb_s3.js").write_text((ROOT / ".claude/skills/explainer-page/build/templates/25_js_s3.js").read_text())   # the 3D renderer, for the buddy's visuals on pages without their own copy
     (OUT / "kb_index.json").write_text(json.dumps(kb_index(), ensure_ascii=False, separators=(",", ":")))
     (OUT / "manifest.webmanifest").write_text(json.dumps(MANIFEST))
