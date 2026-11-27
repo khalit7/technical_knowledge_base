@@ -86,3 +86,9 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] neural_networks_already_clean: Activation functions, "Inside real models" (sparse activations): the companion's functional sparsity holds for loss, not for reasoning.
 - [ ] neural_networks_already_clean: Mixture of experts, beside "routing tracks the token, not the topic": the essay's agent-judged finding that Qwen3.6's 10,240 experts are narrowly themed (a different measure; an extension).
 - [ ] neural_networks_already_clean: The transformer from zero (optional): a feed-forward unit's negative pole carries meaning and can gate between routes.
+- [ ] end_to_end_4bit_training: Quantization and Precision section 6: parameter count now public (Inkling 2 Small, 594B total, 17B active); "8% less wall-clock time" should be the article's ambiguous "8% wall-clock speedup"; add the transpose mismatch (row vs column blocks), why the backward target is MXFP8 with stochastic rounding, and Transformer Engine's missing stochastic MXFP8 quantiser; link the article page.
+- [ ] end_to_end_4bit_training: Numerical computing section 2: stochastic rounding to move a tensor between block layouts while keeping its expectation (4.5 to 2.25 to 2 or 3).
+- [ ] end_to_end_4bit_training: RL for LLMs: one numerics configuration from pretraining to the last rollout; about 20% faster RL (vendor).
+- [ ] end_to_end_4bit_training: Fair Cast paper page: the same dead zone on the released NVFP4 weights (miles issue comment, 24 Nov).
+- [ ] end_to_end_4bit_training: Mixture of experts: dispatch in NVFP4, combine in S2F6 after a Hadamard rotation.
+- [ ] end_to_end_4bit_training: Other notable providers, Inkling 2 Small: the model card's "pretrained ... in NVFP4" overstates the post (only expert forward matmuls).

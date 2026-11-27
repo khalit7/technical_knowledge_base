@@ -1,0 +1,742 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>End-to-End 4-Bit Training</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2733;--mute:#5f6b7a;--line:#e1e4e9;--soft:#f0f2f5;--acc:#2a62a8;--acc2:#dde8f6;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8;--shadow:0 1px 2px rgba(20,35,60,.06),0 8px 24px rgba(20,35,60,.07);--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121519;--card:#1a1e24;--ink:#e6e9ee;--mute:#9aa4b2;--line:#2c323b;--soft:#20252c;--acc:#7aaee8;--acc2:#1f334b;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+h1{font-family:var(--serif);font-size:clamp(28px,4.2vw,40px);line-height:1.12;margin:0;letter-spacing:-.005em}.sub{color:var(--mute);font-size:15px;line-height:1.55;max-width:46em;margin:12px 0 18px}
+h2{font-family:var(--serif);font-size:clamp(23px,3vw,29px);margin:64px 0 12px;line-height:1.2}h3{font-size:16px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}sub,sup{line-height:0}
+section>p,section>ul,section>ol{max-width:46em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 12px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.an-ctl button,.an-ctl select{border-radius:999px;padding:5px 14px}
+.an-play{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:13px;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 12px;white-space:nowrap}
+.nav a.cur{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin:20px 0;min-width:0}.card h4{font-size:15.5px;line-height:1.35;margin:0 0 8px}
+.co{border-left:4px solid var(--acc);background:var(--acc2);padding:12px 16px;border-radius:0 12px 12px 0;margin:18px 0}
+.co.warn{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg))}.co.key{border-left-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--bg))}
+.co .t{font-weight:600;font-size:14px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:0;border-radius:10px;padding:10px 12px;background:var(--soft);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:22px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:15px;border-radius:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:9px 14px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:20px;background:var(--soft);padding:3px;gap:2px;margin:6px 0}.seg button{font:inherit;font-size:13px;background:transparent;color:var(--mute);border:0;border-radius:999px;padding:5px 13px;cursor:pointer}.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(20,35,60,.15)}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0}.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-cap{background:var(--soft);border-left:4px solid var(--acc);border-radius:0 10px 10px 0;padding:10px 14px;margin:8px 0;font-size:14.5px}
+figure.ph{margin:20px 0}figure.ph img{display:block;width:100%;height:auto;border-radius:10px}figure.ph figcaption{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.5}
+figure.ph.side{float:right;width:min(380px,40%);margin:6px 0 14px 26px}section{display:flow-root}.card,details,.tw,.fm{clear:both}.co{display:flow-root}
+@media (max-width:700px){figure.ph.side{float:none;width:auto;margin:16px 0}}
+/* eased steps: RD.anim adds rd-fwd to the card when the step moves forward; marks drawn with class rd-new ease in, rd-gone fade out, and the caption fades in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
+@media (max-width:520px){body{font-size:15px}h1{font-size:26px}h2{margin-top:48px}.w{padding:20px 14px 40px}.card{padding:14px;border-radius:12px}.seg button{padding:5px 10px}code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100%;overflow-x:auto;overflow-y:hidden}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style><script id="kb-buddy">
+// ---- AI buddy loader: the small script every page carries (apply_buddy.py writes it as the marked kb-buddy block in the head part) ----
+// It loads the buddy (html_utils/kb_buddy.js, one shared file) on every page once the page has loaded. The buddy's toolbar is all it adds:
+// without a Claude key or a GitHub token, the toolbar's Claude and sync buttons say so and open the field to add it.
+// Where it is: on the site, build_site.py writes data-src (the site root's kb_buddy.js, with a version stamp); opened from the repo,
+// the path to html_utils/kb_buddy.js is worked out from the folder technical_knowledge_base in the page's own address.
+// No literal closing-head or opening-body tag may appear in this file: build_site.py inserts its bar at the first of each.
+(function(){
+  if (window.__kbBuddyLoader) return; window.__kbBuddyLoader = 1;
+  // keep WebGL drawing buffers readable, so the buddy can capture a 3D view between frames; this must run before the page's own scripts
+  try { var gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
+  var me = document.currentScript, src = me && me.getAttribute('data-src');
+  if (!src) { var h = location.href.split('#')[0], i = h.lastIndexOf('/technical_knowledge_base/'); src = i < 0 ? null : h.slice(0, i + 1) + 'html_utils/kb_buddy.js' }
+  function load(){ if (!src) return; var tag = document.createElement('script'); tag.src = src; tag.async = true; document.head.appendChild(tag) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script><!--/kb-buddy-->
+</head><body><div class="w">
+<style id="kb-split">
+/* The split layout (standing rule, 2026-11-06): a section with a visual is two columns, the explanation on the left and the visual on the right,
+   sticky while its section is read; a section without a visual is full width. Below 1100 px the visual sits at the top of its section
+   (a stage stays under the section nav while its steps are read; a figure card scrolls with the text). Classes are prefixed s3 to avoid page classes. */
+.s3sp{position:relative;margin-top:8px}
+.s3R{display:contents}
+.stg{position:sticky;top:50px;z-index:3;height:min(44vh,330px);min-height:250px;margin:6px 0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.stg-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 0;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.stg-top span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.stg-top span:last-child{white-space:nowrap}
+.stg-cv{position:relative;flex:1;min-height:0}
+.stg canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}.stg canvas.dr{cursor:grabbing}
+.stg-rv{position:absolute;right:8px;top:4px;font-size:12px;padding:2px 10px;border-radius:999px}
+.stg-hint{position:absolute;right:10px;bottom:4px;font:11px ui-monospace,Menlo,monospace;color:var(--mute);pointer-events:none;letter-spacing:.04em}
+.stg-bar{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}
+.stg .stg-bar.an-ctl{flex-wrap:nowrap!important}.stg .stg-bar button{padding:4px 11px;font-size:13px;white-space:nowrap}.stg .stg-bar input.stg-r{flex:1 1 40px!important;min-width:30px!important;width:auto}.stg .stg-bar select{font-size:12.5px;padding:3px 6px}
+/* the step list: the explanation of the animation, one item per step; the current step is marked, a click jumps to it */
+ol.sx{list-style:none;counter-reset:sx;padding:0;margin:12px 0 18px;max-width:46em}
+ol.sx>li{counter-increment:sx;position:relative;padding:8px 12px 8px 40px;margin:0 0 4px;border-radius:10px;border-left:3px solid transparent;cursor:pointer;color:var(--mute);transition:background .25s,color .25s,border-color .25s}
+ol.sx>li::before{content:counter(sx);position:absolute;left:10px;top:9px;width:21px;height:21px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:600 12px/19px ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;text-align:center;color:var(--mute)}
+ol.sx>li b{color:var(--ink)}
+ol.sx>li.done{color:var(--ink)}ol.sx>li.done::before{background:var(--soft)}
+ol.sx>li.on{background:var(--card);color:var(--ink);border-left-color:var(--acc);box-shadow:var(--shadow)}ol.sx>li.on::before{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+ol.sx>li:hover{background:var(--soft)}ol.sx>li.on:hover{background:var(--card)}
+ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sxh{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 0}
+.s3chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.s3chips button{border-radius:999px;padding:3px 12px;font-size:13.5px}
+.s3chips button.on{background:var(--c2);border-color:var(--c2);color:var(--bg)}
+.s3q{color:var(--c2);font-weight:600}.s3k{color:var(--c6);font-weight:600}.s3v{color:var(--c4);font-weight:600}
+/* a compact 2D animation card (about 320 px tall or less on a phone) that should stay in view while its step list is read: put it first in .s3R with class s3stick */
+@media (max-width:1099px){.s3stick{position:sticky;top:50px;z-index:3}}
+.s3side .card{margin-top:6px}
+@media (min-width:1100px){
+  .w:has(.tab:not([hidden]) .s3sp){max-width:1380px}
+  /* text outside a split keeps a readable line length on the widened page (2026-11-06) */
+  .w:has(.tab:not([hidden]) .s3sp) .tab :is(p,ul,ol,dl,blockquote):not(.s3sp *):not(.card *):not(td *):not(th *):not(li *):not(.stat *){max-width:52em}
+  .s3sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:40px;align-items:stretch}
+  .s3L{grid-column:1;grid-row:1;min-width:0}
+  .s3R{display:block;grid-column:2;grid-row:1;min-width:0}
+  .stg{top:58px;height:min(calc(100vh - 80px),660px);margin:20px 0 0}
+  .s3side{position:sticky;top:58px;margin-top:20px}
+  .s3L section>h2:first-child{margin-top:44px}
+}
+@media (max-width:520px){.stg{top:50px;height:min(52vh,400px);min-height:270px;border-radius:12px}.stg-bar{gap:4px;padding:5px 6px 6px}.stg .stg-bar button{padding:4px 9px}.stg .stg-bar select{padding:3px 4px}.stg-hint{display:none}ol.sx>li{padding:7px 10px 7px 36px}ol.sx>li::before{left:7px}}
+</style>
+<style id="wp-css">
+/* article page: the headline card (generated by mk_article.py), "in the article" margin labels, figure cards. Copied from the paper pages' card look. */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0 8px;background:var(--card);box-shadow:var(--shadow)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.hero h1{margin:6px 0 6px}
+.hero .au{font-size:13.5px;line-height:1.45;color:var(--mute)}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hero-l{font-size:13.5px;margin-top:8px}.hero-n{font-size:12.5px;color:var(--mute);margin-top:6px}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:22px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}.hn .stat .k{font-size:12.5px;color:var(--ink)}
+.where{display:inline-block;margin:0 0 6px;font-size:12px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:1px 7px;text-decoration:none;background:var(--bg)}
+.where:before{content:"in the article: ";opacity:.75}
+a.where:visited{color:var(--mute)}.where:hover{color:var(--acc);border-color:var(--acc)}
+.wp-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.wp-fig figcaption,.wp-cap{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.wp-fig{margin:0}
+.wp-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.wp-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.wp-hl{color:var(--c2);font-weight:600}
+.wp-resp{list-style:none;padding:0;margin:10px 0}.wp-resp li{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 8px;background:var(--card)}
+.wp-resp .by{font-size:12.5px;color:var(--mute)}.wp-resp .kind{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin-right:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink)}
+.wp-toyout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.wp-toyout .stat .v{font-size:19px}
+#t-read details.mist .b p,#t-read details.mist .b li{font-size:14px}
+blockquote.wp-q{margin:10px 0;padding:6px 14px;border-left:3px solid var(--line);color:var(--ink);font-style:italic}
+/* this page (prefix e4): figure cards, the transpose toy, the cost calculator */
+.e4-fig{margin:0}.e4-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.e4-fig figcaption{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.e4-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.e4-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.e4-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table.e4-tab{border-collapse:collapse;font-size:12.5px;width:100%;margin:6px 0}
+table.e4-tab th,table.e4-tab td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:right;vertical-align:top}
+table.e4-tab th:first-child,table.e4-tab td:first-child{text-align:left}
+table.e4-tab th{font-weight:600;color:var(--mute);font-size:12px}
+table.e4-tab tr.on td{background:var(--soft);font-weight:600}
+.e4-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.e4-out .stat .v{font-size:19px}
+#e4-s{width:100%}
+.e4-verdict{border-left:3px solid var(--acc);padding:4px 12px;background:var(--soft);border-radius:4px}
+</style>
+<div class="crumb"><a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a> · 2026 · <span id="rt">Reading: 19 min, plus 3 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The article</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<div class="hero" id="hero">
+<div class="hero-k">Article · research post · Connectionism, Thinking Machines Lab&#x27;s blog · updated 25 November 2026</div>
+<h1>End-to-End 4-Bit Training</h1>
+<div class="au">Jack Cook, with others at Thinking Machines (Thinking Machines Lab) · published 13 November 2026</div>
+<p class="tk"><b>In one line:</b> On one model, Inkling 2 Small (594B total, 17B active, a mixture of experts), Thinking Machines ran the expert layers&#x27; forward matmuls in NVFP4 and their backward matmuls in MXFP8 re-quantised with stochastic rounding, and sent expert-parallel traffic in 4.5 and 8.25 bits a value; in their largest jobs they report about 8% faster pretraining at about 2% compute efficiency and about 20% faster RL with no discernible difference in reward, both against full MXFP8, with no seeds, loss curves or reward curves published.</p>
+<div class="hn">
+<div class="stat"><div class="v">8% <span class="u">faster pretraining</span></div><div class="k">wall clock against full MXFP8 training, in the lab&#x27;s largest jobs (vendor figure, one model)</div><div class="d">at about 2% compute efficiency; netted, about 5.5% less time to the same loss (derived, section 7) · <a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=this%20recipe%20provides%20us%20with%20an%208%25%20wall%2Dclock%20speedup" target="_blank" rel="noopener noreferrer">in the article: the introduction</a></div></div>
+<div class="stat"><div class="v">20% <span class="u">faster RL</span></div><div class="k">against full MXFP8, sampling and training, with &quot;no discernible difference in reward&quot; (vendor figure)</div><div class="d">no reward curve, task or run count given · <a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=a%2020%25%20speedup%20in%20RL%20over%20full%20MXFP8%20training" target="_blank" rel="noopener noreferrer">in the article: the introduction</a></div></div>
+<div class="stat"><div class="v">15 vs 5 <span class="u">PFLOPS</span></div><div class="k">NVFP4 against MXFP8 matmuls on one GB300: the 3x peak behind the end-to-end 8%</div><div class="d">NVFP4 stores 4.5 bits a value, MXFP8 8.25, BF16 16 (the article&#x27;s format table) · <a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=runs%20up%20to%206x%20faster%20on%20GB300s" target="_blank" rel="noopener noreferrer">in the article: the introduction</a></div></div>
+</div>
+<p class="tk"><b>How far to trust it:</b> Believe the mechanisms: each fix (column scales after a transpose, unbiased re-quantisation by stochastic rounding, an 8-bit combine after a Hadamard rotation) follows published work, checks out by arithmetic and does what the toy on this page shows, and two small replications on one B200 see the same direction. Treat the sizes as vendor figures for one model: no curves, seeds or baseline loss, an &quot;8% speedup&quot; that does not say whether it is time or throughput, and a cost that, netted, leaves about 5.5% less time to the same loss (derived). <a href="#s-trust">The evidence, judged</a>.</p>
+<div class="hero-l"><a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/" target="_blank" rel="noopener noreferrer">read it (16 min)</a></div>
+<div class="hero-n">Updated: the page&#x27;s metadata gives a modification on 25 November; the only change in the text since the first archived copy (14 November) is a credit, &quot;Like Quartet II&quot; becoming &quot;Like TetraJet-v2 and Quartet II&quot; (compared in Provenance).</div>
+</div>
+
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> 4-bit arithmetic is safe where rounding error is random and gets averaged away, and unsafe where it is systematic and compounds, so Thinking Machines put NVFP4 only in the forward matmuls of the expert layers (and the RL sampler, which runs the same forward), kept every backward matmul in MXFP8, and made the hand-over between the two unbiased with stochastic rounding.</p>
+<p class="small"><b>You need:</b> the formats and block scales (E2M1, E4M3, MXFP8, NVFP4: <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, sections 1, 2 and 6); round-to-nearest against stochastic rounding (<a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>, section 2); what dispatch and combine are in an expert-parallel MoE layer (<a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>).</p>
+<p class="small"><b>New terms:</b> <b>compute efficiency (CE)</b> (the article's cost measure: a technique with a CE cost of 2% reaches the loss that the MXFP8 baseline would reach with 2% fewer FLOPs); <b>re-quantisation</b> (de-quantise the forward pass's 4-bit tensor, transpose it, round it again into the backward pass's blocks); <b>S2F6</b> (an 8-bit fixed-point format, two signed integer bits and six fraction bits, values from −2 to 127/64); <b>RHT</b> (random Hadamard transform, a rotation that spreads an outlier over many values); <b>Inkling 2 Small</b> (Thinking Machines' open MoE, 594B total and 17B active parameters, 48 layers, 8 of 384 experts per token, by its <a href="https://huggingface.co/thinkingmachines/Inkling-2-Small" target="_blank" rel="noopener noreferrer">model card</a>).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card e4-fig" id="e4-hero">
+<div class="t">Each stage of training gets the format its risk allows: 4 bits only where speed matters and bias does not</div>
+<div id="e4-hero-svg"></div>
+<figcaption>The article's table of priorities (its "Risks" and "Rewards", one to three marks, a dash for none) redrawn, with the format each stage ended up with under its name. Pretraining forward: error 3, bias none, speed 2, memory none. Pretraining backward: error 1, bias 3, speed 2, memory none. RL sampler: error 3, bias none, speed 3, memory 3. RL trainer: error 1, bias 3, speed 1, memory none. Formats from the article's decisions list and its Recipe details; the table is the lab's own judgement, not a measurement.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-stages">Four stages</a><a href="#s-target">Experts, forward</a><a href="#s-fmt">NVFP4</a><a href="#s-tr">The transpose</a><a href="#s-comms">Communication</a><a href="#s-kern">Kernels</a><a href="#s-recipe">Recipe and cost</a><a href="#s-close">Closing</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<section id="s-stages"><h2>1. Fewer bits buy speed; the question is where their error is harmless</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=We%20manage%20this%20tradeoff%20through%20our%20use" target="_blank" rel="noopener noreferrer" class="where">The introduction</a>
+<p><b>The article's frame is one trade, judged separately at four stages of training.</b> Fewer bits mean less memory and faster arithmetic but coarser rounding, and rounding errors pile up across layers and steps (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=these%20errors%20accumulate%20over%20training%20as%20rounding%20happens" target="_blank" rel="noopener noreferrer">in the article</a>). On a GB300, NVFP4 matmuls peak at 15 PFLOPS against 5 for MXFP8 and 2.5 for BF16; NVFP4 stores 4.5 bits a value (16 four-bit values plus one 8-bit scale), MXFP8 8.25 (32 eight-bit values plus one scale) (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=runs%20up%20to%206x%20faster%20on%20GB300s" target="_blank" rel="noopener noreferrer">the format table</a>). The article's "6x" is against BF16; against the MXFP8 baseline every result is measured from, the peak is 3 times.</p>
+<p><b>Random error and systematic error are judged differently, and that decides the recipe.</b> Speed matters most in pretraining (trillions of tokens) and RL sampling, where every generated token reloads the weights, so fewer bits per weight is fewer bytes per token (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Each%20sampled%20token%20also%20requires%20loading%20the%20model%E2%80%99s%20weights" target="_blank" rel="noopener noreferrer">in the article</a>). Backward passes average over many tokens, which dilutes random rounding error, but they are "very sensitive to quantization bias": rounding that leans one way compounds across layers, samples and steps (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=backward%20passes%20are%20very%20sensitive%20to%20quantization%20bias" target="_blank" rel="noopener noreferrer">in the article</a>). The hero figure is the article's table of these priorities, with the answer each stage got.</p>
+<p><b>The result: one numerics configuration from the first pretraining step to the last RL rollout.</b> The RL sampler runs the same NVFP4 forward the model was trained with, so no 4-bit checkpoint has to be calibrated at the end (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=eliminates%20the%20need%20for%20calibration%20when%20a%20quantized%20checkpoint" target="_blank" rel="noopener noreferrer">in the article</a>). The lab calls Inkling 2 Small the largest model it knows of trained end to end with a native 4-bit forward pass, and reports, in its largest jobs, an 8% wall-clock speedup in pretraining and 20% in RL over full MXFP8 (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=this%20recipe%20provides%20us%20with%20an%208%25%20wall%2Dclock%20speedup" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+</section>
+
+<section id="s-target"><h2>2. The target: the expert layers, and only their forward pass</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Choosing%20a%20target%20for%20quantization" target="_blank" rel="noopener noreferrer" class="where">Choosing a target for quantization</a>
+<p><b>Mixture-of-experts layers were chosen because they hold most of the matmul work and, empirically, lose the least accuracy when quantised</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Mixture%20of%20Experts%20%28MoE%29%20layers%2C%20which%20are%20computationally%20expensive" target="_blank" rel="noopener noreferrer">in the article</a>). Attention, the router and the rest of the model are not part of the 4-bit recipe.</p>
+<p><b>Full NVFP4 training failed the lab's bar; forward-only did not.</b> Full MXFP8 in the MoE layers had "barely affected" compute efficiency (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=barely%20affected%20our%20model%E2%80%99s%20compute%20efficiency" target="_blank" rel="noopener noreferrer">in the article</a>); full NVFP4 gave "very large hits" to it (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=very%20large%20hits%20to%20our%20model%E2%80%99s%20CE" target="_blank" rel="noopener noreferrer">in the article</a>); 4 bits in the forward pass alone gave the better trade (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=focusing%20on%20the%20forward%20pass%20generally%20offered%20better%20tradeoffs" target="_blank" rel="noopener noreferrer">in the article</a>). No numbers are given for any of the three. Keeping the backward in 8 bits creates the rest of the article's problems: the forward pass's 4-bit tensors must be handed to a backward pass that groups them differently (section 4), and the faster forward exposes the network (section 5).</p>
+</section>
+
+<section id="s-fmt"><h2>3. NVFP4 in brief: 16 values share one fine-grained scale</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Low%2Dprecision%20formats%20on%20Blackwell" target="_blank" rel="noopener noreferrer" class="where">Low-precision formats on Blackwell</a>
+<p><b>An FP4 (E2M1) value is one of ±{0, 0.5, 1, 1.5, 2, 3, 4, 6}; NVFP4 multiplies every 16 consecutive values by one shared E4M3 scale, chosen from the block's largest magnitude</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=NVFP4%20scales%20each%20block%20of%2016%20consecutive%20values" target="_blank" rel="noopener noreferrer">in the article</a>). A block whose largest value is −54 stores it as −6 with a scale of 9. The scale is itself rounded: in the article's Figure 1, 593.7 wants a scale of 98.95, the nearest E4M3 value is 96, so it saturates at 96 × 6 = 576, an error of −17.7. Bit layouts and a bit explorer: <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, sections 1 and 2.</p>
+<p><b>Why NVFP4 and not MXFP4:</b> MX formats share a power-of-two (E8M0) scale per 32 values; NVFP4's E4M3 scale has 3 mantissa bits, so it sits closer to each block's real maximum, which the article says gives less error on LLM data (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=The%20increased%20precision%20offered%20by%20NVFP4%20scale%20factors" target="_blank" rel="noopener noreferrer">in the article</a>). A third, FP32 scale over a large group (here one expert's weights or one token's activations) slides the 2<sup>−10</sup> to 2,688 window up or down (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=second%20outer%2Dlevel%20scale%20factor%20which%20is%20saved%20in%20FP32" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-tr"><h2>4. The transpose problem, and re-quantising with stochastic rounding</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Block%2Dscaled%20backward%20passes" target="_blank" rel="noopener noreferrer" class="where">Block-scaled backward passes</a>
+<p><b>The backward pass reads the forward pass's tensors transposed, so every value lands in a different block of 16 with a different scale.</b> The forward y = x<sub>q</sub>w<sub>q</sub><sup>T</sup> sums along rows of x<sub>q</sub>, so its blocks run along rows; the weight gradient dw = g<sup>T</sup>x<sub>q</sub> sums down columns (and dx = g·w<sub>q</sub> reads w the other way), so each value is grouped with 15 new neighbours (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=each%20value%20is%20grouped%20with%2015%20different%20neighbors" target="_blank" rel="noopener noreferrer">in the article</a>). In the article's Figure 2, a 16 × 16 tile with one row of large values keeps all 256 values under row scales; under column scales the large row sets every scale and 221 small values round to zero. The backward pass then computes gradients for numbers the forward pass never used.</p>
+<p><b>NVIDIA's fix for weights, one scale per 16 × 16 tile, makes both directions identical but was too coarse here.</b> A square tile has the same blocks transposed (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=compute%20a%20single%20scale%20factor%20based%20on%20the%20largest%20value" target="_blank" rel="noopener noreferrer">in the article</a>), but one outlier among 256 values flushes the rest: in the article's Figure 3, 1 × 16 scales keep 241 of 256 values around an outlier, the tile keeps only the outlier. It hurt compute efficiency too much (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=computing%20scale%20factors%20over%2016%C3%9716%20tiles%20to%20be%20too%20coarse" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>The insight: the backward tensor need not equal the forward one, only equal it in expectation</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=perfect%20identity%20isn%E2%80%99t%20strictly%20necessary" target="_blank" rel="noopener noreferrer">in the article</a>). So the recipe de-quantises the forward tensors, transposes them in high precision and re-quantises them into the new blocks with stochastic rounding, which rounds up or down at random so the expected result is exact (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=de%2Dquantizing%20tensors%20from%20the%20forward%20pass%2C%20transposing%20them" target="_blank" rel="noopener noreferrer">in the article</a>). The article's example: 5.4 in a block of scale 9 is 0.6, rounded to 0.5, so the forward pass used 4.5; in a backward block of scale 2 that is 2.25, which nearest rounding always makes 2 (so 4), while stochastic rounding gives 2 three quarters of the time and 3 a quarter, 4.5 on average (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Stochastic%20rounding%20instead%20rounds%20it%20to%202%20three%20quarters" target="_blank" rel="noopener noreferrer">in the article</a>). Blackwell does stochastic rounding in hardware.</p>
+<p><b>And the backward target is MXFP8, not NVFP4:</b> re-quantising from de-quantised values allows any format, and MXFP8 for both gradient matmuls gave the best trade (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=stochastically%20re%2Dquantizing%20weights%20and%20activations%20to%20MXFP8" target="_blank" rel="noopener noreferrer">in the article</a>). Re-quantising the forward tensors comes from TetraJet-v2 and Quartet II, which the article credits. The whole layer is the article's Figure 4, drawn beside other recipes as "NVFP4 MoE experts" in <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, Fig. 10.</p>
+<p id="e4-toy-say"><b>The toy on the right hands one illustrative tile to the backward pass five ways and measures, exactly, the error that stays and the error that averages out.</b> On the default tile (unit Gaussians and one value of 40), quantising x again down the columns leaves a 13.0% error against what the forward pass used, the same on every draw. The 16 × 16 tile has no mismatch, but its forward pass already lost 252 of 512 values to zero, against 49 with row scales. Stochastic NVFP4 is nearly unbiased (0.5%, from block maxima that saturate) but each draw is off by 13.4%; stochastic MXFP8, the article's choice, is unbiased with 2.0% noise, about 0.06% after 1,000 draws are averaged. MXFP8 with nearest rounding, what the two replications run because Transformer Engine's MXFP8 quantiser has no stochastic option, leaves a fixed 1.6%. Across the four tiles: 13.0% to 14.4% for the naive mismatch, 1.6% to 3.6% for nearest-rounded MXFP8.</p>
+<p class="small mute">How far this transfers: the tiles are made up (seeded) and 32 × 16; the formats and rounding are exact. It shows the direction and the order of magnitude of each choice, not what any choice costs Inkling 2 Small's loss. Whether a fixed rounding error behaves as bias in real training depends on whether it leans the same way across steps; on a fixed tile it does by construction.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card e4-fig" id="e4-toy">
+<div class="t">Re-quantising the forward tile with stochastic rounding keeps the backward pass unbiased; MXFP8 also keeps it quiet</div>
+<div class="e4-ctl"><span class="small mute">Tile:</span> <div class="seg" id="e4-pre"><button data-m="gauss">Gaussian</button><button data-m="row">One large row</button><button data-m="outlier" class="on">One outlier</button><button data-m="channel">Outlier channel</button></div></div>
+<div class="e4-ctl"><span class="small mute">Backward operand:</span> <div class="seg" id="e4-opt"><button data-m="naive">x again, nearest</button><button data-m="tile">16 × 16 tiles</button><button data-m="nvsr">NVFP4, stochastic</button><button data-m="mxsr" class="on">MXFP8, stochastic</button><button data-m="mxrtn">MXFP8, nearest</button></div></div>
+<div id="e4-toysvg"></div>
+<div class="e4-lg"><span><i style="background:var(--c1)"></i>magnitude (darker is larger, log scale)</span><span><i style="border:2px solid var(--bad);background:none"></i>used by the forward pass, 0 in the backward operand</span><span><i style="border:1px dashed var(--mute);background:none"></i>zero</span></div>
+<div class="tw"><table class="e4-tab" id="e4-tab"></table></div>
+<figcaption id="e4-cap">Left, the forward pass's NVFP4 values, one scale per row of 16 (outlined); right, the backward operand, blocks down the columns, one stochastic draw (seeded). Table: values zeroed by the forward pass; the error that stays, ||E[b] − f|| / ||f||; the noise of one draw; what is left after 1,000 draws averaged; expected values the backward operand stores as 0. Exact, computed in the page and checked against src/recompute.py. Data illustrative.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-comms"><h2>5. Faster matmuls exposed the network, so the traffic went to 4.5 and 8.25 bits</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Quantized%20communications" target="_blank" rel="noopener noreferrer" class="where">Quantized communications</a>
+<p><b>With NVFP4 matmuls the MoE forward should have run about three times faster than in MXFP8; instead it started waiting on expert-parallel communication</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=should%20theoretically%20have%20gotten%20about%20three%20times%20faster" target="_blank" rel="noopener noreferrer">in the article</a>). Tokens travel to their experts' GPUs (dispatch) and the outputs travel back to be summed (combine), over NVLink at 900 GB/s each way on a GB300 NVL72 rack, while the matmuls run at up to 15 PFLOPS: 16,667 floating-point operations per byte that arrives (derived; the article says "as many as 16,000") (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=each%20GPU%20could%20perform%20as%20many%20as%2016%2C000" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Dispatch was cheap to fix:</b> the expert matmul quantises its input to NVFP4 anyway, so tokens are sent in NVFP4, and the backward pass uses those quantised activations, so nothing in high precision travels with them (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=During%20dispatch%2C%20we%20avoid%20this%20issue%20by%20dispatching" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Combine was harder: the outputs feed the residual stream, and plain MXFP8 "impaired performance too much"</b>, which the article puts down to outliers (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=found%20that%20this%20impaired%20performance%20too%20much" target="_blank" rel="noopener noreferrer">in the article</a>). What worked: a 32-dimensional random Hadamard transform, which spreads each outlier over 32 values so a smaller scale fits, then S2F6 with one E8M0 scale per 32 values, with "no measurable accuracy degradation" (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=resulted%20in%20no%20measurable%20accuracy%20degradation%20during%20training" target="_blank" rel="noopener noreferrer">in the article</a>); how the rotation flattens outliers is <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, Fig. 8. The transform and quantisation are fused into the second expert matmul's epilogue and undone on arrival. Combine falls from 16 to 8.25 bits a value (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=from%2016%20bits%20per%20value%20to%208.25%20bits%20per%20value" target="_blank" rel="noopener noreferrer">in the article</a>), shortening the combine tail of the article's Figure 5 (no timings printed).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card e4-fig" id="e4-comm">
+<div class="t">One MoE layer's traffic: 4-bit tokens out, rotated 8-bit outputs back, about half the bytes each way</div>
+<div id="e4-comm-svg"></div>
+<figcaption>The path of one token's hidden state through an expert on another GPU, with the bits per value on each NVLink hop. Dispatch sends NVFP4 (16 four-bit values plus one 8-bit scale = 4.5 bits); combine sends S2F6 after a 32-point random Hadamard transform (32 eight-bit values plus one 8-bit E8M0 scale = 8.25 bits), instead of BF16's 16. The steps follow the boxes of the article's Figure 5 (dispatch, w13 matmul, quantisation, w2 matmul, combine); the layout is redrawn, and the overlap of waves in that figure is not shown.</figcaption>
+</figure></div></div></div>
+
+<section id="s-kern"><h2>6. Kernels: the bottleneck moves to the ALUs</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Kernels%20for%20low%2Dprecision%20training" target="_blank" rel="noopener noreferrer" class="where">Kernels for low-precision training</a>
+<p><b>At 4 bits the tensor cores stop being the only limit: scales, re-quantisation, stochastic rounding and data movement can stall a kernel whose tensor cores are saturated</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=kernels%20can%20stall%20on%20ALU%2Dheavy%20steps" target="_blank" rel="noopener noreferrer">in the article</a>). The lab's MoE kernel stack, BBBK, is fully deterministic (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=while%20maintaining%20fully%20deterministic%20computation" target="_blank" rel="noopener noreferrer">in the article</a>), feeds the GB300's largest two-SM matrix instruction from deep pipelines for matrices and scales, fuses the Hadamard and S2F6 steps, and keeps NVLink, ALUs and tensor cores busy together. It is not released, so none of this can be checked or reused.</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-recipe"><h2>7. The rest of the recipe, and what the 8% is worth after its cost</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=We%20keep%20the%20last%2016.6%25%20of%20layers" target="_blank" rel="noopener noreferrer" class="where">Recipe details</a>
+<p><b>Four details complete the recipe.</b> The last 16.6% of layers stay in MXFP8 (NVIDIA used 15%; the lab's ladder scales layer count by 6; in the release, layers 40 to 47 of 48) (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=We%20keep%20the%20last%2016.6%25%20of%20layers%20in%20higher%20precision" target="_blank" rel="noopener noreferrer">in the article</a>). Activations use Four Over Six (each block may map its maximum to 4 instead of 6; the post's author wrote that paper), weights do not (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=We%20forgo%204%2F6%20when%20quantizing%20weights" target="_blank" rel="noopener noreferrer">in the article</a>). Outer FP32 scales are per expert for weights and per token for activations, from Cursor's Composer 2, so no token's scale depends on its batch or on later tokens (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=per%2Dexpert%20outer%20scales%20when%20quantizing%20weights" target="_blank" rel="noopener noreferrer">in the article</a>). It ran unchanged through SFT and RL.</p>
+<p><b>The cost: about 2% in compute efficiency in pretraining, and no visible cost in RL.</b> The article defines it precisely: the NVFP4 run reaches the loss the MXFP8 run would have reached with about 2% fewer FLOPs (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=it%20costs%20about%202%25%20in%20compute%20efficiency" target="_blank" rel="noopener noreferrer">in the article</a>); in RL, "a substantial end-to-end speedup with no discernible difference in reward" (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=no%20discernible%20difference%20in%20reward" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p id="e4-calc-say"><b>Two pieces of arithmetic the article leaves to the reader, in the calculator.</b> First, why a 3 times faster matmul gives 8% overall: if the 4-bit matmuls take a share s of an MXFP8 step and run 3 times faster, the step speeds up by 1 / (1 − s + s / 3), and 1.08 needs s = 11.1% (derived, assuming the full 3 times peak; anything less than peak implies a larger share). Second, the net: the run needs 1 / 0.98 as many FLOPs for the same loss, so at 1.08 times the speed it reaches MXFP8's loss in 1 / 0.98 / 1.08 = 0.945 of the time, about 5.5% less (derived). If "8% speedup" instead means 8% less time, the net is 0.92 / 0.98 = 0.939, about 6.1% less. The RL figure implies a larger 4-bit share: 25.0% of the step at 3 times, or 36.7% if sampling is limited by weight bandwidth (8.25 / 4.5 = 1.83 times fewer bytes per weight). The article gives no breakdown of the step, so these shares are what its numbers imply, not measurements.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card e4-fig" id="e4-calc">
+<div class="t">A 3 times faster matmul on a small share of the step is an 8% faster step, and about 5.5% after the efficiency cost</div>
+<div class="e4-ctl"><div class="seg" id="e4-mode"><button data-m="pre" class="on">Pretraining (8%, CE 2%)</button><button data-m="rl">RL (20%, no CE cost)</button></div></div>
+<div class="e4-ctl" id="e4-rbox"><span class="small mute">The 4-bit part is limited by:</span> <div class="seg" id="e4-r"><button data-m="3" class="on">compute (3×)</button><button data-m="1.833">weight bytes (1.83×)</button></div></div>
+<label class="small" for="e4-s">Share of the MXFP8 step in the 4-bit matmuls: <b id="e4-sv"></b></label>
+<input type="range" id="e4-s" min="0" max="0.6" step="0.005" value="0.111" aria-label="Share of the MXFP8 step in the 4-bit matmuls">
+<div id="e4-calcsvg"></div>
+<div class="e4-out" id="e4-out"></div>
+<figcaption id="e4-calc-cap">Bars to scale, one MXFP8 step = 1: the share s moved to 4 bits and the rest; the recipe, s / r plus the rest (r = 3 for 15 against 5 PFLOPS, or 1.83 for 8.25 against 4.5 bits per weight); and, in pretraining, the time to MXFP8's loss, divided by 0.98. Defaults reproduce the article's 8% and 20% by construction (s is back-solved); the rest is derived (src/recompute.py).</figcaption>
+</figure></div></div></div>
+
+<section id="s-close"><h2>8. Closing: 68 hours, and the backward pass next</h2>
+<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=A%20decade%20ago%2C%20it%20was%20unclear%20whether" target="_blank" rel="noopener noreferrer" class="where">Closing thoughts</a>
+<p><b>Inkling 2 Small was pretrained in 68 hours on GB300 NVL72 racks, against several weeks for a similar model months earlier, and the article says numerics are one piece of that</b> (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=Inkling%202%20Small%20was%20pretrained%20in%20just%2068%20hours" target="_blank" rel="noopener noreferrer">in the article</a>): the 68 hours is the whole stack, not this recipe's 8%, and comes with no token or GPU count. Next: FP4 for the backward pass, and Vera Rubin (<a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/#:~:text=exploring%20recipes%20that%20enable%20FP4%20computation%20of%20the%20backward%20pass" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+</section>
+
+<details class="mist"><summary>The toy's numbers on all four tiles</summary><div class="b">
+<p>Every method on every illustrative tile, as in the table beside section 4 (percentages of ||f||; zero counts out of 512 values; written by the page from the same code, checked against <code>src/recompute.py</code>).</p>
+<div class="tw"><table class="e4-tab" id="e4-all"></table></div>
+</div></details>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up: every mechanism, and the direction of the result.</b></p>
+<ul>
+<li><b>The reasoning is sound and checkable.</b> Stochastic rounding is unbiased by construction, re-quantising the forward tensors is TetraJet-v2's and Quartet II's published idea, and the toy reproduces each qualitative claim of section 4. The printed arithmetic checks out: 4.5 and 8.25 bits, 16,667 operations per NVLink byte, the last 16.6% being layers 40 to 47 of 48.</li>
+<li><b>It is a production recipe, with its cost stated.</b> A 594B model trained this way is released under Apache 2.0, and the post gives the 2% efficiency cost, not only the gain.</li>
+<li><b>Two small replications see the same direction.</b> On one B200, an 840M GPT with an NVFP4 forward and 8-bit backward ended 0.003 above BF16 in validation loss (1.6911 against 1.6880, two seeds each; derived from its table), with steps 1.006 to 1.035 times faster than all-8-bit, growing with width; a 10.6M laptop run ended 1.5% above full precision. Both changed the recipe (per-tensor scales, nearest rounding), so neither tests it exactly.</li>
+
+</ul>
+<p><b>What it does not show.</b></p>
+<ul>
+<li><b>No curve, run count or seed for any number.</b> 8%, 20% and 2% are single readings from unnamed "largest jobs", so whether 2% is outside run-to-run noise is unknown.</li>
+<li><b>Every design decision is backed by a word, not a number:</b> "very large hits", "too coarse", "too much", "no measurable" degradation, "no discernible difference in reward".</li>
+<li><b>"8% wall-clock speedup" is ambiguous:</b> 1.08 times the throughput is 7.4% less time; section 7's net (5.5% or 6.1%) depends on which.</li>
+<li><b>Compute efficiency is measured by loss, which can miss what low precision costs.</b> At 40M parameters (six seeds, emulated FP4), NVFP4 needed 1.32 to 1.52 times as many exposures to recall rare facts while validation loss moved 0.5% to 2% (<a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, section 6). No downstream comparison with an MXFP8-trained model is reported.</li>
+<li><b>Nothing to reproduce it with.</b> BBBK and the training code are not released, and Transformer Engine's MXFP8 quantiser has no stochastic rounding, so both replications round to nearest there (a fixed 1.6% to 3.6% on the toy's tiles).</li>
+<li><b>The release is NVFP4 and MXFP8 only.</b> Fine-tuning it with small learning rates meets the 4-bit grid (responses, below), and the model card's "pretrained, midtrained and post-trained in NVFP4" is broader than the post: only the experts' forward matmuls were.</li>
+</ul>
+<p class="e4-verdict"><b>Verdict.</b> Believe the mechanisms and the lesson behind them: put 4 bits where error is random and averaged (high-volume forward passes and sampling), keep the gradients in 8 bits, and make every hand-over between block layouts unbiased. Treat 8%, 20% and 2% as one lab's readings on one model, and expect a smaller net gain at equal loss (about 5.5% in pretraining, derived). Before adopting it, measure more than loss (rare-fact recall, downstream tasks), and check that your stack does stochastic rounding in the MXFP8 re-quantisation.</p>
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p><b>No rebuttal or critique was found; the responses are two small replications and one open-source port, which raised a practical problem with the released weights.</b> Searched on 27 November 2026: the web, GitHub, arXiv and X. The Hacker News submission was small (24 points in the knowledge base's research reading of 27 November; the thread could not be opened from the build machine to re-read it), and news sites (AlphaSignal, FourWeekMBA) restated the vendor figures.</p>
+<ul class="wp-resp">
+<li><span class="kind">replication</span><a href="https://github.com/VizuaraAI/4bit-training-b200" target="_blank" rel="noopener noreferrer">4bit-training-b200: 4-bit training, tested on one NVIDIA B200</a><div class="by">Raj Dandekar and Vizuara AI Labs, 15 November 2026</div><p>An 840M GPT on TinyStories, 2,000 steps: NVFP4 forward with an 8-bit backward reached validation loss 1.6912 and 1.6910 (two seeds) against 1.6886 and 1.6873 in BF16; steps 1.006 to 1.035 times faster than all-8-bit at widths 2,048 to 8,192. Backward FP8 with per-tensor scales, not MXFP8; no Four Over Six.</p></li>
+<li><span class="kind">port plan</span><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">[Feature] End-to-end 4-bit MoE training: NVFP4 forward, MXFP8 backward, quantized EP comm (radixark/miles #4952)</a><div class="by">HJSang (Miles, the RL framework), 19 November 2026</div><p>Plans the recipe in six phases for Miles (Megatron, Transformer Engine); the stochastic MXFP8 backward needs a Transformer Engine fork. Its current Inkling trainer runs experts in BF16 with fake-quantised weights, part of a 0.019 train-rollout log-probability gap. Open, no pull request, on 27 November.</p></li>
+<li><span class="kind">replication</span><a href="https://github.com/saurabhghatnekar/looped-transformer-4bit" target="_blank" rel="noopener noreferrer">looped-transformer-4bit: replicating Inkling 2 Mini with 4-bit forward passes</a><div class="by">Saurabh Ghatnekar, 23 November 2026</div><p>A 10.6M model on TinyStories, laptop, emulated: 4-bit forward with MXFP8 backward 1.214 nats per byte at step 300 against 1.196 in full precision (one run each). Rounds the backward re-quantisation to nearest, because Transformer Engine&#x27;s MXFP8 quantiser has no stochastic option.</p></li>
+<li><span class="kind">question</span><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">RL on the released NVFP4 weights (a comment on miles #4952)</a><div class="by">LejsDeen, 24 November 2026</div><p>RL on Inkling 2 Mini from the release weights (fp32 master, fake-quantised experts): Adam steps of about 1e-6 against NVFP4 grid steps of 1e-3 to 1e-2, so almost no expert code flips, and learning about as slow as with experts frozen. Asks for full-precision master weights; unanswered on 27 November.</p></li>
+</ul>
+
+<p><b>Where the responses are right.</b> The Miles comment is fair about the release, not the recipe: whatever higher-precision state the lab trained with (the post never says how its master weights or optimiser state are kept), it published only 4-bit and 8-bit weights, so anyone fine-tuning them with a small learning rate hits the same rounding dead zone that <a href="https://app.notion.com/p/40c5c17b0d0d81c39641d49880e39f73" target="_blank" rel="noopener noreferrer">Fair Cast</a> measured in bf16. And the replications' note about Transformer Engine is a real gap between the recipe and what open tools can run today.</p>
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, section 6, holds the recipe; its "no parameter count" is out of date (594B total, 17B active), its "8% less wall-clock time" overstates what the article says, and the transpose mismatch, the MXFP8 stochastic backward and Transformer Engine's missing stochastic quantiser extend it.</li>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>, section 2: stochastic rounding used to move a tensor between block layouts while keeping its expectation.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a>: one numerics configuration from pretraining to the last rollout, so the sampler needs no calibrated 4-bit checkpoint; 20% faster RL than full MXFP8 (vendor).</li>
+<li><a href="https://app.notion.com/p/40c5c17b0d0d81c39641d49880e39f73" target="_blank" rel="noopener noreferrer">Fair Cast</a>: the same rounding dead zone at 4 bits, on released NVFP4 weights.</li>
+<li><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>: dispatch and combine quantised separately, NVFP4 out and rotated S2F6 back.</li>
+</ul>
+</section>
+
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026): the release and adoption</summary><div class="b"><ul><li><a href="https://huggingface.co/thinkingmachines/Inkling-2-Small" target="_blank" rel="noopener noreferrer">Inkling 2 Small model card</a> (12 November 2026): Apache 2.0 weights, NVFP4 the main release and an MXFP8 checkpoint beside it; no full-precision weights. It says the model &quot;was pretrained, midtrained and post-trained in NVFP4&quot;, which is shorter than the post: only the expert layers&#x27; forward matmuls were NVFP4.</li><li><a href="https://docs.nvidia.com/nemo/automodel/model-coverage/vision-language-models/thinkingmachines/Inkling-2-Small" target="_blank" rel="noopener noreferrer">Inkling 2 Small in NVIDIA NeMo AutoModel</a> (27 November 2026): Lists the NVFP4 release as NVFP4 experts in layers 0 to 39 and MXFP8 in layers 40 to 47: the last 8 of 48 layers, 16.7%, the post&#x27;s &quot;last 16.6%&quot;. The native implementation is not yet merged.</li><li><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">The Miles port (radixark/miles #4952)</a> (27 November 2026): The first open-source framework to plan the full recipe; open with no linked pull request when checked.</li></ul>
+</div></details>
+
+<details class="mist"><summary>Provenance: what was read, fetched and compared</summary><div class="b">
+<p>The post was fetched on 27 November 2026 and its main text extracted to <code>src/inputs/article.txt</code> (3,773 words with its sidenotes, 16 minutes at 230 words a minute; sidenotes kept as their own blocks); every "in the article" link on this page is a text fragment checked against that extract at build time. The page's metadata gives publication on 13 November and a modification on 25 November. Three Wayback Machine copies (14 November 13:12 UTC, the first; 15 November 07:45; 16 November 17:17) were extracted the same way and compared with the current post: the only change in the text is in section 5, "Like Quartet II" becoming "Like TetraJet-v2 and Quartet II".</p>
+<p>Figures: the post's figures are interactive and carry no open licence (the site says "Thinking Machines Lab © 2026"), so none is embedded; the priority table and the MoE traffic are redrawn from what the post prints, and credited. The toy and the calculator are this page's own, from the formulas the post states. Sizes of Inkling 2 Small come from its Hugging Face model card (read 27 November); the layer split of the release from NVIDIA's NeMo AutoModel model-coverage page.</p>
+<p>Responses were read on GitHub (the two replication repositories at their state of 27 November, created 15 and 23 November; the Miles issue and its one comment). Not found or not checkable: a Hacker News thread with comments to read (the site refused the build machine); a Latent Space item on the post itself (its AINews issue covers the Inkling launch, not the recipe); any reply by the lab.</p>
+</div></details>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden><section id="s-more">
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab; links checked 27 November 2026. Reading time of the resources below: 5h 51m.</p>
+<h3>The article</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://thinkingmachines.ai/blog/end-to-end-4-bit-training/" target="_blank" rel="noopener noreferrer">End-to-End 4-Bit Training</a></div><p><span class="mute">Jack Cook, with others at Thinking Machines (Thinking Machines Lab):</span> The post itself (Connectionism, Thinking Machines Lab&#x27;s blog, published 13 November 2026, updated 25 November 2026). Its interactive figures (the bit-level NVFP4 widget, the 16 x 16 tile figures, the Hadamard scatter) are worth opening there; this page redraws none of them.</p><p class="rt">(16 min)</p></div>
+</div><h3>Responses, in date order</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/VizuaraAI/4bit-training-b200" target="_blank" rel="noopener noreferrer">4bit-training-b200: 4-bit training, tested on one NVIDIA B200</a></div><p><span class="mute">Raj Dandekar and Vizuara AI Labs, 15 November 2026, replication:</span> An 840M GPT on TinyStories, 2,000 steps: NVFP4 forward with an 8-bit backward reached validation loss 1.6912 and 1.6910 (two seeds) against 1.6886 and 1.6873 in BF16; steps 1.006 to 1.035 times faster than all-8-bit at widths 2,048 to 8,192. Backward FP8 with per-tensor scales, not MXFP8; no Four Over Six.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">[Feature] End-to-end 4-bit MoE training: NVFP4 forward, MXFP8 backward, quantized EP comm (radixark/miles #4952)</a></div><p><span class="mute">HJSang (Miles, the RL framework), 19 November 2026, port plan:</span> Plans the recipe in six phases for Miles (Megatron, Transformer Engine); the stochastic MXFP8 backward needs a Transformer Engine fork. Its current Inkling trainer runs experts in BF16 with fake-quantised weights, part of a 0.019 train-rollout log-probability gap. Open, no pull request, on 27 November.</p><p class="rt">(10 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/saurabhghatnekar/looped-transformer-4bit" target="_blank" rel="noopener noreferrer">looped-transformer-4bit: replicating Inkling 2 Mini with 4-bit forward passes</a></div><p><span class="mute">Saurabh Ghatnekar, 23 November 2026, replication:</span> A 10.6M model on TinyStories, laptop, emulated: 4-bit forward with MXFP8 backward 1.214 nats per byte at step 300 against 1.196 in full precision (one run each). Rounds the backward re-quantisation to nearest, because Transformer Engine&#x27;s MXFP8 quantiser has no stochastic option.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">RL on the released NVFP4 weights (a comment on miles #4952)</a></div><p><span class="mute">LejsDeen, 24 November 2026, question:</span> RL on Inkling 2 Mini from the release weights (fp32 master, fake-quantised experts): Adam steps of about 1e-6 against NVFP4 grid steps of 1e-3 to 1e-2, so almost no expert code flips, and learning about as slow as with experts frozen. Asks for full-precision master weights; unanswered on 27 November.</p><p class="rt">(5 min)</p></div>
+</div><h3>Since the article (papers that build on it)</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://huggingface.co/thinkingmachines/Inkling-2-Small" target="_blank" rel="noopener noreferrer">Inkling 2 Small model card</a></div><p><span class="mute">12 November 2026:</span> Apache 2.0 weights, NVFP4 the main release and an MXFP8 checkpoint beside it; no full-precision weights. It says the model &quot;was pretrained, midtrained and post-trained in NVFP4&quot;, which is shorter than the post: only the expert layers&#x27; forward matmuls were NVFP4.</p><p class="rt">(10 min)</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/nemo/automodel/model-coverage/vision-language-models/thinkingmachines/Inkling-2-Small" target="_blank" rel="noopener noreferrer">Inkling 2 Small in NVIDIA NeMo AutoModel</a></div><p><span class="mute">27 November 2026:</span> Lists the NVFP4 release as NVFP4 experts in layers 0 to 39 and MXFP8 in layers 40 to 47: the last 8 of 48 layers, 16.7%, the post&#x27;s &quot;last 16.6%&quot;. The native implementation is not yet merged.</p><p class="rt">(5 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/radixark/miles/issues/4952" target="_blank" rel="noopener noreferrer">The Miles port (radixark/miles #4952)</a></div><p><span class="mute">27 November 2026:</span> The first open-source framework to plan the full recipe; open with no linked pull request when checked.</p><p class="rt">(10 min)</p></div>
+</div><h3>What it rests on</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2509.25149" target="_blank" rel="noopener noreferrer">Pretraining Large Language Models with NVFP4</a></div><p><span class="mute">NVIDIA, September 2025 (maker of the format):</span> The recipe this one departs from: NVFP4 in all three matmuls of a 12B model for 10T tokens, with 16 x 16 weight tiles, Hadamard transforms on the weight gradient and stochastic rounding on gradients.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2601.22813" target="_blank" rel="noopener noreferrer">Quartet II: Accurate LLM Pre-Training in NVFP4 by Improved Unbiased Gradient Estimation</a></div><p><span class="mute">Panferov et al., 2026 (third-party):</span> Re-quantises the forward pass&#x27;s tensors for the backward pass so the gradient estimate stays unbiased; one of the two works the post credits.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2510.27527" target="_blank" rel="noopener noreferrer">TetraJet-v2: Accurate NVFP4 Training for Large Language Models with Oscillation Suppression and Outlier Control</a></div><p><span class="mute">Chen et al., 2025 (third-party):</span> The other credited source of re-quantisation from the forward tensors.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2512.02010" target="_blank" rel="noopener noreferrer">Four Over Six: More Accurate NVFP4 Quantization with Adaptive Block Scaling</a></div><p><span class="mute">Cook et al., 2025 (the post&#x27;s author is its first author):</span> Lets each block choose whether its largest value maps to 4 or to 6, whichever loses less; the recipe uses it on activations, not weights.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://humansand.ai/blog/nvfp4-rl?v=3#four-over-six-for-rl-weights-and-activations" target="_blank" rel="noopener noreferrer">NVFP4 for RL (Four Over Six for RL weights and activations)</a></div><p><span class="mute">Ziang Li and others at humans&amp;, July 2026 (third-party):</span> The write-up the post recommends: a dequantised backward, Four Over Six on weights too, and selected layers in high precision removed gradient-norm spikes in five RL runs.</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2607.24953" target="_blank" rel="noopener noreferrer">Stable FP4 Training via Transposition-Invariant Block Quantization</a></div><p><span class="mute">Rahimifar et al., July 2026 (third-party):</span> Fixes the same transpose mismatch the other way, with 2D blocks that are the same in both directions, plus stochastic rounding: under 1.3% degradation up to 7B dense and a 30B MoE, 100B tokens. Not cited by the post.</p><p class="rt">(35 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2506.08027" target="_blank" rel="noopener noreferrer">Recipes for Pre-training LLMs with MXFP8</a></div><p><span class="mute">Mishra et al., 2025 (NVIDIA):</span> The 8-bit baseline every number in the post is measured against.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf/" target="_blank" rel="noopener noreferrer">OCP Microscaling Formats (MX) Specification v1.0</a></div><p><span class="mute">Open Compute Project, 2023 (maker):</span> MXFP8 and MXFP4: blocks of 32 values sharing one power-of-two (E8M0) scale.</p><p class="rt">(30 min)</p></div>
+</div><h3>In this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>Owns the formats (E2M1, E4M3, MXFP8, NVFP4), block scales and the Bit explorer (sections 1 and 2), the Hadamard rotation (Fig. 8) and every 4-bit training recipe side by side (section 6, Fig. 10).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a></div><p>Owns how bits encode a float, round-to-nearest against stochastic rounding (section 2), and master weights (section 9).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a></div><p>Why a sampler and a trainer that compute different probabilities turn on-policy RL off-policy, and the low-precision rollout recipes (TRACE, TRIAGE).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/40c5c17b0d0d81c39641d49880e39f73" target="_blank" rel="noopener noreferrer">bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)</a></div><p>Updates smaller than half a grid step vanish under round-to-nearest: the same arithmetic as the question on the released NVFP4 weights.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a></div><p>Routers, dispatch and combine, expert parallelism: the layer the recipe quantises.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a></div><p>NVLink 5 at 900 GB/s each way and NVL72 domains: the link the combine was waiting on.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a></div><p>Blackwell Ultra&#x27;s FP4 rate (15 PF against B200&#x27;s 10) and tensor memory.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3 Technical Report</a></div><p>FP8 training with 128 x 128 weight blocks, the FP8 form of the square-tile idea the post rejects for NVFP4.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8154ba44e521a4ed8749" target="_blank" rel="noopener noreferrer">Other notable providers</a></div><p>Inkling 2 Small and Inkling 2 Mini: sizes, licence and benchmark readings.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/41a5c17b0d0d81969884ec01d1724f20" target="_blank" rel="noopener noreferrer">2026-11-16: tech news</a></div><p>The issue that first listed the post, with the NVFP4 rare-fact recall paper beside it.</p></div>
+</div><p class="small mute">This page is one of the <a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a>: articles worth a page of their own, each with its argument, its evidence judged and what others replied.</p>
+</section></div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){if(/ResizeObserver loop/.test(e.message||""))return;window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* _gen_data.js */
+// Generated by mk_article.py from article.json (and DATA_EXTRA); do not edit by hand.
+window.ARTICLE={"title":"End-to-End 4-Bit Training","url":"https://thinkingmachines.ai/blog/end-to-end-4-bit-training/","published":"2026-11-13","updated":"2026-11-25","fetched":"2026-11-27"};
+
+
+</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (2026-11-06),
+// pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (time on each step, default 3600 so its caption can be read), label, list (id of the ol.sx step list on the left), auto (false: a widget, never autoplays), start (the step it opens on)}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
+    // the step list on the left: one item per step, the current one marked, a click jumps to it (and stops autoplay)
+    function bindList(id){const L=id&&document.getElementById(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;(st.lis||[]).forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+      if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||3600)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3600)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    $('f').addEventListener('click',()=>{st.user=true;setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
+    $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
+    // o.auto===false makes it a widget the reader drives (the long-replay rule, case b): it never plays by itself
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    bindList(o.list);
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
+      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
+      go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||12)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+
+</script>
+<script>/* 22_js_e4_figs.js */
+// ---- Static figures of the Reading tab: the hero (the article's priorities table, with the format each stage got) and the
+// MoE traffic diagram (bits per value on each NVLink hop). Every number is printed by the article (see each caption).
+// Colours as on Quantization and Precision: 16 bits blue (c1), 8 bits orange (c2), 4 bits green (c3).
+(function(){
+  if(!window.RD||!document.getElementById('e4-hero-svg'))return;
+  const $=id=>document.getElementById(id), t=RD.t;
+  const STAGES=[
+    {n:'Pretraining forward',m:[3,0,2,0],f:[['NVFP4','c3','expert matmuls'],['MXFP8','c2','last 1/6 of layers']]},
+    {n:'Pretraining backward',m:[1,3,2,0],f:[['MXFP8','c2','re-quantised, stochastic rounding']]},
+    {n:'RL sampler',m:[3,0,3,3],f:[['NVFP4','c3','the same forward as training']]},
+    {n:'RL trainer',m:[1,3,1,0],f:[['MXFP8','c2','backward, as in pretraining']]}];
+  const COLS=['error','bias','speed','memory'];
+  function hero(){
+    const el=$('e4-hero-svg'),W=RD.width(el),narrow=W<520,L=8,R=W-8;
+    const labW=narrow?0:150, x0=L+labW, cw=(R-x0)/(narrow?4:4);
+    const head=34, blk=narrow?92:70; let s='', H=head+blk*STAGES.length+4;
+    // column headers: two risks, two rewards
+    s+=t(x0+cw,14,'Risks to minimise',{fs:12,a:'middle',fill:'var(--mute)',w:600})+t(x0+3*cw,14,'Rewards',{fs:12,a:'middle',fill:'var(--mute)',w:600});
+    COLS.forEach((c,k)=>{s+=t(x0+k*cw+cw/2,30,c,{fs:12,a:'middle',fill:'var(--mute)'})});
+    s+='<line x1="'+(x0+2*cw)+'" x2="'+(x0+2*cw)+'" y1="4" y2="'+(H-4)+'" stroke="var(--line)" stroke-dasharray="3 3"/>';
+    STAGES.forEach((g,i)=>{
+      const y=head+i*blk+4;
+      s+='<rect x="0" y="'+y+'" width="'+W+'" height="'+(blk-6)+'" rx="8" fill="var(--soft)"/>';
+      const ny=narrow?y+17:y+22, dy=narrow?y+38:y+24;
+      s+=t(L+4,ny,g.n,{fs:13,w:600,fill:'var(--ink)'});
+      g.m.forEach((v,k)=>{const cx=x0+k*cw+cw/2;
+        if(!v){s+='<line x1="'+(cx-7)+'" x2="'+(cx+7)+'" y1="'+(dy-4)+'" y2="'+(dy-4)+'" stroke="var(--mute)" stroke-width="2"/>';return}
+        for(let d=0;d<v;d++){const dx=cx+(d-(v-1)/2)*13;s+='<circle cx="'+dx+'" cy="'+(dy-4)+'" r="5" fill="var(--ink)"/>'}});
+      // the format(s) chosen for the stage
+      let fx=narrow?L+4:L+4, fy=narrow?y+70:y+50;
+      if(!narrow){fy=y+48}
+      g.f.forEach(([fmt,c,why])=>{const w=fmt.length*8+14;
+        s+='<rect x="'+fx+'" y="'+(fy-13)+'" width="'+w+'" height="18" rx="9" fill="var(--'+c+')"/>'+t(fx+w/2,fy,fmt,{fs:12,a:'middle',w:600,fill:'var(--bg)'});
+        s+=t(fx+w+5,fy,why,{fs:12,fill:'var(--ink)'});
+        fx+=w+10+why.length*6.3+12;});
+    });
+    if(!narrow){} // layout identical otherwise
+    el.innerHTML=RD.svg(W,H,s,'Priorities of four training stages and the format chosen for each');
+  }
+
+  // the MoE traffic: a vertical path, source GPU, NVLink, expert GPU, NVLink, source GPU
+  function comm(){
+    const el=$('e4-comm-svg'); if(!el)return;
+    const W=RD.width(el),cx=W/2,bw=Math.min(W-24,330),bx=cx-bw/2,bh=36,gap=50;
+    const N=[
+      {t:'Source GPU: hidden state, BF16',c:'c1',g:'src'},
+      {t:'quantise to NVFP4',c:'c3',g:'src'},
+      {hop:'dispatch all-to-all: 4.5 bits a value',c:'c3'},
+      {t:'w13 matmul (NVFP4)',c:'c3',g:'exp'},
+      {t:'quantise to NVFP4',c:'c3',g:'exp'},
+      {t:'w2 matmul (NVFP4) + RHT + S2F6',c:'c3',g:'exp'},
+      {hop:'combine all-to-all: 8.25 bits (was 16)',c:'c2'},
+      {t:'de-quantise, sum, inverse RHT',c:'c1',g:'src'}];
+    let y=8,s='',prev=null;
+    N.forEach(n=>{
+      if(n.hop){ // an NVLink hop: a tall arrow with its label
+        const y2=y+gap;
+        s+='<line x1="'+cx+'" x2="'+cx+'" y1="'+y+'" y2="'+(y2-6)+'" stroke="var(--'+n.c+')" stroke-width="5"/>';
+        s+='<path d="M'+(cx-7)+' '+(y2-9)+' L'+cx+' '+(y2-1)+' L'+(cx+7)+' '+(y2-9)+' Z" fill="var(--'+n.c+')"/>';
+        s+='<rect x="'+(cx+10)+'" y="'+(y+gap/2-12)+'" width="'+Math.min(W-cx-14,220)+'" height="20" rx="4" fill="var(--card)"/>';
+        s+=t(cx+14,y+gap/2+3,n.hop.length*6.4>W-cx-20?n.hop.split(':')[0]+':':n.hop,{fs:12,fill:'var(--ink)',w:600});
+        if(n.hop.length*6.4>W-cx-20)s+=t(cx+14,y+gap/2+17,n.hop.split(':')[1].trim(),{fs:12,fill:'var(--ink)'});
+        s+=t(cx-12,y+gap/2+3,'NVLink',{fs:12,a:'end',fill:'var(--mute)'});
+        y=y2; prev=null; return}
+      if(prev){s+='<line x1="'+cx+'" x2="'+cx+'" y1="'+y+'" y2="'+(y+12)+'" stroke="var(--line)" stroke-width="2"/>';y+=12}
+      s+='<rect x="'+bx+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="var(--'+n.c+')" stroke-width="2"/>';
+      s+=t(cx,y+bh/2+4,n.t,{fs:12.5,a:'middle',fill:'var(--ink)'});
+      y+=bh; prev=n;});
+    s+=t(cx,y+20,'15 PFLOPS / 900 GB/s = 16,667 FLOP per byte',{fs:12,a:'middle',fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,y+28,s,'The NVLink hops of one MoE layer and their bits per value');
+  }
+  const draw=()=>{hero();comm()};
+  RD.onRender(draw); RD.onResize(draw);
+})();
+
+</script>
+<script>/* 23_js_e4_toy.js */
+// ---- The live ingredient: one illustrative 32 x 16 activation tile, quantised for the forward pass in NVFP4 (one scale per
+// row of 16), then turned into the backward pass's operand (blocks down the columns) five ways. A line-by-line port of
+// src/recompute.py (same seeded generator, same formats and rounding); check_page.mjs compares the two.
+(function(){
+  if(!window.RD||!document.getElementById('e4-toy'))return;
+  const $=id=>document.getElementById(id), t=RD.t, ROWS=32, COLS=16, SEED=7;
+  const E2M1=[0,0.5,1,1.5,2,3,4,6];
+  const E4M3=[0];for(let k=1;k<8;k++)E4M3.push(k*Math.pow(2,-9));
+  for(let e=1;e<16;e++)for(let m=0;m<8;m++){if(e===15&&m===7)continue;E4M3.push((1+m/8)*Math.pow(2,e-7))}
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let x=Math.imul(a^a>>>15,1|a);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296}}
+  const gauss=r=>{const u=r(),v=r();return Math.sqrt(-2*Math.log(u+1e-12))*Math.cos(2*Math.PI*v)};
+  function tile(p){const r=mulberry32(SEED),x=[];for(let i=0;i<ROWS;i++){const row=[];for(let j=0;j<COLS;j++)row.push(gauss(r));x.push(row)}
+    if(p==='row')x[5]=x[5].map(v=>v*30);
+    else if(p==='outlier')x[9][6]=40;
+    else if(p==='channel')x.forEach(row=>{row[3]*=25});
+    return x}
+  function lohi(g,a){for(let k=0;k<g.length-1;k++)if(a<=g[k+1])return[g[k],g[k+1],k];return[g[g.length-1],g[g.length-1],g.length-1]}
+  function rtn(g,a){if(a>=g[g.length-1])return g[g.length-1];const[lo,hi,k]=lohi(g,a);if(a-lo<hi-a)return lo;if(a-lo>hi-a)return hi;return k%2===0?lo:hi}
+  function srm(g,a){if(a>=g[g.length-1])return[g[g.length-1],0,0];const[lo,hi]=lohi(g,a);if(hi===lo)return[lo,0,lo===0?1:0];const p=(a-lo)/(hi-lo);return[lo+p*(hi-lo),(a-lo)*(hi-a),lo===0?1-p:0,lo,hi,p]}
+  function blocks(kind){const B=[];
+    if(kind==='row16')for(let i=0;i<ROWS;i++){const b=[];for(let j=0;j<COLS;j++)b.push([i,j]);B.push(b)}
+    if(kind==='col16')for(let j=0;j<COLS;j++)for(const s of[0,16]){const b=[];for(let i=s;i<s+16;i++)b.push([i,j]);B.push(b)}
+    if(kind==='col32')for(let j=0;j<COLS;j++){const b=[];for(let i=0;i<ROWS;i++)b.push([i,j]);B.push(b)}
+    if(kind==='tile16')for(const s of[0,16]){const b=[];for(let i=s;i<s+16;i++)for(let j=0;j<COLS;j++)b.push([i,j]);B.push(b)}
+    return B}
+  const zeros=()=>Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+  // returns expectation, variance, probability of 0, and one stochastic draw (rng given) per cell
+  function quant(x,kind,fmt,mode,rng){
+    const E=zeros(),V=zeros(),Z=zeros(),D=zeros();
+    let amt=0;x.forEach(r=>r.forEach(v=>{amt=Math.max(amt,Math.abs(v))}));
+    const sg=fmt==='nvfp4'?amt/(6*448):1;
+    for(const bl of blocks(kind)){
+      let am=0;bl.forEach(([i,j])=>{am=Math.max(am,Math.abs(x[i][j]))});if(am===0)continue;
+      let s,g;
+      if(fmt==='nvfp4'){s=rtn(E4M3,Math.min(448,am/6/sg))*sg;g=E2M1}else{s=Math.pow(2,Math.ceil(Math.log2(am/448)));g=E4M3}
+      if(s===0)continue;
+      for(const[i,j]of bl){const a=Math.abs(x[i][j])/s,sgn=x[i][j]<0?-1:1;
+        if(mode==='rtn'){const q=rtn(g,a);E[i][j]=sgn*q*s;Z[i][j]=q===0?1:0;D[i][j]=E[i][j]}
+        else{const m=srm(g,a);E[i][j]=sgn*m[0]*s;V[i][j]=m[1]*s*s;Z[i][j]=m[2];
+          D[i][j]=m.length>3?sgn*(rng()<m[5]?m[4]:m[3])*s:E[i][j]}}}
+    return{E,V,Z,D}}
+  const OPT=[['naive','x again, nearest'],['tile','16 × 16 tiles'],['nvsr','NVFP4, stochastic'],['mxsr','MXFP8, stochastic (the article)'],['mxrtn','MXFP8, nearest']];
+  const PRE={gauss:'Gaussian',row:'One large row',outlier:'One outlier',channel:'Outlier channel'};
+  function run(p,draw){
+    const x=tile(p),f=quant(x,'row16','nvfp4','rtn').E,out={},bk={};
+    for(const[o]of OPT){
+      const rng=mulberry32(11);let ref=f,b;
+      if(o==='naive')b=quant(x,'col16','nvfp4','rtn');
+      else if(o==='tile'){ref=quant(x,'tile16','nvfp4','rtn').E;b={E:ref,V:zeros(),Z:ref.map(r=>r.map(v=>v===0?1:0)),D:ref}}
+      else if(o==='nvsr')b=quant(ref,'col16','nvfp4','sr',rng);
+      else if(o==='mxsr')b=quant(ref,'col32','mxfp8','sr',rng);
+      else b=quant(ref,'col32','mxfp8','rtn');
+      let nx=0,nf=0,eb=0,vb=0,fe=0,fz=0,bz=0;
+      for(let i=0;i<ROWS;i++)for(let j=0;j<COLS;j++){nx+=x[i][j]**2;nf+=ref[i][j]**2;eb+=(b.E[i][j]-ref[i][j])**2;vb+=b.V[i][j];fe+=(ref[i][j]-x[i][j])**2;
+        if(x[i][j]!==0&&ref[i][j]===0)fz++;if(ref[i][j]!==0)bz+=b.Z[i][j]}
+      const bias=Math.sqrt(eb)/Math.sqrt(nf),noise=Math.sqrt(vb)/Math.sqrt(nf);
+      out[o]={fwd_err:Math.sqrt(fe)/Math.sqrt(nx),fwd_zero:fz,bias,noise,avg1000:Math.sqrt(bias*bias+noise*noise/1000),bwd_zero:bz};
+      bk[o]={ref,draw:b.D,kind:o==='tile'?'tile16':o.startsWith('mx')?'col32':'col16',fkind:o==='tile'?'tile16':'row16'};
+    }
+    return draw?{x,out,bk}:out}
+  window.E4TOY={stats:p=>run(p,false)};
+  let pre='outlier',opt='mxsr';
+  const pc=v=>(100*v).toFixed(v<0.001&&v>0?3:v<0.1?2:1)+'%', zc=v=>Number.isInteger(v)?String(v):v.toFixed(1);
+  function grid(vals,kind,ox,cell,amax,lost){
+    let s='';const lg=v=>{const a=Math.abs(v);if(a===0)return 0;return Math.max(.12,Math.min(1,1+Math.log10(a/amax)/3*.88))};
+    for(let i=0;i<ROWS;i++)for(let j=0;j<COLS;j++){const v=vals[i][j],x=ox+j*cell,y=22+i*cell;
+      if(v===0)s+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cell-2)+'" height="'+(cell-2)+'" fill="none" stroke="var(--mute)" stroke-dasharray="2 2" stroke-width=".7"/>';
+      else s+='<rect x="'+(x+.5)+'" y="'+(y+.5)+'" width="'+(cell-1)+'" height="'+(cell-1)+'" fill="var(--c1)" fill-opacity="'+lg(v).toFixed(3)+'"/>';
+      if(lost&&lost[i][j])s+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cell-2)+'" height="'+(cell-2)+'" fill="none" stroke="var(--bad)" stroke-width="2"/>'}
+    for(const bl of blocks(kind)){let i0=99,i1=-1,j0=99,j1=-1;bl.forEach(([i,j])=>{i0=Math.min(i0,i);i1=Math.max(i1,i);j0=Math.min(j0,j);j1=Math.max(j1,j)});
+      s+='<rect x="'+(ox+j0*cell)+'" y="'+(22+i0*cell)+'" width="'+((j1-j0+1)*cell)+'" height="'+((i1-i0+1)*cell)+'" fill="none" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1.2"/>'}
+    return s}
+  function draw(){
+    const R=run(pre,true),b=R.bk[opt],el=$('e4-toysvg'),W=RD.width(el);
+    const cell=Math.max(5,Math.min(13,Math.floor((W-24)/(2*COLS)))),gw=cell*COLS,gap=Math.max(12,Math.min(48,W-2*gw-8)),ox1=Math.max(0,(W-2*gw-gap)/2),ox2=ox1+gw+gap;
+    let amax=0;R.x.forEach(r=>r.forEach(v=>{amax=Math.max(amax,Math.abs(v))}));
+    const lost=b.ref.map((r,i)=>r.map((v,j)=>v!==0&&b.draw[i][j]===0));
+    let s=t(ox1,14,'Forward: '+(b.fkind==='tile16'?'16 × 16 tiles':'rows of 16'),{fs:12,fill:'var(--mute)'})+t(ox2,14,'Backward: '+(b.kind==='tile16'?'the same tiles':b.kind==='col32'?'columns of 32':'columns of 16'),{fs:12,fill:'var(--mute)'});
+    s+=grid(b.ref,b.fkind,ox1,cell,amax,null)+grid(b.draw,b.kind,ox2,cell,amax,lost);
+    s+=t(ox1,22+ROWS*cell+16,'32 tokens × 16 channels',{fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,22+ROWS*cell+22,s,'The forward tile and the backward operand of the chosen method');
+    const H='<tr><th>Method</th><th>forward zeros</th><th>error that stays</th><th>noise per draw</th><th>after 1,000</th><th>backward zeros</th></tr>';
+    $('e4-tab').innerHTML=H+OPT.map(([o,l])=>{const v=R.out[o];return '<tr'+(o===opt?' class="on"':'')+'><td>'+l+'</td><td>'+v.fwd_zero+'</td><td>'+pc(v.bias)+'</td><td>'+pc(v.noise)+'</td><td>'+pc(v.avg1000)+'</td><td>'+zc(Math.round(v.bwd_zero*10)/10)+'</td></tr>'}).join('');
+  }
+  function all(){const el=$('e4-all');if(!el)return;
+    let h='<tr><th>Tile</th><th>Method</th><th>forward zeros</th><th>error that stays</th><th>noise per draw</th><th>after 1,000</th><th>backward zeros</th></tr>';
+    for(const p of Object.keys(PRE)){const o=run(p,false);OPT.forEach(([k,l])=>{const v=o[k];h+='<tr><td>'+PRE[p]+'</td><td>'+l+'</td><td>'+v.fwd_zero+'</td><td>'+pc(v.bias)+'</td><td>'+pc(v.noise)+'</td><td>'+pc(v.avg1000)+'</td><td>'+zc(Math.round(v.bwd_zero*10)/10)+'</td></tr>'})}
+    el.innerHTML=h}
+  RD.seg($('e4-pre'),m=>{pre=m;draw()}); RD.seg($('e4-opt'),m=>{opt=m;draw()});
+  all(); RD.onRender(draw); RD.onResize(draw);
+})();
+
+</script>
+<script>/* 24_js_e4_calc.js */
+// ---- The cost calculator (section 7): Amdahl's law on the share s of an MXFP8 step that the recipe moves to 4 bits, and the
+// article's compute-efficiency definition (same loss needs 1 / (1 - c) as many FLOPs). Same formulas as src/recompute.py calc().
+(function(){
+  if(!window.RD||!document.getElementById('e4-calc'))return;
+  const $=id=>document.getElementById(id), t=RD.t;
+  const MODE={pre:{sp:1.08,c:0.02},rl:{sp:1.20,c:0}};
+  let mode='pre', r=3, s=0;
+  const back=()=>(1-1/MODE[mode].sp)/(1-1/r);       // the share that reproduces the article's speedup (by construction)
+  const step=x=>1-x+x/r;                              // recipe step time, MXFP8 step = 1
+  window.E4CALC={share:(m,rr)=>{const o=[mode,r];mode=m;r=rr;const v=back();[mode,r]=o;return v},step:(x,rr)=>1-x+x/rr};
+  function draw(){
+    const el=$('e4-calcsvg'),W=RD.width(el),L=8,R=W-8,bw=R-L,bh=26,c=MODE[mode].c;
+    const rec=step(s),loss=rec/(1-c);
+    const bars=[['MXFP8 step',[[s,'c2','4-bit share'],[1-s,'dim','the rest']]],['the recipe',[[s/r,'c3',''],[1-s,'dim','']]]];
+    if(c>0)bars.push(['to MXFP8\'s loss',[[s/r/(1-c),'c3',''],[(1-s)/(1-c),'dim','']]]);
+    let y=6,str='';
+    bars.forEach(([lab,parts])=>{str+=t(L,y+12,lab,{fs:12,fill:'var(--mute)'});y+=16;let x=L;
+      parts.forEach(([v,col,name])=>{const w=Math.max(0,v*bw/1.0);str+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+bh+'" rx="3" fill="var(--'+col+')"'+(col==='dim'?'':' fill-opacity=".9"')+'/>';
+        if(name&&w>70)str+=t(x+6,y+17,name,{fs:12,fill:col==='dim'?'var(--ink)':'var(--bg)',w:600});x+=w});
+      const tot=parts.reduce((a,p)=>a+p[0],0);str+=t(Math.min(R,L+tot*bw)-4,y-3,tot.toFixed(3),{fs:12,a:'end',fill:'var(--ink)',w:600});y+=bh+8});
+    str+='<line x1="'+R+'" x2="'+R+'" y1="0" y2="'+y+'" stroke="var(--line)" stroke-dasharray="3 3"/>';
+    el.innerHTML=RD.svg(W,y+2,str,'Step time of MXFP8 and of the recipe, to scale');
+    $('e4-sv').textContent=(100*s).toFixed(1)+'%';
+    const o=[RD.stat('step speedup',(1/rec).toFixed(3)+'×',(100*(1-rec)).toFixed(1)+'% less time per step')];
+    if(c>0)o.push(RD.stat('time to the same loss',loss.toFixed(3),(100*(1-loss)).toFixed(1)+'% less, after the 2% CE cost'));
+    o.push(RD.stat('share that gives the article\'s '+Math.round(100*(MODE[mode].sp-1))+'%',(100*back()).toFixed(1)+'%','at r = '+(r===3?'3 (compute)':'1.83 (weight bytes)')));
+    $('e4-out').innerHTML=o.join('');
+  }
+  function reset(){s=Math.round(back()*1000)/1000;$('e4-s').value=s;draw()}
+  RD.seg($('e4-mode'),m=>{mode=m;if(m==='pre'){r=3;$('e4-r').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='3'))}
+    $('e4-rbox').style.display=m==='pre'?'none':'';reset()});
+  RD.seg($('e4-r'),m=>{r=m==='3'?3:8.25/4.5;reset()});
+  $('e4-s').addEventListener('input',e=>{s=+e.target.value;draw()});
+  $('e4-rbox').style.display='none';
+  s=Math.round(back()*1000)/1000; $('e4-s').value=s;
+  RD.onRender(draw); RD.onResize(draw);
+})();
+
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace e4-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('e4-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('e4-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+
+</script>
+</div></body></html>
