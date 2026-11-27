@@ -1,0 +1,74 @@
+<div class="tab" id="t-read" role="tabpanel">
+<style id="cf-css">
+/* this page (prefix cf): the three readings' colours (Hopper 132 SMs, B200/B300 148, GB200/GB300 152), figure controls, the toy grid, the replay */
+#t-read .cf-h{color:var(--c1);font-weight:600}#t-read .cf-b{color:var(--c2);font-weight:600}#t-read .cf-g{color:var(--c4);font-weight:600}
+#t-read .cf-ctl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:13px;color:var(--mute);margin:2px 0 4px}
+#t-read .cf-ctl .seg{margin:2px 0}
+#t-read .cf-out{font-size:13.5px;color:var(--ink);margin:6px 0 0;min-height:2.6em}
+#t-read table.cf-tab{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0}
+#t-read table.cf-tab th,#t-read table.cf-tab td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+#t-read table.cf-tab td.n,#t-read table.cf-tab th.n{text-align:right;white-space:nowrap}
+#t-read table.cf-tab th{font-size:12.5px;color:var(--mute);font-weight:600}
+#t-read .box{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:0 10px 10px 0;padding:8px 12px;margin:10px 0;background:var(--card);font-size:14px}
+#t-read .box b.lab{display:inline-block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin-right:6px}
+#t-read .cf-pred{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:14px}
+#t-read .cf-pred summary{cursor:pointer;color:var(--acc)}
+#t-read .cf-chain{display:flex;flex-direction:column;gap:0;margin:4px 0}
+#t-read .cf-st{position:relative;border-radius:10px;padding:8px 12px 8px 42px;font-size:13.5px;line-height:1.4;background:var(--card)}
+#t-read .cf-st b{display:block;font-size:14px;color:var(--ink)}#t-read .cf-st span:not(.cf-n){color:var(--mute);font-size:13px}
+#t-read .cf-st.ok{border:2px solid var(--acc)}#t-read .cf-st.inf{border:2px dashed var(--c5)}#t-read .cf-st.no{border:2px dotted var(--line);margin-top:8px}
+#t-read .cf-st.no b{text-decoration:line-through;text-decoration-thickness:1.5px;color:var(--mute)}
+#t-read .cf-n{position:absolute;left:10px;top:9px;width:22px;height:22px;border-radius:50%;background:var(--soft);border:1px solid var(--line);font:600 12px/20px ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;text-align:center;color:var(--ink)}
+#t-read .cf-st.ok .cf-n{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read .cf-ar{font-size:12.5px;color:var(--mute);padding:3px 0 3px 30px;position:relative}#t-read .cf-ar:before{content:"\2193";position:absolute;left:14px;top:2px;color:var(--mute);font-size:14px}
+</style>
+@@CARD@@
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> PyTorch fills a new weight matrix on an NVIDIA GPU with 2,048 threads per streaming multiprocessor, each drawing its own fixed stream of random numbers from the seed, so the seed decides <i>which</i> numbers a model starts with and the chip's SM count decides <i>where</i> they land; weights that training never touched still hold that arrangement, and DePue reads it back to find that six recent Chinese models were started on Blackwell-class chips (<span class="cf-b">148</span> or <span class="cf-g">152</span> SMs) where the same labs' earlier models were started on Hopper (<span class="cf-h">132</span>).</p>
+<p class="small"><b>You need:</b> what a streaming multiprocessor is and how many each chip has ({{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}); threads, blocks and grids ({{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}); that a model's starting weights are random normal values ({{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}); a correlation coefficient and a z-score. Nothing about export law: the page says only what the report and its sources say.</p>
+<p class="small"><b>New terms:</b> <b>seed</b> (the number a pseudorandom generator starts from; same seed, same numbers); <b>Philox</b> (the counter-based generator cuRAND uses: any thread computes its own stream from the seed and its thread number, with no shared state); <b>G</b> (this page's name for the total thread count PyTorch launches, 2,048 times the SM count for a large tensor: the quantity the weights actually record); <b>untouched row</b> (an embedding row for a token that never occurred in training, so no gradient ever changed it); <b>sigma</b> (how many standard deviations a match sits above what chance gives; for a correlation r over n values, about r&radic;n).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="cf-hero">
+<div class="t">The weights prove a thread count; every step after it is an inference</div>
+<div class="cf-chain">
+<div class="cf-st ok"><span class="cf-n">1</span><b>A published row no token ever updated</b><span>DeepSeek-V4-Flash, embedding rows such as 127 and 128: 4,096 values each, still the starting draw</span></div>
+<div class="cf-ar">regenerate with seed 953049583 and every candidate G</div>
+<div class="cf-st ok"><span class="cf-n">2</span><b>r above 0.9999 at exactly one G</b><span>G = 303,104 threads; every other layout near 0; the seed plus one gives 0</span></div>
+<div class="cf-ar">G = SMs &times; 2,048</div>
+<div class="cf-st inf"><span class="cf-n">3</span><b>148 SMs: a B200 or B300</b><span>or an MI300X set to 148 units: excluded for this model by 363 of 377 values matching NVIDIA's arithmetic, 0 AMD's</span></div>
+<div class="cf-ar">same chips trained it?</div>
+<div class="cf-st inf"><span class="cf-n">4</span><b>Trained on Blackwell</b><span>"strongly suggests": weights can be drawn on one system and trained on another</span></div>
+<div class="cf-st no"><span class="cf-n">5</span><b>Where the chips were, who owned them, whether a rule was broken</b><span>not established, by the report's own statement</span></div>
+</div>
+<figcaption>The report's chain of reasoning for DeepSeek-V4-Flash, its strongest case. Solid: shown by the weights and the public code, and reproduced here. Dashed: inferred, with the evidence the report gives. Struck through: what the report says it does not establish. Schematic; the numbers are the report's (Investigation, Limits, Verifying).</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-claim">The claim</a><a href="#s-scale">Run sizes</a><a href="#s-mech">Seed and layout</a><a href="#s-surv">What survives</a><a href="#s-lim">Limits</a><a href="#s-ver">Verification</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<div class="s3sp"><div class="s3L"><section id="s-claim"><h2>The claim: four labs' newest models read as Blackwell, their earlier ones as Hopper</h2>
+[[ah:executive-summary|Executive Summary, Table 1]]
+<p><b>Six models from DeepSeek, Moonshot AI, MiniMax and Ant Group, released from April 2026, carry a starting-weight arrangement that only a Blackwell-class layout reproduces.</b> DeepSeek-V4-Flash and MiniMax-M3 match the <span class="cf-b">148-SM</span> layout the report assigns to the B200 and B300; DeepSeek-V4-Pro, Kimi K3, Kimi K3.1-Pro and Ling-3.1-flash match the <span class="cf-g">152-SM</span> layout of the GB200 and GB300 ({{in the article|ar:Six models from four Chinese labs read as Blackwell-trained}}). K3.1-Pro uses K3's seed and may be a further-trained checkpoint of it, so the six are five independent starts.</p>
+<p><b>The switch is recent and lab by lab.</b> Each lab's earlier models read as <span class="cf-h">Hopper</span>: DeepSeek through V3 (December 2024), Moonshot through K2.5 (January 2026), MiniMax through M2.7 (April 2026), Ant Group through Ling-3.0-flash (August 2026) ({{in the article|ar:Chinese labs started training on Blackwell relatively recently}}). Kimi K2.7-Code (June 2026) is a blend: about 80% of its untouched rows are K2.5's Hopper values and about 20% a new 148-SM draw, the same mix in every row, which the report reads as a merged checkpoint and does not count ({{Appendix 1|ar:The blend is the same in every row}}). The newest models it could read from Alibaba, Zhipu, Tencent, Xiaomi and StepFun all read as Hopper ({{in the article|ar:Not every Chinese AI lab has switched}}).</p>
+<p><b>A Hopper reading names a class, not a chip.</b> The H800 (the China-market Hopper), H100 SXM and H200 all have 132 SMs, so they leave the same arrangement; the "lab disclosed H800" labels in Table 1 come from the labs' own reports, not from the method ({{Table 1 note|ar:Hopper fingerprint cannot distinguish an H800}}).</p>
+<p><b>Its scope, in its own words:</b> the findings "provide technical evidence of access to advanced computing hardware, but do not establish where the chips were located, how access was obtained, or whether export controls were violated" ({{in the article|ar:do not establish where the chips were located}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="cf-time">
+<div class="t">Each lab's first model on a Blackwell layout came in 2026, after Hopper ones</div>
+<div class="wp-lg"><span><i style="background:var(--c1)"></i>132 SMs: Hopper (H800, H100, H200)</span><span><i style="background:var(--c2)"></i>148: B200 or B300</span><span><i style="background:var(--c4)"></i>152: GB200 or GB300</span><span><i style="background:var(--dim)"></i>mixed</span></div>
+<div id="cf-time-svg"></div>
+<p class="cf-out" id="cf-time-out">Tap a model for its evidence.</p>
+<figcaption>Twelve models from Table 1 and Appendix 1, placed by the month their weights were posted. Readings and evidence are the report's; DeepSeek-V4-Pro's untouched rows were later read at 1,831 sigma by an outside reimplementation (Responses), where the report lists only partial survival at 49 sigma.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-scale"><h2>How big the runs were: estimates the author revised twice on launch day</h2>
+[[ah:table-2|Main Findings, Table 2]]
+<p><b>If each model was trained on the hardware that started it, the two largest runs needed thousands of Blackwell GPUs.</b> The current version estimates about 4,500 for Kimi K3 and 3,000 for DeepSeek-V4-Pro, roughly 11,500 and 7,500 H100 equivalents, and about 12,000 Blackwell GPUs across the five runs; at about $70,000 a GPU (the price implied by a reported $2.5 billion for 36,000 Blackwell chips in Malaysia, $69,444 each), the largest cluster would cost $200 to $300 million and the five more than half a billion dollars ({{in the article|ar:At roughly $70,000 per GPU}}). The arithmetic: 6 times active parameters times tokens, divided by one GPU's output at an assumed 20% of peak (25% for DeepSeek) over a run length guessed from release dates.</p>
+<p><b>The author says he is not confident in them</b> ({{in the article|ar:We are not confident in these estimates}}): utilisation and run length are unpublished, most token counts come from an unpublished method, and halving the run length doubles the count. At the pace of Microsoft's MAI-Base-2 (16,000 GPUs, 38 days) the two largest runs would have needed 8,000 to 9,000.</p>
+<p><b>The archived copies show how soft the numbers are.</b> The first version (12 November, 21:56 UTC) assumed 35% utilisation, gave 500 to 3,000 GPUs per run, and checked the arithmetic on DeepSeek-V3: 2,000 to 2,500 against the 2,048 H800s DeepSeek disclosed. Four hours later the utilisation was lowered, the best estimates rose (Kimi K3 from 2,000 to 3,000 to 4,500; MiniMax-M3 from 500 to 600 to 1,500), and that one calibration against a disclosed cluster was gone; the revision note explains the first change but not the second ({{the revision note|ar:The first version of this report gave}}). The figure shows all three versions.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="cf-gpu">
+<div class="t">Every best estimate rose between versions; each run's range spans a factor of 9 to 35</div>
+<div class="cf-ctl">Version: <span class="seg" id="cf-gpu-v"><button data-m="0">12 Nov 21:56</button><button data-m="1">13 Nov 01:55</button><button data-m="2" class="on">current</button></span></div>
+<div id="cf-gpu-svg"></div>
+<p class="cf-out" id="cf-gpu-out"></p>
+<figcaption>Blackwell GPUs per training run on a log scale: the thin bar is the printed range, the thick mark the best estimate (the first version printed a best range). Transcribed from Table 2 in the report's three archived versions (web.archive.org, 12 to 13 November 2026); "All five" first appears in the second. These are estimates from assumed utilisation and run length, not measurements.</figcaption>
+</figure></div></div></div>

@@ -110,3 +110,7 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] transformers_from_memory: Activation functions, squared ReLU row: an unrelated key's weight drops from about d^-1/2 to about d^-1.
 - [ ] transformers_from_memory: Positional Encodings and Long context: the log M logit scalings (Su 2021, Qwen LogN, Scalable-Softmax) beside YaRN's temperature; Qwen2.5-1M defines YaRN's s as inference over training length.
 - [ ] all articles: extract_article.py from transformers_from_memory is the robust version (self-closing svg, bare < in TeX, unquoted ids): make it the reference copy.
+- [ ] checkpoint_forensics: GPU architecture, "SM counts as a fingerprint": weights record G (SMs x 2,048), only past the first G positions; a 132 reading cannot separate H800/H100/H200; 148 or 152 could also be an MI300X limited or partitioned; the B200/B300 passage: the author's B300 exposed 148 SMs and GB200 152 (device readings, not NVIDIA-stated).
+- [ ] checkpoint_forensics: DeepSeek, Training systems: dated scoped readings (V3 132, V4-Flash 148, V4-Pro 152; one seed 953049583 across generations; V4.1-Flash no fingerprint; DeepInfer supports SM100 and Ascend 950).
+- [ ] checkpoint_forensics: Moonshot AI: Kimi (K2, K2.5 on 132; K3, K3.1-Pro on 152; K2.7-Code a blend) and MiniMax (M1 to M2.7 on 132; M3, M3.1-Flash on 148), as dated readings linked to the article page.
+- [ ] checkpoint_forensics: Making training fast (determinism and seeding): torch.cuda.manual_seed plus normal_ gives different tensors on GPUs with different SM counts.
