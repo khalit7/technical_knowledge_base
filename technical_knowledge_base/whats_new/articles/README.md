@@ -15,3 +15,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [You could have invented transformers from memory](transformers_from_memory/) (Alex Wang; 15 October 2026)
 - [Top Chinese Frontier AI Models Carry the Fingerprint of Export-Controlled NVIDIA Blackwell GPUs](checkpoint_forensics/) (Will DePue, Unemployment Labs; 12 November 2026)
 - [GPT-6 Astra, Looped Transformers, and Hidden Reasoning](raschka_looped_transformers/) (Sebastian Raschka, Ahead of AI; 9 September 2026)
+- [Pretraining progress is mostly coming from data](pretraining_progress_data/) (Dwarkesh Patel and Jerry Han; 8 September 2026)
