@@ -12,10 +12,10 @@ const p = await b.newPage();
 await p.setViewport({ width: +width, height: 900 });
 await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
 await p.goto('file://' + path.resolve(file));
-const tabs = await p.$$eval('button[data-t]', bs => [...new Set(bs.map(b => b.dataset.t))]);
+const tabs = await p.$$eval('#tabs button[data-t]', bs => [...new Set(bs.map(b => b.dataset.t))]);
 let bad = 0;
 for (const t of tabs) {
-  await p.click(`button[data-t=${t}]`);
+  await p.click(`#tabs button[data-t=${t}]`);
   await new Promise(r => setTimeout(r, 400));
   const found = await p.evaluate(() => {
     const out = [], vw = document.documentElement.clientWidth;

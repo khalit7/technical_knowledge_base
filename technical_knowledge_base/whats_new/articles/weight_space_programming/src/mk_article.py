@@ -3,7 +3,8 @@
   python3 mk_article.py          (build.sh runs it first; it writes the three generated parts below)
   import mk_article as M         (build.sh's assembler uses M.expand on the page body)
 
-Writes parts/_gen_card.html (the headline card at the top of Reading), parts/_gen_more.html (the Further reading
+Writes parts/_gen_card.html (the headline card at the top of Reading, placed at @@CARD@@), parts/_gen_resp.html and
+parts/_gen_since.html (the responses list and the dated follow-ups, at @@RESP@@ and @@SINCE@@), parts/_gen_more.html (the Further reading
 tab) and parts/_gen_data.js (window.ARTICLE: the card's data and, for this page, the measured Qwen edit from
 inputs/real_edit.json). The same file serves every article page; what a new article changes:
   - article.json (every field; the required ones are in page-kinds/article.md, Data);
@@ -24,7 +25,12 @@ import html, json, os, re, urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 P = json.load(open(os.path.join(HERE, 'article.json'), encoding='utf-8'))
-TXT = open(os.path.join(HERE, 'inputs', 'article.txt'), encoding='utf-8').read().split('\n', 2)[2]  # drop the Source header
+# The article's full text is someone else's writing: it stays out of the public repo (inputs/article.txt is gitignored;
+# extract_article.py rewrites it). What the repo keeps is fragments.json: each fragment's words and the link it resolved to,
+# written whenever the full text is present, so a build without it (a fresh clone, the cloud run) gives the same page.
+TXT_F, FRAG_F = os.path.join(HERE, 'inputs', 'article.txt'), os.path.join(HERE, 'fragments.json')
+TXT = open(TXT_F, encoding='utf-8').read().split('\n', 2)[2] if os.path.exists(TXT_F) else None  # drop the Source header
+FRAGS = json.load(open(FRAG_F, encoding='utf-8')) if os.path.exists(FRAG_F) else {}
 ANCH = set(open(os.path.join(HERE, 'inputs', 'anchors.txt'), encoding='utf-8').read().split())
 DATA_EXTRA = {'edit': json.load(open(os.path.join(HERE, 'inputs', 'real_edit.json')))}  # page-specific: this page's Figure 5
 USED = []  # every fragment resolved in this build (build.sh prints the count)
@@ -39,12 +45,17 @@ def _norm(s):
     return s.translate(str.maketrans({'’': "'", '‘': "'", '“': '"', '”': '"', ' ': ' '}))
 
 
-NT = _norm(TXT)
+NT = _norm(TXT) if TXT is not None else None
 
 
 def frag(words):
     """the article URL with a text fragment for these words; stops the build if they are missing or not unique"""
     w = _norm(re.sub(r'\s+', ' ', words.strip()))
+    if NT is None:  # no full text here: the link the last full-text build resolved, or stop
+        if w not in FRAGS:
+            raise SystemExit('text fragment "%s" is new and inputs/article.txt is missing: run extract_article.py (see its docstring) first' % words)
+        USED.append(words)
+        return FRAGS[w]
     k = NT.count(w)
     if k != 1:
         raise SystemExit('text fragment %s in inputs/article.txt: "%s"' % ('not found' if k == 0 else 'found %d times (make it unique)' % k, words))
@@ -52,7 +63,22 @@ def frag(words):
     span = TXT[i:i + len(w)]
     USED.append(words)
     enc = urllib.parse.quote(span, safe='').replace('-', '%2D')  # "-" is fragment syntax; "," and "&" are quoted already
-    return P['url'] + '#:~:text=' + enc
+    FRAGS[w] = P['url'] + '#:~:text=' + enc
+    return FRAGS[w]
+
+
+def save_frags(prune=False):
+    """after a full-text build, add this run's fragments to fragments.json (the generated parts run first and save theirs;
+    build.sh saves the body's with prune=True, dropping fragments no part uses any more, by re-reading the generated parts)"""
+    if NT is None:
+        return
+    old = json.load(open(FRAG_F, encoding='utf-8')) if os.path.exists(FRAG_F) else {}
+    old.update(FRAGS)
+    if prune:
+        gen = ''.join(open(os.path.join(HERE, 'parts', g), encoding='utf-8').read() for g in os.listdir(os.path.join(HERE, 'parts')) if g.startswith('_gen_'))
+        used = {_norm(re.sub(r'\s+', ' ', x.strip())) for x in USED}
+        old = {k: v for k, v in old.items() if k in used or v in gen}
+    json.dump(dict(sorted(old.items())), open(FRAG_F, 'w', encoding='utf-8'), indent=1, ensure_ascii=False)
 
 
 def url(u):
@@ -136,6 +162,19 @@ def more():
     return '\n'.join(h)
 
 
+def resp():
+    """the open "What the responses said" list, in date order (placed at @@RESP@@)"""
+    h = ['<ul class="wp-resp">']
+    for r in sorted(P.get('responses', []), key=lambda r: r['date']):
+        h.append('<li><span class="kind">%s</span>%s<div class="by">%s, %s</div><p>%s</p></li>' % (E(r['kind']), A(url(r['u']), E(r['t'])), E(r['by']), day(r['date']), E(r['n'])))
+    return '\n'.join(h + ['</ul>'])
+
+
+def since():
+    """the closed "Since the article" block's list (placed at @@SINCE@@): volatile follow-ups, dated"""
+    return '<ul>' + ''.join('<li>%s (%s): %s</li>' % (A(r['u'], E(r['t'])), day(r['date']), E(r['n'])) for r in P.get('since', [])) + '</ul>'
+
+
 def data():
     keep = {k: P[k] for k in ('title', 'url', 'published', 'updated', 'fetched') if k in P}
     return ('// Generated by mk_article.py from article.json (and DATA_EXTRA); do not edit by hand.\nwindow.ARTICLE='
@@ -143,6 +182,7 @@ def data():
 
 
 if __name__ == '__main__':
-    for f, s in (('_gen_card.html', card()), ('_gen_more.html', more()), ('_gen_data.js', data())):
+    for f, s in (('_gen_card.html', card()), ('_gen_more.html', more()), ('_gen_resp.html', resp()), ('_gen_since.html', since()), ('_gen_data.js', data())):
         open(os.path.join(HERE, 'parts', f), 'w', encoding='utf-8').write(s + '\n')
     print('mk_article: card, further reading and data written (%d fragments checked)' % len(USED))
+    save_frags()

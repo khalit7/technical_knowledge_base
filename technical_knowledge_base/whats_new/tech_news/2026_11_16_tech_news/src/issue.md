@@ -38,7 +38,7 @@ Two weeks this time. Claude Fable 5.2 took first place on every independent boar
 - kind: Research
 - date: 2 November
 - why: a model doing interpretability-guided weight surgery is a real capability, but read such claims for the data and the failed cases, not the headline.
-- links: [Weight-space programming](https://rikiyat.github.io/blog/weight-space-programming/) (12 min) · [Honnibal: the rebuttal](https://honnibal.dev/blog/astra-read-write-misleading) (8 min) · [Our page: OpenAI](n:3c65c17b0d0d814abf90d5b9e567d72f)
+- links: [Weight-space programming](https://rikiyat.github.io/blog/weight-space-programming/) (12 min) · [Honnibal: the rebuttal](https://honnibal.dev/blog/astra-read-write-misleading) (8 min) · [Our page: the article](n:4255c17b0d0d81c4923ac58982f35f2f)
 
 **MCP tools cost an agent about forty times the input tokens of a CLI, and Claude Code's Code Mode cuts what the model has to read.** OpenRouter measured one GitHub task on Sonnet 5.5: 1,421 input tokens through the CLI, 3,315 through a skill, 23,228 through MCP with 2 tools and 59,417 with the server's 46 default tools; deferred tool loading cut the up-front cost but not the results. Claude Code 2.1.323's experimental Code Mode has Claude write JavaScript that calls its tools, returning only what it needs to read, with each inner call still under permission rules and hooks.
 - kind: Tools

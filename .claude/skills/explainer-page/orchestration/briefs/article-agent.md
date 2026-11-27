@@ -5,7 +5,7 @@ Purpose: the fill-in prompt for a subagent that builds one article page (a page 
 ## How to fill it
 - Give each agent the article's exact title, URL, author, Notion id (the lead creates the link page first, or leaves the id pending), folder `technical_knowledge_base/whats_new/articles/<slug>/`, and anything the lead already knows (responses and discussion threads found during research, the KB pages it touches, whether it earns a live ingredient).
 - The method is [../../page-kinds/article.md](../../page-kinds/article.md), which adapts [../../page-kinds/paper.md](../../page-kinds/paper.md); this brief adds the rules for running several builders on one machine.
-- Placeholders: `{{ARTICLE_TITLE}}`, `{{URL}}`, `{{PAGE_ID}}`, `{{SLUG}}`, `{{SCRATCH}}`, `{{TOOLS}}`, `{{KNOWN}}`, `{{REFERENCE}}` (the reference article folder, once one exists; until then a paper folder).
+- Placeholders: `{{ARTICLE_TITLE}}`, `{{URL}}`, `{{PAGE_ID}}`, `{{SLUG}}`, `{{SCRATCH}}`, `{{TOOLS}}`, `{{KNOWN}}`, `{{REFERENCE}}` (the reference article folder: `technical_knowledge_base/whats_new/articles/weight_space_programming/`).
 
 ---
 
@@ -15,7 +15,7 @@ You build ONE article page of the knowledge base: "{{ARTICLE_TITLE}}" ({{URL}}; 
 
 READ, in this order: CLAUDE.md (no em-dashes anywhere); the explainer-page skill at `.claude/skills/explainer-page/`: SKILL.md, `teaching/teaching-contract.md`, `page-kinds/article.md` (the article method; a SUGGESTION, not a template), `page-kinds/paper.md` (the method it adapts, with its dated lessons), `teaching/page-quality.md`, `teaching/writing-style.md`, `evidence/sourcing.md`, `evidence/local-runs.md`, `evidence/resource-safety.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/mechanics.md`, `build/scaffold.md`, `build/checks.md`. Then the reference folder `{{REFERENCE}}` (copy its reusable `src/` pieces; never edit it).
 
-STEP 0, READ: fetch the article and read it until you could teach it; keep the plain-text extract in `src/inputs/article.txt` with the fetch date. Find its responses (rebuttals, replications, the author's replies, the discussion thread) and read them too. Summarise in your own words; quote only where wording matters; the author's figures only under a licence that allows it, otherwise redrawn from the article's numbers and credited.
+STEP 0, READ: fetch the article and read it until you could teach it; `extract_article.py` keeps the plain-text extract in `src/inputs/article.txt` with the fetch date (gitignored: the full text never enters the public repo; `src/fragments.json` keeps the linked phrases). Read whatever the author released beside it (logs, prompts, tables). Find its responses (rebuttals, replications, the author's replies, the discussion thread) and read them too. Summarise in your own words; quote only where wording matters; the author's figures only under a licence that allows it, otherwise redrawn from the article's numbers and credited.
 
 CONNECTIONS: every KB page is in `technical_knowledge_base/pages.json`. Link connected pages as `https://app.notion.com/p/<id>` (or `{{text|n:<id>}}` in parts). A mechanism another page owns gets a sentence and a link (`technical_knowledge_base/OWNERS.md`); this page owns only the article's argument, evidence and reception. List in your report the exact passages on other pages the article makes untrue or should extend: the lead edits those pages, not you.
 

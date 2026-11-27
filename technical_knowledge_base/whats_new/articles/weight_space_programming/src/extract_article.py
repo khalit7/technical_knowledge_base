@@ -7,6 +7,8 @@ usage (from this src/ folder):
 What the next article builder changes: URL and START/END (the tags that bound the article's main text on its site:
 Distill uses <d-article> ... </d-article>; a Substack post <div class="body markup">; a plain blog <article>), and DROP
 (page furniture inside those bounds). Everything else is generic:
+  - every block (paragraph, heading, list item, table cell) ends with a newline, so a fragment that would span two
+    blocks (which browsers do not match) is not found and the build stops;
   - math is kept as its TeX/alttext, scripts, styles and SVG drawings are dropped, block ends become newlines;
   - footnotes (<d-footnote>) are kept inline in [brackets], citations (<d-cite key=..>) become [cite: key];
   - author emails become "[email removed]" and long dashes "--" (writing-style.md: no em-dashes in saved extracts);
@@ -29,10 +31,10 @@ def txt(x):
     x = re.sub(r'<br\s*/?>', '\n', x)
     x = re.sub(r'</(p|h\d|div|tr|li|figcaption|summary|table|ul|ol|figure)>', '\n', x)
     x = re.sub(r'<h(\d)[^>]*>', lambda m: '\n' + '#' * int(m.group(1)) + ' ', x)
-    x = re.sub(r'</t[dh]>', '\t', x)
+    x = re.sub(r'</t[dh]>', '\n', x)  # table cells are separate blocks: a text fragment cannot span them in a browser
     x = re.sub(r'<[^>]+>', '', x)
     x = html.unescape(x)
-    x = x.replace('—', '--').replace('–', '--')
+    x = x.replace('\u2014', '--').replace('\u2013', '--')
     x = re.sub(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}', '[email removed]', x)
     x = re.sub(r'[ \t ]+', ' ', x)
     x = '\n'.join(l.strip() for l in x.split('\n'))

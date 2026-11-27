@@ -3,7 +3,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Build ../index.html for an article page (the reference article folder; page-kinds/article.md, Build).
 # Run with bash: bash src/build.sh. What the next article builder changes here: nothing, unless the part layout differs.
 #   1. mk_article.py writes the generated parts from article.json: _gen_card.html (headline card, placed at @@CARD@@),
-#      _gen_more.html (Further reading, the last tab) and _gen_data.js (window.ARTICLE).
+#      _gen_resp.html and _gen_since.html (at @@RESP@@ and @@SINCE@@), _gen_more.html (Further reading, the last tab) and _gen_data.js (window.ARTICLE).
 #   2. The assembler below concatenates, in this order: 01_head.html, 02_split.html, 03_css.html, 10_header.html,
 #      20_read_*.html (byte order: 20_read_a ... 20_read_z), 3*_tab_*.html (other tabs, if any), _gen_more.html;
 #      then the hidden #jsErr box, 05z_errbox.js.html, and every *.js part in its own <script> (_gen_data.js first,
@@ -25,14 +25,14 @@ tabs = sorted((os.path.basename(f) for f in glob.glob('parts/3*_tab_*.html')), k
 HTML = ['01_head.html', '02_split.html', '03_css.html', '10_header.html'] + reads + tabs + ['_gen_more.html']
 js = sorted((os.path.basename(f) for f in glob.glob('parts/*.js')), key=lambda s: s.encode())
 JS = ['_gen_data.js'] + [f for f in js if f not in ('_gen_data.js', '99_js_tabs.js')] + ['99_js_tabs.js']
-body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
+body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html')).replace('@@RESP@@', rd('_gen_resp.html')).replace('@@SINCE@@', rd('_gen_since.html'))
 body = M.expand(body)
 out = body + '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>\n'
 out += rd('05z_errbox.js.html')
 for f in JS:
     out += '<script>/* %s */\n%s\n</script>\n' % (f, rd(f))
 out += '</div></body></html>\n'
-for bad, msg in (('{{', 'unexpanded link'), ('[[ar:', 'unexpanded margin label'), ('[[ah:', 'unexpanded margin label'), ('—', 'EM DASH FOUND'), ('@@', 'unexpanded placeholder')):
+for bad, msg in (('{{', 'unexpanded link'), ('[[ar:', 'unexpanded margin label'), ('[[ah:', 'unexpanded margin label'), ('\u2014', 'EM DASH FOUND'), ('@@', 'unexpanded placeholder')):
     if bad in out: raise SystemExit(msg + ': ' + out[max(0, out.index(bad) - 80):out.index(bad) + 80])
 fr = out[out.index('id="t-more"'):]
 tot = 0
@@ -42,5 +42,6 @@ for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
 RDT = json.load(open('reading.json')) if os.path.exists('reading.json') else {'core': '?', 'details': '?'}
 out = out.replace('RD_CORE', str(RDT['core'])).replace('RD_DET', str(RDT['details'])).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
-print('text fragments checked', len(M.USED), '(all found once in inputs/article.txt) · resources %dh %02dm · bytes %d' % (tot // 60, tot % 60, len(out.encode())))
+M.save_frags(prune=True)
+print('text fragments', len(M.USED), '(checked against inputs/article.txt)' if M.NT is not None else '(from fragments.json; no full text here)', '· resources %dh %02dm · bytes %d' % (tot // 60, tot % 60, len(out.encode())))
 PY

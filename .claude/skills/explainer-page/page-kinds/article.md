@@ -13,7 +13,8 @@ Chosen by the `update-kb` pass (its "Articles" step and [../../update-kb/reading
 ## Inputs
 - The article's URL, title, author(s), site, publication date (and the date of any later edit or addendum).
 - Its responses: rebuttals, replications, the author's own replies, the Hacker News or Lobsters thread (points and comments as a dated reading). Search for them; a widely read post nearly always has some.
-- Fetch the article itself and read it until you could teach it. Keep a plain-text extract in `src/inputs/article.txt` (`extract_article.py`: the main text, no navigation, author emails replaced by "[email removed]", long dashes by `--`), never the whole HTML page or files over about 1 MB. Record the fetch date: blog posts change without a version number.
+- Fetch the article itself and read it until you could teach it. `extract_article.py` writes its plain text to `src/inputs/article.txt` (the main text, no navigation, author emails replaced by "[email removed]", long dashes by `--`), with the fetch date: blog posts change without a version number. **That file is the author's writing and never enters this public repo** (`.gitignore` excludes it); the repo keeps `src/fragments.json`, the short phrases the page links into and their resolved links, so the page rebuilds identically without the full text (2026-11-27). Never save the article's HTML in the repo.
+- Read whatever the author released beside the post (logs, prompts, result tables, weights) and diff the first archived copy (Wayback) against the current post: both can change the verdict.
 
 ## Copyright and the author's voice
 An article is someone's prose, usually without an open licence.
@@ -46,7 +47,7 @@ The site's What's new block and Articles page read it (`html_utils/whats_new.py`
 - **Takeaway scoped to the article's own evidence**, under the same rule as a paper's ([paper.md](paper.md), Teaching contract on a paper page): what it was shown on, how many runs, which metric, no "first", "proves" or "beats" without support. One text in `article.json`, the card and the issue's mention.
 
 ## Build
-Start from a paper page's `src/` (the reference folder in [paper.md](paper.md)) and change what the source needs: `mk_paper.py` becomes `mk_article.py` (card, Further reading and data from `article.json`), the `ax:` macro becomes `ar:`/`ah:` with the fragment check, `extract_paper.py` becomes `extract_article.py`. The first article page built becomes the reference folder for the rest: name it here when it lands.
+**Reference folder: `technical_knowledge_base/whats_new/articles/weight_space_programming/`** (2026-11-27); its `src/README.md` has the table of files. Copy as they are: `build.sh`, `mk_article.py` (change only `DATA_EXTRA`), `extract_article.py` (change `URL`, `START`/`END`, `DROP`), `label_ledger.py`, the generic loop of `check_page.mjs`, the template parts and `03_css.html`. Write per article: `article.json`, the `20_read_*` parts, any figure or toy JS, `reading.json`. Its `real_edit.py` and `inputs/real_edit.json` are that article's own (a measurement on released weights); delete them. Responses and the dated follow-ups are generated from `article.json` (`@@RESP@@`, `@@SINCE@@`).
 
 Everything else is as on every page: the [teaching contract](../teaching/teaching-contract.md), split layout, a closed `<details>` for provenance and per-item lists, a dated closed block "Since the article (checked <date>)" for volatile follow-ups, the ledger (`ledger.py init`, article text `core`, provenance `depth`, mechanisms taught elsewhere `owned:<path>`), reading time in the header, the checks in [../build/checks.md](../build/checks.md).
 
@@ -63,4 +64,4 @@ One subagent per article with [../orchestration/briefs/article-agent.md](../orch
 About 1.5 to 2.5 hours for an explainer or essay with nothing to run; 3 to 4 hours with a live ingredient or recomputed figures.
 
 ## Lessons (dated)
-None yet.
+- **2026-11-27 (weight-space programming)**: read the released logs, not only the post: the prompt pointed Astra at the fault, and the results table held four unreported runs, which changed the verdict on the headline result. Diff the first archived copy against the current post (its TL;DR had been softened). A text fragment must sit inside one block (a paragraph, list item or table cell): browsers do not match across blocks, so the extract puts each block on its own line and the build stops on a fragment that spans two. When a prediction prompt sits beside a toy, open the toy on a neutral state so the answer is not already on screen.

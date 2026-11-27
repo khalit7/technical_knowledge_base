@@ -63,7 +63,7 @@ The frontier got cheaper rather than better: GPT-6.2 Astra and Gemini 4 Neon lan
 
 ## Research and papers
 - **Long generations collapse at high temperature because of the sampler, not the model** (arXiv 2611.22148, 17 November, NeurIPS 2026 Evaluations and Datasets track): [arXiv 2611.22148](https://arxiv.org/abs/2611.22148) (40 min)
-- **Weight-space programming went from one demonstration to about twenty arXiv papers in a week** (16 to 20 November): [arXiv 2611.21885](https://arxiv.org/abs/2611.21885) (30 min), [arXiv 2611.21449](https://arxiv.org/abs/2611.21449) (25 min)
+- **Weight-space programming went from one demonstration to about twenty arXiv papers in a week** (16 to 20 November): [our page on the original article](n:4255c17b0d0d81c4923ac58982f35f2f), [arXiv 2611.21885](https://arxiv.org/abs/2611.21885) (30 min), [arXiv 2611.21449](https://arxiv.org/abs/2611.21449) (25 min)
 - **Physics of Language Models 4.2** (Zeyuan Allen-Zhu, arXiv 2611.24963, first announced in the window): [arXiv 2611.24963](https://arxiv.org/abs/2611.24963) (60 min)
 - **Sparse attention loses long-context retrieval in a few "blind" heads** (arXiv 2611.21917, 16 November): [arXiv 2611.21917](https://arxiv.org/abs/2611.21917) (25 min)
 - **Optimistic verifiers get hacked by padding** (arXiv 2611.21538, 16 November): [arXiv 2611.21538](https://arxiv.org/abs/2611.21538) (30 min)
