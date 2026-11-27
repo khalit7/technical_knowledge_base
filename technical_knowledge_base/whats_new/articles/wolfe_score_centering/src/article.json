@@ -1,0 +1,218 @@
+{
+ "_doc": "Everything about this article that the page shows as data. mk_article.py turns it into the headline card, Further reading and window.ARTICLE; html_utils/whats_new.py reads title, url, author, site, published, takeaway and topics for the site's Articles cards. Fields: .claude/skills/explainer-page/page-kinds/article.md, Data.",
+ "title": "Score Centering: Understanding and Fixing Instability in RL",
+ "short": "Score centering: why RL breaks under sampler-trainer mismatch",
+ "url": "https://cameronrwolfe.substack.com/p/score-centering",
+ "author": "Cameron R. Wolfe (Netflix)",
+ "site": "Deep (Learning) Focus (Substack)",
+ "kind": "explainer",
+ "published": "2026-11-09",
+ "fetched": "2026-11-27",
+ "read_time": 38,
+ "more_note": "Read it for the derivations written out line by line and for its PyTorch version of the loss; this page keeps the argument, checks every formula against the paper and adds a toy you can move.",
+ "companion": {
+  "t": "Score Centering Stabilizes Off-policy Reinforcement Learning (the paper it explains)",
+  "u": "https://arxiv.org/abs/2609.20807",
+  "n": "Martin Marek and Max Ryabinin (Together AI), arXiv 2609.20807v1, 17 September 2026: the derivation, the top-k implementation, the experiments and the seed counts behind every number the article quotes.",
+  "time": "45 min"
+ },
+ "notion_id": "4255c17b0d0d8155880cd24d7298f9e9",
+ "parent": {
+  "title": "Articles",
+  "id": "4255c17b0d0d81b68b15d5f90da34991"
+ },
+ "takeaway": "A long explainer of Marek and Ryabinin's score-centering paper: when rollouts come from a sampler q that differs from the trainer p, the expected policy-gradient update at each prefix splits into drift (the expected reward times the trainer's expected score under the sampler, a pull toward the sampler that ignores which rollouts won) and signal (a covariance), and subtracting that expected score, computed from the sampler's top 128 log-probabilities, cancels drift without importance ratios; the evidence is the paper's, on deliberately severe mismatch with Qwen3-0.6B on Countdown and Qwen3-30B-A3B on math, measured as training accuracy.",
+ "verdict": "Believe the derivation: drift is exact algebra, the article states it correctly, and its code matches the paper's loss term by term. Read the experiments narrowly: deliberately severe mismatch, short sequences, plain SGD and training accuracy, mostly single seeds at 30B, where score centering ties truncated importance sampling at an FP4 cache and wins 30% to 12% only in the harshest setting; under heavy staleness it needs importance sampling, and a later paper finds its top-128 shortcut weaker than Monte Carlo centering. \"Labs quietly use it\" is Nathan Lambert's unsourced line; what is public is framework support (TRL's default, verl, slime, Miles, NVIDIA's Molt), not a lab's report.",
+ "headline": [
+  {
+   "v": "30% vs 12%",
+   "u": "at the harshest setting",
+   "k": "training accuracy of score centering against truncated importance sampling, Qwen3-30B-A3B-Base on INTELLECT-2 math, INT8 sampler with an INT4 KV cache; every other method under 5%",
+   "d": "4 and 3 seeds; most other curves single-seed",
+   "at": "score centering achieves 30% training accuracy",
+   "l": "the 30B experiment"
+  },
+  {
+   "v": "52% vs 51%",
+   "u": "one step milder",
+   "k": "the same two methods with an FP4 KV cache: a tie; uncorrected policy gradient collapses within 200 steps here",
+   "d": "from the paper, Section 5.4; the article leaves this panel out",
+   "at": "authors test score centering on a larger-scale setting",
+   "l": "the 30B experiment"
+  },
+  {
+   "v": "k = 128",
+   "u": "sampler log-probs per token",
+   "k": "enough for the correction: the sampler's top 128 tokens plus a tail modelled from the trainer; the full vocabulary would be about 20 TB for one batch",
+   "d": "runs finish within 1% of the baselines' wall-clock time (paper A.1)",
+   "at": "use the top 128 tokens",
+   "l": "the implementation"
+  }
+ ],
+ "code": {
+  "t": "martin-marek/score-centering",
+  "u": "https://github.com/martin-marek/score-centering",
+  "n": "The paper's code (MIT licence): the loss in JAX and PyTorch, the training and sampling code, the sweep configs behind every figure, and a README listing the frameworks that implement score centering. The article itself releases no code beyond its PyTorch snippet.",
+  "time": "20 min"
+ },
+ "discussion": [],
+ "responses": [
+  {
+   "t": "Score centering, in Chapter 6 (Policy Gradients) of the RLHF Book",
+   "by": "Nathan Lambert",
+   "u": "https://rlhfbook.com/c/06-policy-gradients#score-centering",
+   "date": "2026-11-05",
+   "time": "15 min",
+   "kind": "earlier write-up the article cites",
+   "n": "The same derivation in the book's notation (learner and sampler, the score written as xi), a top-k loss in PyTorch, and the sentence the article quotes, \"Many labs at the frontier of RL have reported, quietly, to use this method\", with no lab named and no source. Added to the book on 5 November 2026, four days before the article."
+  },
+  {
+   "t": "Baselines and Score Centering in Policy Gradient Estimation",
+   "by": "Shuo Han and Ziqing Hu",
+   "u": "https://arxiv.org/abs/2610.22263",
+   "date": "2026-10-15",
+   "time": "40 min",
+   "kind": "earlier analysis",
+   "n": "Treats both the group-mean baseline and score centering as centering in a covariance estimate (a sample mean against a population mean). With sequence-level importance sampling, score centering adds nothing once the group-mean baseline is used; with token-level importance sampling and a clipped or masked ratio, the group baseline alone is biased and score centering is needed. The article, which centres token-level scores throughout, does not cite it."
+  },
+  {
+   "t": "Regularized Score Centering",
+   "by": "Hao Bai, Chenlu Ye, Xuanchang Zhang, Aviral Kumar, Tong Zhang",
+   "u": "https://arxiv.org/abs/2611.21791",
+   "date": "2026-11-16",
+   "time": "50 min",
+   "kind": "experiment",
+   "n": "Finds two failure modes: centering from the top 128 tokens plus a modelled tail scored below Monte Carlo centering (auxiliary tokens drawn from the sampler) in every tested variant (math runs single-seed), and score centering fell behind when the sampler was refreshed rarely or on agentic tasks such as Crafter, where a reverse-KL penalty toward the sampler (their RSC) helped most. On math at the same refresh interval, adding the penalty changed final accuracy by under 1 point."
+  },
+  {
+   "t": "Gumbel Substitution: Removing Sampler Drift from RL Without Trusting the Sampler",
+   "by": "Romain Fanucci and Malik El Hassani",
+   "u": "https://arxiv.org/abs/2611.27375",
+   "date": "2026-11-20",
+   "time": "25 min",
+   "kind": "alternative",
+   "n": "Accepts the drift diagnosis and removes the need for sampler-reported probabilities, which every correction including score centering trusts: with shared Gumbel noise the trainer recomputes the token its own policy would have drawn. On a 2B model under strong mismatch it was comparable to masked importance sampling with score centering given the true q."
+  },
+  {
+   "t": "Three readers' questions, answered by the author",
+   "by": "readers, Substack comments",
+   "u": "https://cameronrwolfe.substack.com/p/score-centering/comments",
+   "date": "2026-11-09",
+   "time": "5 min",
+   "kind": "reader comments, answered",
+   "n": "On the 30B result: uncorrected training was stable at FP8, and Wolfe notes FP8 is the common setting (Qwen3 releases FP8 checkpoints). On mixture-of-experts models: score centering does not cover different expert choices, so keep routing replay (the paper did not replay routing at 30B and says it should be). On stale rollouts: stack importance sampling for the version lag and centering for the precision gap, \"probably\", as the paper recommends."
+  }
+ ],
+ "since": [
+  {
+   "t": "martin-marek/score-centering: the list of frameworks that implement it",
+   "u": "https://github.com/martin-marek/score-centering#using-score-centering",
+   "date": "2026-11-27",
+   "time": "5 min",
+   "n": "verl, TRL (on by default in AsyncGRPOTrainer), slime, Miles, prime-rl (\"upcoming default\"), NVIDIA's Molt, SkyRL, Vime and Tinker; 253 stars (read 27 November 2026)."
+  },
+  {
+   "t": "Merged pull requests that add score centering",
+   "u": "https://github.com/verl-project/verl/pull/8010",
+   "date": "2026-11-27",
+   "time": "10 min",
+   "n": "slime (THUDM, merged 23 September 2026, six days after the paper), verl (bypass-mode REINFORCE, 1 October), Miles (3 October), NVIDIA's labs-molt (15 October), plus the plumbing in vLLM's docs and SGLang to return top-k sampler log-probabilities; open pull requests at PyTorch torchtitan, AllenAI open-instruct, AReaL, prime-rl, Google's Tunix and NVIDIA NeMo RL (GitHub search, 27 November 2026)."
+  },
+  {
+   "t": "EPRO: Robust Policy Optimization Through an Imperfect Execution-Policy Predictor",
+   "u": "https://arxiv.org/abs/2611.32810",
+   "date": "2026-11-24",
+   "time": "30 min",
+   "n": "Centres the score against a predicted current sampler rather than the one that generated the rollout (Transported Score Centering), with soft clipping by policy shift; highest average held-out accuracy among its compared methods on seven math benchmarks across four Qwen3 settings (the authors' own comparison)."
+  },
+  {
+   "t": "No archived copy of the post",
+   "u": "https://web.archive.org/web/*/cameronrwolfe.substack.com/p/score-centering*",
+   "date": "2026-11-27",
+   "time": "1 min",
+   "n": "The Wayback Machine has no capture; Substack's metadata gives publication at 10:33 UTC on 9 November and a last edit six minutes later, so no later revision is recorded."
+  }
+ ],
+ "resources": [
+  {
+   "t": "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training",
+   "by": "Feng Yao and others, 2025 (third-party)",
+   "u": "https://fengyao.notion.site/off-policy-rl",
+   "time": "20 min",
+   "n": "Truncated importance sampling against the engine's probabilities: the correction score centering is compared with and composed with."
+  },
+  {
+   "t": "Defeating the Training-Inference Mismatch via FP16",
+   "by": "Qi and others, 2025 (third-party)",
+   "u": "https://arxiv.org/abs/2510.26788",
+   "time": "30 min",
+   "n": "The other way to attack the gap: remove most of it at the source by running both engines in fp16."
+  },
+  {
+   "t": "Stabilizing MoE Reinforcement Learning by Aligning Training and Inference Routers",
+   "by": "Ma and others, 2025 (third-party)",
+   "u": "https://arxiv.org/abs/2510.11370",
+   "time": "30 min",
+   "n": "Routing replay (R3): the fix for expert-choice mismatch that score centering does not cover."
+  },
+  {
+   "t": "Defeating Nondeterminism in LLM Inference",
+   "by": "Horace He, Thinking Machines Lab, 2025 (third-party)",
+   "u": "https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/",
+   "time": "30 min",
+   "n": "Why the same kernels give different numbers at different batch shapes, and what batch-invariant kernels cost."
+  },
+  {
+   "t": "Learning Dynamics of LLM Finetuning",
+   "by": "Yi Ren and Danica Sutherland, ICLR 2025 (third-party)",
+   "u": "https://arxiv.org/abs/2407.10490",
+   "time": "45 min",
+   "n": "The squeezing effect: why offline training on negative rewards sharpens the distribution and collapses, the half of the article's stability puzzle the paper sets aside."
+  }
+ ],
+ "kb": [
+  {
+   "t": "RL for LLMs: RLHF, GRPO, RLVR",
+   "id": "3c65c17b0d0d818c9bcff7177325fe56",
+   "n": "Owns GRPO's group-centred advantage (section 3) and the engine-trainer mismatch with its importance-sampling fixes, TIS and MIS, measured on real rollouts (section 8)."
+  },
+  {
+   "t": "Policy gradients and actor-critic: from REINFORCE to PPO and SAC",
+   "id": "3ee5c17b0d0d8101a262d3620e75747c",
+   "n": "Owns the score function, the log-derivative trick and why a baseline keeps the mean and cuts the variance, the property score centering borrows."
+  },
+  {
+   "t": "bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)",
+   "id": "40c5c17b0d0d81c39641d49880e39f73",
+   "n": "A mismatch upstream of the logged probabilities: the served bf16 weights lag the trainer's fp32 copy, which the paper argues the usual ratio corrections cannot see; a fix at the export, complementary to correcting the update."
+  },
+  {
+   "t": "Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning",
+   "id": "3c65c17b0d0d81898a0cd4c05c744969",
+   "n": "Owns importance sampling in reinforcement learning and why off-policy returns need ratios."
+  },
+  {
+   "t": "Information theory for ML: entropy, cross-entropy, KL, mutual information",
+   "id": "3c65c17b0d0d81c6baf3f778a62e14e5",
+   "n": "Owns forward KL and cross-entropy: drift is the gradient of the cross-entropy to the sampler."
+  },
+  {
+   "t": "Quantization and Precision",
+   "id": "3c65c17b0d0d817b8f41ff66fba4cd0e",
+   "n": "Owns the INT8, FP8 and FP4 formats the experiments quantise the sampler to."
+  }
+ ],
+ "topics": [
+  {
+   "t": "RL for LLMs: RLHF, GRPO, RLVR",
+   "id": "3c65c17b0d0d818c9bcff7177325fe56",
+   "n": "sampler-trainer mismatch"
+  },
+  {
+   "t": "Policy gradients and actor-critic: from REINFORCE to PPO and SAC",
+   "id": "3ee5c17b0d0d8101a262d3620e75747c",
+   "n": "the score function"
+  }
+ ],
+ "since_label": "the method's uptake and follow-ups, checked 27 November 2026"
+}

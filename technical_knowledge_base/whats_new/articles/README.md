@@ -19,3 +19,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Language Models for Text Classification: From Bag-of-Words to Jev](raschka_text_classification/) (Sebastian Raschka, Ahead of AI; 29 September 2026)
 - [Dust: Pretraining Transformers Without Backpropagation](dust_no_backprop/) (Samip Dahal, Bishwas Mandal, Serdar Gulbahar, Akshay Vegesna, qlabs; 5 October 2026)
 - [The plunging price of thought](plunging_price_of_thought/) (Luke Emberson and David Roodman, Epoch AI; 22 September 2026)
+- [Score Centering: Understanding and Fixing Instability in RL](wolfe_score_centering/) (Cameron R. Wolfe, Deep (Learning) Focus; 9 November 2026)
