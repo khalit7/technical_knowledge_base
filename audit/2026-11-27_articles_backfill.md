@@ -67,3 +67,11 @@ Notes on the ranking:
 | OpenAI and Anthropic cut their LLM prices by up to 80% (Max Woolf) | https://minimaxir.com/2026/10/cheap-llms/ | 2026-10-25 | HN 443 / 436 | Pricing analysis; news material |
 | A 10-year-old CNN outperforms frontier LLMs for skin cancer diagnosis (Lynch Lab) | https://lynchlab.net/llm-skin-cancer | 2026-10 | HN 670 / 274 | A 5-minute case study on a handful of images |
 | Su Jianlin, kexue.fm: Muon optimisation theory series, continuous softmax attention, "from attention to TTT" | https://kexue.fm/archives/12014 ; /11993 | 2026-09 to 11 | | Could not verify: kexue.fm returns HTTP 403 to scripted fetches (the feed works). Likely strong; check by hand |
+
+## Edits the article pages ask for on other pages (done in one batch after the backfill)
+Each line: the article page, the page to edit, what. Ticked when done.
+- [ ] weight_space_programming: Topic: llm-architecture, Inside a real model tab (induction heads): Experiment 3 found copying heads from weights alone by composing the previous-token head with later heads; link the article page.
+- [ ] weight_space_programming: OpenAI: GPT family, the GPT-6 Astra paragraph: one sentence on the demonstration; link the article page.
+- [ ] weight_space_programming: Alibaba: Qwen: dated fact that Qwen3.5-0.8B loops in thinking mode (93.0% of MATH-500 answers hit 32,768 tokens with the recommended sampling).
+- [ ] weight_space_programming: Policy gradients and actor-critic: Further reading entry (the Kinetix car stuck in a PPO local minimum).
+- [ ] weight_space_programming: Safety and honesty benchmarks: Further reading entry (sycophancy not detectable from weights alone, detectable from attention patterns).
