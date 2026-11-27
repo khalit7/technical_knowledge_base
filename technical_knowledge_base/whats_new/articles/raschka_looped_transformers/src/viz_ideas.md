@@ -1,0 +1,10 @@
+# Visual ideas (P-raschka_looped_transformers)
+
+| id | Idea | Score / decision | Why |
+|---|---|---|---|
+| P-raschka_looped_transformers.1 | Hero: Nanbeige4.2-3B stored (22 blocks, x2), computed (44 applications), against 44 distinct blocks, with weights, compute, KV cache and hidden depth per token | built (static 2D, `22_js_lt_hero.js`) | The article's central equivalence in one picture (its Figures 5 to 7), with every number computed from the published config instead of read off its images. |
+| P-raschka_looped_transformers.2 | Widget: passes (1 to 8) and KV-cache arrangement (per pass, shared from pass 1, recurrent) on Nanbeige's config; four tokens with the cross-token cache edges and the longest hidden path; weights, compute, cache and hidden depth over 1,000 tokens | built (`23_js_lt_toy.js`, no autoplay, prediction prompt beside it) | The one place the article's "bigger model" equivalence breaks, and the point the owner page does not have: a recurrent cache turns a bounded 44 into 22,022 block applications. Every value matches `recompute.py` (checked for all 15 combinations). |
+| P-raschka_looped_transformers.3 | Redraw the Mixture-of-Recursions loss plot (article Figure 11) | rejected | Data exists only as an image; the claim it supports is one sentence. |
+| P-raschka_looped_transformers.4 | Astra against Sol on the system card's monitorability numbers as a bar chart | rejected | Four numbers from two sources with different definitions (OpenAI's length-binned controllability, UK AISI's overall); a chart would invite comparing them. Kept in prose with their definitions. |
+| P-raschka_looped_transformers.5 | Redraw Huginn's prelude-core-coda shape | rejected | The owner page (Test-time compute and reasoning, Fig. 5) draws it to scale. |
+| P-raschka_looped_transformers.6 | Westover and Kuhn's NCRI against loops for Dory | rejected | Their values exist only in their figures; the two numbers that matter (about 18 NCRI points, about 1.5 mini-ECI) are printed in their text. |
