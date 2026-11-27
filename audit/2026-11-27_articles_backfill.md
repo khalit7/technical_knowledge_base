@@ -130,3 +130,6 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] dust_no_backprop: Matrix calculus and backprop section 4 (mc-s4): the third option (node perturbation with per-token credit keeps the outer product; cost grows with the population); Werfel, Xie and Seung's factors; Dust in Further reading.
 - [ ] dust_no_backprop: Optimisers and learning-rate schedulers section 5 (s-evid): Dust level with SGD backprop at 10M tokens (+0.05) but 0.40 behind once both use Adam (Noise benchmark).
 - [ ] dust_no_backprop: Policy gradients and actor-critic (optional): the score-function estimator per token on activations is how Dust trains with no backward pass.
+- [ ] plunging_price_of_thought: Topic: llm-landscape section 6 ("Price per token is not cost per task", 20_read_d.html): the trend, about 47% a quarter (13x a year) for a fixed score, five benchmarks, 2023 to 2026, a chained index; link the article page.
+- [ ] plunging_price_of_thought: Test-time compute and reasoning, the cost of reasoning tokens: the CAISI truncation method (one run's per-question token counts give its score at every lower budget).
+- [ ] plunging_price_of_thought: Topic: benchmarks: Mystery Game Puzzles (kept secret) as a check on benchmark-specific training; its cost falls a little slower (44.0% vs 47.0%).
