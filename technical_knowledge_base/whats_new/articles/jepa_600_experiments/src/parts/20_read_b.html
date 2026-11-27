@@ -1,0 +1,57 @@
+
+<section id="s-pred"><h2>1. The predictor is not the bottleneck; the search horizon is</h2>
+[[ar:how much LeWM is held back|The opening and section 1]]
+<p><b>Swapping LeWM's predictor for the simulator's exact physics changes almost nothing.</b> With an expert frame as subgoal every 25 steps, on 250 tasks with the goal 75 steps away, LeWM succeeds 78% and the simulator 77% ({{in the article|ar:The version with true physics succeeded 77%}}): a tie, since two seeds of one planner disagree on 15% of tasks.</p>
+<p><b>Far goals fail because of the search, not compounding error.</b> LeWM as published solves 22% of 75-step tasks but 89.7% of 25-step ones, within a point of the simulator ({{in the article|ar:within a point of the exact-physics version}}). Exact physics, which cannot drift, lifts one 75-step search only to 42%; a subgoal every 25 steps lifts LeWM to 80% (the bars). CEM cannot find a 75-step plan with or without a correct model, and four planner runs added under a point ({{in the article|ar:the four runs almost always succeeded}}).</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><figure class="card jw-fig" id="jw-toy">
+<div class="t">A cost per jump keeps the route on demonstrations; against their flow, every route is jumps</div>
+<div class="seg" id="jw-toy-g" role="group" aria-label="Where the goal lies"><button data-m="with" class="on">goal with the flow</button><button data-m="across">across it</button><button data-m="against">against it</button></div>
+<div class="jw-ctl"><label for="jw-toy-r">Jump cost <b id="jw-toy-lam">0.00</b></label><input type="range" id="jw-toy-r" min="0" max="4" step="0.25" value="0" aria-label="Extra cost of a jump between demonstrations"></div>
+<div id="jw-toy-svg"></div>
+<div class="jw-out"><div class="stat"><div class="v" id="jw-toy-j">3</div><div class="k">jumps between demonstrations</div></div><div class="stat"><div class="v" id="jw-toy-s">6</div><div class="k">steps along demonstrations</div></div></div>
+<figcaption>Illustrative toy, not Push-T data: eight demonstrations ending at one point, like Push-T's. A step costs its length; a jump (within 0.85 units) its length plus the jump cost. Green: steps of the shortest route; red dashes: jumps. Downstream, free jumps give a 3-jump shortcut and any cost of 0.25 or more gives 1 jump; across the flow, 4 or 5 jumps at every cost; against it, 9 at every cost. Checked against src/recompute.py.</figcaption>
+</figure></div><div class="s3L">
+<section id="s-mem"><h2>2. Subgoals from a graph of the model's own memories</h2>
+[[ah:2-a-latent-memory-graph-with-a-cost-on-every-jum|2. A latent memory graph]]
+<p><b>The memory graph replaces the expert's subgoals.</b> LeWM's encoder embeds every frame of its training demonstrations, about 460,000 states, each linked to its successor and to nearby states of other demonstrations; a shortest path from the current state to the goal gives the subgoals ({{in the article|ar:searches this graph for a path}}).</p>
+<p><b>A cost on every jump took it from 62% to 85%</b>, the expert-subgoal score ({{in the article|ar:adding a cost on every jump}}). With free jumps the search chained them into routes the block could not follow (318 of 1,015 plans used six or more). Nearness in embedding space is not a move the pusher can make (the toy). The idea is Search on the Replay Buffer (Eysenbach et al., 2019), which the post does not cite.</p>
+</section>
+
+<section id="s-test"><h2>3. The standard test is easier than it looks</h2>
+[[ah:the-standard-push-t-test-is-easier-than-it-looks|The standard Push-T test is easier than it looks]]
+<p><b>85% flatters the method, as the author shows.</b> Test goals lie further along the start's own demonstration, and all demonstrations end in one place, so for 84% of goals the graph held a nearly identical state ({{in the article|ar:the memory graph already held a nearly}}). Further: LeWM's evaluation samples its tasks from <code>pusht_expert_train</code>, the training set (<code>config/eval/pusht.yaml</code>), so the test demonstrations are in the graph unless removed, which the post does not say.</p>
+<p><b>The sample is also small and noisy</b>: 68% on the official 50 episodes, 44% on 250 fresh ones; a new seed flipped 38 of 250 ({{in the article|ar:flipped 38 of 250 episodes}}). On the harder test the memory graph falls from 75% to 45% ({{in the article|ar:succeeds 75% of the time on standard}}).</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-trans">
+<h2>4. Fill gaps with rotated and mirrored memories</h2>
+[[ah:3-fill-gaps-in-memory-with-rotated-and-mirrored-|3. Fill gaps in memory]]
+<p><b>The graph is only as good as its coverage.</b> Deleting the stored states near the goal dropped standard success from 93% to 32% ({{in the article|ar:success fell from 93% to 32%}}). Push-T's physics is unchanged by shifting, rotating or mirroring the table, so transformed segments from elsewhere can fill the gap: back to 85%, and 1% of the demonstrations plus copies did about as well as 10%. On the harder test copies help most where the toy needs jumps: 45% to 56% overall, 27% to 46% against the flow.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card jw-fig" id="jw-dir">
+<div class="t">Transformed copies help most where no demonstration leads to the goal</div>
+<div id="jw-dir-svg"></div>
+<div class="jw-lg"><span><i style="background:var(--c1)"></i>plain memory</span><span><i style="background:var(--c2)"></i>with rotated and mirrored segments</span></div>
+<figcaption>The harder test, 250 tasks, about 83 per row, memory-graph planner on LeWM: with the flow 69% (one value printed; the 56% average implies 68% with copies), across 39% and 54%, against 27% and 46%, all 45% and 56%. Redrawn from the article's labels.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-cost">
+<h2>5. The goal image also scores the pusher</h2>
+[[ah:4-score-goals-on-the-block-alone|4. The cost was "wrong"]]
+<p><b>A goal image shows the pusher somewhere, so a planner matching the whole image tries to put the pusher there too.</b> In one run the robot reached the block's target, then {{pushed it away|ar:Then it pushed the block away}} chasing the pusher's goal position.</p>
+<p><b>With the model removed, the effect is large.</b> The simulator planner ran on the same 50 harder-test tasks with a cost on block and pusher, then on the block alone: 9 against 39 successes, 30 tasks flipping one way and none the other (the table), a split with chance probability 2 × 0.5<sup>30</sup>, about 1.9 in a billion. LeWM's goal embedding mixes block and pusher, so its workaround scores each prediction against 16 copies of the goal with the pusher moved and keeps the closest: 11% to 23% on the harder test ({{in the article|ar:from 11% to 23%, without retraining}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card jw-fig" id="jw-pair">
+<div class="t">Same 50 tasks, simulator physics: scoring the pusher never helped</div>
+<div class="tw"><table class="jw-tab"><thead><tr><th></th><th>block-only cost succeeds</th><th>block-only cost fails</th></tr></thead>
+<tbody><tr><td>block-and-pusher cost succeeds</td><td>9</td><td>0</td></tr><tr class="on"><td>block-and-pusher cost fails</td><td>30</td><td>11</td></tr></tbody></table></div>
+<figcaption>The post's paired outcome; the 11 failing both are by subtraction. 78% against 18% is the "60 points" of the opening, and 4.3 times. Both planners use the simulator and true positions, not LeWM, and success is the harder test's, which counts the block alone.</figcaption>
+</figure></div></div></div>
+
+<section id="s-next"><h2>6. What comes next: subgoals beyond the data</h2>
+[[ah:what-comes-next|What comes next]]
+<p><b>The open problem is goals no demonstration leads to</b>: the best planner reaches 56% on the harder test, failing mostly against the flow. The author wants a high level that proposes its own subgoals, better than H-JEPA, which "match or slightly beat flat LeWM" on Push-T ({{in the article|ar:which so far match or slightly}}).</p>
+</section>

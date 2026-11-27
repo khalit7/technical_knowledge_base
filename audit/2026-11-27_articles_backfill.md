@@ -141,3 +141,6 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] cloudflare_kv_cache_exposure: SGLang section 7 flags table: the pool sets the real limit, min(context - 1, pool - 1) - 5; the PD-disaggregation row: needs v0.5.22 or backports of #36988 and #38935, plus deferred release.
 - [ ] cloudflare_kv_cache_exposure: Agent security, threat model: the shared inference server below the agent can leak one tenant's prompt into another's reply with no attacker.
 - [ ] cloudflare_kv_cache_exposure: 2026-11-02 issue: link its Cloudflare story to the article page (Our page).
+- [ ] jepa_600_experiments: Model-based RL and planning section 13 ("Why model error compounds"): a measured counterweight (on Push-T one 75-step search reaches 42% even with exact physics; a learned JEPA predictor matches the simulator once each search is 25 steps).
+- [ ] jepa_600_experiments: Model-based RL and planning section 11 (world-models table): a LeWM row (arXiv 2603.19312, NeurIPS 2026, 15M parameters, pixels, prediction loss plus SIGReg, 96.0% on Push-T at 25 steps over 50 tasks).
+- [ ] jepa_600_experiments: Contrastive and self-supervised learning, the V-JEPA depth block: LeJEPA/SIGReg and LeWM as the 2026 step; the article in Further reading.
