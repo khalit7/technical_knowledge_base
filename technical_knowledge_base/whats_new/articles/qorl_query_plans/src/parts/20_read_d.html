@@ -1,0 +1,50 @@
+<details class="mist"><summary>Small slips in the article (none changes a result)</summary><div class="b">
+<ul>
+<li>The metric example gives a total workload speedup of 1.4x for a 5-minute query halved and a 25-second query doubled; those numbers give (300 + 25) / (150 + 50) = 1.62x. 1.4x would follow if the second query went from 50 to 100 seconds.</li>
+<li>The text says a no-op is fooled "~20% of the time" on job-13b; that is the share of triples with a slow median (230 of 1,140). The rate at which a no-op is scored as different is 39.7%, as the figure's caption says (the toy above).</li>
+<li>"Half a thousand" Astra trajectories: 440 were generated (120, then 320), 400 of them for training, 394 used after six were dropped.</li>
+<li>The highlights say the untrained model could not produce a plan for 99 of 113 queries; the results table counts 14 queries with a valid candidate, which agrees, and 15 scored, because keeping the default also scores.</li>
+</ul>
+</div></details>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up: the measurement work, the method, and a real gain from training.</b></p>
+<ul>
+<li><b>The rig is careful and its noise is measured, not assumed.</b> Warm-up until the buffer counters settle, a fooling rate measured per query, interleaved pairs, a tie zone, clipping, and a reward that treats anything inside the noise as zero. The author's data reproduces his own numbers here (job-13b's 10.3% and the "~40%").</li>
+<li><b>Selection and scoring are kept apart.</b> The best-of-three rule chose on single feedback timings and was scored on a separate three-pair measurement, so the 1.81 is not the luckiest timing of 15. The repository's audit of the 339 searches found no discrepancy, and its outlier check holds: dropping the five largest gains still leaves best-of-three at 1.61x.</li>
+<li><b>Training and test share no query shape</b>, checked by join graph, and the post is unchanged since its first archived copy apart from an acknowledgement.</li>
+<li><b>Code, configs and per-query results are public</b>, and the repository's analysis states the caveats below more plainly than the post does.</li>
+</ul>
+<p><b>What it does not show.</b></p>
+<ul>
+<li><b>The title's number is a search budget, not the model.</b> One search with the model's own choice gives 1.40x (19.1% less summed time); 1.81x takes three searches and up to 15 executed plans per query, none of it counted. The repository says a three-search run of the SFT model would be needed to know how much of the 1.81 RL earned; it was not run. The clean training result is 1.16x after SFT to about 1.4x after RL, one search each.</li>
+<li><b>The baseline ran Postgres's default cost settings on data held in memory.</b> The repository's configuration keeps <code>random_page_cost</code> at 4.0 (with 2 GB of shared_buffers and an 8.5 GB database on NVMe), while one of the model's favourite moves was to set it to 1.1. Postgres's documentation suggests lowering it when data is likely fully cached ({{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}, section 9). How much of the gain one configuration line would give is not measured; a Hacker News reader raised it and got no answer. The same goes for <code>max_parallel_workers_per_gather</code> = 2 against 572 parallelism hints.</li>
+<li><b>One search is noisy, so small differences between checkpoints are not evidence.</b> The final model's own choice ranged 1.33x to 1.47x over three repeated searches with the same weights. The SFT epoch comparison, the 1.35x and 1.41x RL checkpoints and the 1.14x "flop" are each one search; the repository notes that removing three queries reverses the gain from 600 to 1,200 updates.</li>
+<li><b>JOB was the test set and the development set.</b> Epochs, learning rates and harness fixes were chosen by looking at JOB results, which the repository itself calls "a repeatedly used held-out evaluation workload, not a fresh blind confirmation benchmark".</li>
+<li><b>One database, one machine, read-only queries, no learned baseline.</b> 8.5 GB fits in memory; no comparison with Bao (the same hint-steering idea with a small model, which the post lists as its next step), Balsa or published LLM optimizers on the same rig. No weights or adapter are released, and the repository has no licence file.</li>
+</ul>
+<p class="qp-verdict"><b>Verdict.</b> Believe that the method works and copy the measurement discipline: a learned or LLM optimizer should be judged with a fooling rate, a noise floor in its reward and selection kept apart from scoring. Read 1.40x as what the trained 4B model does and 1.81x as what three searches buy, both against an untuned planner on a benchmark used during development; before believing any of it on your own workload, rerun the default with <code>random_page_cost</code> lowered and compare against a hint sweep like Bao's.</p>
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p><b>No replication or written rebuttal was found; the substantive responses are the author's own results file and a long Hacker News thread.</b> Searched on 27 November 2026: the web, GitHub (no issues on the repository; two forks without changes), Lobsters and arXiv. Hacker News: 702 points and 144 comments (read 27 November 2026), mostly database practitioners; secondary sites restated the numbers, one of them as "up to 81% on the hardest cases", which the post does not say.</p>
+@@RESP@@
+<p><b>Where the responses are right.</b> The random_page_cost point is the strongest: the configuration confirms the default 4.0, and the model's own habits suggest part of its edge is a setting a database administrator would change once for everything. The planning-cost objection is right about live queries and answered by the post's scope (repeated analytic queries), but the speedups should be read with the search cost beside them. One reply was wrong: the database does have indexes on the foreign keys (the repository's load script creates 23).</p>
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li>{{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}, Learned optimizers: its QORL correction box is right on the three selections; it should add that 1.81x and 44.7% are one measurement, that the baseline ran at <code>random_page_cost</code> 4.0, the 1.33x to 1.47x spread between repeated searches, and that "best" was chosen by one timing per candidate.</li>
+<li>{{RL for LLMs: RLHF, GRPO, RLVR|n:3c65c17b0d0d818c9bcff7177325fe56}}, section 3: an example of a noisy, continuous verifiable reward: a soft-thresholded log speedup and a leave-one-out baseline floored at zero, so beating the group is not enough.</li>
+<li>{{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}}: a −3 penalty for invalid output taught the policy to return the default plan, the safe exploit of a lopsided reward.</li>
+<li>{{Distillation and Small Language Models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}} and {{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}: 394 agent trajectories with reasoning summaries only were enough to teach a 4B model a tool protocol through a 21.2M-parameter LoRA, and a flat validation loss hid both a gain and a regression.</li>
+</ul>
+</section>
+
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026): the code and the post</summary><div class="b">@@SINCE@@</div></details>
+
+<details class="mist"><summary>Provenance: what was read, fetched and compared</summary><div class="b">
+<p>The post was fetched on 27 November 2026 and its main text extracted to <code>src/inputs/article.txt</code> (13,432 words with its code blocks and figure labels, 58 minutes at 230 words a minute; about 11,300 words and 50 minutes of prose, the reading time on the card); every "in the article" link is a text fragment or a section id checked against that extract at build time. The page's metadata gives publication on 16 September 2026. The first Wayback Machine copy (16 September, 19:41 UTC) was extracted the same way and compared: the only change is an added Acknowledgements section. The reward and advantage formulas, which render as KaTeX without their TeX source, were read from the page's rendered text and its notes on each term.</p>
+<p>The repository polyphilz/qorl was read on GitHub at its state of 27 November (last push 17 September): the README, <code>src/qorl/evaluation/selection.py</code>, the Postgres configuration <code>docker/postgres/configs/001-pgconf-2gb-sb/pg.conf</code> (Postgres 18.6, random_page_cost 4.0, effective_cache_size 4 GB, max_parallel_workers_per_gather 2), <code>scripts/imdb/load.sql</code> (23 foreign-key indexes), and the READMEs and results of experiments 032 and 033. Job-13b's 20 runs are the data values of the post's median-draw figure.</p>
+<p>Figures: the post carries no open licence, so none is embedded; the results and the reward example are redrawn from its tables and credited, and the toy is this page's own, computed from the post's data. Responses: the Hacker News item and all 141 visible comments through its API (author polyphilz; submitted 16 September 18:50 UTC). Not found: any replication, a reply from the author on the cost settings, a Lobsters thread.</p>
+</div></details>

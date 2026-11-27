@@ -1,0 +1,696 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Training a 4B model to produce 81% faster query plans than Postgres</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2733;--mute:#5f6b7a;--line:#e1e4e9;--soft:#f0f2f5;--acc:#2a62a8;--acc2:#dde8f6;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8;--shadow:0 1px 2px rgba(20,35,60,.06),0 8px 24px rgba(20,35,60,.07);--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121519;--card:#1a1e24;--ink:#e6e9ee;--mute:#9aa4b2;--line:#2c323b;--soft:#20252c;--acc:#7aaee8;--acc2:#1f334b;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+h1{font-family:var(--serif);font-size:clamp(28px,4.2vw,40px);line-height:1.12;margin:0;letter-spacing:-.005em}.sub{color:var(--mute);font-size:15px;line-height:1.55;max-width:46em;margin:12px 0 18px}
+h2{font-family:var(--serif);font-size:clamp(23px,3vw,29px);margin:64px 0 12px;line-height:1.2}h3{font-size:16px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}sub,sup{line-height:0}
+section>p,section>ul,section>ol{max-width:46em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 12px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.an-ctl button,.an-ctl select{border-radius:999px;padding:5px 14px}
+.an-play{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:13px;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 12px;white-space:nowrap}
+.nav a.cur{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin:20px 0;min-width:0}.card h4{font-size:15.5px;line-height:1.35;margin:0 0 8px}
+.co{border-left:4px solid var(--acc);background:var(--acc2);padding:12px 16px;border-radius:0 12px 12px 0;margin:18px 0}
+.co.warn{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg))}.co.key{border-left-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--bg))}
+.co .t{font-weight:600;font-size:14px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:0;border-radius:10px;padding:10px 12px;background:var(--soft);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:22px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:15px;border-radius:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:9px 14px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:20px;background:var(--soft);padding:3px;gap:2px;margin:6px 0}.seg button{font:inherit;font-size:13px;background:transparent;color:var(--mute);border:0;border-radius:999px;padding:5px 13px;cursor:pointer}.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(20,35,60,.15)}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0}.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-cap{background:var(--soft);border-left:4px solid var(--acc);border-radius:0 10px 10px 0;padding:10px 14px;margin:8px 0;font-size:14.5px}
+figure.ph{margin:20px 0}figure.ph img{display:block;width:100%;height:auto;border-radius:10px}figure.ph figcaption{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.5}
+figure.ph.side{float:right;width:min(380px,40%);margin:6px 0 14px 26px}section{display:flow-root}.card,details,.tw,.fm{clear:both}.co{display:flow-root}
+@media (max-width:700px){figure.ph.side{float:none;width:auto;margin:16px 0}}
+/* eased steps: RD.anim adds rd-fwd to the card when the step moves forward; marks drawn with class rd-new ease in, rd-gone fade out, and the caption fades in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
+@media (max-width:520px){body{font-size:15px}h1{font-size:26px}h2{margin-top:48px}.w{padding:20px 14px 40px}.card{padding:14px;border-radius:12px}.seg button{padding:5px 10px}code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100%;overflow-x:auto;overflow-y:hidden}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style><script id="kb-buddy">
+// ---- AI buddy loader: the small script every page carries (apply_buddy.py writes it as the marked kb-buddy block in the head part) ----
+// It loads the buddy (html_utils/kb_buddy.js, one shared file) on every page once the page has loaded. The buddy's toolbar is all it adds:
+// without a Claude key or a GitHub token, the toolbar's Claude and sync buttons say so and open the field to add it.
+// Where it is: on the site, build_site.py writes data-src (the site root's kb_buddy.js, with a version stamp); opened from the repo,
+// the path to html_utils/kb_buddy.js is worked out from the folder technical_knowledge_base in the page's own address.
+// No literal closing-head or opening-body tag may appear in this file: build_site.py inserts its bar at the first of each.
+(function(){
+  if (window.__kbBuddyLoader) return; window.__kbBuddyLoader = 1;
+  // keep WebGL drawing buffers readable, so the buddy can capture a 3D view between frames; this must run before the page's own scripts
+  try { var gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
+  var me = document.currentScript, src = me && me.getAttribute('data-src');
+  if (!src) { var h = location.href.split('#')[0], i = h.lastIndexOf('/technical_knowledge_base/'); src = i < 0 ? null : h.slice(0, i + 1) + 'html_utils/kb_buddy.js' }
+  function load(){ if (!src) return; var tag = document.createElement('script'); tag.src = src; tag.async = true; document.head.appendChild(tag) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script><!--/kb-buddy-->
+</head><body><div class="w">
+<style id="kb-split">
+/* The split layout (standing rule, 2026-11-06): a section with a visual is two columns, the explanation on the left and the visual on the right,
+   sticky while its section is read; a section without a visual is full width. Below 1100 px the visual sits at the top of its section
+   (a stage stays under the section nav while its steps are read; a figure card scrolls with the text). Classes are prefixed s3 to avoid page classes. */
+.s3sp{position:relative;margin-top:8px}
+.s3R{display:contents}
+.stg{position:sticky;top:50px;z-index:3;height:min(44vh,330px);min-height:250px;margin:6px 0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.stg-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 0;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.stg-top span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.stg-top span:last-child{white-space:nowrap}
+.stg-cv{position:relative;flex:1;min-height:0}
+.stg canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}.stg canvas.dr{cursor:grabbing}
+.stg-rv{position:absolute;right:8px;top:4px;font-size:12px;padding:2px 10px;border-radius:999px}
+.stg-hint{position:absolute;right:10px;bottom:4px;font:11px ui-monospace,Menlo,monospace;color:var(--mute);pointer-events:none;letter-spacing:.04em}
+.stg-bar{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}
+.stg .stg-bar.an-ctl{flex-wrap:nowrap!important}.stg .stg-bar button{padding:4px 11px;font-size:13px;white-space:nowrap}.stg .stg-bar input.stg-r{flex:1 1 40px!important;min-width:30px!important;width:auto}.stg .stg-bar select{font-size:12.5px;padding:3px 6px}
+/* the step list: the explanation of the animation, one item per step; the current step is marked, a click jumps to it */
+ol.sx{list-style:none;counter-reset:sx;padding:0;margin:12px 0 18px;max-width:46em}
+ol.sx>li{counter-increment:sx;position:relative;padding:8px 12px 8px 40px;margin:0 0 4px;border-radius:10px;border-left:3px solid transparent;cursor:pointer;color:var(--mute);transition:background .25s,color .25s,border-color .25s}
+ol.sx>li::before{content:counter(sx);position:absolute;left:10px;top:9px;width:21px;height:21px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:600 12px/19px ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;text-align:center;color:var(--mute)}
+ol.sx>li b{color:var(--ink)}
+ol.sx>li.done{color:var(--ink)}ol.sx>li.done::before{background:var(--soft)}
+ol.sx>li.on{background:var(--card);color:var(--ink);border-left-color:var(--acc);box-shadow:var(--shadow)}ol.sx>li.on::before{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+ol.sx>li:hover{background:var(--soft)}ol.sx>li.on:hover{background:var(--card)}
+ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sxh{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 0}
+.s3chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.s3chips button{border-radius:999px;padding:3px 12px;font-size:13.5px}
+.s3chips button.on{background:var(--c2);border-color:var(--c2);color:var(--bg)}
+.s3q{color:var(--c2);font-weight:600}.s3k{color:var(--c6);font-weight:600}.s3v{color:var(--c4);font-weight:600}
+/* a compact 2D animation card (about 320 px tall or less on a phone) that should stay in view while its step list is read: put it first in .s3R with class s3stick */
+@media (max-width:1099px){.s3stick{position:sticky;top:50px;z-index:3}}
+.s3side .card{margin-top:6px}
+@media (min-width:1100px){
+  .w:has(.tab:not([hidden]) .s3sp){max-width:1380px}
+  /* text outside a split keeps a readable line length on the widened page (2026-11-06) */
+  .w:has(.tab:not([hidden]) .s3sp) .tab :is(p,ul,ol,dl,blockquote):not(.s3sp *):not(.card *):not(td *):not(th *):not(li *):not(.stat *){max-width:52em}
+  .s3sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:40px;align-items:stretch}
+  .s3L{grid-column:1;grid-row:1;min-width:0}
+  .s3R{display:block;grid-column:2;grid-row:1;min-width:0}
+  .stg{top:58px;height:min(calc(100vh - 80px),660px);margin:20px 0 0}
+  .s3side{position:sticky;top:58px;margin-top:20px}
+  .s3L section>h2:first-child{margin-top:44px}
+}
+@media (max-width:520px){.stg{top:50px;height:min(52vh,400px);min-height:270px;border-radius:12px}.stg-bar{gap:4px;padding:5px 6px 6px}.stg .stg-bar button{padding:4px 9px}.stg .stg-bar select{padding:3px 4px}.stg-hint{display:none}ol.sx>li{padding:7px 10px 7px 36px}ol.sx>li::before{left:7px}}
+</style>
+<style id="wp-css">
+/* article page: the headline card (generated by mk_article.py), "in the article" margin labels, figure cards. Copied from the paper pages' card look. */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0 8px;background:var(--card);box-shadow:var(--shadow)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.hero h1{margin:6px 0 6px}
+.hero .au{font-size:13.5px;line-height:1.45;color:var(--mute)}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hero-l{font-size:13.5px;margin-top:8px}.hero-n{font-size:12.5px;color:var(--mute);margin-top:6px}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:22px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}.hn .stat .k{font-size:12.5px;color:var(--ink)}
+.where{display:inline-block;margin:0 0 6px;font-size:12px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:1px 7px;text-decoration:none;background:var(--bg)}
+.where:before{content:"in the article: ";opacity:.75}
+a.where:visited{color:var(--mute)}.where:hover{color:var(--acc);border-color:var(--acc)}
+.wp-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.wp-fig figcaption,.wp-cap{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.wp-fig{margin:0}
+.wp-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.wp-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.wp-hl{color:var(--c2);font-weight:600}
+.wp-resp{list-style:none;padding:0;margin:10px 0}.wp-resp li{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 8px;background:var(--card)}
+.wp-resp .by{font-size:12.5px;color:var(--mute)}.wp-resp .kind{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin-right:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink)}
+.wp-toyout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.wp-toyout .stat .v{font-size:19px}
+#t-read details.mist .b p,#t-read details.mist .b li{font-size:14px}
+blockquote.wp-q{margin:10px 0;padding:6px 14px;border-left:3px solid var(--line);color:var(--ink);font-style:italic}
+/* this page (prefix qp): figure cards, the noise toy, the reward figure */
+.qp-fig{margin:0}.qp-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.qp-fig figcaption{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.qp-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.qp-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.qp-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+table.qp-tab{border-collapse:collapse;font-size:12.5px;width:100%;margin:6px 0}
+table.qp-tab th,table.qp-tab td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:right;vertical-align:top}
+table.qp-tab th:first-child,table.qp-tab td:first-child{text-align:left}
+table.qp-tab th{font-weight:600;color:var(--mute);font-size:12px}
+table.qp-tab tr.on td{background:var(--soft);font-weight:600}
+.qp-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.qp-out .stat .v{font-size:19px}
+.qp-verdict{border-left:3px solid var(--acc);padding:4px 12px;background:var(--soft);border-radius:4px}
+.qp-ctl input[type=range]{flex:1 1 160px;min-width:120px}
+.qp-pred{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;background:var(--soft)}
+</style>
+<div class="crumb"><a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a> · 2026 · <span id="rt">Reading: 21 min, plus 3 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The article</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<div class="hero" id="hero">
+<div class="hero-k">Article · research post · rohanbansal.com</div>
+<h1>Training a 4B model to produce 81% faster query plans than Postgres</h1>
+<div class="au">Rohan Bansal (independent; written at the Recurse Center) · published 16 September 2026</div>
+<p class="tk"><b>In one line:</b> On the 113 queries of the IMDb Join Order Benchmark, a 4B open model post-trained by one person for about $1,200 (LoRA SFT on about 400 GPT-6 Astra agent trajectories, then RL with a noise-aware reward) writes pg_hint_plan hints whose plans average 1.40x the speed of Postgres 18&#x27;s own in one search (geometric mean); the headline 1.81x, or 44.7% less summed time, is the best of three searches picked by single timings, with the search time excluded and the planner at its default cost settings.</p>
+<div class="hn">
+<div class="stat"><div class="v">1.40x <span class="u">the policy alone</span></div><div class="k">geometric-mean speedup of the model&#x27;s own choice, 339 searches (113 JOB queries, three each)</div><div class="d">19.1% less summed latency; three repetitions ranged 1.33x to 1.47x · <a href="https://rohanbansal.com/qorl#:~:text=Model%E2%80%99s%20own%20choice%2C%20per%20trajectory" target="_blank" rel="noopener noreferrer">in the article: the final results table</a></div></div>
+<div class="stat"><div class="v">1.81x <span class="u">best of three searches</span></div><div class="k">geometric mean and summed latency alike, one plan per query picked from up to 15 by a single timing each</div><div class="d">the same measurement as &quot;44.7% latency reduction&quot;: 1 − 1/1.81; the search time is not counted · <a href="https://rohanbansal.com/qorl#:~:text=we%20saw%20a%201.81x%20geometric%20mean%20speedup" target="_blank" rel="noopener noreferrer">in the article: the final results table</a></div></div>
+<div class="stat"><div class="v">$1,200 <span class="u">total cost</span></div><div class="k">about $800 of 2 x H100 rental (about 95 hours) and $400 of API fees for the Astra demonstrations</div><div class="d">plus two RTX 3090s at home; development and evaluation on one desk machine · <a href="https://rohanbansal.com/qorl#:~:text=Total%20cost%3A%20%241%2C200." target="_blank" rel="noopener noreferrer">in the article: Costs</a></div></div>
+</div>
+<p class="tk"><b>How far to trust it:</b> Believe the method and the measurement work: the noise rig, the reward fixes and the released code and per-query results are careful and honest, and the repository itself flags the caveats. Read 1.40x (one search) as the model&#x27;s result and 1.81x as a search budget&#x27;s: both on a benchmark watched during development, against Postgres with random_page_cost at its default 4.0 while the model often set 1.1, and with checkpoint differences smaller than the 1.33x to 1.47x spread between repeated searches. <a href="#s-trust">The evidence, judged</a>.</p>
+<div class="hero-l"><a href="https://rohanbansal.com/qorl" target="_blank" rel="noopener noreferrer">read it (50 min)</a> · <a href="https://github.com/polyphilz/qorl/blob/main/experiments/033-qwen-4b-job-rl032-5cand-3rollouts/results.md" target="_blank" rel="noopener noreferrer">Experiment 033 results (the repository&#x27;s own analysis of the headline run)</a> · <a href="https://github.com/polyphilz/qorl" target="_blank" rel="noopener noreferrer">logs and code (polyphilz/qorl)</a> · <a href="https://news.ycombinator.com/item?id=49731285" target="_blank" rel="noopener noreferrer">discussion (702 points, 144 comments on 27 November 2026)</a></div>
+</div>
+
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> a plan's quality can be checked by timing it, so a 4B model can be taught by distillation and then reinforcement learning to write hints that steer Postgres's planner, provided the timing noise is engineered out first; on the Join Order Benchmark the trained model alone averages 1.40 times faster plans, and spending three searches per query, keeping the best by a single timing, reaches the title's 1.81.</p>
+<p class="small"><b>You need:</b> how Postgres picks a plan from estimated row counts, and what pg_hint_plan can force (<a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, sections 1 to 5 and the pinning block); GRPO and RLOO advantages (<a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>, section 3); LoRA (<a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a>).</p>
+<p class="small"><b>New terms:</b> <b>JOB</b> (Join Order Benchmark: 113 hand-written queries over the real IMDb data, 33 templates, 4 to 17 tables each); <b>CEB</b> (Cardinality Estimation Benchmark: 13,646 generated queries on the same data, the training set); <b>PlanAction</b> (the model's structured output: join tree, join and scan methods, settings, compiled into a pg_hint_plan comment); <b>no-op error rate</b> (how often a plan identical to the default is measured as more than 5% faster or slower); <b>anchored GRPO</b> (the article's advantage rule: a rollout is compared with Postgres's default and with its siblings' mean, never below zero).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card qp-fig" id="qp-hero">
+<div class="t">Training took the model from 0.85x to about 1.4x; the last jump to 1.81x is three searches, not more training</div>
+<div id="qp-hero-svg"></div>
+<div class="qp-lg"><span><i style="background:var(--c1)"></i>SFT on Astra trajectories</span><span><i style="background:var(--c2)"></i>RL</span><span><i style="background:var(--c3)"></i>best of three searches</span></div>
+<figcaption>Geometric-mean speedup over Postgres's plans on all 113 JOB queries, every evaluation in the article in order, one search per query unless stated. Total workload speedup (summed default time over summed chosen time) in the same order: 0.85, 0.76, 1.04, 0.89, 1.05, 1.06, 0.99, 1.16, 1.29, 1.24, 1.29, 1.81. The shaded band is the spread of the final model's own choice over three repeated searches with no change to its weights, 1.33x to 1.47x (the repository's results for experiment 033); most checkpoint-to-checkpoint differences above sit inside it. Redrawn from the article's tables.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-why">The problem</a><a href="#s-frame">Framing</a><a href="#s-harness">Harness</a><a href="#s-bench">Benchmarks</a><a href="#s-noise">Noise</a><a href="#s-metrics">Baselines</a><a href="#s-sft">SFT</a><a href="#s-rl">RL</a><a href="#s-final">Result</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<section id="s-why"><h2>1. Planners guess row counts; a plan's speed can be measured</h2>
+<a href="https://rohanbansal.com/qorl#how-good-are-query-optimizers-really" target="_blank" rel="noopener noreferrer" class="where">How good are query optimizers, really?</a>
+<p><b>The article's premise: judging a plan is easy (run it and time it), producing a good one is hard, and that asymmetry is what reinforcement learning on verifiable rewards exploits.</b> Join ordering alone is NP-hard (<a href="https://rohanbansal.com/qorl#:~:text=is%20known%20to%20be%20NP%2Dhard" target="_blank" rel="noopener noreferrer">in the article</a>), and Leis et al. found in 2015 and again in 2025 that optimizers still pick poor plans, mostly from bad row-count estimates.</p>
+<p><b>Its running example shows why order matters.</b> Joining titles, movie companies and company names, with filters to Japanese companies (5% of 100,000) and the 2000s (20% of 1M titles): joining the companies first passes about 100,000 rows to the second join, joining the titles first about 400,000, four times the work. Counting every choice (two join trees times four input orientations, three join algorithms per join, four scan types per table) gives 8 × 3² × 4³ = 4,608 plans for three tables (<a href="https://rohanbansal.com/qorl#:~:text=There%20are%204%2C608%20different%20ways" target="_blank" rel="noopener noreferrer">in the article</a>), and Postgres prunes them with dynamic programming, or a genetic search from 12 tables. It cannot count rows while planning, so it estimates them from per-column statistics (<a href="https://rohanbansal.com/qorl#:~:text=Postgres%20uses%20statistics%20to%20estimate%20cardinalities" target="_blank" rel="noopener noreferrer">in the article</a>) and assumes the filters on different tables are independent; if the Japanese companies made half the movies instead of 5%, the "cheap" order would pass a million rows. How estimates are made and fail, and why one bad estimate low in the tree spoils every join above it: <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, sections 3 to 5.</p>
+<p><b>The lever is pg_hint_plan</b>, an extension that reads a comment such as <code>/*+ HashJoin(a b) SeqScan(a) */</code> above a query and makes the planner use those methods and that join order (<a href="https://rohanbansal.com/qorl#:~:text=pg_hint_plan%20is%20a%20beautifully%20simple%20third%2Dparty%20extension" target="_blank" rel="noopener noreferrer">in the article</a>). The SQL is unchanged, so a hinted plan still computes the same result; only the route differs.</p>
+</section>
+
+<section id="s-frame"><h2>2. The target: queries that run again and again</h2>
+<a href="https://rohanbansal.com/qorl#formulating-our-problem" target="_blank" rel="noopener noreferrer" class="where">Formulating our problem</a>
+<p><b>The model does not replace the planner on every query; it is spent on queries worth optimising once and running many times.</b> Giving a model the planner's own statistics would mean competing with decades of cardinality-estimation research, and its inference would cost more than Postgres's millisecond planning. A heavy analytic query run thousands of times is different: tens to hundreds of executions up front pay off over all later runs (<a href="https://rohanbansal.com/qorl#:~:text=lies%20in%20a%20specific%20database%20usage%20pattern" target="_blank" rel="noopener noreferrer">in the article</a>). That framing decides what the results mean: search time and training cost are excluded from every speedup, which is fair only for such repeated queries.</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-harness"><h2>3. The model and its harness</h2>
+<a href="https://rohanbansal.com/qorl#a-model-and-its-harness" target="_blank" rel="noopener noreferrer" class="where">A model and its harness</a>
+<p><b>The policy is a small open model in an agent loop with six tools.</b> The model is <code>empero-ai/Qwen3.8-4B-Distill</code>, a third party's distillation of Qwen 3.8 2.4T into Qwen 3.5 4B (4.66 billion parameters), chosen because it could be trained on two RTX 3090s at home (<a href="https://rohanbansal.com/qorl#:~:text=I%20decided%20to%20start%20with%20a%20small" target="_blank" rel="noopener noreferrer">in the article</a>). The harness, qo-agent, lets it inspect tables and indexes, read planner statistics for up to eight columns, read the default plan's estimates, submit a candidate for timing, keep the default, or finish with a chosen candidate.</p>
+<p><b>The model never writes hint syntax: it emits a PlanAction JSON object</b>, which the harness validates, compiles into pg_hint_plan hints and prepends to the query (<a href="https://rohanbansal.com/qorl#:~:text=instructed%20to%20produce%20PlanAction%20JSON%20objects" target="_blank" rel="noopener noreferrer">in the article</a>). The figure is one search as the final evaluation ran it (settings from the repository's experiment 033); each candidate's feedback is one timed run, the final score three interleaved pairs.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card qp-fig">
+<div class="t">One search: up to five candidates, each timed once, the chosen one timed in three pairs</div>
+<div id="qp-flow-svg"></div>
+<figcaption>The qo-agent loop. The model sees each candidate's single timing as a ratio to the default (the dashed loop back), so later candidates can use what earlier ones showed: with five candidates GPT-6 Astra averaged 2.54x on a 10-query sample against 0.85x with one. The final score clips median(default) / median(candidate) to [0.1, 10].</figcaption>
+</figure></div></div></div>
+
+<section id="s-bench"><h2>4. Train on one benchmark, test on another over the same database</h2>
+<a href="https://rohanbansal.com/qorl#benchmarks" target="_blank" rel="noopener noreferrer" class="where">Benchmarks</a>
+<p><b>Training uses CEB's 13,646 queries (16 templates, 12 join shapes); testing uses JOB's 113 (33 templates, each its own shape), both on IMDb.</b> Same database on purpose: the intended user optimises one company's own workload, so learning IMDb well is the point (<a href="https://rohanbansal.com/qorl#:~:text=I%20would%20argue%20this%20is%20precisely%20the%20point." target="_blank" rel="noopener noreferrer">in the article</a>). What must not leak is query structure, so the author reduced every query to its join graph (tables as nodes, joins as edges, filters ignored) and checked for overlap between the two sets: there was none (<a href="https://rohanbansal.com/qorl#:~:text=There%20wasn%E2%80%99t%2C%20so%20no%20filtering%20was%20required." target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+</section>
+<div class="s3sp"><div class="s3R"><figure class="card qp-fig" id="qp-toy">
+<div class="t">A plan identical to the default, timed against it: how often the reward calls it a win or a loss</div>
+<div class="qp-ctl"><span class="small mute">Timings per side:</span> <div class="seg" id="qp-k"><button data-m="1" class="on">1</button><button data-m="3">3</button><button data-m="5">5</button><button data-m="7">7</button></div> <span class="small mute">(now <b id="qp-kv">1</b>)</span></div>
+<div class="qp-ctl"><label class="small mute" for="qp-z">Tie zone, |ln ratio| at most <b id="qp-zv">±5.0%</b></label><input type="range" id="qp-z" min="0" max="0.15" step="0.005" value="0.05" aria-label="Tie zone"></div>
+<div id="qp-toysvg"></div>
+<div class="qp-out" id="qp-toyout"></div>
+<figcaption>Job-13b's 20 runs at 128 MB shared_buffers, the article's own data (from its median-draw figure; blue the fast clump, orange the six slow runs; their coefficient of variation is 10.34%, the article's 10.3%). For a plan that is the default, the candidate's timings and the default's are drawn from the same runs, k each without replacement; each side's median is taken, and a ratio outside the tie zone is a phantom result. Every possible draw is counted exactly, a port of <code>src/recompute.py</code>. At three timings and 5%: 39.7%, the article's "~40%".</figcaption>
+</figure></div>
+<div class="s3L"><section id="s-noise"><h2>5. The measurement rig: a reward is only as good as its timer</h2>
+<a href="https://rohanbansal.com/qorl#how-to-muffle-an-elephant" target="_blank" rel="noopener noreferrer" class="where">How to muffle an elephant</a>
+<p><b>The same query does not take the same time twice, and the whole method rests on telling a faster plan from noise.</b> The rig ran four Postgres containers on a 16-core, 64 GB desk machine, 4 cores and 8 GB each, against the 8.5 GB IMDb slice, with a shared queue of queries (<a href="https://rohanbansal.com/qorl#:~:text=If%20we%20run%20the%20exact%20same%20query%20on%20Postgres%2020%20times" target="_blank" rel="noopener noreferrer">in the article</a>). Each query was warmed until Postgres's buffer counters (pages found in its own cache, pages asked of Linux) changed by under 2% between runs, at least two and at most five warm-ups, then timed 20 times. That warm-up rule is the cold-against-warm trap of <a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, made into a protocol.</p>
+<p><b>Noise was not a blur but two speeds.</b> At Postgres's default 128 MB of shared_buffers, job-13b ran 14 times between 186 and 204 ms and 6 times between 227 and 253 ms (<a href="https://rohanbansal.com/qorl#:~:text=14%20of%20the%2020%20landed%20between%20186" target="_blank" rel="noopener noreferrer">in the article</a>): the counters were stable but not zero, because the cache was far smaller than the data and pages kept coming back from Linux. A no-op candidate scored on medians of three can then land one side in the slow clump.</p>
+<div class="qp-pred"><b>Predict before you move the toy:</b> one timing per side fools the reward 61% of the time on job-13b. With three timings, the article's protocol, how often? With seven?</div>
+<p><b>The toy answers it exactly: 39.7% with three, 25.9% with five, 15.5% with seven.</b> Repetition helps slowly against two clumps; the article's text figure, "~20%", is the share of triples whose median sits in the slow clump (230 of 1,140, <a href="https://rohanbansal.com/qorl#:~:text=230%20of%20them%20contain%20at%20least%20two%20slow%20runs" target="_blank" rel="noopener noreferrer">in the article</a>), not the rate at which the reward is fooled, which needs only one of the two sides to land there; its figure's caption gives the right number, "~40%". The author's conclusion follows: minimise the fooling rate itself, not the coefficient of variation, since two queries with the same spread can be fooled at very different rates (<a href="https://rohanbansal.com/qorl#:~:text=The%20actual%20number%20to%20minimize%20is%20this%20fooling%20rate" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>The fix was memory, not more repeats.</b> Measured over all 113 queries with three interleaved pairs, the no-op error rate was 5.0% and 5.4% (two calibrations) at 128 MB of shared_buffers, and 1.8% and 1.2% at 2 GB; the 90th-percentile query went from fooled 13% to 20% of the time to 0% to 1.3%; work_mem (4 or 32 MB) made no difference (<a href="https://rohanbansal.com/qorl#:~:text=work_mem%20had%20no%20effect%20on%20noise" target="_blank" rel="noopener noreferrer">in the article</a>). Job-13b's coefficient of variation fell from 10.3% to 0.9%, and the 113 default plans got faster, 95 s to 60 s in total, from cache residency alone. Everything after this ran at 2 GB and 4 MB (<a href="https://rohanbansal.com/qorl#:~:text=I%20locked%20in%202%20GB%20shared_buffers" target="_blank" rel="noopener noreferrer">in the article</a>). Training's timings had to move to the desk machine too: on the rented GPU server the noise was "off the charts", most likely from sharing its CPUs.</p>
+</section></div></div>
+
+<details class="mist"><summary>The toy at the article's 5% tie zone, and the author's own fooling metric</summary><div class="b">
+<table class="qp-tab" id="qp-ktab"></table>
+<p>Phantom wins and losses are equal because the draw is symmetric. The article's own metric is different: it slides a window of six consecutive runs over the 20 (15 windows), forms three interleaved pairs, and tries both roles in each pair (8 cases), 120 cases a query. On job-13b that gives 68 of 120 = 56.7%, higher than the 39.7% of random draws, because all six slow runs fall in the first 13 (runs 3, 5, 7, 9, 12 and 13), so most windows hold two or three of them where a random draw of six holds 1.8 on average. The calibration table's 5.0% is that metric averaged over all 113 queries.</p>
+</div></details>
+
+<section id="s-metrics"><h2>6. Two scores, a frontier check, and a model that could not use the harness</h2>
+<a href="https://rohanbansal.com/qorl#baselines-and-metrics" target="_blank" rel="noopener noreferrer" class="where">Baselines and metrics</a>
+<p><b>Every result is reported two ways.</b> The <b>geometric mean</b> of per-query speedups weights every query equally: a 2x and a 0.5x cancel to 1x (<a href="https://rohanbansal.com/qorl#:~:text=The%20geometric%20mean%20speedup%20gives%20all%20queries" target="_blank" rel="noopener noreferrer">in the article</a>). The <b>total workload speedup</b> divides summed default time by summed chosen time, so long queries dominate. The author reads the first as learning and the second as practical value, since one lucky plan on a long query can carry a workload total.</p>
+<p><b>Frontier models showed the task is solvable.</b> On a 10-query JOB sample, GPT-6 Astra (medium reasoning) reached 2.54x geometric mean with five candidates and 0.85x with one; Qwen 3.8 2.4T 2.26x and 2.02x (<a href="https://rohanbansal.com/qorl#:~:text=frontier%20intelligence%20is%20capable%20of%20agentically%20doing" target="_blank" rel="noopener noreferrer">in the article</a>). Single runs on ten queries, as the article says of one odd result.</p>
+<p><b>The untrained 4B model mostly could not drive the harness.</b> Of 113 searches, 81 produced no valid candidate, 16 failed at selection and 1 timed out; only six measured a new plan, five at 1.02x to 1.30x and one at 0.05x (<a href="https://rohanbansal.com/qorl#:~:text=The%20results%20were%20dismal" target="_blank" rel="noopener noreferrer">in the article</a>). Its PlanActions were malformed, its join trees missed or repeated tables or joined tables the query never joins, and it called tools at the wrong time or tools that did not exist.</p>
+</section>
+<section id="s-sft"><h2>7. SFT: imitate a frontier agent to learn the harness's language</h2>
+<a href="https://rohanbansal.com/qorl#off-policy-distillation-via-supervised-fine-tuning" target="_blank" rel="noopener noreferrer" class="where">Off-policy distillation via supervised fine-tuning</a>
+<p><b>First the model had to speak the harness; that came from copying GPT-6 Astra's trajectories.</b> This is off-policy distillation: the student is trained with next-token loss on the teacher's tool calls and replies, never on its own samples (<a href="https://rohanbansal.com/qorl#:~:text=Off%2Dpolicy%20distillation%20is%20a%20training%20method" target="_blank" rel="noopener noreferrer">in the article</a>; the method: <a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>). Three practical steps: rendering the OpenAI Responses-format traces into Qwen's token format (Prime Intellect's renderers), masking the loss to the model's own turns, and unrolling each trajectory into one example per assistant reply, each with everything before it as context. The weights were adapted with a LoRA of 21.2 million parameters, 42.5 MB against 9.32 GB of bf16 weights (<a href="https://rohanbansal.com/qorl#:~:text=contained%20only%2021.2%20million%20trainable%20parameters" target="_blank" rel="noopener noreferrer">in the article</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a>).</p>
+<p><b>Astra was the teacher although its API returns reasoning summaries, not reasoning.</b> Its trajectories were shorter (22,009 tokens of final context on average against 45,144 for Qwen 3.8 2.4T, all under the ~50,000 a 24 GB card could train on) and faster; trace inversion (expanding summaries into plausible reasoning) was the fallback if summaries hurt. They did not, by the results.</p>
+<p><b>Two epochs helped, a third hurt, and validation loss saw neither.</b> On 100 Astra trajectories from CEB (382 training rows after unrolling), one epoch lifted queries with a valid candidate from 14 to 48 of 113 but scored 0.72x; two epochs 1.08x; three 0.82x, while held-out loss sat at 0.305 to 0.306 through epoch 2 and rose to 0.322 by the end of epoch 3 (<a href="https://rohanbansal.com/qorl#:~:text=Two%20epochs%20improved%20our%20results%2C%20but%20three" target="_blank" rel="noopener noreferrer">in the article</a>). A further 300 trajectories (6 that kept the default without trying dropped) and two more epochs gave the RL starting point: 1.16x geometric mean, 1.06x workload, 20 wins and 5 regressions. The harness also changed between epochs one and two (keeping the default became allowed), so the first two rows are not like for like.</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-rl"><h2>8. RL: a reward that ignores noise, and an advantage anchored to Postgres</h2>
+<a href="https://rohanbansal.com/qorl#designing-per-rollout-rewards-and-relative-advantages" target="_blank" rel="noopener noreferrer" class="where">Designing per-rollout rewards and relative advantages</a>
+<p><b>The first reward taught the model to play safe.</b> It was ln(speedup) minus 0.1 per invalid candidate and 0.05 for repeating the default plan, and a flat −3 for a search with no valid candidate. Against −3, returning Postgres's own plan for −0.05 was the best bet, and the model learned it (<a href="https://rohanbansal.com/qorl#:~:text=terrified%20of%20producing%20invalid%20plans" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Plain GRPO made it worse, because it rewards beating the group, not beating Postgres.</b> prime-rl's GRPO subtracts the group's mean reward (it does not divide by the spread). In the article's four-rollout example two rollouts are rejected (−3 each), one finds a slower plan (0.80x, ln 0.80 = −0.23) and one repeats the default (−0.05): the mean is −1.57, so the slower plan gets +1.34 and the copy of Postgres's plan +1.52, the most reinforced of all (<a href="https://rohanbansal.com/qorl#:~:text=reinforcing%20bad%20behavior%20by%20telling%20the%20model" target="_blank" rel="noopener noreferrer">in the article</a>). Group-relative advantages in general: <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>, section 3.</p>
+<p><b>The reworked rule anchors every rollout to the default.</b> A rollout's quality is ln of its clipped speedup, soft-thresholded by 0.05 (anything within about 5% counts as zero and real gains or losses shrink by 0.05: the noise floor of section 5, built into the reward); keeping the default scores exactly zero. Its baseline is the mean quality of its scored siblings, leaving itself out (RLOO's leave-one-out baseline), floored at zero, so a rollout is never credited for being the least bad. Advantage is quality minus baseline, minus 0.02 if it picked a duplicate of the default; a search with no valid candidate gets −0.1 instead of −3 (<a href="https://rohanbansal.com/qorl#:~:text=prime%2Drl%2Dflavored%20GRPO%20was%20swapped%20out" target="_blank" rel="noopener noreferrer">in the article</a>). In the same example all four rollouts are pushed down: −0.10, −0.10, −0.18 and −0.02. The figure recomputes both tables.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card qp-fig">
+<div class="t">Same four rollouts: GRPO reinforces copying Postgres's plan; the anchored rule reinforces nothing</div>
+<div id="qp-grpo-svg"></div>
+<div class="qp-lg"><span><i style="background:var(--mute)"></i>prime-rl GRPO (reward minus group mean)</span><span><i style="background:var(--c2)"></i>anchored (quality minus max(0, siblings' mean))</span></div>
+<figcaption>The article's example, one query, four rollouts; hints shortened. GRPO advantages −1.43, −1.43, +1.34, +1.52 from rewards −3, −3, −0.23, −0.05 (mean −1.57); anchored advantages −0.10, −0.10, −0.18, −0.02, with quality −0.18 for the 0.80x plan (ln(118/148) + 0.05) and 0 for the default. Both recomputed in <code>src/recompute.py</code>; they match the article's tables.</figcaption>
+</figure></div></div></div>
+
+<section id="s-train"><h2>9. Training: a cautious start, then ten times the learning rate</h2>
+<a href="https://rohanbansal.com/qorl#training-commences" target="_blank" rel="noopener noreferrer" class="where">Training commences</a>
+<p><b>RL ran across two machines: generation and training on a rented 2 × H100 node, timing on the four Postgres containers at home, joined over Tailscale.</b> The SFT adapter was merged into the base and a fresh LoRA trained. A first run (learning rate 1e-6, batch 8, four rollouts a query, 120 updates) changed nothing: 1.14x against the SFT model's 1.16x (<a href="https://rohanbansal.com/qorl#:~:text=evaluated%20against%20JOB%2C%20and%20completely%20flopped" target="_blank" rel="noopener noreferrer">in the article</a>). The second setting (1e-5, batch 16, eight rollouts, 600 updates, twice in a row) worked. Since 92% of a rollout's time was inference, rollouts were changed to lease a Postgres worker only while timing, which let 20 run at once on four workers (<a href="https://rohanbansal.com/qorl#:~:text=92%25%20of%20the%20rollout%E2%80%99s%20time%20was%20spent" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>After 600 updates: 1.35x geometric mean, 1.16x workload, 34 wins, 0 regressions, a valid candidate on 99 of 113 queries; after 1,200: 1.41x, 1.29x, 38 wins, 2 regressions.</b> The share of training rollouts that beat Postgres rose steadily through both runs. All these rows are one search per query, and the hero's band shows how far one search moves on its own.</p>
+</section>
+
+<section id="s-final"><h2>10. The headline: the best of three searches</h2>
+<a href="https://rohanbansal.com/qorl#:~:text=Best%20feedback%20across%20all%20three" target="_blank" rel="noopener noreferrer" class="where">The final results table</a>
+<p><b>The final checkpoint was run three times on every JOB query and scored three ways</b> (<a href="https://rohanbansal.com/qorl#:~:text=Model%E2%80%99s%20own%20choice%2C%20per%20trajectory" target="_blank" rel="noopener noreferrer">in the article</a>):</p>
+<ul>
+<li><b>The model's own choice</b>, all 339 searches: <b>1.40x</b> geometric mean, 1.24x workload, 119 wins, 7 regressions.</li>
+<li><b>A fixed rule within each search</b> (take the candidate whose single feedback timing was best, if at least 1.05x, else the default): 1.44x, 1.29x, 129 wins, 1 regression.</li>
+<li><b>The same rule across a query's three searches</b>, one answer from up to 15 candidates: <b>1.81x</b> geometric mean and 1.81x workload, 68 wins, 0 regressions (<a href="https://rohanbansal.com/qorl#:~:text=we%20saw%20a%201.81x%20geometric%20mean%20speedup" target="_blank" rel="noopener noreferrer">in the article</a>).</li>
+</ul>
+<p><b>"81% faster" and "44.7% latency reduction" are the same measurement.</b> The chosen plans' medians sum to 31.756 s against 57.398 s for the defaults (repository, experiment 033): 57.398 / 31.756 = 1.81 times the speed, 1 − 31.756 / 57.398 = 44.7% less time. The selection used only the single feedback timings; the score comes from the separate three-pair measurement, so the 1.81 is not inflated by picking the luckiest timing. It is, by the author's design, a different system from the trained model: three searches and up to 15 executed candidates per query, whose time is not counted.</p>
+<p><b>What the model does</b>, from the 339 final searches: it inspected tables, statistics or the default plan first in 295 of 337 searches that submitted candidates and used all five candidates in 235. Of 1,347 actions it gave scan hints 1,141 times, join trees 917 times, parallelism hints 572 times and row-count corrections only 146 times; it often forced nested loops and index scans, and often set <code>enable_sort=off</code> and <code>random_page_cost=1.1</code> (<a href="https://rohanbansal.com/qorl#:~:text=The%20model%20regularly%20used%20enable_sort%3Doff" target="_blank" rel="noopener noreferrer">in the article</a>). Its gains came mostly from rewriting the join order, from a single scan fix, and from parallelism; job-01d went 90 times faster with a forced bitmap scan.</p>
+<p><b>Cost: $1,200</b>, about $800 for some 95 hours of the 2 × H100 node and $400 of API fees for the Astra trajectories (<a href="https://rohanbansal.com/qorl#:~:text=I%20paid%20~%24800%20to%20rent" target="_blank" rel="noopener noreferrer">in the article</a>). The author's conclusion: frontier models plus a small budget let a company train a small open model on its own niche task, and he lists a Bao-style hint sweep, on-policy distillation, trace inversion and noise measurements on dedicated cloud machines as next steps.</p>
+</section>
+<details class="mist"><summary>Small slips in the article (none changes a result)</summary><div class="b">
+<ul>
+<li>The metric example gives a total workload speedup of 1.4x for a 5-minute query halved and a 25-second query doubled; those numbers give (300 + 25) / (150 + 50) = 1.62x. 1.4x would follow if the second query went from 50 to 100 seconds.</li>
+<li>The text says a no-op is fooled "~20% of the time" on job-13b; that is the share of triples with a slow median (230 of 1,140). The rate at which a no-op is scored as different is 39.7%, as the figure's caption says (the toy above).</li>
+<li>"Half a thousand" Astra trajectories: 440 were generated (120, then 320), 400 of them for training, 394 used after six were dropped.</li>
+<li>The highlights say the untrained model could not produce a plan for 99 of 113 queries; the results table counts 14 queries with a valid candidate, which agrees, and 15 scored, because keeping the default also scores.</li>
+</ul>
+</div></details>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up: the measurement work, the method, and a real gain from training.</b></p>
+<ul>
+<li><b>The rig is careful and its noise is measured, not assumed.</b> Warm-up until the buffer counters settle, a fooling rate measured per query, interleaved pairs, a tie zone, clipping, and a reward that treats anything inside the noise as zero. The author's data reproduces his own numbers here (job-13b's 10.3% and the "~40%").</li>
+<li><b>Selection and scoring are kept apart.</b> The best-of-three rule chose on single feedback timings and was scored on a separate three-pair measurement, so the 1.81 is not the luckiest timing of 15. The repository's audit of the 339 searches found no discrepancy, and its outlier check holds: dropping the five largest gains still leaves best-of-three at 1.61x.</li>
+<li><b>Training and test share no query shape</b>, checked by join graph, and the post is unchanged since its first archived copy apart from an acknowledgement.</li>
+<li><b>Code, configs and per-query results are public</b>, and the repository's analysis states the caveats below more plainly than the post does.</li>
+</ul>
+<p><b>What it does not show.</b></p>
+<ul>
+<li><b>The title's number is a search budget, not the model.</b> One search with the model's own choice gives 1.40x (19.1% less summed time); 1.81x takes three searches and up to 15 executed plans per query, none of it counted. The repository says a three-search run of the SFT model would be needed to know how much of the 1.81 RL earned; it was not run. The clean training result is 1.16x after SFT to about 1.4x after RL, one search each.</li>
+<li><b>The baseline ran Postgres's default cost settings on data held in memory.</b> The repository's configuration keeps <code>random_page_cost</code> at 4.0 (with 2 GB of shared_buffers and an 8.5 GB database on NVMe), while one of the model's favourite moves was to set it to 1.1. Postgres's documentation suggests lowering it when data is likely fully cached (<a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, section 9). How much of the gain one configuration line would give is not measured; a Hacker News reader raised it and got no answer. The same goes for <code>max_parallel_workers_per_gather</code> = 2 against 572 parallelism hints.</li>
+<li><b>One search is noisy, so small differences between checkpoints are not evidence.</b> The final model's own choice ranged 1.33x to 1.47x over three repeated searches with the same weights. The SFT epoch comparison, the 1.35x and 1.41x RL checkpoints and the 1.14x "flop" are each one search; the repository notes that removing three queries reverses the gain from 600 to 1,200 updates.</li>
+<li><b>JOB was the test set and the development set.</b> Epochs, learning rates and harness fixes were chosen by looking at JOB results, which the repository itself calls "a repeatedly used held-out evaluation workload, not a fresh blind confirmation benchmark".</li>
+<li><b>One database, one machine, read-only queries, no learned baseline.</b> 8.5 GB fits in memory; no comparison with Bao (the same hint-steering idea with a small model, which the post lists as its next step), Balsa or published LLM optimizers on the same rig. No weights or adapter are released, and the repository has no licence file.</li>
+</ul>
+<p class="qp-verdict"><b>Verdict.</b> Believe that the method works and copy the measurement discipline: a learned or LLM optimizer should be judged with a fooling rate, a noise floor in its reward and selection kept apart from scoring. Read 1.40x as what the trained 4B model does and 1.81x as what three searches buy, both against an untuned planner on a benchmark used during development; before believing any of it on your own workload, rerun the default with <code>random_page_cost</code> lowered and compare against a hint sweep like Bao's.</p>
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p><b>No replication or written rebuttal was found; the substantive responses are the author's own results file and a long Hacker News thread.</b> Searched on 27 November 2026: the web, GitHub (no issues on the repository; two forks without changes), Lobsters and arXiv. Hacker News: 702 points and 144 comments (read 27 November 2026), mostly database practitioners; secondary sites restated the numbers, one of them as "up to 81% on the hardest cases", which the post does not say.</p>
+<ul class="wp-resp">
+<li><span class="kind">author&#x27;s analysis</span><a href="https://github.com/polyphilz/qorl/blob/main/experiments/033-qwen-4b-job-rl032-5cand-3rollouts/results.md" target="_blank" rel="noopener noreferrer">The repository&#x27;s results for the final run (experiment 033)</a><div class="by">Rohan Bansal (the author), 14 September 2026</div><p>Separates the model&#x27;s choice (1.4048x), the within-search rule (1.4355x) and best-of-three (1.8054x); notes that 1.805x &quot;is not an 80.5% latency reduction&quot;, that comparing it with a one-search SFT baseline &quot;would mix policy improvement with additional search compute&quot;, that JOB &quot;has been inspected during development&quot;, and that only 17 queries win in all three searches.</p></li>
+<li><span class="kind">critique</span><a href="https://news.ycombinator.com/item?id=49733010" target="_blank" rel="noopener noreferrer">An 8 GB in-memory dataset, warmed, read-only</a><div class="by">refibrillator, Hacker News (the top comment), 16 September 2026</div><p>Warns of overfitting and asks whether the plans would hold at scale and on more realistic workloads; database statistics and workloads drift.</p></li>
+<li><span class="kind">critique</span><a href="https://news.ycombinator.com/item?id=49734568" target="_blank" rel="noopener noreferrer">Planning time is the constraint a live planner works under</a><div class="by">perrygeo and Someone, Hacker News, 16 September 2026</div><p>A real planner must minimise planning plus execution on live statistics, and the 95 hours of training and the search are outside the benchmark numbers. The post&#x27;s own framing (repeated analytic queries) answers part of this.</p></li>
+<li><span class="kind">author&#x27;s reply</span><a href="https://news.ycombinator.com/item?id=49731869" target="_blank" rel="noopener noreferrer">pg_hint_plan&#x27;s debug log shows whether a hint was used</a><div class="by">polyphilz (the author), Hacker News, 16 September 2026</div><p>Answering whether a hinted plan still computes the query: the hints only choose among plans for the same SQL, and the debug log was used during evaluation to confirm Postgres applied them. The author&#x27;s only comment in the thread.</p></li>
+<li><span class="kind">critique</span><a href="https://news.ycombinator.com/item?id=49738122" target="_blank" rel="noopener noreferrer">Skeptical of these results (random_page_cost)</a><div class="by">zacmps, Hacker News, 17 September 2026</div><p>The model&#x27;s favourite setting, random_page_cost=1.1, suggests the baseline&#x27;s cost settings were not tuned for fast storage, which &quot;could easily explain the difference by itself&quot;. The repository confirms the baseline ran at the default 4.0; no reply.</p></li>
+</ul>
+
+<p><b>Where the responses are right.</b> The random_page_cost point is the strongest: the configuration confirms the default 4.0, and the model's own habits suggest part of its edge is a setting a database administrator would change once for everything. The planning-cost objection is right about live queries and answered by the post's scope (repeated analytic queries), but the speedups should be read with the search cost beside them. One reply was wrong: the database does have indexes on the foreign keys (the repository's load script creates 23).</p>
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance</a>, Learned optimizers: its QORL correction box is right on the three selections; it should add that 1.81x and 44.7% are one measurement, that the baseline ran at <code>random_page_cost</code> 4.0, the 1.33x to 1.47x spread between repeated searches, and that "best" was chosen by one timing per candidate.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a>, section 3: an example of a noisy, continuous verifiable reward: a soft-thresholded log speedup and a leave-one-out baseline floored at zero, so beating the group is not enough.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>: a −3 penalty for invalid output taught the policy to return the default plan, the safe exploit of a lopsided reward.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a>: 394 agent trajectories with reasoning summaries only were enough to teach a 4B model a tool protocol through a 21.2M-parameter LoRA, and a flat validation loss hid both a gain and a regression.</li>
+</ul>
+</section>
+
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026): the code and the post</summary><div class="b"><ul><li><a href="https://github.com/polyphilz/qorl" target="_blank" rel="noopener noreferrer">polyphilz/qorl on GitHub</a> (27 November 2026): Last push 17 September 2026; 51 stars, 2 forks, no issues opened (read 27 November 2026). No adapter, merged weights or rollout logs released (outputs/ is not in the repository).</li><li><a href="https://web.archive.org/web/20260916194109/https://rohanbansal.com/qorl" target="_blank" rel="noopener noreferrer">Wayback Machine copies of the post</a> (16 September 2026): The first copy (16 September, 19:41 UTC) and the post of 27 November differ only by an added Acknowledgements section; no result or claim changed.</li></ul>
+</div></details>
+
+<details class="mist"><summary>Provenance: what was read, fetched and compared</summary><div class="b">
+<p>The post was fetched on 27 November 2026 and its main text extracted to <code>src/inputs/article.txt</code> (13,432 words with its code blocks and figure labels, 58 minutes at 230 words a minute; about 11,300 words and 50 minutes of prose, the reading time on the card); every "in the article" link is a text fragment or a section id checked against that extract at build time. The page's metadata gives publication on 16 September 2026. The first Wayback Machine copy (16 September, 19:41 UTC) was extracted the same way and compared: the only change is an added Acknowledgements section. The reward and advantage formulas, which render as KaTeX without their TeX source, were read from the page's rendered text and its notes on each term.</p>
+<p>The repository polyphilz/qorl was read on GitHub at its state of 27 November (last push 17 September): the README, <code>src/qorl/evaluation/selection.py</code>, the Postgres configuration <code>docker/postgres/configs/001-pgconf-2gb-sb/pg.conf</code> (Postgres 18.6, random_page_cost 4.0, effective_cache_size 4 GB, max_parallel_workers_per_gather 2), <code>scripts/imdb/load.sql</code> (23 foreign-key indexes), and the READMEs and results of experiments 032 and 033. Job-13b's 20 runs are the data values of the post's median-draw figure.</p>
+<p>Figures: the post carries no open licence, so none is embedded; the results and the reward example are redrawn from its tables and credited, and the toy is this page's own, computed from the post's data. Responses: the Hacker News item and all 141 visible comments through its API (author polyphilz; submitted 16 September 18:50 UTC). Not found: any replication, a reply from the author on the cost settings, a Lobsters thread.</p>
+</div></details>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden><section id="s-more">
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab; links checked 27 November 2026. Reading time of the resources below: 5h 07m.</p>
+<h3>The article</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://rohanbansal.com/qorl" target="_blank" rel="noopener noreferrer">Training a 4B model to produce 81% faster query plans than Postgres</a></div><p><span class="mute">Rohan Bansal (independent; written at the Recurse Center):</span> The post itself (rohanbansal.com, published 16 September 2026). Its interactive figures (the search-space counter, the calibration queue, the job-13b median draw, the reward formulas with notes on every term) are worth opening there; this page redraws only the results and the reward example, and recomputes the median draw exactly.</p><p class="rt">(50 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/polyphilz/qorl/blob/main/experiments/033-qwen-4b-job-rl032-5cand-3rollouts/results.md" target="_blank" rel="noopener noreferrer">Experiment 033 results (the repository&#x27;s own analysis of the headline run)</a></div><p><span class="mute">Rohan Bansal (independent; written at the Recurse Center):</span> The author&#x27;s analysis behind the 1.81x: how best-of-three was selected, the spread between repeated searches, and the caveats the post leaves out (&quot;The 1.805x ratio is not an 80.5% latency reduction&quot;).</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/polyphilz/qorl" target="_blank" rel="noopener noreferrer">polyphilz/qorl</a></div><p><span class="mute">the authors:</span> Harness, measurement, SFT and RL code, configs, every experiment&#x27;s README and results, per-query results of the final run. No licence file; no weights or adapters released.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49731285" target="_blank" rel="noopener noreferrer">Hacker News: &quot;Training a 4B model to produce 81% faster query plans than Postgres&quot;</a></div><p>702 points, 144 comments (read 27 November 2026), submitted 16 September 2026.</p><p class="rt">(30 min)</p></div>
+</div><h3>Responses, in date order</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/polyphilz/qorl/blob/main/experiments/033-qwen-4b-job-rl032-5cand-3rollouts/results.md" target="_blank" rel="noopener noreferrer">The repository&#x27;s results for the final run (experiment 033)</a></div><p><span class="mute">Rohan Bansal (the author), 14 September 2026, author&#x27;s analysis:</span> Separates the model&#x27;s choice (1.4048x), the within-search rule (1.4355x) and best-of-three (1.8054x); notes that 1.805x &quot;is not an 80.5% latency reduction&quot;, that comparing it with a one-search SFT baseline &quot;would mix policy improvement with additional search compute&quot;, that JOB &quot;has been inspected during development&quot;, and that only 17 queries win in all three searches.</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49733010" target="_blank" rel="noopener noreferrer">An 8 GB in-memory dataset, warmed, read-only</a></div><p><span class="mute">refibrillator, Hacker News (the top comment), 16 September 2026, critique:</span> Warns of overfitting and asks whether the plans would hold at scale and on more realistic workloads; database statistics and workloads drift.</p><p class="rt">(2 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49734568" target="_blank" rel="noopener noreferrer">Planning time is the constraint a live planner works under</a></div><p><span class="mute">perrygeo and Someone, Hacker News, 16 September 2026, critique:</span> A real planner must minimise planning plus execution on live statistics, and the 95 hours of training and the search are outside the benchmark numbers. The post&#x27;s own framing (repeated analytic queries) answers part of this.</p><p class="rt">(2 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49731869" target="_blank" rel="noopener noreferrer">pg_hint_plan&#x27;s debug log shows whether a hint was used</a></div><p><span class="mute">polyphilz (the author), Hacker News, 16 September 2026, author&#x27;s reply:</span> Answering whether a hinted plan still computes the query: the hints only choose among plans for the same SQL, and the debug log was used during evaluation to confirm Postgres applied them. The author&#x27;s only comment in the thread.</p><p class="rt">(1 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49738122" target="_blank" rel="noopener noreferrer">Skeptical of these results (random_page_cost)</a></div><p><span class="mute">zacmps, Hacker News, 17 September 2026, critique:</span> The model&#x27;s favourite setting, random_page_cost=1.1, suggests the baseline&#x27;s cost settings were not tuned for fast storage, which &quot;could easily explain the difference by itself&quot;. The repository confirms the baseline ran at the default 4.0; no reply.</p><p class="rt">(1 min)</p></div>
+</div><h3>Since the article (the code and the post, checked 27 November 2026)</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/polyphilz/qorl" target="_blank" rel="noopener noreferrer">polyphilz/qorl on GitHub</a></div><p><span class="mute">27 November 2026:</span> Last push 17 September 2026; 51 stars, 2 forks, no issues opened (read 27 November 2026). No adapter, merged weights or rollout logs released (outputs/ is not in the repository).</p><p class="rt">(5 min)</p></div>
+<div class="sp"><div class="n"><a href="https://web.archive.org/web/20260916194109/https://rohanbansal.com/qorl" target="_blank" rel="noopener noreferrer">Wayback Machine copies of the post</a></div><p><span class="mute">16 September 2026:</span> The first copy (16 September, 19:41 UTC) and the post of 27 November differ only by an added Acknowledgements section; no result or claim changed.</p><p class="rt">(1 min)</p></div>
+</div><h3>What it rests on</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://www.vldb.org/pvldb/vol9/p204-leis.pdf" target="_blank" rel="noopener noreferrer">How Good Are Query Optimizers, Really?</a></div><p><span class="mute">Leis et al., PVLDB 2015 (third-party):</span> The Join Order Benchmark and the evidence that cardinality estimates, not cost models, decide plan quality; the test set here.</p><p class="rt">(1 hour)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2004.03814" target="_blank" rel="noopener noreferrer">Bao: Making Learned Query Optimization Practical</a></div><p><span class="mute">Marcus et al., SIGMOD 2021 (third-party):</span> The same idea with a small model: keep the planner and learn which hint set to give it per query. The post lists a Bao-style sweep as its next experiment; no comparison was run.</p><p class="rt">(45 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2101.04964" target="_blank" rel="noopener noreferrer">Flow-Loss: Learning Cardinality Estimates That Matter</a></div><p><span class="mute">Negi et al., PVLDB 2021 (third-party):</span> Introduces the Cardinality Estimation Benchmark, the 13,646 training queries.</p><p class="rt">(45 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/ossc-db/pg_hint_plan" target="_blank" rel="noopener noreferrer">pg_hint_plan</a></div><p><span class="mute">NTT OSS Center (maker):</span> The extension the model writes for: scan, join, Leading, Rows, Parallel and Set hints.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener noreferrer">DeepSeekMath (GRPO)</a></div><p><span class="mute">Shao et al., 2024 (third-party):</span> Where GRPO&#x27;s group-normalised advantage comes from; the anchored variant here drops the standard deviation and uses a leave-one-out mean floored at zero.</p><p class="rt">(40 min)</p></div>
+</div><h3>In this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8" target="_blank" rel="noopener noreferrer">Query planning and performance: EXPLAIN, statistics, slow queries, tuning</a></div><p>Owns the planner, cost settings (random_page_cost), statistics and estimation errors, pg_hint_plan, and the learned-optimizer timeline with QORL in it.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a></div><p>Owns GRPO and RLOO advantages (section 3); the anchored variant is RLOO&#x27;s leave-one-out baseline floored at zero.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">Parameter-Efficient Fine-Tuning (PEFT)</a></div><p>Owns LoRA; already cites QORL&#x27;s 21.2M-parameter adapter.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a></div><p>Owns off-policy distillation from a teacher&#x27;s outputs.</p></div>
+</div><p class="small mute">This page is one of the <a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a>: articles worth a page of their own, each with its argument, its evidence judged and what others replied.</p>
+</section></div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){if(/ResizeObserver loop/.test(e.message||""))return;window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* _gen_data.js */
+// Generated by mk_article.py from article.json (and DATA_EXTRA); do not edit by hand.
+window.ARTICLE={"title":"Training a 4B model to produce 81% faster query plans than Postgres","url":"https://rohanbansal.com/qorl","published":"2026-09-16","fetched":"2026-11-27","recompute":{"runs":[186.2,188.8,233.9,202.2,227,201.5,250.2,202.2,247.2,200,202.6,252.8,251.5,202.5,200.7,201.6,200.9,199.4,199.4,204.1],"fool":{"1":{"0.000":[0.494737,0.494737],"0.005":[0.436842,0.436842],"0.010":[0.381579,0.381579],"0.015":[0.336842,0.336842],"0.020":[0.318421,0.318421],"0.025":[0.307895,0.307895],"0.030":[0.305263,0.305263],"0.035":[0.305263,0.305263],"0.040":[0.305263,0.305263],"0.045":[0.305263,0.305263],"0.050":[0.305263,0.305263],"0.055":[0.3,0.3],"0.060":[0.294737,0.294737],"0.065":[0.289474,0.289474],"0.070":[0.271053,0.271053],"0.075":[0.257895,0.257895],"0.080":[0.244737,0.244737],"0.085":[0.234211,0.234211],"0.090":[0.231579,0.231579],"0.095":[0.228947,0.228947],"0.100":[0.226316,0.226316],"0.105":[0.223684,0.223684],"0.110":[0.218421,0.218421],"0.115":[0.213158,0.213158],"0.120":[0.202632,0.202632],"0.125":[0.197368,0.197368],"0.130":[0.189474,0.189474],"0.135":[0.189474,0.189474],"0.140":[0.186842,0.186842],"0.145":[0.181579,0.181579],"0.150":[0.171053,0.171053]},"3":{"0.000":[0.492693,0.492693],"0.005":[0.377165,0.377165],"0.010":[0.287843,0.287843],"0.015":[0.233945,0.233945],"0.020":[0.211029,0.211029],"0.025":[0.201084,0.201084],"0.030":[0.198266,0.198266],"0.035":[0.198266,0.198266],"0.040":[0.198266,0.198266],"0.045":[0.198266,0.198266],"0.050":[0.198266,0.198266],"0.055":[0.197957,0.197957],"0.060":[0.195751,0.195751],"0.065":[0.193932,0.193932],"0.070":[0.187624,0.187624],"0.075":[0.184296,0.184296],"0.080":[0.183019,0.183019],"0.085":[0.183019,0.183019],"0.090":[0.180797,0.180797],"0.095":[0.180797,0.180797],"0.100":[0.179244,0.179244],"0.105":[0.178431,0.178431],"0.110":[0.174407,0.174407],"0.115":[0.164874,0.164874],"0.120":[0.143847,0.143847],"0.125":[0.134623,0.134623],"0.130":[0.125593,0.125593],"0.135":[0.125593,0.125593],"0.140":[0.122172,0.122172],"0.145":[0.114014,0.114014],"0.150":[0.095903,0.095903]},"5":{"0.000":[0.487724,0.487724],"0.005":[0.320663,0.320663],"0.010":[0.208623,0.208623],"0.015":[0.15916,0.15916],"0.020":[0.13774,0.13774],"0.025":[0.130031,0.130031],"0.030":[0.129257,0.129257],"0.035":[0.129257,0.129257],"0.040":[0.129257,0.129257],"0.045":[0.129257,0.129257],"0.050":[0.129257,0.129257],"0.055":[0.129257,0.129257],"0.060":[0.129257,0.129257],"0.065":[0.129257,0.129257],"0.070":[0.129257,0.129257],"0.075":[0.129257,0.129257],"0.080":[0.129257,0.129257],"0.085":[0.129257,0.129257],"0.090":[0.12887,0.12887],"0.095":[0.12887,0.12887],"0.100":[0.128741,0.128741],"0.105":[0.128741,0.128741],"0.110":[0.125977,0.125977],"0.115":[0.11616,0.11616],"0.120":[0.088436,0.088436],"0.125":[0.077585,0.077585],"0.130":[0.071336,0.071336],"0.135":[0.071336,0.071336],"0.140":[0.069567,0.069567],"0.145":[0.062988,0.062988],"0.150":[0.043668,0.043668]},"7":{"0.000":[0.478783,0.478783],"0.005":[0.260381,0.260381],"0.010":[0.140226,0.140226],"0.015":[0.099978,0.099978],"0.020":[0.082019,0.082019],"0.025":[0.077657,0.077657],"0.030":[0.077657,0.077657],"0.035":[0.077657,0.077657],"0.040":[0.077657,0.077657],"0.045":[0.077657,0.077657],"0.050":[0.077657,0.077657],"0.055":[0.077657,0.077657],"0.060":[0.077657,0.077657],"0.065":[0.077657,0.077657],"0.070":[0.077657,0.077657],"0.075":[0.077657,0.077657],"0.080":[0.077657,0.077657],"0.085":[0.077657,0.077657],"0.090":[0.077657,0.077657],"0.095":[0.077657,0.077657],"0.100":[0.077657,0.077657],"0.105":[0.077657,0.077657],"0.110":[0.077657,0.077657],"0.115":[0.072795,0.072795],"0.120":[0.044381,0.044381],"0.125":[0.033783,0.033783],"0.130":[0.030702,0.030702],"0.135":[0.030702,0.030702],"0.140":[0.030702,0.030702],"0.145":[0.028618,0.028618],"0.150":[0.014528,0.014528]}},"slow_triples":230,"sliding":[68,120],"cv":10.34,"grpo":{"old_reward":[-3.0,-3.0,-0.23,-0.05],"old_mean":-1.57,"old_adv":[-1.43,-1.43,1.34,1.52],"quality":[null,null,-0.18,0.0],"new_adv":[-0.1,-0.1,-0.18,-0.02]},"workload":{"ratio":1.8075,"cut_pct":44.67},"metric_example":{"geo":1.0,"workload":1.62},"search_space_3":4608}};
+
+
+</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (2026-11-06),
+// pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (time on each step, default 3600 so its caption can be read), label, list (id of the ol.sx step list on the left), auto (false: a widget, never autoplays), start (the step it opens on)}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
+    // the step list on the left: one item per step, the current one marked, a click jumps to it (and stops autoplay)
+    function bindList(id){const L=id&&document.getElementById(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;(st.lis||[]).forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+      if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||3600)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3600)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    $('f').addEventListener('click',()=>{st.user=true;setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
+    $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
+    // o.auto===false makes it a widget the reader drives (the long-replay rule, case b): it never plays by itself
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    bindList(o.list);
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
+      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
+      go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||12)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+
+</script>
+<script>/* 22_js_qp_figs.js */
+// ---- Static figures of the Reading tab: the hero (every JOB evaluation in the article, in order), one search of the harness,
+// and the four-rollout example under both advantage rules. Every number is printed by the article (see each caption);
+// the 1.33x to 1.47x band is from the repository's results for experiment 033.
+(function(){
+  if(!window.RD||!document.getElementById('qp-hero-svg'))return;
+  const $=id=>document.getElementById(id), t=RD.t;
+  // [label, geometric mean, total workload, group, note]
+  const ROWS=[
+    ['Untrained 4B',0.85,0.85,'base','15 of 113 scored'],
+    ['SFT, 100 trajectories, 1 epoch',0.72,0.76,'sft',''],
+    ['SFT, 2 epochs',1.08,1.04,'sft','harness may now keep the default'],
+    ['SFT, 3 epochs',0.82,0.89,'sft','regressed; not kept'],
+    ['SFT, + 300 trajectories, 1 epoch',1.10,1.05,'sft',''],
+    ['SFT, + 2 epochs (RL starts here)',1.16,1.06,'sft',''],
+    ['RL, 120 updates, lr 1e-6',1.14,0.99,'rl',''],
+    ['RL, 600 updates, lr 1e-5',1.35,1.16,'rl','34 wins, 0 regressions'],
+    ['RL, 1,200 updates',1.41,1.29,'rl','38 wins, 2 regressions'],
+    ['Same model, 3 searches: its own choice',1.40,1.24,'rl3','339 searches'],
+    ['3 searches: best single timing within each',1.44,1.29,'rl3',''],
+    ['3 searches: best of all three (the headline)',1.81,1.81,'s3','up to 15 plans a query']];
+  const COL={base:'var(--mute)',sft:'var(--c1)',rl:'var(--c2)',rl3:'var(--c2)',s3:'var(--c3)'};
+  const lx=v=>Math.log(v);
+  function hero(){
+    const el=$('qp-hero-svg'),W=RD.width(el),narrow=W<560;
+    const labW=narrow?0:250, x0=(narrow?18:8)+labW, x1=W-56, rh=narrow?40:24, top=24, H=top+ROWS.length*rh+30;
+    const lo=lx(0.6),hi=lx(2.0),X=v=>x0+(lx(v)-lo)/(hi-lo)*(x1-x0);
+    let s='';
+    // the band: three repeated searches of the final checkpoint ranged 1.33x to 1.47x (model's own choice)
+    s+='<rect x="'+X(1.3272)+'" y="'+(top-4)+'" width="'+(X(1.4651)-X(1.3272))+'" height="'+(ROWS.length*rh+4)+'" fill="var(--c2)" opacity=".12"/>';
+    s+=t((X(1.3272)+X(1.4651))/2,top-8,'spread of 3 repeats',{fs:11.5,a:'middle',fill:'var(--mute)'});
+    [0.6,0.8,1,1.25,1.5,2].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+(top-2)+'" y2="'+(top+ROWS.length*rh)+'" stroke="var(--line)"'+(v===1?' stroke-width="2"':' stroke-dasharray="2 3"')+'/>'+
+      t(X(v),top+ROWS.length*rh+16,v+'x',{fs:11.5,a:'middle',fill:'var(--mute)'})});
+    s+=t(X(1),top+ROWS.length*rh+28,'Postgres = 1x (geometric mean, log scale)',{fs:11.5,a:'middle',fill:'var(--mute)'});
+    ROWS.forEach((r,i)=>{
+      const y=top+i*rh, by=narrow?y+20:y+5, bh=narrow?14:14, c=COL[r[3]];
+      if(narrow)s+=t(8,y+13,r[0],{fs:12,fill:'var(--ink)'});
+      else s+=t(x0-8,y+16,r[0],{fs:12,a:'end',fill:'var(--ink)',w:r[3]==='s3'?600:400});
+      const xa=X(Math.min(1,r[1])),xb=X(Math.max(1,r[1]));
+      s+='<rect x="'+xa+'" y="'+by+'" width="'+Math.max(2,xb-xa)+'" height="'+bh+'" rx="3" fill="'+c+'"'+(r[1]<1?' opacity=".55"':'')+'/>';
+      s+=t(xb+5,by+11,r[1].toFixed(2)+'x',{fs:12,fill:'var(--ink)',w:600});
+    });
+    el.innerHTML=RD.svg(W,H,s,'Geometric-mean speedup over Postgres on the 113 JOB queries for every evaluation in the article');
+  }
+
+  // one search of the harness, top to bottom
+  function flow(){
+    const el=$('qp-flow-svg'); if(!el)return;
+    const W=RD.width(el),bw=Math.min(W-16,420),bx=(W-bw)/2,bh=34,gap=16;
+    const N=[['A JOB query and Postgres\'s default plan (timed: 1 warm-up, 3 runs)','var(--soft)'],
+      ['The 4B model reads tables, statistics, plans (inspect_relation, get_column_stats, get_plan)','var(--soft)'],
+      ['It proposes a PlanAction (JSON): join tree, join and scan methods, settings','var(--c1)'],
+      ['The harness compiles it to a pg_hint_plan comment, checks it with EXPLAIN','var(--soft)'],
+      ['evaluate_candidate: 1 warm-up, 1 timed run, ratio to the default shown to the model','var(--c3)'],
+      ['Up to 5 candidates, then finish(c) or keep_default','var(--soft)'],
+      ['Score: 3 interleaved (default, candidate) pairs, median over median, clipped to [0.1, 10]','var(--c2)']];
+    let s='',y=6;
+    N.forEach((n,i)=>{
+      const lines=wrap(n[0],Math.floor((bw-20)/6.6)), h=Math.max(bh,lines.length*15+12);
+      s+='<rect x="'+bx+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="8" fill="'+n[1]+'" '+(n[1]==='var(--soft)'?'stroke="var(--line)"':'opacity=".9"')+'/>';
+      lines.forEach((l,k)=>{s+=t(bx+10,y+18+k*15,l,{fs:12,fill:n[1]==='var(--soft)'?'var(--ink)':'var(--bg)',w:n[1]==='var(--soft)'?400:600})});
+      if(i===4){s+='<path d="M'+(bx+bw-6)+' '+(y+h/2)+' C '+(bx+bw+14)+' '+(y+h/2)+' '+(bx+bw+14)+' '+(y-gap-30)+' '+(bx+bw-6)+' '+(y-gap-30)+'" fill="none" stroke="var(--mute)" stroke-dasharray="3 3"/>'}
+      y+=h;
+      if(i<N.length-1){s+='<line x1="'+(W/2)+'" x2="'+(W/2)+'" y1="'+y+'" y2="'+(y+gap)+'" stroke="var(--mute)"/>';y+=gap}
+    });
+    el.innerHTML=RD.svg(W,y+6,s,'One search of the qo-agent harness');
+  }
+  function wrap(str,n){const w=str.split(' '),o=[];let l='';w.forEach(x=>{if((l+' '+x).trim().length>n){o.push(l.trim());l=x}else l+=' '+x});if(l.trim())o.push(l.trim());return o}
+
+  // the four rollouts: advantage under prime-rl GRPO (reward minus group mean) and under the anchored variant
+  const G=[['Leading((t cn) mc)','rejected: t and cn never join',-1.43,-0.10],
+    ['MergeJoin(t cn)','rejected: no such join',-1.43,-0.10],
+    ['NestLoop(t mc)','new plan, 0.80x',1.34,-0.18],
+    ['HashJoin(mc cn)','Postgres\'s own plan, 1.00x',1.52,-0.02]];
+  function grpo(){
+    const el=$('qp-grpo-svg'); if(!el)return;
+    const W=RD.width(el),narrow=W<520,labW=narrow?0:170,x0=8+labW,x1=W-10,mid=(x0+x1)/2,sc=(x1-x0)/2/(narrow?2.1:1.7);
+    const rh=narrow?66:50,top=22; let s='';
+    s+=t(mid-6,14,'pushed down',{fs:12,a:'end',fill:'var(--mute)'})+t(mid+6,14,'reinforced',{fs:12,fill:'var(--mute)'});
+    s+='<line x1="'+mid+'" x2="'+mid+'" y1="'+(top-2)+'" y2="'+(top+G.length*rh)+'" stroke="var(--line)" stroke-width="2"/>';
+    G.forEach((g,i)=>{
+      const y=top+i*rh, ly=narrow?y+12:y+18, by=narrow?y+20:y+6;
+      if(narrow)s+=t(8,ly,g[0]+': '+g[1],{fs:12,fill:'var(--ink)'});
+      else{s+=t(x0-8,y+18,g[0],{fs:12,a:'end',fill:'var(--ink)',w:600})+t(x0-8,y+33,g[1],{fs:11.5,a:'end',fill:'var(--mute)'})}
+      [[g[2],'var(--mute)',0,'GRPO'],[g[3],'var(--c2)',17,'anchored']].forEach(([v,c,dy,nm])=>{
+        const xa=v<0?mid+v*sc:mid,w=Math.abs(v)*sc;
+        s+='<rect x="'+xa+'" y="'+(by+dy)+'" width="'+Math.max(2,w)+'" height="14" rx="3" fill="'+c+'"/>';
+        s+=t(v<0?xa-4:xa+w+4,by+dy+11,(v>0?'+':'')+v.toFixed(2),{fs:11.5,a:v<0?'end':'start',fill:'var(--ink)'});
+      });
+    });
+    el.innerHTML=RD.svg(W,top+G.length*rh+4,s,'Advantages of four rollouts under prime-rl GRPO and under the anchored variant');
+  }
+  function all(){hero();flow();grpo()}
+  RD.onRender(all);RD.onResize(all);
+})();
+
+</script>
+<script>/* 23_js_qp_toy.js */
+// ---- The live ingredient: how often a no-op plan is scored as a win or a loss, on job-13b's 20 real runs (128 MB shared_buffers,
+// from the article's median-draw figure). Exact, no sampling: a line-by-line port of joint() and fooled() in src/recompute.py;
+// check_page.mjs compares every k and tie zone with inputs/recompute.json (shipped as window.ARTICLE.recompute).
+(function(){
+  if(!window.RD||!window.ARTICLE||!document.getElementById('qp-toy'))return;
+  const $=id=>document.getElementById(id), t=RD.t, RUNS=ARTICLE.recompute.runs, S=RUNS.slice().sort((a,b)=>a-b), N=S.length;
+  function comb(n,k){if(k<0||k>n)return 0;let r=1;for(let i=1;i<=k;i++)r=r*(n-k+i)/i;return r}
+  function* combos(n,k,st=0,acc=[]){if(acc.length===k){yield acc.slice();return}for(let i=st;i<=n-(k-acc.length);i++){acc.push(i);yield* combos(n,k,i+1,acc);acc.pop()}}
+  const cache={};
+  function joint(k){
+    if(cache[k])return cache[k];
+    const h=(k-1)/2, J=Array.from({length:N},()=>new Array(N).fill(0)), n1=comb(N,k);
+    for(const c of combos(N,k)){
+      const inC=new Set(c),rest=[];for(let i=0;i<N;i++)if(!inC.has(i))rest.push(i);
+      const m=rest.length;
+      for(let r=0;r<m;r++){const p=comb(r,h)*comb(m-1-r,h)/comb(m,k);if(p)J[c[h]][rest[r]]+=p/n1}}
+    return cache[k]=J}
+  function fooled(k,z){const J=joint(k);let w=0,l=0;
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){const r=Math.log(S[j]/S[i]);if(r>z)w+=J[i][j];else if(r<-z)l+=J[i][j]}
+    return[w,l]}
+  window.QP_TOY={fooled};  // for check_page.mjs
+  let k=1,z=0.05;
+  const pc=v=>(100*v).toFixed(1)+'%';
+  function draw(){
+    const el=$('qp-toysvg'),W=RD.width(el),J=joint(k),[w,l]=fooled(k,z);
+    // top: the 20 runs as dots; bottom: distribution of ln(default median / candidate median) for a no-op
+    const L=10,R=W-10,lo=-0.32,hi=0.32,X=v=>L+(v-lo)/(hi-lo)*(R-L),bins=32,bw=(hi-lo)/bins,hist=new Array(bins).fill(0);
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){if(!J[i][j])continue;const v=Math.log(S[j]/S[i]);const b=Math.min(bins-1,Math.max(0,Math.floor((v-lo)/bw)));hist[b]+=J[i][j]}
+    const mx=Math.max(...hist), y0=96, hH=150;
+    let s=t(L,14,'job-13b, its 20 runs (ms)',{fs:12,fill:'var(--mute)'});
+    const mlo=180,mhi=260,MX=v=>L+(v-mlo)/(mhi-mlo)*(R-L);
+    [180,200,220,240,260].forEach(v=>{s+=t(MX(v),62,v,{fs:11,a:'middle',fill:'var(--mute)'})});
+    const seen={};RUNS.forEach(v=>{const key=Math.round(MX(v)/7);seen[key]=(seen[key]||0)+1;
+      s+='<circle cx="'+MX(v)+'" cy="'+(44-(seen[key]-1)*8)+'" r="3.6" fill="'+(v>215?'var(--c2)':'var(--c1)')+'"/>'});
+    s+=t(L,y0-10,'measured speedup of a plan identical to the default',{fs:12,fill:'var(--mute)'});
+    s+='<rect x="'+X(-z)+'" y="'+y0+'" width="'+Math.max(1,X(z)-X(-z))+'" height="'+hH+'" fill="var(--soft)" stroke="var(--line)"/>';
+    hist.forEach((p,b)=>{if(!p)return;const x=X(lo+b*bw),h=p/mx*(hH-18),c=lo+(b+0.5)*bw;
+      const out=Math.abs(c)>z;s+='<rect x="'+(x+1)+'" y="'+(y0+hH-h)+'" width="'+Math.max(1,(R-L)/bins-2)+'" height="'+h+'" fill="'+(out?(c>0?'var(--c3)':'var(--bad)'):'var(--mute)')+'"'+(out?'':' opacity=".55"')+'/>'});
+    [0.75,0.85,1,1.15,1.3].forEach(v=>{const x=X(Math.log(v));s+='<line x1="'+x+'" x2="'+x+'" y1="'+(y0+hH)+'" y2="'+(y0+hH+4)+'" stroke="var(--mute)"/>'+t(x,y0+hH+16,v.toFixed(2)+'x',{fs:11,a:'middle',fill:'var(--mute)'})});
+    s+=t(X(0),y0+12,'tie',{fs:11.5,a:'middle',fill:'var(--ink)'});
+    s+=t(R,y0+12,'phantom win',{fs:11.5,a:'end',fill:'var(--c3)'})+t(L,y0+12,'phantom loss',{fs:11.5,fill:'var(--bad)'});
+    el.innerHTML=RD.svg(W,y0+hH+24,s,'Distribution of the measured speedup of a no-op plan on job-13b');
+    $('qp-toyout').innerHTML=RD.stat('scored as different',pc(w+l),'the reward is fooled')+RD.stat('phantom wins',pc(w),'')+RD.stat('phantom losses',pc(l),'');
+    $('qp-kv').textContent=k; $('qp-zv').textContent='±'+(100*z).toFixed(1)+'%';
+  }
+  RD.seg($('qp-k'),m=>{k=+m;draw()});
+  $('qp-z').addEventListener('input',e=>{z=+e.target.value;draw()});
+  // the closed table: every k at the article's 5% zone
+  const tb=$('qp-ktab'); if(tb)tb.innerHTML='<tr><th>timings per side</th><th>fooled</th><th>phantom wins</th><th>phantom losses</th></tr>'+[1,3,5,7].map(q=>{const[a,b]=fooled(q,0.05);return '<tr><td>'+q+'</td><td>'+pc(a+b)+'</td><td>'+pc(a)+'</td><td>'+pc(b)+'</td></tr>'}).join('');
+  RD.onRender(draw); RD.onResize(draw);
+})();
+
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace qp-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('qp-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('qp-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+
+</script>
+</div></body></html>

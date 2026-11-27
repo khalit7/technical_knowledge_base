@@ -98,3 +98,8 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] qwenputer: weight_space_programming article.json kb list: add the Qwenputer page (both ways).
 - [ ] qwenputer: 2026-11-02 issue: link its Qwenputer line to the article page.
 - [ ] all articles: mk_article.py heads the Since block "Since the article (papers that build on it)"; generalise the heading in the reference and every copy.
+- [ ] qorl_query_plans: Query planning and performance, "QORL, corrected" box (src/parts/20_read_i.html): 1.81x and 44.7% are one measurement; the baseline ran random_page_cost 4.0; repeated searches spread 1.33x to 1.47x; "best measured candidate" becomes "best by a single feedback timing (at least 1.05x), then scored on separate paired timings"; Further reading link.
+- [ ] qorl_query_plans: PEFT (src/parts/20_read_c.html line 39): the model is empero-ai/Qwen3.8-4B-Distill (a third party's distillation of Qwen 3.8 into Qwen 3.5 4B); 394 trajectories used of 440; 1.81x needs "(the model alone: 1.40x)".
+- [ ] qorl_query_plans: RL for LLMs section 3 (optional): the anchored variant as a worked noisy continuous reward (0.05 soft threshold on log speedup, leave-one-out baseline floored at zero).
+- [ ] qorl_query_plans: Reward Hacking (optional): the -3 invalid-output penalty taught the policy to return Postgres's default plan.
+- [ ] all articles: mk_article.py since_label field (QORL's copy) is the way to generalise the Since heading.

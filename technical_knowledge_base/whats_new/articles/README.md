@@ -11,3 +11,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Neural Networks Are Already Clean](neural_networks_already_clean/) (Nick Cammarata, Goodfire; 15 October 2026)
 - [End-to-End 4-Bit Training](end_to_end_4bit_training/) (Jack Cook and others, Thinking Machines Lab; 13 November 2026)
 - [Qwenputer: a fully functioning, deterministic RISC-V CPU inside Qwen3.5](qwenputer/) (Divyansh Agrawal; 22 October 2026)
+- [Training a 4B model to produce 81% faster query plans than Postgres](qorl_query_plans/) (Rohan Bansal; 16 September 2026)
