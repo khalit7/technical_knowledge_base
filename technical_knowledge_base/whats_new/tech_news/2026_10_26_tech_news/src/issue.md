@@ -125,6 +125,6 @@ A week about trust in the layers below the model. A signed LiteLLM release carri
 - **"Ask HN: If the models are so good, why doesn't OpenAI just start 100 companies?"** (22 October): [Hacker News](https://news.ycombinator.com/item?id=50200997) (20 min)
 - **"Ask HN: How to deal with shipping AI-written code you don't understand?"** (19 October): [Hacker News](https://news.ycombinator.com/item?id=50151036) (20 min)
 - **"Every AI model has the same 'controversial' take on humans"** (22 October): [ModelCompare](https://www.modelcompare.ai/blog/ai-models-controversial-take-on-humans) (6 min)
-- **WorldTUI: a 360M model that pretends to be a terminal** (21 October): [simedw](https://simedw.com/2026/10/21/world-model-terminal/) (8 min)
+- **WorldTUI: a 360M model that pretends to be a terminal** (21 October): [simedw](https://simedw.com/2026/10/21/world-model-terminal/) (13 min), [our page](n:4255c17b0d0d81ffa011c9cc52bfca8b)
 - **Max Woolf on why LLM prices fell by up to 80% in a few months** (25 October): [minimaxir](https://minimaxir.com/2026/10/cheap-llms/) (12 min)
 - **"Why is AI-generated language so hard to understand?"** (Clark, Martin and Mahowald, 21 October): [arXiv 2610.29162](https://arxiv.org/abs/2610.29162) (25 min)

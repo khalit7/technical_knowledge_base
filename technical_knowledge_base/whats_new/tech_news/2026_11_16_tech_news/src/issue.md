@@ -80,7 +80,7 @@ Two weeks this time. Claude Fable 5.2 took first place on every independent boar
 - **On-policy distillation against GRPO at matched FLOPs** (Salesforce, 5 November): [arXiv 2611.08453](https://arxiv.org/abs/2611.08453) (30 min)
 - **Monitors against reward hacking get evaded** (MATS and Google DeepMind, 6 November; one 4B model): [arXiv 2611.09828](https://arxiv.org/abs/2611.09828) (35 min)
 - **Deletion tuning**: a mask over under 0.05% of the weights matched full fine-tuning (7 November): [arXiv 2611.10866](https://arxiv.org/abs/2611.10866) (30 min)
-- **End-to-end 4-bit training of Inkling 2 Small** (Thinking Machines, 13 November; vendor figures without seeds): [Thinking Machines: end-to-end 4-bit training](https://thinkingmachines.ai/blog/end-to-end-4-bit-training/) (15 min)
+- **End-to-end 4-bit training of Inkling 2 Small** (Thinking Machines, 13 November; vendor figures without seeds): [Thinking Machines: end-to-end 4-bit training](https://thinkingmachines.ai/blog/end-to-end-4-bit-training/) (15 min), [our page](n:4255c17b0d0d81cd83d7e569b8174abc)
 - **What the loss curve misses**: NVFP4 pretraining needed more exposures to recall rare facts (9 November): [arXiv 2611.12832](https://arxiv.org/abs/2611.12832) (25 min)
 - **The noise floor of a quantization comparison** (11 November): [arXiv 2611.15671](https://arxiv.org/abs/2611.15671) (25 min)
 - **Muir linear attention** (5 November): [arXiv 2611.08376](https://arxiv.org/abs/2611.08376) (30 min)
@@ -104,7 +104,7 @@ Two weeks this time. Claude Fable 5.2 took first place on every independent boar
 - **TPU 8i Max and TPU 8tx** (Google, 9 November), with no absolute specifications: [Google: TPU 8i Max and 8tx](https://blog.google/innovation-and-ai/infrastructure-and-cloud/global-network/tpu-8i-max-and-8tx/) (5 min)
 - **AMD's first MI450 quarter** (3 November): Data Center revenue $8.5B, up 97%: [AMD Q3 release (SEC)](https://www.sec.gov/Archives/edgar/data/0000002488/000000248826000188/q32026991.htm) (8 min)
 - **Marvell to buy Lumentum for $115B in stock**, a bet on optics in AI racks (2 November): [Light Reading](https://lightreading.com/ai-machine-learning/marvell-strikes-115b-deal-for-lumentum) (5 min)
-- **Checkpoint forensics**: published weights reveal the SM count of the GPU that initialised them (12 November), not where they were trained: [Unemployment Labs: checkpoint forensics](https://unemploymentlabs.com/checkpoint-forensics) (15 min)
+- **Checkpoint forensics**: published weights reveal the SM count of the GPU that initialised them (12 November), not where they were trained: [Unemployment Labs: checkpoint forensics](https://unemploymentlabs.com/checkpoint-forensics) (15 min), [our page](n:4255c17b0d0d81d093e6e783e820d0cb)
 - **Power** (6 to 16 November): the FT's report of Anthropic buying about 1.7 GW of gas generators, and 800V DC trials: [CNBC: Anthropic generators](https://www.cnbc.com/2026/11/08/anthropic-generator-deal-ai-data-centers.html) (4 min), [Korea Times](https://www.koreatimes.co.kr/business/companies/20261116/sk-telecom-hyosung-team-up-to-build-ai-data-center-power-infrastructure) (3 min)
 
 ## Tools and agents

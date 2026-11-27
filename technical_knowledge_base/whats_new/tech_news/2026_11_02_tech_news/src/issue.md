@@ -32,7 +32,7 @@ Artificial Analysis rebuilt its index on a new scale, and Google's Gemini 4 Carb
 - kind: Security
 - date: 26 October
 - why: on shared inference the KV cache is customer data, and an error path in the serving engine can leak it across tenants.
-- links: [Cloudflare: KV cache exposure](https://blog.cloudflare.com/kv-cache-exposure-remediation/) (12 min) · [Our page: Inference and serving](n:3c65c17b0d0d81c08b3bc95ff45c7b13)
+- links: [Cloudflare: KV cache exposure](https://blog.cloudflare.com/kv-cache-exposure-remediation/) (16 min) · [Our page: the article](n:4255c17b0d0d81daaaedd7f7c98e621f) · [Our page: Inference and serving](n:3c65c17b0d0d81c08b3bc95ff45c7b13)
 
 **Mistral published the weights of Mistral Large 4 under a licence that reserves serving it as a service.** About 1T total and about 49B active parameters, 128 routed experts with 4 active plus 1 shared, 1M context, and a speculative-decoding draft head shipped inside the checkpoint; vLLM measured about 2.9 accepted tokens per step and about 2x output throughput on 8 GPUs. Mistral, citing Artificial Analysis, reports 26 on Index v5, the highest it says among Western open-weight models (Chinese open models score higher).
 - kind: Model
@@ -125,5 +125,5 @@ Artificial Analysis rebuilt its index on a new scale, and Google's Gemini 4 Carb
 - **"StackOverflow now gets fewer than 1000 questions a month"** (28 October): [Stack Exchange Data Explorer](https://data.stackexchange.com/stackoverflow/query/1926661#graph?t=1) (2 min)
 - **"AI isn't replacing SREs, it's deskilling them"** and **"AI promised less work. I've never worked more"** (27 and 30 October): [SigNoz](https://newsletter.signoz.io/p/ai-isnt-replacing-sres-its-deskilling) (8 min), [oioannou](https://oioannou.com/blog/ai-promised-less-work/) (6 min)
 - **CPython's experimental JIT will be removed** (LWN, 27 October): [LWN](https://lwn.net/SubscriberLink/1102102/0c00e4d550f25f8c/) (8 min)
-- **Qwenputer, a RISC-V CPU running inside Qwen3.5** (29 October): [divagr](https://divagr.com/blog/qwenputer) (12 min)
+- **Qwenputer, a RISC-V CPU running inside Qwen3.5** (29 October): [divagr](https://divagr.com/blog/qwenputer) (9 min), [our page](n:4255c17b0d0d81cebf6ec397d507094b)
 - **HackerTube, Andrej Karpathy's video site from Hacker News recommendations** (31 October): [karpathy.bearblog.dev](https://karpathy.bearblog.dev/hacker-tube/) (4 min)
