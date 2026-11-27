@@ -222,4 +222,4 @@ Request GPT-Rosalind for research, preparedness, and resilience work. The truste
 
 
 
-For questions, contact [support@openai.com](mailto:support@openai.com).
+For questions, contact [[email removed]](mailto:[email removed]).

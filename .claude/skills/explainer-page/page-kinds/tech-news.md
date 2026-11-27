@@ -1,74 +1,50 @@
 # Page kind: a weekly tech-news issue
 
-One week of AI/ML and big-tech news as a dated record: the issue's own words verbatim, re-checked against sources, with what happened next added beside them, never over them.
-
-- **Copy the machinery from the newest issue folder** under `technical_knowledge_base/whats_new/tech_news/` (the issue written into `src/issue.md`; older issues keep a `live.md` instead). Its `src/README.md` describes the machinery: `mk_issue.py` builds the splits from `viz_after` and the `<!--L-->`/`<!--R-->`/`<!--A-->`/`<!--RFIRST-->` markers, animations run on the template's `RD.anim` with static step lists, and `src/check_stages.mjs` checks the motion and splits. For an issue with a 3D stage (renderer v2, [../visuals/three-d.md](../visuals/three-d.md)), copy the stage machinery from `2026_09_07_tech_news/` or `2026_09_21_tech_news/` (`25_js_s3.js` from the templates, the scene, its step list and its `check_stages.mjs`).
-- **Layout and motion as on every page** ([../teaching/teaching-contract.md](../teaching/teaching-contract.md), [../visuals/mechanics.md](../visuals/mechanics.md)): an item with a visual is a split, its card left and the visual right; items without one are full width. Most issues need no 3D stage.
-- **Checks before publishing** (from the repo root): [../build/checks.md](../build/checks.md), plus `node <issue>/src/check_stages.mjs <shots dir>`, `node html_utils/verify_layout.mjs <issue> <shots dir>` (problems 0), `python3 <issue>/src/recompute.py`, and `python3 html_utils/whats_new.py check`. Look at one screenshot of each visual mid-step at 1400 px and 390 px.
-- **Teaching-contract exemptions**: an issue is a dated record, not a teaching page. It has no knowledge ledger (`ledger.py check` reports "no ledger" and passes) and keeps its own time line ("N min to read all tabs") instead of "Reading: N min, plus M in closed details."; durable knowledge it reports goes to the owning pages, which follow the contract.
-
-A suggestion, not a template: use the sections the issue actually has.
+**The design of 2026-11-27** (Khalid: "as simple as possible and suitable for a Monday morning reading"): one tab with a short paragraph on the week and a card per story, few stories; everything else in a Further reading tab. Every issue, old ones included, is built this way; the reference is `technical_knowledge_base/whats_new/tech_news/2026_11_23_tech_news/`.
 
 ## What the page is for
-The reader's questions: **"what happened, what connects it, and did it hold?"** Unlike a topic page, the text is a record. **The issue's own words stay verbatim.** Everything learned since is added beside them in labelled boxes.
+Khalid reads it on Monday morning, in six to eight minutes, to know what happened and what of it matters to someone who builds with LLMs. The knowledge lives on the pages the cards link to; the issue is the week's front page and its record.
 
-## Shape that worked
-- **The site's home page reads the issue's source** (`html_utils/whats_new.py`): the first line of `src/issue.md` is the intro, "One week, A to B: <what the week was about>" or, for a longer window, "Three weeks, A to B: <what they were about>" (dates as YYYY-MM-DD; the part after the colon is shown, so it must say what the period was about, not only restate the window); `python3 html_utils/whats_new.py check` (run by the site build, which stops on a problem) fails an issue with no top stories and a newest issue with no intro, and each top story is one paragraph under `# Top stories` that opens with its headline sentence in bold. Keep that shape; the newest issue is the featured card in What's new.
-- **One tab per section**, in the issue's own order, with short labels, for example: At a glance | Top stories | Models | Research | Industry | Compute | Dev tools | Talk of the town | Further reading.
-  - Use the sections the issue has (one issue had a Security section).
-  - An issue assembled from several parts gets tabs by subject, with each card labelled by its part.
-- **Rewrite, do not just split.** Khalid: "don't just split them, re-write so that it makes sense for them to live in different tabs". Each tab opens with its own lead paragraph framing that section's week (the thread connecting its items), so it stands on its own.
-- **At a glance** (open by default):
-  - a short lead (dates, item count) and the week's theme in two or three sentences;
-  - the week strip: one mark per item by day and section; a click opens the item in its tab;
-  - one line per section linking to its tab;
-  - a one-line "What happened next" list.
-- **Item cards**:
-  - the issue's text verbatim, with its date, sources, Hacker News points and comments (separate badges), and the topic page it feeds;
-  - dated boxes from re-checking the sources: **Checked**, **Correction**, **Unconfirmed**, **Links** (a source found for an unsourced item), **Related** (an item in another tab);
-  - each item lives in exactly one tab and is linked from the others.
-- **What happened next**: sourced follow-ups, dated as of the build, under the item they update and linked both ways. Later issues in the series are a good lead, but check them against primary sources.
-- **Further reading**: the knowledge base pages the items feed, the previous and next issues, the parent Tech news page, and the best resources, each with a time estimate.
+## Shape
+- **Header** (generated): "Tech news, <window>", the span, the number of stories, the reading time; two tabs, **This week** and **Further reading**. An issue always opens on This week.
+- **This week**:
+  1. **The week in brief**: one paragraph, about 100 words (at most 170): what the week was about and the one or two things worth remembering. Plain, no hype.
+  2. **Top stories**: **5 to 7 cards, never more** (3 in a quiet week is fine). Each card: a kind label (Model, Paper, Article, Research, Industry, Chips, Tools, Security, Policy) and date; the headline, a sentence that states the news; two or three sentences with the key number; **Why it matters**, one sentence for someone who builds with LLMs; the links: the primary source (with a time), and **Our page** (the paper page, the article page, or the owner page this run updated).
+  3. **New in the knowledge base**: one line per new paper page (its takeaway, short), per new article page (author and one line), and per page this run updated (what changed). This is where papers and articles get their short mention without each taking a story slot.
+- **Further reading**: every other item of the week, one line each (bold lead, date and source in brackets, links with times), grouped by kind (Models, Research and papers, Industry, Compute and chips, Tools and agents, Security, Policy, Hacker News); then the previous and next issues and all issues (generated).
+- **No custom visuals.** The diagrams belong on the pages the cards link to.
 
-## Content as data
-- **`src/issue.md`**: the issue's own words, written by the `update-kb` skill (older issues hold the same in `live.md`); later checks go in boxes beside it. Because those words are frozen once published, they are checked before publishing, not after: an item about a paper is written from the paper, or from its paper page when the run builds one (build that page first), never from the blog or abstract. It says which model and size, single runs or seeds, which metric, matched comparisons rather than each side's best, and the conditions a theorem needs; no "first", "proves", "beats" or "consistently" without support. It quotes the paper page's takeaway ([paper.md](paper.md)) rather than a new summary. The 2026-10-26 issue printed a blog's "about 30%", "nearly 20 points" (a different metric) and an unconditional theorem, and could only correct them in boxes.
-- **`mk_items.py`** parses it into `data/items.json`.
-- **`data/annotations.json`** holds:
-  - the issue window and strip axis, glance texts, and section leads;
-  - per item: dates, short label, tags, feeds, Hacker News counts, notes, follow-ups and `viz_after` (which item a visual belongs to; it sits in that item's right column);
-  - the dated `followups`.
-- **`mk_issue.py`** generates the tabs; `relink()` restores the issue's own inline links.
-- **`recompute.py`** asserts every derived number.
-- **Animations** run on the template's `RD.anim` (`21_js_rd_common.js`): plays once half in view, stops on any control or at its last step, never moves by itself under reduced motion. Only the 2026-08-31 and 2026-09-28 issues keep the older `10b_js_anim.js`; do not copy it. An item with a visual is a split: its text left, the visual right ([../visuals/mechanics.md](../visuals/mechanics.md)).
+## Choosing the stories
+The hardest editorial step. Rank every item of the window by what it changes for someone who builds with LLMs (capability and price at the frontier, a method that changes practice, a security lesson, a shift in who controls compute or models), then by how many people will talk about it. Keep the top 5 to 7. Merge items that are one story (two labs' launches that close the same gap). A paper or article that is among the week's biggest gets a card; the rest are in New in the knowledge base or Further reading. Hacker News size alone does not make a story.
 
-A new issue copies the machinery and writes new annotations.
+## Content as data: `src/issue.md`
+The whole issue in one Markdown file; the format is in `html_utils/issue_page.py` (its docstring), and `src/build.sh` is three lines that run it. The first line is the intro, "One week, YYYY-MM-DD to YYYY-MM-DD: <what the week was about>" ("Three weeks, ..." for a longer window): the home page's What's new card shows it with the story headlines (`html_utils/whats_new.py`). `python3 html_utils/issue_page.py --check <issue>` fails a missing brief, fewer than 3 or more than 7 stories, a story without kind, why or links, a story body over about 90 words, or an empty New in the knowledge base.
 
-## Visuals
-- **Choose fresh each week** ([../visuals/choosing.md](../visuals/choosing.md)). Keep the week strip.
-- **Most items need no visual.** An issue earns one index visual (the strip), plus a visual only where a headline hides a mechanism or joins two different comparisons.
-- **At least one before/after animation** where the week has a mechanism that replaced another: DiffusionGemma against autoregressive decoding; an agent harness with and without its pieces; a KV cache shrinking step by step.
-- **Good kinds so far**:
-  - a chart showing which figure a headline divides ("2%" of what?);
-  - a published number recomputed from configs or tables;
-  - a calculator for an argument (Ord's swarm arithmetic);
-  - prices before and after on one task.
-- **Never put different kinds of figure on one axis**: a valuation, a run rate and a financing guarantee are three rows, not three bars.
+**The words are checked before publishing**, because they are the record: an item about a paper is written from the paper, or from its paper page when the run builds one (build that page first), never from the blog or abstract; it says which model and size, single runs or seeds, which metric, matched comparisons rather than each side's best, and the conditions a theorem needs; no "first", "proves", "beats" or "consistently" without support. It quotes the paper page's takeaway ([paper.md](paper.md)) or the article page's ([article.md](article.md)) rather than a new summary. A later correction is made in `issue.md` with a dated line under the story ("Corrected 2026-12-01: ..."), never silently.
 
-## Rules learned
-- **Check every number** against the primary source; corrections go in boxes, never into the issue's text.
-- **When a source was rewritten** after publication, compare the Wayback capture nearest the issue date (the "as reported" check) and record the change as a follow-up.
+## Rebuilding an issue published before 2026-11-27
+Older issues kept their words in `src/issue.md` (from 2026-10-19) or `src/live.md` (a saved Notion fetch), with checks, corrections and follow-ups in `src/data/annotations.json`.
+1. `git mv src/issue.md src/issue_original.md` (a `live.md` stays as it is).
+2. Read the original and every note in `data/annotations.json` (Checked, Correction, Unconfirmed, follow-ups): a correction is folded into the new text, an unconfirmed claim is said to rest on its source, and a follow-up may go in a story as a dated line.
+3. `python3 html_utils/issue_oneliners.py <original>` drafts Further reading; drop the items that became stories, and give a bare name a few words of what it is ("Inkling 2 Mini, Thinking Machines' 26B open model").
+4. Write the brief, the 5 to 7 stories and New in the knowledge base (the paper pages, article pages and pages updated by that week's run: `git show --stat` of its commits, and the old Further reading tab), using only facts in the original and its annotations: nothing new is researched into an old issue.
+5. Remove the old machinery (`parts/`, `data/`, `mk_*.py`, `check_stages.mjs`, `recompute.py`, `viz_ideas.md`; keep `inputs/` and the original source), copy `src/build.sh` from the reference issue, update `src/README.md` and the folder `README.md`, build, check.
+
+## Checks before publishing
+`python3 html_utils/issue_page.py --check <issue>`, `sh <issue>/src/build.sh`, `bash html_utils/checkpage.sh <issue>` (fail=0), `python3 html_utils/whats_new.py check`, the privacy grep ([../build/checks.md](../build/checks.md)), and a look at screenshots of both tabs at 1400 px light and 390 px dark (`node html_utils/tabshot.mjs`). An issue has no knowledge ledger and is not in `check_times.py`.
+
+## Rules for the facts (kept from the earlier design)
+- **Check every number** against the primary source.
+- **When a source was rewritten** after publication, compare the Wayback capture nearest the issue date.
 - **Launch-day superlatives** ("cheapest at its level"): check them against every model published the same day.
-- **Counts that drift** (upvotes, stars) are dated readings, never charts.
+- **Counts that drift** (upvotes, stars, index readings) are dated readings ("read 23 November").
 - **"Orders of magnitude" or "x times" claims**: find the two figures they divide.
-- **A vendor's evaluation partner** is "with", not "independent".
+- **A vendor's evaluation partner** is "with", not "independent"; a vendor's own figure is labelled as such.
 - **"Nothing new shipped" claims**: verify them against the release APIs.
-- **Never draw an escape or attack route** step by step; the text and dated checks carry it.
-- **Hosts that block automated reading** (Reuters, Bloomberg, openai.com): try the Wayback Machine, and mark what stays unchecked.
-- **Long dashes in saved source extracts**: replace them with `--` ([../teaching/writing-style.md](../teaching/writing-style.md)).
-- **A narrated video**: its `<video>` block stays on the Notion page under the link line; name it in the header.
+- **Never describe an escape or attack route** step by step.
+- **Hosts that block automated reading** (Reuters, Bloomberg, openai.com): try the Wayback Machine, and say what stays unchecked.
+- **Long dashes in saved source extracts**: replace them with `--`.
+- **A narrated video**: its `<video>` block stays on the Notion page under the link line.
 
-## Lessons
-- **2026-10-02**: a missing page wrapper (`<div class="w">`) left cards 16 px past the phone screen with no sideways scroll, so `checkpage` passed; `clipcheck.mjs` now catches it ([../build/checks.md](../build/checks.md)).
-- **2026-10-19 issue** (the first written by `update-kb`): the issue's words live in `src/issue.md` (no `live.md`), `mk_items.py` reads it directly, and `mk_issue.py` omits the "What happened next" list while an issue has no follow-ups. Annotations were generated by a one-off script in the scratchpad; only `data/annotations.json` is kept.
-- **2026-09-28 issue**: the strip data carries no tags and first lines are cut at 150 characters, to keep the page small; the issue's own inline links (arXiv ids, repositories) are restored on their text by `relink()`.
-
+## History
+Until 2026-11-27 an issue had a tab per section (At a glance, Top stories, Models, Research, Industry, Compute, Dev tools, Talk of the town, Further reading), a week strip, split visuals and boxes of checks beside verbatim text; the 2026-11-23 issue ran to 8 tabs, 50 items and about 4,000 words. Khalid found it too dense for a Monday read. Those sources are kept in each issue's `src/issue_original.md` or `src/live.md` and in git.
