@@ -1,0 +1,6 @@
+# How well do agents use test/verification techniques?
+
+Notion: https://app.notion.com/p/4255c17b0d0d81dba827fd72b3b28671 (a child page of Articles, 4255c17b0d0d81b68b15d5f90da34991)
+Site: https://khalit7.github.io/technical_knowledge_base/whats_new/articles/danluu_agentic_testing/
+
+The article page for Dan Luu's research post, https://danluu.com/agentic-testing/ (undated on the page; the blog's feed gives 2026-09-07; title on the page: "How well do agents use test/verification techniques?"). Built 2026-11-27: the post's argument in its order (the experiment, the overall result, formal tools, randomised testing, process instructions, skills, what works), the evidence judged with significance tests the post leaves out (no condition differs from Default; the 30 xhigh results are as alike as draws of one rate; medium and xhigh orders are uncorrelated; the skills' extra cost is real), a toy that draws "no-effect worlds" beside the real results, the Hacker News responses, the author's GPT-6 Astra rerun in the dated Since block, and what the owner pages (Testing and quality, Building a harness, Eval statistics) should gain. `index.html` is the whole page, built from `src/` (see `src/README.md`), published with the `sync-kb-github` skill.

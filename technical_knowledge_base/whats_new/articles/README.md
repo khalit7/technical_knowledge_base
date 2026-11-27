@@ -22,3 +22,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Score Centering: Understanding and Fixing Instability in RL](wolfe_score_centering/) (Cameron R. Wolfe, Deep (Learning) Focus; 9 November 2026)
 - [Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang](cloudflare_kv_cache_exposure/) (Kevin Flansburg and Michelle Chen, Cloudflare; 26 October 2026)
 - [After 600 experiments, here's what I discovered about JEPA world models](jepa_600_experiments/) (Haddy Alchaer; 11 November 2026)
+- [How well do agents use test/verification techniques?](danluu_agentic_testing/) (Dan Luu; 7 September 2026)
