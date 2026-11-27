@@ -59,7 +59,7 @@ Every page is still built with the `explainer-page` skill and published with `sy
 10. **Report** to Khalid (see the end).
 
 ## Notion ids
-- Tech news: `3c65c17b-0d0d-8172-97b0-f28491701516`; Papers database: `collection://d440058d-ec1c-4b72-b141-046d5d969389`; Articles (`ARTICLES_ID`): `ARTICLES_NOTION_ID`.
+- Tech news: `3c65c17b-0d0d-8172-97b0-f28491701516`; Papers database: `collection://d440058d-ec1c-4b72-b141-046d5d969389`; Articles (`ARTICLES_ID`): `4255c17b-0d0d-81b6-8b15-d5f90da34991`.
 
 ## Newsletters
 Read with the Gmail connector only; never send, label, archive or draft anything. Search the window for recurring editorial publications about software, AI/ML, data or the tech industry (TLDR, Medium digests, Towards Data Science and similar are examples, not a closed list): a dated issue, a masthead, a run of linked stories with short blurbs, sent by a publication rather than a person.
