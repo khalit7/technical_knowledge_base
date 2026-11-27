@@ -50,5 +50,3 @@ No em-dashes anywhere: prose, HTML, captions, commit messages. Commas, colons, s
 
 ## Git
 `git pull` first, always. Commit after a meaningful unit of work; push to main. Never commit MP4s, PDFs or files over about 5 MB.
-
-Commit as `khalid <khalidsulman777@gmail.com>`, never the work address. The global git config holds the work email, so every clone or sandbox needs `git config user.email khalidsulman777@gmail.com` in the repo before its first commit; check with `git config user.email`.
