@@ -23,3 +23,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang](cloudflare_kv_cache_exposure/) (Kevin Flansburg and Michelle Chen, Cloudflare; 26 October 2026)
 - [After 600 experiments, here's what I discovered about JEPA world models](jepa_600_experiments/) (Haddy Alchaer; 11 November 2026)
 - [How well do agents use test/verification techniques?](danluu_agentic_testing/) (Dan Luu; 7 September 2026)
+- [WorldTUI: I trained a 360M model to pretend to be a terminal](worldtui_terminal_world_model/) (Simon Edwardsson; 21 October 2026)

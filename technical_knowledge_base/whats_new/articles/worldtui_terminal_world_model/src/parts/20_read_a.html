@@ -1,0 +1,31 @@
+<div class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> fine-tune a small coding model to write, for each keypress, the edit to a terminal's screen; with no shell behind it, whatever stays consistent between commands is what the network carries in its context.</p>
+<p class="small"><b>You need:</b> world models and why their errors compound when fed their own output ({{Model-based RL and planning|n:3ee5c17b0d0d8116be5fd39e10bd94c5}}, sections 11 and 13); DAgger ({{Offline RL and imitation|n:3ee5c17b0d0d81d4995ec47e428de9b3}}, section 3); draft-then-verify decoding ({{Speculative decoding|n:3f35c17b0d0d81e086fde85940ebac1c}}).</p>
+<p class="small"><b>New terms:</b> <b>screen delta</b> (one keypress's output: row edits plus the cursor); <b>COPY</b> (copy a row of the previous screen); <b>self-repair example</b> (a training frame from the model's own wrong screen to the real next one); <b>readback</b> (reading back a file the session wrote).</p>
+<p class="wt-pred small"><b>Predict, then click:</b> Enter on a full 32-row screen moves 31 rows up. How many tokens with COPY, and without? Then try <code>cat server.log</code>, the worst case.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="wt-cost">
+<div class="t">A keypress costs one decode step per token of its screen edit; copying rows and decoding rows side by side cut that</div>
+<div class="seg" id="wt-scn" role="group" aria-label="Screen change"></div>
+<div id="wt-cost-svg"></div>
+<div class="wp-lg"><span><i style="background:var(--c3)"></i>written span</span><span><i style="background:var(--c1)"></i>copied row (then patched)</span><span><i style="background:var(--dim)"></i>unchanged</span></div>
+<div class="wt-out" id="wt-cost-out"></div>
+<div class="wt-ops" id="wt-cost-ops"></div>
+<details class="mist"><summary>The two screens, before and after</summary><div class="b"><div class="wt-scr"><pre id="wt-cost-scr"></pre></div></div></details>
+<figcaption id="wt-cost-cap"><b>Fig. 1.</b> The 32 rows of a 32 × 96 screen, columns to scale, for an illustrative session. Encoding: the post's rules and the demo's grammar, cheapest edit per row (the author's encoder is unpublished). Sequential: every token; row-parallel: the longest row plus 3 cursor numbers. Checked against <code>src/recompute.py</code>.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-proto">Keypress in, edit out</a><a href="#s-data">Data</a><a href="#s-repair">Self-repair</a><a href="#s-test">Tests</a><a href="#s-fast">Fast</a><a href="#s-small">Small</a><a href="#s-can">What it does</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<section id="s-proto"><h2>1. One keypress in, one screen edit out</h2>
+[[ah:how-it-sees-a-terminal|How it sees a terminal]] [[ah:copying-rows|Copying rows]]
+<p><b>A terminal is a grid, not a stream:</b> <code>clear</code> sends the cursor to the top, so {{I need to predict changes to the screen|ar:I need to predict changes to the screen}}. After a snapshot of the screen, each keypress goes in as a terminal's bytes, and the answer names rows to rewrite and the cursor: <code>l</code> at the prompt gives <code>ROW_0 17 'l'</code>, <code>CURSOR 0 18 1</code>. {{Nothing gets cleared first|ar:Nothing gets cleared first}}, so a row's edit runs from its first changed cell to its last. Idle time goes in as {{a WAIT token|ar:the model gets a WAIT token}}.</p>
+<p><b>Copying a row makes a scroll cheap.</b> Rewriting every row costs {{around 3,000 tokens for a single keypress|ar:around 3,000 tokens for a single keypress}}; with <code>ROW_0 COPY 1</code>, {{a scroll costs three tokens per row|ar:A scroll now costs three tokens per row}}, and a copied row can be patched (Fig. 1, Enter at the bottom: 98 tokens against 901).</p>
+<p><b>A tiny vocabulary, every output valid:</b> Qwen's {{256 byte tokens|ar:Qwen already has tokens for all 256 byte values}}, 64 row tokens and a few operations make {{333 tokens|ar:tiny vocabulary of 333 tokens}} (the demo lists 334, with a draft marker), and {{decoding is grammar-constrained|ar:Decoding is grammar-constrained}} ({{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}).</p>
+</section>
+
+<section id="s-data"><h2>2. Training data: real programs in Docker, typed like a person</h2>
+[[ah:generating-the-training-data|Generating the training data]]
+<p><b>The recordings he found lacked {{keystroke-to-screen alignment|ar:precise keystroke-to-screen alignment}}, so he made his own:</b> vim, python, tmux, man and snake in offline Docker containers, random personas and screen sizes, one-key typing with {{1.2% typos|ar:typo rate to 1.2%}}, and {{35% of sessions starting partway through|ar:35% of sessions start partway through}}: {{336k episodes|ar:landed on 336k episodes}}, about 2B tokens.</p>
+</section>
