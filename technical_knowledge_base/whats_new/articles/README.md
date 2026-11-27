@@ -16,3 +16,5 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Top Chinese Frontier AI Models Carry the Fingerprint of Export-Controlled NVIDIA Blackwell GPUs](checkpoint_forensics/) (Will DePue, Unemployment Labs; 12 November 2026)
 - [GPT-6 Astra, Looped Transformers, and Hidden Reasoning](raschka_looped_transformers/) (Sebastian Raschka, Ahead of AI; 9 September 2026)
 - [Pretraining progress is mostly coming from data](pretraining_progress_data/) (Dwarkesh Patel and Jerry Han; 8 September 2026)
+- [Language Models for Text Classification: From Bag-of-Words to Jev](raschka_text_classification/) (Sebastian Raschka, Ahead of AI; 29 September 2026)
+- [Dust: Pretraining Transformers Without Backpropagation](dust_no_backprop/) (Samip Dahal, Bishwas Mandal, Serdar Gulbahar, Akshay Vegesna, qlabs; 5 October 2026)

@@ -1,0 +1,765 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dust: Pretraining Transformers Without Backpropagation</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2733;--mute:#5f6b7a;--line:#e1e4e9;--soft:#f0f2f5;--acc:#2a62a8;--acc2:#dde8f6;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8;--shadow:0 1px 2px rgba(20,35,60,.06),0 8px 24px rgba(20,35,60,.07);--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121519;--card:#1a1e24;--ink:#e6e9ee;--mute:#9aa4b2;--line:#2c323b;--soft:#20252c;--acc:#7aaee8;--acc2:#1f334b;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+h1{font-family:var(--serif);font-size:clamp(28px,4.2vw,40px);line-height:1.12;margin:0;letter-spacing:-.005em}.sub{color:var(--mute);font-size:15px;line-height:1.55;max-width:46em;margin:12px 0 18px}
+h2{font-family:var(--serif);font-size:clamp(23px,3vw,29px);margin:64px 0 12px;line-height:1.2}h3{font-size:16px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}sub,sup{line-height:0}
+section>p,section>ul,section>ol{max-width:46em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 12px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.an-ctl button,.an-ctl select{border-radius:999px;padding:5px 14px}
+.an-play{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:13px;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 12px;white-space:nowrap}
+.nav a.cur{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin:20px 0;min-width:0}.card h4{font-size:15.5px;line-height:1.35;margin:0 0 8px}
+.co{border-left:4px solid var(--acc);background:var(--acc2);padding:12px 16px;border-radius:0 12px 12px 0;margin:18px 0}
+.co.warn{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg))}.co.key{border-left-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--bg))}
+.co .t{font-weight:600;font-size:14px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:0;border-radius:10px;padding:10px 12px;background:var(--soft);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:22px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:15px;border-radius:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:9px 14px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:20px;background:var(--soft);padding:3px;gap:2px;margin:6px 0}.seg button{font:inherit;font-size:13px;background:transparent;color:var(--mute);border:0;border-radius:999px;padding:5px 13px;cursor:pointer}.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(20,35,60,.15)}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0}.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-cap{background:var(--soft);border-left:4px solid var(--acc);border-radius:0 10px 10px 0;padding:10px 14px;margin:8px 0;font-size:14.5px}
+figure.ph{margin:20px 0}figure.ph img{display:block;width:100%;height:auto;border-radius:10px}figure.ph figcaption{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.5}
+figure.ph.side{float:right;width:min(380px,40%);margin:6px 0 14px 26px}section{display:flow-root}.card,details,.tw,.fm{clear:both}.co{display:flow-root}
+@media (max-width:700px){figure.ph.side{float:none;width:auto;margin:16px 0}}
+/* eased steps: RD.anim adds rd-fwd to the card when the step moves forward; marks drawn with class rd-new ease in, rd-gone fade out, and the caption fades in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
+@media (max-width:520px){body{font-size:15px}h1{font-size:26px}h2{margin-top:48px}.w{padding:20px 14px 40px}.card{padding:14px;border-radius:12px}.seg button{padding:5px 10px}code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100%;overflow-x:auto;overflow-y:hidden}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style><script id="kb-buddy">
+// ---- AI buddy loader: the small script every page carries (apply_buddy.py writes it as the marked kb-buddy block in the head part) ----
+// It loads the buddy (html_utils/kb_buddy.js, one shared file) on every page once the page has loaded. The buddy's toolbar is all it adds:
+// without a Claude key or a GitHub token, the toolbar's Claude and sync buttons say so and open the field to add it.
+// Where it is: on the site, build_site.py writes data-src (the site root's kb_buddy.js, with a version stamp); opened from the repo,
+// the path to html_utils/kb_buddy.js is worked out from the folder technical_knowledge_base in the page's own address.
+// No literal closing-head or opening-body tag may appear in this file: build_site.py inserts its bar at the first of each.
+(function(){
+  if (window.__kbBuddyLoader) return; window.__kbBuddyLoader = 1;
+  // keep WebGL drawing buffers readable, so the buddy can capture a 3D view between frames; this must run before the page's own scripts
+  try { var gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
+  var me = document.currentScript, src = me && me.getAttribute('data-src');
+  if (!src) { var h = location.href.split('#')[0], i = h.lastIndexOf('/technical_knowledge_base/'); src = i < 0 ? null : h.slice(0, i + 1) + 'html_utils/kb_buddy.js' }
+  function load(){ if (!src) return; var tag = document.createElement('script'); tag.src = src; tag.async = true; document.head.appendChild(tag) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script><!--/kb-buddy-->
+</head><body><div class="w">
+<style id="kb-split">
+/* The split layout (standing rule, 2026-11-06): a section with a visual is two columns, the explanation on the left and the visual on the right,
+   sticky while its section is read; a section without a visual is full width. Below 1100 px the visual sits at the top of its section
+   (a stage stays under the section nav while its steps are read; a figure card scrolls with the text). Classes are prefixed s3 to avoid page classes. */
+.s3sp{position:relative;margin-top:8px}
+.s3R{display:contents}
+.stg{position:sticky;top:50px;z-index:3;height:min(44vh,330px);min-height:250px;margin:6px 0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.stg-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 0;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.stg-top span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.stg-top span:last-child{white-space:nowrap}
+.stg-cv{position:relative;flex:1;min-height:0}
+.stg canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}.stg canvas.dr{cursor:grabbing}
+.stg-rv{position:absolute;right:8px;top:4px;font-size:12px;padding:2px 10px;border-radius:999px}
+.stg-hint{position:absolute;right:10px;bottom:4px;font:11px ui-monospace,Menlo,monospace;color:var(--mute);pointer-events:none;letter-spacing:.04em}
+.stg-bar{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}
+.stg .stg-bar.an-ctl{flex-wrap:nowrap!important}.stg .stg-bar button{padding:4px 11px;font-size:13px;white-space:nowrap}.stg .stg-bar input.stg-r{flex:1 1 40px!important;min-width:30px!important;width:auto}.stg .stg-bar select{font-size:12.5px;padding:3px 6px}
+/* the step list: the explanation of the animation, one item per step; the current step is marked, a click jumps to it */
+ol.sx{list-style:none;counter-reset:sx;padding:0;margin:12px 0 18px;max-width:46em}
+ol.sx>li{counter-increment:sx;position:relative;padding:8px 12px 8px 40px;margin:0 0 4px;border-radius:10px;border-left:3px solid transparent;cursor:pointer;color:var(--mute);transition:background .25s,color .25s,border-color .25s}
+ol.sx>li::before{content:counter(sx);position:absolute;left:10px;top:9px;width:21px;height:21px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:600 12px/19px ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;text-align:center;color:var(--mute)}
+ol.sx>li b{color:var(--ink)}
+ol.sx>li.done{color:var(--ink)}ol.sx>li.done::before{background:var(--soft)}
+ol.sx>li.on{background:var(--card);color:var(--ink);border-left-color:var(--acc);box-shadow:var(--shadow)}ol.sx>li.on::before{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+ol.sx>li:hover{background:var(--soft)}ol.sx>li.on:hover{background:var(--card)}
+ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sxh{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 0}
+.s3chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.s3chips button{border-radius:999px;padding:3px 12px;font-size:13.5px}
+.s3chips button.on{background:var(--c2);border-color:var(--c2);color:var(--bg)}
+.s3q{color:var(--c2);font-weight:600}.s3k{color:var(--c6);font-weight:600}.s3v{color:var(--c4);font-weight:600}
+/* a compact 2D animation card (about 320 px tall or less on a phone) that should stay in view while its step list is read: put it first in .s3R with class s3stick */
+@media (max-width:1099px){.s3stick{position:sticky;top:50px;z-index:3}}
+.s3side .card{margin-top:6px}
+@media (min-width:1100px){
+  .w:has(.tab:not([hidden]) .s3sp){max-width:1380px}
+  /* text outside a split keeps a readable line length on the widened page (2026-11-06) */
+  .w:has(.tab:not([hidden]) .s3sp) .tab :is(p,ul,ol,dl,blockquote):not(.s3sp *):not(.card *):not(td *):not(th *):not(li *):not(.stat *){max-width:52em}
+  .s3sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:40px;align-items:stretch}
+  .s3L{grid-column:1;grid-row:1;min-width:0}
+  .s3R{display:block;grid-column:2;grid-row:1;min-width:0}
+  .stg{top:58px;height:min(calc(100vh - 80px),660px);margin:20px 0 0}
+  .s3side{position:sticky;top:58px;margin-top:20px}
+  .s3L section>h2:first-child{margin-top:44px}
+}
+@media (max-width:520px){.stg{top:50px;height:min(52vh,400px);min-height:270px;border-radius:12px}.stg-bar{gap:4px;padding:5px 6px 6px}.stg .stg-bar button{padding:4px 9px}.stg .stg-bar select{padding:3px 4px}.stg-hint{display:none}ol.sx>li{padding:7px 10px 7px 36px}ol.sx>li::before{left:7px}}
+</style>
+<style id="wp-css">
+/* article page: the headline card (generated by mk_article.py), "in the article" margin labels, figure cards. Copied from the paper pages' card look. */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0 8px;background:var(--card);box-shadow:var(--shadow)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.hero h1{margin:6px 0 6px}
+.hero .au{font-size:13.5px;line-height:1.45;color:var(--mute)}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hero-l{font-size:13.5px;margin-top:8px}.hero-n{font-size:12.5px;color:var(--mute);margin-top:6px}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:22px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}.hn .stat .k{font-size:12.5px;color:var(--ink)}
+.where{display:inline-block;margin:0 0 6px;font-size:12px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:1px 7px;text-decoration:none;background:var(--bg)}
+.where:before{content:"in the article: ";opacity:.75}
+a.where:visited{color:var(--mute)}.where:hover{color:var(--acc);border-color:var(--acc)}
+.wp-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.wp-fig figcaption,.wp-cap{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.wp-fig{margin:0}
+.wp-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.wp-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.wp-hl{color:var(--c2);font-weight:600}
+.wp-resp{list-style:none;padding:0;margin:10px 0}.wp-resp li{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 8px;background:var(--card)}
+.wp-resp .by{font-size:12.5px;color:var(--mute)}.wp-resp .kind{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin-right:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink)}
+.wp-toyout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.wp-toyout .stat .v{font-size:19px}
+#t-read details.mist .b p,#t-read details.mist .b li{font-size:14px}
+blockquote.wp-q{margin:10px 0;padding:6px 14px;border-left:3px solid var(--line);color:var(--ink);font-style:italic}
+</style>
+<div class="crumb"><a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a> · 2026 · <span id="rt">Reading: 16 min, plus 3 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The article</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style id="du-css">
+/* this page (prefix du): Dust in violet (--c4), weight-space ES in grey, backprop in ink; figure controls, the toy, tables */
+#t-read .du-d{color:var(--c4);font-weight:600}#t-read .du-e{color:var(--mute);font-weight:600}#t-read .du-b{color:var(--ink);font-weight:600}
+#t-read .du-ctl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:13px;color:var(--mute);margin:2px 0 4px}
+#t-read .du-ctl .seg{margin:2px 0}#t-read .du-ctl input[type=range]{flex:1 1 160px;min-width:120px}
+#t-read .du-ctl button.du-btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:4px 10px;cursor:pointer}
+#t-read .du-out{font-size:13.5px;color:var(--ink);margin:6px 0 0;min-height:2.6em}
+#t-read table.du-tab{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0}
+#t-read table.du-tab th,#t-read table.du-tab td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+#t-read table.du-tab td.n,#t-read table.du-tab th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#t-read table.du-tab th{font-size:12.5px;color:var(--mute);font-weight:600}
+#t-read .du-scroll{overflow-x:auto}
+#t-read .box{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:0 10px 10px 0;padding:8px 12px;margin:10px 0;background:var(--card);font-size:14px}
+#t-read .box b.lab{display:inline-block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin-right:6px}
+#t-read .du-pred{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:14px}
+#t-read .du-pred summary{cursor:pointer;color:var(--acc)}
+#t-read .du-svg svg{display:block;max-width:100%;height:auto}
+</style>
+<div class="hero" id="hero">
+<div class="hero-k">Article · research post · Q Labs Research (qlabs.sh)</div>
+<h1>Dust: Pretraining Transformers Without Backpropagation</h1>
+<div class="au">Samip Dahal, Bishwas Mandal, Serdar Gülbahar, Akshay Vegesna (Q Labs) · published 5 October 2026</div>
+<p class="tk"><b>In one line:</b> A research post with code: Dust adds independent noise to each layer&#x27;s activations at every token, credits each token&#x27;s noise with that token&#x27;s own loss change, and forms the weight update as backprop does (estimated error times input); on a 37.7M-parameter GPT trained with constant-rate SGD (three seeds per cell), 16,384 draws per update end slightly below backprop at 100k and 1M tokens (6 and 61 updates) and 0.06 and 0.17 above it at 10M and 20M, at about 5,000 times backprop&#x27;s compute per update by our count, while the authors&#x27; weight-space ES baseline would need an extrapolated 3,000 to 23,000 times the population to match Dust&#x27;s smallest setting.</p>
+<div class="hn">
+<div class="stat"><div class="v">3,000 to 23,000 <span class="u">times the population</span></div><div class="k">what the authors&#x27; weight-space ES baseline (EGGROLL-Transformer) would need to match Dust at 64 draws, extrapolated from runs at 64 to 16k; the post rounds it to 10^3 to 10^4</div><div class="d">Section 3.2 and Appendix D, Table 2 · <a href="https://qlabs.sh/research/dust#:~:text=Weight%2Dspace%20ES%20is%20far%20less%20efficient." target="_blank" rel="noopener noreferrer">in the article: 3.2 Main Results</a></div></div>
+<div class="stat"><div class="v">4.802 vs 4.633 <span class="u">test loss at 20M tokens</span></div><div class="k">Dust at 16,384 draws against SGD backprop, both measured; the 4.431 below backprop is a power-law limit the post calls loosely constrained</div><div class="d">Table 1 (Appendix C) and Section 3.2 · <a href="https://qlabs.sh/research/dust#:~:text=power%20law%20fit%20puts%20the%20limit%20at" target="_blank" rel="noopener noreferrer">in the article: 3.2 Main Results</a></div></div>
+<div class="stat"><div class="v">0.16 to 0.98 <span class="u">cosine to backprop at 16k</span></div><div class="k">per layer type on a 100M-token backprop checkpoint, from the post&#x27;s fitted law (keys 0.16, MLP outputs 0.51, head 0.98); our calculation</div><div class="d">Section 4.2, Figure 5, Appendix G · <a href="https://qlabs.sh/research/dust#:~:text=fits%20each%20layer%20type%20with%20RMSE%20below" target="_blank" rel="noopener noreferrer">in the article: 4.2 Emergence of Backprop-Like Gradients</a></div></div>
+</div>
+<p class="tk"><b>How far to trust it:</b> Believe the mechanism and its large lead over weight-space ES. Read &quot;competitive with backprop&quot; narrowly: the measured wins are at 6 and 61 updates against constant-rate SGD, the gap widens as training lengthens, the sub-backprop figure at 20M tokens is a fitted extrapolation, the lab&#x27;s own benchmark puts Dust 0.40 behind once both use Adam, and an update costs thousands of backprop updates. <a href="#s-trust">The evidence, judged</a>.</p>
+<div class="hero-l"><a href="https://qlabs.sh/research/dust" target="_blank" rel="noopener noreferrer">read it (20 min)</a> · <a href="https://github.com/qlabs-eng/dust" target="_blank" rel="noopener noreferrer">logs and code (qlabs-eng/dust, MIT)</a> · <a href="https://news.ycombinator.com/item?id=49970871" target="_blank" rel="noopener noreferrer">discussion (280 points, 82 comments on 27 November 2026)</a></div>
+</div>
+
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> add independent noise to a layer's outputs at <i>every token</i>, score each token's noise by the change in <i>that token's</i> loss, and average over many noisy forward passes: this estimates the error backprop would deliver to the layer, the update is formed as backprop forms it (error times input), and since every token is a separate trial, one pass runs thousands of trials where weight-space evolution strategies run one.</p>
+<p class="small"><b>You need:</b> that a layer's weight gradient is the error arriving at its output times its stored input, an outer product, and that a backward pass costs about two forward passes (<a href="https://app.notion.com/p/3f05c17b0d0d817e9892e01088179c93" target="_blank" rel="noopener noreferrer">Matrix calculus and backprop</a>, sections 5 and 8); SGD with momentum and Adam (<a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers and learning-rate schedulers</a>); a cosine between two vectors. Helpful, not required: the score-function estimator, reward times noise (<a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a>).</p>
+<p class="small"><b>New terms:</b> <b>zeroth-order method</b> (uses loss values only, never derivatives); <b>evolution strategies, ES</b> (perturb the weights at random; the reward-weighted average perturbation estimates the gradient); <b>node perturbation</b> (perturb a layer's outputs instead of its weights); <b>draw</b> (one forward pass in which every token gets its own noise); <b>population K</b> (draws per update); <b>EGGROLL</b> (a recent weight-space ES method with cheap low-rank perturbations, the baseline); <b>cosine to backprop</b> (1: the exact gradient's direction; 0: no better than chance).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-hero">
+<div class="t">Each token is its own trial: jitter it, score it by its own loss, average the trials</div>
+<div class="du-svg" id="du-hero-svg"></div>
+<figcaption>One layer y<sub>t</sub> = W x<sub>t</sub> over six tokens, one draw. Each token's output gets its own noise; the change in that token's loss scores it (orange: up, green: down); the scored noise averaged over K draws estimates the output error <i>&gcirc;<sub>t</sub></i>, and &Sigma;<sub>t</sub> <i>&gcirc;<sub>t</sub> x<sub>t</sub><sup>&#8868;</sup></i> is the update. Backprop gets <i>&gcirc;<sub>t</sub></i> from one backward pass, Dust from K forward passes. Schematic, illustrative values.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-bet">The bet</a><a href="#s-mech">Estimator</a><a href="#s-dim">Why per token</a><a href="#s-tune">Cost</a><a href="#s-res">Results</a><a href="#s-egg">10^3 to 10^4</a><a href="#s-size">Model size</a><a href="#s-cos">Cosines</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<section id="s-bet"><h2>The bet: search may beat gradients once compute is plentiful</h2>
+<a href="https://qlabs.sh/research/dust#introduction" target="_blank" rel="noopener noreferrer" class="where">1 Introduction</a>
+<p><b>The post argues that backprop and differentiability help while compute is scarce and may limit learning once it is plentiful</b>, citing the bitter lesson and AlphaGo Zero (<a href="https://qlabs.sh/research/dust#:~:text=general%20methods%20that%20scale%20with%20compute%20eventually%20win" target="_blank" rel="noopener noreferrer">in the article</a>). It does not try to be compute-efficient, nor to train the models it would enable, such as long-looped transformers (<a href="https://qlabs.sh/research/dust#:~:text=We%20do%20not%20attempt%20to%20make%20it%20compute%2Defficient%20enough" target="_blank" rel="noopener noreferrer">in the article</a>). So every "competitive with backprop" below is at equal tokens, not equal compute.</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-mech"><h2>The estimator: reward-weighted noise is the layer's output error</h2>
+<a href="https://qlabs.sh/research/dust#credit-assignment" target="_blank" rel="noopener noreferrer" class="where">2.2 Credit Assignment</a>
+<p><b>For a linear layer y<sub>t</sub> = W x<sub>t</sub>, Dust adds Gaussian noise &sigma;a<sub>t</sub> to the output at every token and runs the forward pass</b> (<a href="https://qlabs.sh/research/dust#:~:text=we%20jitter%20its%20output%20at%20all%20tokens" target="_blank" rel="noopener noreferrer">in the article</a>). Token t's reward is its centred loss reduction c<sub>t</sub> (the mean perturbed loss there across draws, minus this draw's), plus, with a decay &gamma;, the reductions at later tokens its jitter reaches through attention:</p>
+<div class="fm"><div class="eq">r<sub>t</sub> = &Sigma;<sub>s&ge;t</sub> &gamma;<sup>s&minus;t</sup> c<sub>s</sub>, &nbsp; &gcirc;<sub>t</sub> = &minus;(1/K&sigma;) &Sigma;<sub>i</sub> r<sub>t</sub><sup>(i)</sup> a<sub>t</sub><sup>(i)</sup>, &nbsp; &Gcirc;<sub>W</sub> = &Sigma;<sub>t</sub> &gcirc;<sub>t</sub> x<sub>t</sub><sup>&#8868;</sup></div></div>
+<p><b>The middle term is the idea: the reward-weighted noise, averaged over K draws, points along the error at the layer's output</b> (Equations 1 to 3); it is REINFORCE for a Gaussian policy with a baseline (<a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a>). The last term is backprop's outer product with the same cached input: "The only difference is that it gets the output error from the chain rule and we get it from the population" (<a href="https://qlabs.sh/research/dust#:~:text=The%20only%20difference%20is%20that%20it%20gets" target="_blank" rel="noopener noreferrer">in the article</a>). Each draw's error has no preferred direction, so the signal grows as K and the error as &radic;K (<a href="https://qlabs.sh/research/dust#:~:text=the%20gradient%20adds%20up%20linearly%20while%20the%20errors" target="_blank" rel="noopener noreferrer">in the article</a>); the table beside this shows one token converging.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-tok">
+<div class="t">One token's estimated error closes in on the exact one as draws accumulate</div>
+<div class="du-scroll" id="du-tok-tab"></div>
+<figcaption>Token 1 of the toy below (width 32, seed 1): four of the 32 entries of the error at the hidden pre-activations, exact and estimated from K draws with per-token credit. Computed by the page's code, checked against our Python port.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-dim"><h2>Why per token: fewer noise dimensions behind each reward</h2>
+<a href="https://qlabs.sh/research/dust#activation-space-perturbation" target="_blank" rel="noopener noreferrer" class="where">2.1 Activation-Space Perturbation</a>
+<p><b>A zeroth-order estimate degrades with the number of noise dimensions behind each scalar reward.</b> Weight-space ES perturbs all d<sub>out</sub>&times;d<sub>in</sub> weights for one number per pass; EGGROLL makes that cheap, but each member is still one sequence (<a href="https://qlabs.sh/research/dust#:~:text=the%20population%20is%20bounded%20by%20the%20forward%20passes%20one%20can%20afford" target="_blank" rel="noopener noreferrer">in the article</a>). Activation noise alone does not fix it: on a sequence it is a T&times;d<sub>out</sub> tensor, as large as the weights once T &ge; d<sub>in</sub> (<a href="https://qlabs.sh/research/dust#:~:text=Naively%2C%20the%20dimensionality%20argument%20doesn%E2%80%99t%20hold" target="_blank" rel="noopener noreferrer">in the article</a>). What fixes it is <span class="du-d">rewarding each token by its own loss change</span>: then only d<sub>out</sub> dimensions sit behind each reward, and a 2,048-token sequence is 2,048 trials, the post's "virtual population" (<a href="https://qlabs.sh/research/dust#:~:text=We%20call%20this%20a%20virtual%20population." target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>The toy beside this runs all three on one small layer</b>, the two activation variants on identical noise so only the credit differs.</p>
+<details class="du-pred"><summary>Predict before you move the slider: at 64 forward passes, which estimate points closest to the exact gradient, and which is worst?</summary>
+<p>Per-token credit, by far (cosine 0.82 at width 32, mean of 8 seeds); weight noise second (0.33); activation noise with one batch reward worst (0.19), since it hides 64&times;32 = 2,048 dimensions behind each reward, more than the layer's 512 weights: the post's "naive" case.</p></details>
+<p><b>Each curve follows the law the post fits to its transformer, cos(K) = c<sub>max</sub>/&radic;(1 + c/K)</b>, with c close to the noise dimensions behind each reward: d<sub>out</sub>, d<sub>in</sub>&times;d<sub>out</sub> or T&times;d<sub>out</sub>. So per-token credit needs about 18 times fewer forward passes than weight noise here, at every width (d<sub>in</sub> is 16): the factors Werfel, Xie and Seung derived for linear networks, node perturbation slower than gradient descent by the number of outputs and weight perturbation slower again by the number of inputs (<a href="https://doi.org/10.1162/089976605774320539" target="_blank" rel="noopener noreferrer">Werfel et al. 2005</a>). The toy lands on them independently, from random weights and data.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-toy">
+<div class="t">Per-token credit reaches a good direction with about 18 times fewer forward passes than weight noise</div>
+<div class="du-ctl"><span>Layer width</span><div class="seg" id="du-toy-w" role="group" aria-label="Layer width"><button data-m="8">8</button><button data-m="32" class="on">32</button><button data-m="128">128</button></div></div>
+<div class="du-ctl"><label for="du-toy-k">Forward passes K</label><input type="range" id="du-toy-k" min="0" max="12" step="1" value="0" aria-label="Forward passes per estimate, as a power of two"><span id="du-toy-kv"></span></div>
+<div class="du-svg" id="du-toy-svg"></div>
+<div class="wp-toyout" id="du-toy-out"></div>
+<div class="du-ctl"><button class="du-btn" id="du-toy-run" type="button">Recompute seed 1 in this browser</button><span id="du-toy-live" class="small"></span></div>
+<figcaption>16 inputs, a tanh hidden layer of the chosen width, 8 classes, 64 random tokens; the estimate is the first layer's weight gradient; one draw is one forward pass. Lines: mean cosine to the exact gradient over 8 seeds; dashed: the law with c<sub>max</sub> = 1 fitted to each (c in the readout). &sigma; = 0.01; estimates centre on the clean loss, Dust on the mean over draws. The button reruns seed 1 here (squares). Same code in node, checked against an independent Python port (largest difference 5&times;10<sup>&minus;7</sup>).</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-tune"><h2>What an update costs: thousands of forward passes</h2>
+<a href="https://qlabs.sh/research/dust#interference-and-tuning" target="_blank" rel="noopener noreferrer" class="where">2.3 Interference and Tuning</a>
+<p><b>At an affordable population the problem is interference:</b> every jitter in a pass moves every token's loss, so each reward also carries everyone else's noise (<a href="https://qlabs.sh/research/dust#:~:text=the%20main%20cost%20is%20interference" target="_blank" rel="noopener noreferrer">in the article</a>). So each layer type and block gets its own passes, reusing the cached clean forward (a draw at block l reruns blocks l onward); attention internals are scored by how they move the block's attention output against its estimated error; the head is jittered on cached logits. Noise scales, credit decay (&gamma; 0.98 to 0.99 for keys, values, gates and value embeddings, 0 elsewhere) and the draw split were tuned once and largely carried across budgets (<a href="https://qlabs.sh/research/dust#:~:text=the%20tuning%20is%20mostly%20a%20one%2Dtime%20cost" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Counting compute from Appendix E's allocation gives about 14,700 forward passes' worth per update at 16,384 draws</b>, against about three for backprop: a draw averages 0.89 of a forward pass, because the draws concentrate on the first blocks. That is about 19 times backprop's compute at 64 draws and 4,900 times at 16,384. The post reports no FLOPs or times; the lab's later benchmark timed the 10M-token run at 1 h 19 min on eight H100s, where backprop needs about 2&times;10<sup>15</sup> FLOP, seconds on one GPU.</p>
+<details class="mist"><summary>How the compute was counted</summary><div class="b">
+<p>Multiply-adds per token of the base model (Appendix A: 8 blocks of width 512, MLP 2,048, vocabulary 4,096, 2,048 tokens, a 1,024-token window in three blocks of four): 3.93M per windowed block, 4.19M per full-attention block, 2.10M for the head, 34.1M for a forward pass. A draw at block l reruns blocks l to 8 and the head; an attention-internal draw reruns only its block's attention; a token-embedding draw reruns everything. With Table 4's draws per block at 1M and 10M tokens (writers and MLP hidden layer 2,432, 2,048, 1,024, 640, 384, 256, 128, 128 each; attention outputs 384, 384, 256, then 128) and Table 3's counts, one update at K = 16,384 costs 14,659 forward-equivalents. The head's 65,536 slab draws on cached logits are left out (under 0.1% even if each rescored the full vocabulary). Backprop: 3 forward-equivalents (a backward pass costs about two forwards). Ratio: 4,886. Smaller populations scale every count by K/16,384. A calculation in <code>src/recompute.py</code>, not a measurement; it ignores that reruns are batched (more efficient than a lone forward) and the clean forward per GPU. The Noise timing is consistent with it: 14,659 &times; 610 updates &times; 16,384 tokens &times; 68M FLOP is about 1.0&times;10<sup>19</sup> FLOP, which in 1 h 19 min on eight H100s is about 30% of their dense bf16 peak.</p>
+</div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-cost">
+<div class="t">One Dust update costs 19 to 4,900 backprop updates; weight-space ES would need far more</div>
+<div class="du-svg" id="du-cost-svg"></div>
+<figcaption>Forward-pass equivalents per update, log scale. Violet: Dust at each population (calculated from Appendix E; 57, 229, 916, 3,665 and 14,659). Dark bar: backprop, about 3. Grey range: what EGGROLL-Transformer would spend per update to match Dust's 64-draw loss, 64 times the multiples in Appendix D's Table 2 (3,100 to 23,000), one forward pass each: about 200,000 to 1.5 million.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-res"><h2>Results: below backprop over the first 61 updates, behind it after</h2>
+<a href="https://qlabs.sh/research/dust#main-results" target="_blank" rel="noopener noreferrer" class="where">3.2 Main Results</a>
+<p><b>The setup:</b> a 37.7M-parameter GPT (8 layers, width 512) on FineWeb, batch 16,384 tokens, one epoch, SGD with momentum at a constant learning rate, three seeds per cell, every method tuned at every budget (<a href="https://qlabs.sh/research/dust#:~:text=SGD%20with%20momentum%20at%20a%20constant%20learning%20rate" target="_blank" rel="noopener noreferrer">in the article</a>). The budgets, 100k to 20M tokens, are 6 to 1,221 updates.</p>
+<p><b>At 100k and 1M tokens Dust ends below backprop</b> (7.170 against 7.216, 5.916 against 5.959, at 16,384 draws); <b>at 10M and 20M above</b> (5.049 against 4.989, 4.802 against 4.633). At 20M the post reads a power-law limit, 4.431 (95% interval 3.89 to 4.58), as evidence the gap keeps closing, while calling the fit loosely constrained (<a href="https://qlabs.sh/research/dust#:~:text=we%20read%20it%20as%20evidence%20that%20the%20gap%20keeps%20closing" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Under Adam, at 1M tokens only, Dust stays just above backprop</b> (5.368 at 65,536 draws against 5.361); only the fitted limit, 5.248, is below (<a href="https://qlabs.sh/research/dust#:~:text=Dust%20closes%20on%20backprop%20with%20a%20large%20population" target="_blank" rel="noopener noreferrer">in the article</a>). Adam improves backprop by 0.60 there, so the SGD baseline is far from backprop's best. The lab's benchmark a week later: Dust 0.05 behind with SGD at 10M tokens, 0.40 behind with Adam.</p>
+<details class="mist"><summary>Table 1: every test loss (three-seed means)</summary><div class="b"><div class="du-scroll" id="du-t1"></div></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-gap">
+<div class="t">The gap to backprop opens as training lengthens, and wider once backprop gets Adam</div>
+<div class="du-svg" id="du-gap-svg"></div>
+<figcaption>Dust's loss minus backprop's under the same optimiser (the 0 line is backprop; below it, Dust is better). Violet: SGD, Table 1, test loss, 16,384 draws (filled; &minus;0.046, &minus;0.043, +0.060, +0.169) and 64 draws (open; +0.024, +0.331, +0.408, +0.632). Square: Adam at 1M, best measured (65,536 draws, +0.007). Dark: the lab's Noise benchmark at 10M tokens, validation loss, one run each: SGD +0.051, Adam +0.398. EGGROLL at 16k sits off the chart (+0.047, +0.749, +1.044, +1.232).</figcaption>
+</figure></div></div></div>
+
+<section id="s-egg"><h2>"10<sup>3</sup> to 10<sup>4</sup> times more efficient" is an extrapolated population ratio</h2>
+<a href="https://qlabs.sh/research/dust#main-results" target="_blank" rel="noopener noreferrer" class="where">3.2 Main Results</a>
+<p><b>It compares populations at equal loss, and it is extrapolated.</b> The authors' EGGROLL-Transformer at 16,384 passes never reaches Dust at 64 draws (within 0.02 at 100k tokens, 0.4 to 0.6 behind beyond; <a href="https://qlabs.sh/research/dust#:~:text=With%20256%20times%20the%20population" target="_blank" rel="noopener noreferrer">in the article</a>); extending its still-falling curve with three kinds of fit gives 3,000 to 23,000 times 64, and one leave-one-out refit never matches at 1M (Appendix D). Per member the comparison favours EGGROLL, since from 256 draws up a Dust draw costs less than its forward pass (<a href="https://qlabs.sh/research/dust#:~:text=so%20the%20comparison%20is%20lenient%20to%20EGGROLL" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>The size of the ratio is what theory predicts.</b> Node perturbation beats full-rank weight noise by about d<sub>in</sub> per layer, here 512 to 2,048, so a ratio in the thousands confirms that argument at transformer scale more than it reveals a new effect (low-rank noise changes the constant, not the order). It is also against the authors' own port of EGGROLL, not the EGGROLL paper's code.</p>
+<details class="mist"><summary>Appendix D, Table 2: EGGROLL's population to match Dust at 64 draws, as a multiple of 64</summary><div class="b"><div class="du-scroll" id="du-t2"></div></div></details>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-size"><h2>Model size: bigger Dust models reach lower loss, but fall further behind backprop</h2>
+<a href="https://qlabs.sh/research/dust#overparameterization" target="_blank" rel="noopener noreferrer" class="where">4.1 Overparameterization</a>
+<p><b>Zeroth-order methods are expected to fail on large networks</b>, since one reward per pass must cover more perturbed dimensions (<a href="https://qlabs.sh/research/dust#:~:text=the%20variance%20of%20the%20gradient%20estimate%20grows%20with%20the%20number%20of%20perturbed%20dimensions" target="_blank" rel="noopener noreferrer">in the article</a>). The post trains four sizes, 2.0M to 243M parameters, at 10M tokens. <b>Among Dust runs bigger is usually better:</b> from 256 draws up the loss falls from 2M to 38M parameters, 243M is slightly worse, and past 1k draws the larger models gain about 30% more from population (<a href="https://qlabs.sh/research/dust#:~:text=Bigger%20models%20are%20often%20more%20population%2Defficient%2C%20not%20less" target="_blank" rel="noopener noreferrer">in the article</a>).</p>
+<p><b>Against backprop at the same size the picture reverses</b>, which the post mentions in one sentence (<a href="https://qlabs.sh/research/dust#:~:text=the%20gap%20to%20backprop%20at%20the%20same%20population%20and%20model%20size%20increases" target="_blank" rel="noopener noreferrer">in the article</a>): at every population the largest model trails its backprop most (0.67 at 64 draws, 0.04 at 16k; the smallest 0.53 and &minus;0.01). And 10M tokens starves 243M parameters even under backprop (5.048, worse than 38M's 5.015), so this cannot show how Dust does where a large model pays off. Per-token noise grows with width, not parameter count, which may keep the decline gentle. These runs used an earlier protocol (Appendix F).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-size">
+<div class="t">At every population the largest model trails its own backprop the most</div>
+<div class="du-svg" id="du-size-svg"></div>
+<figcaption>Dust's test loss minus backprop's for the same model size, against population, at 10M tokens (Figure 4's cells, our subtraction). At 64 draws: 2.0M +0.525, 7.3M +0.490, 38M +0.543, 243M +0.671; at 16,384: &minus;0.009, &minus;0.001, +0.021, +0.038. Backprop per size: 5.180, 5.066, 5.015, 5.048.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-cos"><h2>Backprop-like gradients: cosines that rise with population, measured on backprop's checkpoints</h2>
+<a href="https://qlabs.sh/research/dust#emergence-of-backprop-like-gradients" target="_blank" rel="noopener noreferrer" class="where">4.2 Emergence of Backprop-Like Gradients</a>
+<p><b>The post measures the cosine between Dust's estimate and the exact gradient, per layer type, at populations 64 to 128k</b>, on checkpoints <i>backprop</i> trained to 10M, 100M and 1B tokens, and fits cos(K) = c<sub>max</sub>/&radic;(1 + c/K) to each (RMSE 0.003 to 0.037 at 100M; <a href="https://qlabs.sh/research/dust#:~:text=on%20backprop%2Dtrained%20checkpoints%20spanning%20two%20orders%20of%20magnitude" target="_blank" rel="noopener noreferrer">in the article</a>). The curves barely move from 10M to 1B tokens, which it calls encouraging for scaling. EGGROLL's estimate stays below 0.05 at 128k for every type but the head.</p>
+<p><b>At the training population the cosines are moderate</b> (beside this): about 0.5 for MLP and attention outputs and the token embedding, 0.16 for keys, 0.98 for the head. Several ceilings sit below 1 (0.67 for value gates): those estimates are biased, consistent with interference and decayed credit. The post calls this a good property, a different trajectory that "can even be better" (<a href="https://qlabs.sh/research/dust#:~:text=in%20fact%20a%20good%20property" target="_blank" rel="noopener noreferrer">in the article</a>); the evidence for better is the 100k and 1M results. And "up to 1B tokens" is a measurement on backprop's weights; Dust's longest run is 20M tokens.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-cos">
+<div class="t">At the training population, most layer types get about half of backprop's direction</div>
+<div class="du-svg" id="du-cos-svg"></div>
+<figcaption>Cosine at K = 16,384 (bar) and the fitted ceiling (tick) on the 100M-token backprop checkpoint, calculated from Appendix G: MLP out 0.51 (ceiling 0.88), MLP in 0.43 (0.86), attention out 0.57 (0.87), query 0.42 (1.00), key 0.16 (1.00), value 0.26 (0.88), value gate 0.34 (0.67), value embedding 0.18 (1.00), token embedding 0.49 (0.73), head 0.98 (1.00). Right: c, the population reaching 71% of the ceiling.</figcaption>
+</figure></div></div></div>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up:</b></p>
+<ul>
+<li><b>The mechanism is simple, standard and public</b> (MIT code). The toy here reproduces its core argument independently: per-token credit needs about d<sub>in</sub> times fewer passes than weight noise.</li>
+<li><b>The lead over weight-space ES is measured</b>: EGGROLL-Transformer at 16k passes never reaches Dust at 64 draws from 1M tokens up; only the size of the multiple is extrapolated.</li>
+<li><b>The protocol is careful for a blog post:</b> three seeds per cell, every cell tuned on a stated grid with stated rejection rules, backprop on the same grid (Appendix F). The authors call the 20M limit loosely constrained and say Dust needs "orders of magnitude more compute efficiency". Both count in their favour.</li>
+</ul>
+<p><b>Where it is weaker:</b></p>
+<ul>
+<li><b>"Competitive with backprop" rests on short runs against constant-rate SGD.</b> The measured wins are at 6 and 61 updates; under Adam no measured point is below backprop, and the lab's own benchmark puts Dust 0.40 behind at 10M tokens. A challenger's gain shrinking against a stronger baseline is the familiar pattern (<a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers and learning-rate schedulers</a>).</li>
+<li><b>The trend runs the wrong way.</b> At 16k draws the gap goes from &minus;0.04 to +0.17 between 61 and 1,221 updates. The one sub-backprop number at 20M is a limit through a still-falling ladder whose top cell alone had an extra tuning campaign (<a href="https://qlabs.sh/research/dust/appendix.html#tuning" target="_blank" rel="noopener noreferrer">Appendix F</a>).</li>
+<li><b>Compute is never reported.</b> By our count an update costs 19 to 4,900 backprop updates, and the wins are at 4,900. At equal compute backprop is not close.</li>
+<li><b>The scale is small:</b> 37.7M parameters and 20M tokens at most; 243M only at 10M tokens, data-starved, with the largest gap.</li>
+<li><b>Little is checkable from the release:</b> the repository is a minimal version for two budgets, with no logs, results, EGGROLL port, Adam runs or cosine code.</li>
+</ul>
+<p class="box"><b class="lab">Verdict</b>Believe that per-token node perturbation gives far better gradient estimates per forward pass than weight-space ES, and that with tens of thousands of draws it trains a small transformer about as well as constant-rate SGD backprop over a short run. Do not read it as matching backprop in general: the gap opens with training and with Adam, an update costs thousands of backprop updates, and nothing here exceeds 243M parameters or 20M training tokens.</p>
+
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p class="small">Hacker News: 280 points and 82 comments (read 27 November 2026), mostly on whether derivative-free optimisation can matter and on the brain. No independent replication or measured rebuttal was found by 27 November; the repository's two open issues are questions.</p>
+<ul class="wp-resp">
+<li><span class="kind">author&#x27;s reply</span><a href="https://news.ycombinator.com/item?id=49973430" target="_blank" rel="noopener noreferrer">Hacker News: parallel along depth, and less memory</a><div class="by">SerdarGl (co-author Serdar Gülbahar) and nbutton762, Hacker News, 5 October 2026</div><p>The co-author&#x27;s one reply: at massive scale zeroth-order methods &quot;will parallelize better than backprop especially along depth&quot; (pipelines without bubbles). Another commenter adds that Dust stores only each layer&#x27;s inputs. Neither is measured in the post.</p></li>
+<li><span class="kind">discussion</span><a href="https://news.ycombinator.com/item?id=49974026" target="_blank" rel="noopener noreferrer">Hacker News: the gradient tells you where to go</a><div class="by">blt and okintheory, Hacker News, 6 October 2026</div><p>The top comment bets no derivative-free optimiser will matter for neural networks: their objectives are smooth, and the gradient&#x27;s edge over random directions grows with the parameter count. A reply notes the gradient-free complexity gap it cites is textbook, not new. Neither engages with per-token credit.</p></li>
+<li><span class="kind">discussion</span><a href="https://news.ycombinator.com/item?id=49974575" target="_blank" rel="noopener noreferrer">Hacker News: is this a bitter-lesson method at all?</a><div class="by">syntacticsalt, Hacker News, 6 October 2026</div><p>Argues that zeroth-order estimates smooth the loss without addressing non-convexity, that the post never discusses convexity, and that better first-order methods will keep the lead wherever gradients exist.</p></li>
+<li><span class="kind">critique</span><a href="https://braindetox.kr/en/posts/dust_backprop_free_transformer_pretraining_2026.html" target="_blank" rel="noopener noreferrer">How to read the claim that Dust trained without backpropagation</a><div class="by">BrainDetox, 6 October 2026</div><p>The one careful outside reading: it counts the updates (about 6, 61, 610, 1,221), tabulates Dust minus backprop (-0.046, -0.043, +0.060, +0.169), notes every measured Adam point sits above backprop (best 5.368 against 5.361), and finds no compute or wall-clock figures.</p></li>
+<li><span class="kind">press</span><a href="https://www.stork.ai/blog/the-backprop-breakthrough-with-a-massive-catch" target="_blank" rel="noopener noreferrer">The backprop breakthrough with a massive catch</a><div class="by">Stork.ai editorial team, 10 October 2026</div><p>The catch is compute: token-level parallelism reallocates GPU-hours rather than saving them. Every number is the post&#x27;s own; its body (&quot;surpassed tuned backpropagation&quot;) is stronger than its own FAQ (&quot;in some short training runs&quot;).</p></li>
+<li><span class="kind">authors&#x27; follow-up</span><a href="https://github.com/qlabs-eng/noise/blob/main/archive/10M/README.md" target="_blank" rel="noopener noreferrer">Noise: a speedrun for pretraining without backpropagation</a><div class="by">Q Labs (Gülbahar, Mandal, Vegesna, Dahal), 12 October 2026</div><p>A week later the authors benchmarked the 10M-token setting with both optimisers (validation loss, one run each, 8xH100): Dust with SGD 5.058 in 1 h 19 min against backprop&#x27;s 5.007; with Adam 4.167 against 3.769. Their summary: Dust &quot;rivals backprop under SGD&quot; but &quot;still trails backprop under Adam&quot;.</p></li>
+</ul>
+
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d817e9892e01088179c93" target="_blank" rel="noopener noreferrer">Matrix calculus and backprop</a> says reverse mode wins because its cost does not grow with the number of weights. It gains the third option this post scales up: estimate each layer's output error from forward passes (node perturbation, per-token credit) and keep the outer product; the cost grows with the population instead, about 0.3K backprop updates here, and Werfel et al.'s factors give the scaling.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers and learning-rate schedulers</a> gains a clean case for its evidence section: a method level with SGD backprop at 10M tokens (+0.05) and 0.40 behind once both use Adam (Noise benchmark).</li>
+<li><a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a> can note that the score-function estimator with a baseline, applied per token to a layer's activations, is how Dust trains a transformer without a backward pass.</li>
+</ul>
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026)</summary><div class="b">
+<ul><li><a href="https://github.com/qlabs-eng/noise/blob/main/archive/10M/README.md" target="_blank" rel="noopener noreferrer">Noise records at 10M tokens (archived)</a> (22 October 2026): In ten days outside entrants took the validation-loss track from 4.167 (Dust with Adam) to 3.676, past backprop with Adam (3.769), and the speedrun to loss 4.2 from 1 h 46 min to 1.6 s. The fast entries replace Dust&#x27;s random draws with structured probes (a Hadamard cycle measuring every neuron&#x27;s credit at every token; credit handed down from the top of the network), allowed because a measured error may take one step through a nonlinearity: Dust&#x27;s successors, not Dust.</li><li><a href="https://github.com/qlabs-eng/noise" target="_blank" rel="noopener noreferrer">Noise at 30M tokens</a> (25 November 2026): From 22 October the benchmark trains on 30M tokens. Dust with Adam at 24k draws scores 3.767 in 5 h 17 min against backprop with Adam&#x27;s 3.419; the best forward-only entry, 3.300, is below that, though backprop with a stronger optimiser (ANVIL II) scores 3.340. One run each, scored by the repository&#x27;s own script.</li><li><a href="https://explainx.ai/blog/q-labs-dust-noise-pretrain-transformers-without-backpropagation-4000x-claim-verified-2026" target="_blank" rel="noopener noreferrer">Q Labs Dust and Noise: is the 4,000x claim verified?</a> (22 October 2026): Checks the viral &quot;4,000x faster&quot; figure: the arithmetic holds (1.76 h to 1.6 s), but it is a community speedrun to a loose target (4.2, where backprop with Adam reaches 3.769), and &quot;the fast entries are not Dust as published&quot;.</li></ul>
+
+</div></details>
+<details class="mist"><summary>How this page checked its numbers</summary><div class="b">
+<p>The post's text is unchanged since its first archived copy (5 October 2026, 21:21 UTC, six minutes after the Hacker News submission): four distinct archived copies from 5 to 9 October extract to the same text; only a site label was added. Table 1, Table 2 and Table 8 are transcribed from the appendix; Figure 3's and Figure 4's values from the figures' own data attributes. <code>src/recompute.py</code> derives every gap, update count, cosine at 16k and the compute count from them. The toy's code (<code>parts/22_js_du_toy_core.js</code>) wrote the recorded curves in node (<code>src/toy/record.mjs</code>); <code>src/toy/toy_port.py</code>, an independent numpy port with its own copy of the generator, recomputes seed 1 at widths 8 and 32 and agrees to 5&times;10<sup>&minus;7</sup>; <code>src/check_page.mjs</code> also reruns the toy in the browser and compares. The author's code was read, not run.</p>
+</div></details>
+</section>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden><section id="s-more">
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab; links checked 27 November 2026. Reading time of the resources below: 5h 07m.</p>
+<h3>The article</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://qlabs.sh/research/dust" target="_blank" rel="noopener noreferrer">Dust: Pretraining Transformers Without Backpropagation</a></div><p><span class="mute">Samip Dahal, Bishwas Mandal, Serdar Gülbahar, Akshay Vegesna (Q Labs):</span> The post itself (Q Labs Research (qlabs.sh), published 5 October 2026). Sections 2 (Method) and 3.2 (Main Results) carry the argument; the appendix (about 11 minutes) holds Table 1 with every loss, the extrapolation behind the 10^3 to 10^4 claim, the draw allocation and the tuning protocol.</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/qlabs-eng/dust" target="_blank" rel="noopener noreferrer">qlabs-eng/dust, MIT</a></div><p><span class="mute">the authors:</span> Created 2 October, last commit 6 October 2026 (b20f7c0): dust.py (the estimator with its tuned per-population allocations and the training loop), model.py, a backprop SGD baseline, data preparation and the BPE-4096 tokenizer. A minimal version that &quot;omits execution optimizations used in the full experiments&quot;, for the 1M and 10M budgets at 256 to 16,384 draws on one to eight GPUs. No logs, checkpoints or result files, and no code for EGGROLL, Adam, the model-size study or the cosine measurements. Two open issues on 27 November, neither answered.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49970871" target="_blank" rel="noopener noreferrer">Hacker News: Dust: Pretraining Transformers Without Backpropagation</a></div><p>280 points, 82 comments (read 27 November 2026), submitted 5 October 2026.</p><p class="rt">(25 min)</p></div>
+</div><h3>Responses, in date order</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49973430" target="_blank" rel="noopener noreferrer">Hacker News: parallel along depth, and less memory</a></div><p><span class="mute">SerdarGl (co-author Serdar Gülbahar) and nbutton762, Hacker News, 5 October 2026, author&#x27;s reply:</span> The co-author&#x27;s one reply: at massive scale zeroth-order methods &quot;will parallelize better than backprop especially along depth&quot; (pipelines without bubbles). Another commenter adds that Dust stores only each layer&#x27;s inputs. Neither is measured in the post.</p><p class="rt">(2 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49974026" target="_blank" rel="noopener noreferrer">Hacker News: the gradient tells you where to go</a></div><p><span class="mute">blt and okintheory, Hacker News, 6 October 2026, discussion:</span> The top comment bets no derivative-free optimiser will matter for neural networks: their objectives are smooth, and the gradient&#x27;s edge over random directions grows with the parameter count. A reply notes the gradient-free complexity gap it cites is textbook, not new. Neither engages with per-token credit.</p><p class="rt">(3 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=49974575" target="_blank" rel="noopener noreferrer">Hacker News: is this a bitter-lesson method at all?</a></div><p><span class="mute">syntacticsalt, Hacker News, 6 October 2026, discussion:</span> Argues that zeroth-order estimates smooth the loss without addressing non-convexity, that the post never discusses convexity, and that better first-order methods will keep the lead wherever gradients exist.</p><p class="rt">(3 min)</p></div>
+<div class="sp"><div class="n"><a href="https://braindetox.kr/en/posts/dust_backprop_free_transformer_pretraining_2026.html" target="_blank" rel="noopener noreferrer">How to read the claim that Dust trained without backpropagation</a></div><p><span class="mute">BrainDetox, 6 October 2026, critique:</span> The one careful outside reading: it counts the updates (about 6, 61, 610, 1,221), tabulates Dust minus backprop (-0.046, -0.043, +0.060, +0.169), notes every measured Adam point sits above backprop (best 5.368 against 5.361), and finds no compute or wall-clock figures.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://www.stork.ai/blog/the-backprop-breakthrough-with-a-massive-catch" target="_blank" rel="noopener noreferrer">The backprop breakthrough with a massive catch</a></div><p><span class="mute">Stork.ai editorial team, 10 October 2026, press:</span> The catch is compute: token-level parallelism reallocates GPU-hours rather than saving them. Every number is the post&#x27;s own; its body (&quot;surpassed tuned backpropagation&quot;) is stronger than its own FAQ (&quot;in some short training runs&quot;).</p><p class="rt">(6 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/qlabs-eng/noise/blob/main/archive/10M/README.md" target="_blank" rel="noopener noreferrer">Noise: a speedrun for pretraining without backpropagation</a></div><p><span class="mute">Q Labs (Gülbahar, Mandal, Vegesna, Dahal), 12 October 2026, authors&#x27; follow-up:</span> A week later the authors benchmarked the 10M-token setting with both optimisers (validation loss, one run each, 8xH100): Dust with SGD 5.058 in 1 h 19 min against backprop&#x27;s 5.007; with Adam 4.167 against 3.769. Their summary: Dust &quot;rivals backprop under SGD&quot; but &quot;still trails backprop under Adam&quot;.</p><p class="rt">(10 min)</p></div>
+</div><h3>Since the article (follow-ups, checked 27 November 2026)</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/qlabs-eng/noise/blob/main/archive/10M/README.md" target="_blank" rel="noopener noreferrer">Noise records at 10M tokens (archived)</a></div><p><span class="mute">22 October 2026:</span> In ten days outside entrants took the validation-loss track from 4.167 (Dust with Adam) to 3.676, past backprop with Adam (3.769), and the speedrun to loss 4.2 from 1 h 46 min to 1.6 s. The fast entries replace Dust&#x27;s random draws with structured probes (a Hadamard cycle measuring every neuron&#x27;s credit at every token; credit handed down from the top of the network), allowed because a measured error may take one step through a nonlinearity: Dust&#x27;s successors, not Dust.</p><p class="rt">(10 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/qlabs-eng/noise" target="_blank" rel="noopener noreferrer">Noise at 30M tokens</a></div><p><span class="mute">25 November 2026:</span> From 22 October the benchmark trains on 30M tokens. Dust with Adam at 24k draws scores 3.767 in 5 h 17 min against backprop with Adam&#x27;s 3.419; the best forward-only entry, 3.300, is below that, though backprop with a stronger optimiser (ANVIL II) scores 3.340. One run each, scored by the repository&#x27;s own script.</p><p class="rt">(10 min)</p></div>
+<div class="sp"><div class="n"><a href="https://explainx.ai/blog/q-labs-dust-noise-pretrain-transformers-without-backpropagation-4000x-claim-verified-2026" target="_blank" rel="noopener noreferrer">Q Labs Dust and Noise: is the 4,000x claim verified?</a></div><p><span class="mute">22 October 2026:</span> Checks the viral &quot;4,000x faster&quot; figure: the arithmetic holds (1.76 h to 1.6 s), but it is a community speedrun to a loose target (4.2, where backprop with Adam reaches 3.769), and &quot;the fast entries are not Dust as published&quot;.</p><p class="rt">(8 min)</p></div>
+</div><h3>What it rests on</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2511.16652" target="_blank" rel="noopener noreferrer">Evolution strategies at the hyperscale (EGGROLL)</a></div><p><span class="mute">Sarkar et al., arXiv 2511.16652:</span> The weight-space baseline: low-rank weight perturbations that make large populations cheap on GPUs. The post re-implements it on its own transformer (EGGROLL-Transformer) rather than running the paper&#x27;s code.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://proceedings.neurips.cc/paper_files/paper/2003/hash/f8b932c70d0b2e6bf071729a4fa68dfc-Abstract.html" target="_blank" rel="noopener noreferrer">Learning curves for stochastic gradient descent in linear feedforward networks</a></div><p><span class="mute">Werfel, Xie and Seung, NeurIPS 2003:</span> Node perturbation against weight perturbation and backprop on linear networks: the journal version (Neural Computation, 2005) states that node perturbation learns slower than gradient descent by a factor of the number of output units, and weight perturbation slower again by the number of input units; the toy on this page lands on both factors.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1703.03864" target="_blank" rel="noopener noreferrer">Evolution strategies as a scalable alternative to reinforcement learning</a></div><p><span class="mute">Salimans, Ho, Chen, Sidor and Sutskever, arXiv 1703.03864:</span> The modern weight-space ES recipe (antithetic Gaussian perturbations, fitness shaping, a shared seed so workers exchange only scalars) that EGGROLL scales up.</p><p class="rt">(25 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2305.17333" target="_blank" rel="noopener noreferrer">Fine-tuning language models with just forward passes (MeZO)</a></div><p><span class="mute">Malladi et al., NeurIPS 2023:</span> The best-known zeroth-order result for language models: fine-tuning, not pretraining, with one random weight direction per step and memory close to inference.</p><p class="rt">(35 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2210.03310" target="_blank" rel="noopener noreferrer">Scaling forward gradient with local losses</a></div><p><span class="mute">Ren, Kornblith, Liao and Hinton, ICLR 2023:</span> Activation perturbation with forward-mode derivatives and local losses to cut the estimator&#x27;s variance; the closest earlier attempt to make perturbation scale with width.</p><p class="rt">(35 min)</p></div>
+</div><h3>In this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d817e9892e01088179c93" target="_blank" rel="noopener noreferrer">Matrix calculus and backprop</a></div><p>Owns the outer product Dust reuses (a weight gradient is the arriving error times the stored input), forward against reverse mode, and why a backward pass costs about two forwards.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers and learning-rate schedulers</a></div><p>Owns SGD with momentum, Adam and the evidence that a challenger&#x27;s gain shrinks against a tuned baseline: the lens for Dust&#x27;s SGD-only headline.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a></div><p>Owns the score-function estimator: reward times noise over sigma is REINFORCE for a Gaussian policy, with a baseline to cut variance.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814f82cffd0d5c0dd5ba" target="_blank" rel="noopener noreferrer">Pretraining</a></div><p>Where real pretraining budgets sit: Dust&#x27;s largest run, 20M tokens, is about one ten-thousandth of a small modern pretraining run.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4255c17b0d0d8184806ec432efac7550" target="_blank" rel="noopener noreferrer">GPT-6 Astra, Looped Transformers, and Hidden Reasoning</a></div><p>An article on looped transformers, the kind of model the post names as a future use: recurrence that backpropagation through time struggles to train.</p></div>
+</div><p class="small mute">This page is one of the <a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a>: articles worth a page of their own, each with its argument, its evidence judged and what others replied.</p>
+</section></div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){if(/ResizeObserver loop/.test(e.message||""))return;window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* _gen_data.js */
+// Generated by mk_article.py from article.json (and DATA_EXTRA); do not edit by hand.
+window.ARTICLE={"title":"Dust: Pretraining Transformers Without Backpropagation","url":"https://qlabs.sh/research/dust","published":"2026-10-05","fetched":"2026-11-27","fig":{"budgets":["100k","1M","10M","20M"],"steps":{"100k":6,"1M":61,"10M":610,"20M":1221},"pops":[64,256,1024,4096,16384],"t1":{"dust":{"100k":[7.24,7.165,7.151,7.164,7.17],"1M":[6.29,6.067,5.934,5.911,5.916],"10M":[5.397,5.231,5.111,5.072,5.049],"20M":[5.265,5.139,4.96,4.912,4.802]},"dust_fit":{"100k":7.161,"1M":5.892,"10M":5.013,"20M":4.431},"egg":{"100k":[7.961,7.605,7.386,7.302,7.263],"1M":[7.428,7.2,7.046,6.892,6.708],"10M":[7.056,6.906,6.692,6.352,6.033],"20M":[6.987,6.811,6.517,6.2,5.865]},"bp":{"100k":7.216,"1M":5.959,"10M":4.989,"20M":4.633}},"adam":{"pops":[64,256,1024,4096,16384,65536],"dust":[6.078,5.836,5.594,5.5,5.402,5.368],"egg":[7.431,7.2,7.042,6.895,6.718],"bp":5.361,"limit":5.248,"ci":[5.168,5.304]},"sizes":{"names":["2.0M","7.3M","38M","243M"],"shape":["L2/d128","L4/d256","L8/d512","L16/d1024"],"dust":[[5.705,5.556,5.558,5.719],[5.486,5.362,5.358,5.419],[5.265,5.161,5.158,5.214],[5.189,5.095,5.053,5.124],[5.171,5.065,5.036,5.086]],"bp":[5.18,5.066,5.015,5.048]},"t8":[["MLP out",0.8779,31623],["MLP in",0.8577,48417],["Attention out",0.8729,21627],["Query",1.0,76736],["Key",1.0,616595],["Value",0.8776,173780],["Value gate",0.6657,47863],["Value embedding",1.0,495450],["Token embedding",0.7318,19498],["LM head",1.0,759]],"t2":[["Power law, all five populations","23,000","16,000","8,100"],["Power law, one population left out","11,000 to no match","7,200 to 54,000","4,700 to 17,000"],["Straight line in log population, top three","8,200","3,700","3,300"],["Straight line in log population, top two","6,000","4,100","3,100"]],"noise":{"dust_sgd":5.058,"dust_sgd_time":"1 h 19 min","dust_adam":4.167,"dust_adam_time":"1 h 46 min","bp_sgd":5.007,"bp_adam":3.769},"cost":{"fwd_mac_per_token":34081280,"per_update":14659,"per_draw":0.89,"x_bp":{"64":19,"256":76,"1024":305,"4096":1222,"16384":4886},"sites":[["Residual writers",5822,7040],["MLP hidden layer",5822,7040],["Attention output",1187,1664],["Token embedding",640,640],["Attention internals",1164,20992],["Residual scalars and clean forwards",24,24]]},"cos16":[["MLP out",0.51],["MLP in",0.43],["Attention out",0.57],["Query",0.42],["Key",0.16],["Value",0.26],["Value gate",0.34],["Value embedding",0.18],["Token embedding",0.49],["LM head",0.98]],"gap16":{"100k":-0.046,"1M":-0.043,"10M":0.06,"20M":0.169},"gap64":{"100k":0.024,"1M":0.331,"10M":0.408,"20M":0.632},"gapE":{"100k":0.047,"1M":0.749,"10M":1.044,"20M":1.232},"size_gap":[[0.525,0.49,0.543,0.671],[0.306,0.296,0.343,0.371],[0.085,0.095,0.143,0.166],[0.009,0.029,0.038,0.076],[-0.009,-0.001,0.021,0.038]],"noise_gap":{"sgd":0.051,"adam":0.398}},"toy":{"seeds":[1,2,3,4,5,6,7,8],"K":[1,2,4,8,16,32,64,128,256,512,1024,2048,4096],"T":64,"DIN":16,"C":8,"SIG":0.01,"widths":{"8":{"mean":{"w":[0.079318,0.098163,0.13845,0.203375,0.307532,0.418188,0.550615,0.691829,0.802513,0.889269,0.942054,0.969128,0.984191],"a1":[0.032425,0.042971,0.041099,0.143473,0.169022,0.212167,0.354747,0.448134,0.579866,0.712663,0.811139,0.891253,0.946906],"at":[0.326503,0.423608,0.549118,0.678675,0.793772,0.890066,0.94229,0.966797,0.983267,0.992048,0.995705,0.997972,0.999023]},"seed1":{"w":[0.006563,0.009966,0.109652,0.200929,0.254097,0.441922,0.508595,0.720435,0.828552,0.909684,0.940371,0.969232,0.983609],"a1":[0.011253,0.029073,0.013662,0.080722,0.161782,0.189001,0.328455,0.473472,0.633698,0.743186,0.818692,0.891164,0.943745],"at":[0.276847,0.420053,0.532771,0.631576,0.772992,0.877636,0.920237,0.962823,0.982962,0.991176,0.995581,0.99748,0.999041]},"fit":{"w":{"cmax":1,"c":152.266051},"a1":{"cmax":1,"c":460.492369},"at":{"cmax":1,"c":8.579967}}},"32":{"mean":{"w":[0.033791,0.051848,0.076162,0.109761,0.163322,0.243366,0.325342,0.435414,0.574576,0.70687,0.822233,0.89787,0.944495],"a1":[-0.003566,-0.015643,0.013885,0.040085,0.059662,0.118746,0.192326,0.260246,0.337242,0.460606,0.58701,0.707563,0.822658],"at":[0.190488,0.253546,0.342702,0.444848,0.576242,0.705475,0.815407,0.896517,0.943547,0.971112,0.985179,0.992232,0.996252]},"seed1":{"w":[0.03529,0.105851,0.134047,0.16638,0.206768,0.256189,0.317095,0.427966,0.572325,0.715567,0.822282,0.900082,0.942199],"a1":[0.008724,0.032388,0.039233,0.089374,0.044109,0.08678,0.194456,0.270755,0.35236,0.474011,0.592228,0.695677,0.786776],"at":[0.192734,0.243132,0.378177,0.455017,0.540341,0.670031,0.777309,0.887792,0.936648,0.967247,0.980555,0.990411,0.995338]},"fit":{"w":{"cmax":1,"c":540.353341},"a1":{"cmax":1,"c":1815.28783},"at":{"cmax":1,"c":29.492415}}},"128":{"mean":{"w":[0.011143,0.026254,0.043867,0.062018,0.088806,0.115437,0.162501,0.238046,0.330577,0.446342,0.577709,0.707503,0.814904],"a1":[0.009641,0.005223,0.022655,0.031056,0.050402,0.073224,0.099964,0.128627,0.184831,0.264365,0.354413,0.458511,0.592229],"at":[0.087908,0.134174,0.18487,0.255906,0.354244,0.474473,0.596496,0.718919,0.825049,0.903233,0.9476,0.973161,0.986148]},"seed1":{"w":[0.024233,0.048823,0.067076,0.071584,0.089625,0.133807,0.164957,0.244207,0.316614,0.439876,0.584366,0.707802,0.812524],"a1":[0.001943,-0.015143,0.003069,0.03482,0.038314,0.084277,0.094323,0.135122,0.202975,0.271144,0.352067,0.470061,0.597759],"at":[0.080203,0.11906,0.15668,0.268963,0.378569,0.501963,0.607593,0.730863,0.839049,0.91229,0.950672,0.976373,0.987629]},"fit":{"w":{"cmax":1,"c":2078.680408},"a1":{"cmax":1,"c":6923.534576},"at":{"cmax":1,"c":113.514124}}}},"tok0":{"exact":[-0.066258,0.110955,0.10431,-0.057815],"est":[[-0.280622,-0.561534,0.22207,-1.454406],[0.086313,-0.597122,-0.021896,-0.715363],[0.150963,-0.306522,0.089466,-0.365364],[0.080923,0.077339,0.097831,-0.151219],[-0.082107,-0.038691,-0.041737,-0.104525],[-0.243393,-0.028754,0.090582,-0.22034],[-0.163294,0.024138,0.138845,-0.15075],[-0.150956,0.054477,0.070768,-0.058268],[-0.147372,0.057191,0.09421,-0.062844],[-0.065009,0.040237,0.091192,-0.081887],[-0.073817,0.067451,0.099865,-0.057501],[-0.065074,0.090955,0.105905,-0.062755],[-0.062394,0.096689,0.096004,-0.059984]]}}};
+
+
+</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (2026-11-06),
+// pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (time on each step, default 3600 so its caption can be read), label, list (id of the ol.sx step list on the left), auto (false: a widget, never autoplays), start (the step it opens on)}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
+    // the step list on the left: one item per step, the current one marked, a click jumps to it (and stops autoplay)
+    function bindList(id){const L=id&&document.getElementById(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;(st.lis||[]).forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+      if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||3600)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3600)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    $('f').addEventListener('click',()=>{st.user=true;setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
+    $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
+    // o.auto===false makes it a widget the reader drives (the long-replay rule, case b): it never plays by itself
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    bindList(o.list);
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
+      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
+      go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||12)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+
+</script>
+<script>/* 22_js_du_toy_core.js */
+// ---- The toy's arithmetic (prefix du): three zeroth-order estimates of one layer's weight gradient against the exact one.
+// Runs in the page (window.DUT) and in node (src/toy/record.mjs loads this file to write the recorded curves);
+// src/toy/toy_port.py is an independent Python port that check_page.mjs compares against.
+// Network: x (16) -> h = W1 x (width H) -> tanh -> z = W2 tanh(h) (8 classes) -> cross-entropy, on T = 64 tokens.
+// The estimated gradient is dL/dW1 for L = the sum of the 64 token losses. One draw = one forward pass of the batch.
+//   'w'  weight-space ES: perturb W1 by sigma*E, reward = change in the batch loss, estimate = mean(reward*E)/sigma
+//   'a1' activation noise at every token, one reward per pass (the batch loss change), estimate g_t = mean(reward*a_t)/sigma
+//   'at' activation noise at every token, each token rewarded by its own loss change (Dust's per-token credit, gamma 0)
+// 'a1' and 'at' use the same noise: only the credit differs. Baselines are the clean loss (Dust centres on the mean over draws).
+(function(G){
+  function rng(seed){let a=seed>>>0;
+    const u=()=>{a=(a+0x6D2B79F5)>>>0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296};
+    return {u,n:()=>{const u1=1-u(),u2=u();return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)}}}
+  const DIN=16,C=8,T=64,SIG=0.01,KS=[1,2,4,8,16,32,64,128,256,512,1024,2048,4096];
+  function setup(H,seed){const r=rng(seed*1000+H);const X=[],Y=[],W1=[],W2=[];
+    for(let t=0;t<T;t++){const x=[];for(let i=0;i<DIN;i++)x.push(r.n());X.push(x);Y.push(Math.floor(r.u()*C))}
+    for(let j=0;j<H;j++){const w=[];for(let i=0;i<DIN;i++)w.push(r.n()/Math.sqrt(DIN));W1.push(w)}
+    for(let c=0;c<C;c++){const w=[];for(let j=0;j<H;j++)w.push(r.n()/Math.sqrt(H));W2.push(w)}
+    return {H,X,Y,W1,W2,r}}
+  function pre(W1,x,H){const h=new Float64Array(H);for(let j=0;j<H;j++){let s=0;const w=W1[j];for(let i=0;i<DIN;i++)s+=w[i]*x[i];h[j]=s}return h}
+  function lossFromH(W2,h,y,H){const a=new Float64Array(H);for(let j=0;j<H;j++)a[j]=Math.tanh(h[j]);
+    const z=new Float64Array(C);let m=-1e300;for(let c=0;c<C;c++){let s=0;const w=W2[c];for(let j=0;j<H;j++)s+=w[j]*a[j];z[c]=s;if(s>m)m=s}
+    let se=0;for(let c=0;c<C;c++)se+=Math.exp(z[c]-m);return {loss:m+Math.log(se)-z[y],a,z,m,se}}
+  // exact dL/dW1 (backprop by hand: dz = p - onehot, dh = W2^T dz * (1 - tanh^2), dW1 = sum_t dh_t x_t^T)
+  function exact(S){const {H,X,Y,W1,W2}=S,Gr=new Float64Array(H*DIN),Hs=[],L0=[];
+    for(let t=0;t<T;t++){const h=pre(W1,X[t],H);Hs.push(h);const f=lossFromH(W2,h,Y[t],H);L0.push(f.loss);
+      const dz=new Float64Array(C);for(let c=0;c<C;c++)dz[c]=Math.exp(f.z[c]-f.m)/f.se-(c===Y[t]?1:0);
+      for(let j=0;j<H;j++){let s=0;for(let c=0;c<C;c++)s+=W2[c][j]*dz[c];const d=s*(1-f.a[j]*f.a[j]);for(let i=0;i<DIN;i++)Gr[j*DIN+i]+=d*X[t][i]}}
+    return {G:Gr,Hs,L0}}
+  function cos(a,b){let ab=0,aa=0,bb=0;for(let i=0;i<a.length;i++){ab+=a[i]*b[i];aa+=a[i]*a[i];bb+=b[i]*b[i]}return aa>0&&bb>0?ab/Math.sqrt(aa*bb):0}
+  // one run: cosines of the three estimates at every K in KS (prefix sums of the same 4,096 draws); also a few entries of one token's estimate
+  function run(H,seed){const S=setup(H,seed),{X,Y,W1,W2}=S,E0=exact(S),Kmax=KS[KS.length-1],out={w:[],a1:[],at:[]};
+    const r=rng(seed*7919+H*31+1);
+    const L0sum=E0.L0.reduce((s,v)=>s+v,0);
+    const accW=new Float64Array(H*DIN),acc1=[],accT=[];for(let t=0;t<T;t++){acc1.push(new Float64Array(H));accT.push(new Float64Array(H))}
+    const tok=[];let ki=0;
+    for(let k=1;k<=Kmax;k++){
+      // weight-space draw: W1 + sigma E, one batch loss
+      const E=new Float64Array(H*DIN);for(let i=0;i<E.length;i++)E[i]=r.n();
+      const Wp=[];for(let j=0;j<H;j++){const w=[];for(let i=0;i<DIN;i++)w.push(W1[j][i]+SIG*E[j*DIN+i]);Wp.push(w)}
+      let Lw=0;for(let t=0;t<T;t++)Lw+=lossFromH(W2,pre(Wp,X[t],H),Y[t],H).loss;
+      const rw=Lw-L0sum;for(let i=0;i<E.length;i++)accW[i]+=rw*E[i];
+      // activation draw: h_t + sigma a_t at every token
+      const A=[],dl=new Float64Array(T);let Ls=0;
+      for(let t=0;t<T;t++){const a=new Float64Array(H),hp=new Float64Array(H);for(let j=0;j<H;j++){a[j]=r.n();hp[j]=E0.Hs[t][j]+SIG*a[j]}
+        A.push(a);const l=lossFromH(W2,hp,Y[t],H).loss;dl[t]=l-E0.L0[t];Ls+=dl[t]}
+      for(let t=0;t<T;t++){const a=A[t];for(let j=0;j<H;j++){acc1[t][j]+=Ls*a[j];accT[t][j]+=dl[t]*a[j]}}
+      if(k===KS[ki]){const f=1/(k*SIG);
+        const gw=accW.map(v=>v*f),g1=new Float64Array(H*DIN),gt=new Float64Array(H*DIN);
+        for(let t=0;t<T;t++)for(let j=0;j<H;j++){const v1=acc1[t][j]*f,vt=accT[t][j]*f;for(let i=0;i<DIN;i++){g1[j*DIN+i]+=v1*X[t][i];gt[j*DIN+i]+=vt*X[t][i]}}
+        out.w.push(cos(gw,E0.G));out.a1.push(cos(g1,E0.G));out.at.push(cos(gt,E0.G));
+        tok.push([0,1,2,3].map(j=>accT[0][j]*f));ki++}}
+    // the exact error at token 0's hidden pre-activations (first four entries), for the worked numbers
+    const t0=lossFromH(W2,E0.Hs[0],Y[0],H),dz=[];for(let c=0;c<C;c++)dz.push(Math.exp(t0.z[c]-t0.m)/t0.se-(c===Y[0]?1:0));
+    const g0=[0,1,2,3].map(j=>{let s=0;for(let c=0;c<C;c++)s+=W2[c][j]*dz[c];return s*(1-t0.a[j]*t0.a[j])});
+    return {H,seed,K:KS.slice(),cos:out,tok0:{exact:g0,est:tok}}}
+  // fit the post's law cos(K) = cmax / sqrt(1 + c/K) with cmax = 1 (the toy's estimates are unbiased, so their ceiling is 1):
+  // 1/cos^2 - 1 = c/K, least squares through the origin in x = 1/K over the points with cos >= 0.25 (below that the ratio is noise)
+  function fit(K,cs){let sxy=0,sxx=0;for(let i=0;i<K.length;i++){if(!(cs[i]>=0.25))continue;const x=1/K[i],y=1/(cs[i]*cs[i])-1;sxy+=x*y;sxx+=x*x}
+    return {cmax:1,c:sxy/sxx}}
+  G.DUT={rng,setup,exact,run,fit,KS,DIN,C,T,SIG};
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>/* 23_js_du_figs.js */
+// ---- Figures of the Reading tab (prefix du): the hero (per-token jitter on one layer), token 1's estimate, the compute per
+// update, the gap to backprop, Tables 1 and 2, the model-size gaps and the cosines at 16k. Data: window.ARTICLE.fig
+// (written by src/recompute.py) and window.ARTICLE.toy (written by src/toy/record.mjs). All drawn at the card's width.
+(function(){
+  if(!window.RD||!window.ARTICLE||!window.ARTICLE.fig)return;
+  const $=id=>document.getElementById(id),t=RD.t,F=window.ARTICLE.fig,TY=window.ARTICLE.toy;
+  const fmt=(n,d)=>Number(n).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  const sg=(n,d)=>(n>0?'+':n<0?'−':'')+Math.abs(n).toFixed(d==null?3:d);
+  const line=(x1,y1,x2,y2,c,w,da)=>'<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+c+'" stroke-width="'+(w||1)+'"'+(da?' stroke-dasharray="'+da+'"':'')+'/>';
+  const rect=(x,y,w,h,f,o)=>'<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" fill="'+f+'"'+(o||'')+'/>';
+  const dot=(x,y,r,f,s)=>'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+f+'"'+(s?' stroke="'+s+'" stroke-width="1.6"':'')+'/>';
+  const D='var(--c4)',GR='var(--mute)',INK='var(--ink)',LN='var(--line)';
+  const th=(x,y,str,o)=>t(x,y,str,o).replace('<text ','<text paint-order="stroke" stroke="var(--card)" stroke-width="4" stroke-linejoin="round" ');  // a label with a halo, readable over lines
+
+  // ---------- hero: six tokens, one draw ----------
+  function hero(){const el=$('du-hero-svg');if(!el)return;const W=RD.width(el),nar=W<480,lw=nar?84:118,x0=lw,x1=W-6,n=6,cw=(x1-x0)/n;
+    const words=['The','cat','sat','on','the','mat'],r=window.DUT?window.DUT.rng(7):null,nz=()=>r?r.n():0;
+    const rows=[['input xₜ','stored by the forward'],['output yₜ + σaₜ','own noise per token'],['loss change','scores that token only'],['estimate ĝₜ','mean over K draws']];
+    const rh=nar?50:54,top=26,H=top+rows.length*rh+(nar?108:86);let s='';
+    words.forEach((w,i)=>{s+=t(x0+cw*(i+.5),16,w,{fs:12.5,a:'middle',fill:INK,w:600})});
+    rows.forEach((rw,k)=>{const y=top+k*rh;s+=t(2,y+20,rw[0],{fs:12.5,fill:k===1||k===3?D:INK,w:600})+t(2,y+36,rw[1],{fs:11,fill:GR});
+      s+=line(x0,y+rh-4,x1,y+rh-4,LN,1)});
+    const cells=4,cs=Math.min(10,(cw-10)/cells);
+    words.forEach((w,i)=>{const cx=x0+cw*(i+.5),bx=cx-cells*cs/2;
+      for(let j=0;j<cells;j++){const v=nz();s+=rect(bx+j*cs,top+12,cs-1.5,cs*1.6,GR,' opacity="'+(0.35+0.15*Math.abs(Math.sin(i*3+j)))+'"');
+        s+=rect(bx+j*cs,top+rh+12+(v<0?0:-Math.min(10,v*6)),cs-1.5,Math.min(10,Math.abs(v)*6)+2,D,' opacity="0.85"')}
+      const dl=nz()*0.8,y2=top+2*rh+24;s+=line(cx-12,y2,cx+12,y2,LN,1)+rect(cx-6,dl<0?y2:y2-Math.min(14,Math.abs(dl)*12),12,Math.min(14,Math.abs(dl)*12),dl<0?'var(--c3)':'var(--c2)');
+      const a=nz()*0.5,y3=top+3*rh+24;s+=line(cx-10,y3+5*a,cx+10,y3-5*a,D,2.4)+dot(cx+10,y3-5*a,2.6,D)});
+    const yb=top+rows.length*rh+8;
+    s+='<rect x="'+x0+'" y="'+yb+'" width="'+(x1-x0)+'" height="52" rx="8" fill="none" stroke="'+D+'" stroke-width="1.4"/>';
+    s+=t(x0+10,yb+20,'weight update Ĝ = Σₜ ĝₜ xₜᵀ',{fs:13,fill:D,w:600})+t(x0+10,yb+40,nar?'backprop’s outer product, measured error':'the outer product backprop forms; only the error is measured',{fs:11.5,fill:GR});
+    s+=t(2,yb+20,'one update',{fs:12,fill:INK,w:600})+t(2,yb+38,'per layer',{fs:11,fill:GR});
+    s+=t(nar?2:x0,yb+74,nar?'Weight-space ES instead: one noisy copy of W per':'Weight-space ES instead: one noisy copy of W per pass, one reward for the batch',{fs:11.5,fill:GR});
+    if(nar)s+=t(2,yb+92,'pass, one reward for the whole batch',{fs:11.5,fill:GR});
+    el.innerHTML=RD.svg(W,H,s,'Per-token jitter of one layer over six tokens, scored by each token’s own loss change')}
+
+  // ---------- token 1's estimate against the exact error ----------
+  function tok(){const el=$('du-tok-tab');if(!el||!TY||!TY.tok0)return;const ks=[[16,4],[256,8],[4096,12]],ex=TY.tok0.exact;
+    let h='<table class="du-tab"><thead><tr><th>Entry</th><th class="n">exact</th>'+ks.map(k=>'<th class="n">K = '+fmt(k[0])+'</th>').join('')+'</tr></thead><tbody>';
+    for(let j=0;j<4;j++)h+='<tr><td>'+(j+1)+'</td><td class="n"><b>'+sg(ex[j])+'</b></td>'+ks.map(k=>'<td class="n">'+sg(TY.tok0.est[k[1]][j])+'</td>').join('')+'</tr>';
+    const cs=ks.map(k=>{const e=TY.tok0.est[k[1]];let ab=0,aa=0,bb=0;for(let j=0;j<4;j++){ab+=e[j]*ex[j];aa+=e[j]*e[j];bb+=ex[j]*ex[j]}return ab/Math.sqrt(aa*bb)});
+    h+='<tr><td>cosine (4 entries)</td><td class="n">1</td>'+cs.map(c=>'<td class="n">'+c.toFixed(2)+'</td>').join('')+'</tr></tbody></table>';el.innerHTML=h}
+
+  // ---------- log axis helper ----------
+  const L10=Math.log10;
+  function logX(v,a,b,x0,x1){return x0+(L10(v)-L10(a))/(L10(b)-L10(a))*(x1-x0)}
+
+  // ---------- compute per update ----------
+  function cost(){const el=$('du-cost-svg');if(!el)return;const W=RD.width(el),nar=W<480,lw=nar?96:132,x0=lw,x1=W-14,c=F.cost;
+    const rows=[['Backprop',3,3,INK],...F.pops.map(K=>['Dust, '+(K>=1024?fmt(K/1024)+'k':K)+' draws',c.per_update*K/16384,null,D]),['EGGROLL to match',64*3100,64*23000,GR]];
+    const rh=nar?30:32,top=8,H=top+rows.length*rh+34,lo=1,hi=3e6,X=v=>logX(v,lo,hi,x0,x1);let s='';
+    [1,10,100,1e3,1e4,1e5,1e6].forEach(v=>{const x=X(v);s+=line(x,top,x,top+rows.length*rh,LN,1,'2 3');
+      if(!nar||[1,100,1e4,1e6].includes(v))s+=t(x,H-12,v>=1e6?'1M':v>=1e3?fmt(v/1e3)+'k':String(v),{fs:11.5,a:'middle',fill:GR})});
+    rows.forEach((r,i)=>{const y=top+i*rh+rh/2;s+=t(2,y+4,r[0],{fs:12,fill:r[3]===D?D:INK,w:600});
+      if(r[2]&&r[2]!==r[1]){s+=rect(X(r[1]),y-6,X(r[2])-X(r[1]),12,GR,' opacity="0.45" rx="3"');s+=t(X(r[1])-6,y+4,nar?'200k to 1.5M':'about 200k to 1.5M',{fs:11.5,fill:GR,a:'end'})}
+      else{s+=rect(x0,y-6,X(r[1])-x0,12,r[3],' opacity="'+(r[3]===D?0.8:0.9)+'" rx="3"');const v=r[1];s+=t(Math.min(X(v)+6,x1-40),y+4,fmt(Math.round(v)),{fs:11.5,fill:INK})}});
+    el.innerHTML=RD.svg(W,H,s,'Forward-pass equivalents per update, log scale')}
+
+  // ---------- gap to backprop by token budget ----------
+  function gap(){const el=$('du-gap-svg');if(!el)return;const W=RD.width(el),nar=W<480,x0=44,x1=W-(nar?12:20),top=12,y1=nar?230:250,B=F.budgets;
+    const lo=-0.1,hi=0.7,Y=v=>top+(hi-v)/(hi-lo)*(y1-top),X=i=>x0+(i+.5)*(x1-x0)/B.length;let s='';
+    for(let v=-0.1;v<=0.701;v+=0.1){const y=Y(v);s+=line(x0,y,x1,y,Math.abs(v)<1e-9?INK:LN,Math.abs(v)<1e-9?1.4:1,Math.abs(v)<1e-9?'':'2 3')+t(x0-6,y+4,sg(Math.round(v*10)/10,1).replace('+0.0','0').replace('−0.0','0'),{fs:11.5,a:'end',fill:GR})}
+    
+    B.forEach((b,i)=>{s+=t(X(i),y1+16,b,{fs:12,a:'middle',fill:INK,w:600})+t(X(i),y1+31,fmt(F.steps[b])+' upd.',{fs:11,a:'middle',fill:GR})});
+    const p16=B.map((b,i)=>[X(i),Y(F.gap16[b])]),p64=B.map((b,i)=>[X(i),Y(F.gap64[b])]);
+    s+='<polyline points="'+p64.map(p=>p.join(',')).join(' ')+'" fill="none" stroke="'+D+'" stroke-width="1.4" stroke-dasharray="4 3"/>';
+    s+='<polyline points="'+p16.map(p=>p.join(',')).join(' ')+'" fill="none" stroke="'+D+'" stroke-width="2"/>';
+    p64.forEach(p=>s+=dot(p[0],p[1],4.5,'var(--card)',D));p16.forEach(p=>s+=dot(p[0],p[1],4.8,D));
+    s+=th(p64[3][0]-8,p64[3][1]-9,'64 draws',{fs:11.5,a:'end',fill:D});s+=th(p16[3][0]-8,p16[3][1]-10,'16k draws',{fs:11.5,a:'end',fill:D});
+    const xa=X(1)+14,ya=Y(F.adam.dust[5]-F.adam.bp);s+=rect(xa-4.5,ya-4.5,9,9,D)+th(xa+8,ya-6,'Adam',{fs:11.5,fill:D});
+    const xn=X(2)+16;s+='<path d="M'+xn+' '+(Y(F.noise_gap.adam)-6)+' l6 6 l-6 6 l-6 -6z" fill="'+INK+'"/>'+th(xn+9,Y(F.noise_gap.adam)+4,nar?'Adam (Noise)':'Adam, Noise',{fs:11.5,fill:INK});
+    s+='<path d="M'+xn+' '+(Y(F.noise_gap.sgd)-6)+' l6 6 l-6 6 l-6 -6z" fill="'+INK+'"/>'+th(xn+9,Y(F.noise_gap.sgd)-8,nar?'SGD (Noise)':'SGD, Noise',{fs:11.5,fill:INK});
+    el.innerHTML=RD.svg(W,y1+36,s,'Dust minus backprop loss by token budget')}
+
+  // ---------- Tables 1 and 2 ----------
+  function tables(){const a=$('du-t1');if(a){const B=F.budgets,P=F.pops.map(k=>k>=1024?fmt(k/1024)+'k':String(k));
+      let h='<table class="du-tab"><thead><tr><th>Method</th><th class="n">Population</th>'+B.map(b=>'<th class="n">'+b+'</th>').join('')+'</tr></thead><tbody>';
+      P.forEach((p,i)=>h+='<tr><td class="du-d">Dust</td><td class="n">'+p+'</td>'+B.map(b=>'<td class="n">'+F.t1.dust[b][i].toFixed(3)+'</td>').join('')+'</tr>');
+      h+='<tr><td class="du-d">Dust, fit limit</td><td class="n">∞</td>'+B.map(b=>'<td class="n">'+F.t1.dust_fit[b].toFixed(3)+'</td>').join('')+'</tr>';
+      P.forEach((p,i)=>h+='<tr><td class="du-e">EGGROLL</td><td class="n">'+p+'</td>'+B.map(b=>'<td class="n">'+F.t1.egg[b][i].toFixed(3)+'</td>').join('')+'</tr>');
+      h+='<tr><td class="du-b">Backprop</td><td></td>'+B.map(b=>'<td class="n"><b>'+F.t1.bp[b].toFixed(3)+'</b></td>').join('')+'</tr>';
+      h+='<tr><td>Updates</td><td></td>'+B.map(b=>'<td class="n">'+fmt(F.steps[b])+'</td>').join('')+'</tr></tbody></table>';
+      a.innerHTML=h+'<p class="small">Test loss at the validation-selected checkpoint, SGD with momentum, means of three seeds (Appendix C, Table 1). Population: draws for Dust, forward passes of the batch for EGGROLL. Updates: the budget divided by the 16,384-token batch (calculated).</p>'}
+    const b=$('du-t2');if(b){let h='<table class="du-tab"><thead><tr><th>Fit of EGGROLL’s five cells</th><th class="n">1M</th><th class="n">10M</th><th class="n">20M</th></tr></thead><tbody>';
+      F.t2.forEach(r=>h+='<tr><td>'+r[0]+'</td><td class="n">'+r[1]+'</td><td class="n">'+r[2]+'</td><td class="n">'+r[3]+'</td></tr>');
+      b.innerHTML=h+'</tbody></table><p class="small">Multiples of 64 draws; "no match": a refit whose floor lies above Dust’s loss (Appendix D).</p>'}}
+
+  // ---------- model size: gap to same-size backprop against population ----------
+  function size(){const el=$('du-size-svg');if(!el)return;const W=RD.width(el),nar=W<480,x0=44,x1=W-(nar?16:20),top=12,y1=nar?210:230;
+    const P=F.pops,lo=-0.05,hi=0.76,Y=v=>top+(hi-v)/(hi-lo)*(y1-top),X=i=>x0+i*(x1-x0)/(P.length-1);let s='';
+    [0,0.2,0.4,0.6].forEach(v=>{const y=Y(v);s+=line(x0,y,x1,y,v===0?INK:LN,v===0?1.4:1,v===0?'':'2 3')+t(x0-6,y+4,v===0?'0':'+'+v.toFixed(1),{fs:11.5,a:'end',fill:GR})});
+    s+=th(x0+4,Y(0)-6,'backprop, same size',{fs:11.5,fill:INK});
+    P.forEach((p,i)=>s+=t(X(i),y1+16,p>=1024?fmt(p/1024)+'k':String(p),{fs:11.5,a:'middle',fill:GR}));
+    s+=t((x0+x1)/2,y1+32,'draws per update',{fs:11.5,a:'middle',fill:GR});
+    const op=[0.35,0.55,0.75,1];
+    F.sizes.names.forEach((nm,j)=>{const pts=P.map((_,i)=>[X(i),Y(F.size_gap[i][j])]);
+      s+='<polyline points="'+pts.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')+'" fill="none" stroke="'+D+'" stroke-opacity="'+op[j]+'" stroke-width="'+(j===3?2.6:1.8)+'"/>';
+      pts.forEach(p=>s+=dot(p[0],p[1],3.2,D).replace('/>',' fill-opacity="'+op[j]+'"/>'))});
+    // size labels at the right edge, ordered by the gap at 16k draws and pushed apart
+    s+=th(X(0)+8,Y(F.size_gap[0][3])+4,'243M',{fs:11.5,fill:D,w:600});
+    let lx=x1;['243M','38M','7.3M','2.0M'].forEach((nm,k)=>{const j=3-k;s+=th(lx,top+8,nm,{fs:11.5,fill:D,a:'end',w:j===3?600:400}).replace('<text ','<text fill-opacity="'+Math.max(.55,op[j])+'" ');lx-=nm.length*7+16});
+    s+=th(lx,top+8,'lighter to darker:',{fs:11.5,fill:GR,a:'end'});
+    el.innerHTML=RD.svg(W,y1+38,s,'Gap to same-size backprop against population, four model sizes')}
+
+  // ---------- cosines at 16k ----------
+  function cosb(){const el=$('du-cos-svg');if(!el)return;const W=RD.width(el),nar=W<480,lw=nar?104:128,x0=lw,x1=W-(nar?54:66),rows=F.t8;
+    const rh=24,top=22,H=top+rows.length*rh+30,X=v=>x0+v*(x1-x0);let s=t(x1+6,12,'c',{fs:11.5,fill:GR,w:600})+t(x0,12,'cosine at 16k (bar), ceiling (tick)',{fs:11.5,fill:GR});
+    [0,0.25,0.5,0.75,1].forEach(v=>{const x=X(v);s+=line(x,top,x,top+rows.length*rh,LN,1,'2 3')+t(x,H-10,String(v),{fs:11.5,a:'middle',fill:GR})});
+    rows.forEach((r,i)=>{const y=top+i*rh+rh/2,cv=F.cos16[i][1];s+=t(2,y+4,r[0],{fs:12,fill:INK});
+      s+=rect(x0,y-7,X(r[1])-x0,14,D,' opacity="0.18" rx="3"')+rect(x0,y-7,X(cv)-x0,14,D,' opacity="0.85" rx="3"');
+      s+=line(X(r[1]),y-9,X(r[1]),y+9,D,2);
+      s+=t(x1+6,y+4,r[2]>=1000?fmt(r[2]/1000)+'k':String(r[2]),{fs:11.5,fill:GR})});
+    el.innerHTML=RD.svg(W,H,s,'Cosine to backprop at 16k draws per layer type')}
+
+  function all(){hero();tok();cost();gap();tables();size();cosb()}
+  window.DUF={all};
+  all();RD.onRender(all);RD.onResize(all);
+})();
+
+</script>
+<script>/* 24_js_du_toy.js */
+// ---- The toy's card (prefix du): recorded curves (window.ARTICLE.toy, mean of 8 seeds, written by src/toy/record.mjs with
+// the code in 22_js_du_toy_core.js), one width and one population at a time; a button reruns seed 1 live with window.DUT.
+// It opens at K = 1, where the three estimates are all poor, so the prediction prompt's answer is not on screen.
+(function(){
+  if(!window.RD||!window.ARTICLE||!window.ARTICLE.toy||!window.DUT)return;
+  const $=id=>document.getElementById(id),t=RD.t,TY=window.ARTICLE.toy;if(!$('du-toy-svg'))return;
+  const D='var(--c4)',GR='var(--mute)',INK='var(--ink)',LN='var(--line)',K=TY.K;
+  const M=[['at','per-token credit',D,''],['w','weight noise',INK,''],['a1','activation noise, one batch reward',GR,'5 3']];
+  const st={H:'32',ki:0,live:null};
+  const th=(x,y,str,o)=>t(x,y,str,o).replace('<text ','<text paint-order="stroke" stroke="var(--card)" stroke-width="4" stroke-linejoin="round" ');
+  const fmtK=k=>k>=1024?(k/1024)+'k':String(k);
+  function draw(){const el=$('du-toy-svg'),W=RD.width(el),nar=W<480,x0=36,x1=W-12,top=10,y1=nar?210:240,Wd=TY.widths[st.H];
+    const X=i=>x0+i*(x1-x0)/(K.length-1),Y=v=>top+(1-Math.max(0,v))*(y1-top);let s='';
+    [0,0.25,0.5,0.75,1].forEach(v=>{const y=Y(v);s+='<line x1="'+x0+'" y1="'+y+'" x2="'+x1+'" y2="'+y+'" stroke="'+LN+'" stroke-dasharray="2 3"/>'+t(x0-5,y+4,String(v),{fs:11.5,a:'end',fill:GR})});
+    K.forEach((k,i)=>{if(!nar||i%2===0)s+=t(X(i),y1+15,fmtK(k),{fs:11.5,a:'middle',fill:GR})});
+    s+=t((x0+x1)/2,y1+30,'forward passes K (log scale)',{fs:11.5,a:'middle',fill:GR});
+    s+='<line x1="'+X(st.ki)+'" y1="'+top+'" x2="'+X(st.ki)+'" y2="'+y1+'" stroke="var(--acc)" stroke-width="1.4"/>';
+    M.forEach(([m,nm,c,da])=>{const ys=Wd.mean[m],f=Wd.fit[m];
+      // the fitted law, dashed, over the same range
+      let p='';for(let q=0;q<=60;q++){const lk=q/60*12,k=Math.pow(2,lk),v=1/Math.sqrt(1+f.c/k);p+=(q?' L':'M')+(x0+lk/12*(x1-x0)).toFixed(1)+' '+Y(v).toFixed(1)}
+      s+='<path d="'+p+'" fill="none" stroke="'+c+'" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>';
+      s+='<polyline points="'+ys.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ')+'" fill="none" stroke="'+c+'" stroke-width="2.2"'+(da?' stroke-dasharray="'+da+'"':'')+'/>';
+      s+='<circle cx="'+X(st.ki)+'" cy="'+Y(ys[st.ki])+'" r="4.5" fill="'+c+'"/>';
+      if(st.live&&st.live.H===st.H)st.live.cos[m].forEach((v,i)=>{s+='<rect x="'+(X(i)-3)+'" y="'+(Y(v)-3)+'" width="6" height="6" fill="none" stroke="'+c+'" stroke-width="1.3"/>'})});
+    // line labels near the right end, pushed apart
+    const lab=M.map(([m,nm,c])=>[nm,c,Y(Wd.mean[m][7])]).sort((a,b)=>a[2]-b[2]);let last=-1e9;
+    lab.forEach(([nm,c,y])=>{let yy=y-6;if(yy-last<14)yy=last+14;last=yy;s+=th(X(7)+(nar?-4:6),yy,nar?nm.replace('activation noise, one batch reward','one batch reward'):nm,{fs:11.5,fill:c,w:600,a:nar?'end':'start'})});
+    el.innerHTML=RD.svg(W,y1+36,s,'Cosine to the exact gradient against forward passes, three estimators');
+    const k=K[st.ki],o=$('du-toy-out'),c=m=>Wd.mean[m][st.ki].toFixed(2);
+    o.innerHTML=RD.stat('per-token credit','<span class="du-d">'+c('at')+'</span>','fitted c '+Math.round(Wd.fit.at.c))+RD.stat('weight noise',c('w'),'fitted c '+Math.round(Wd.fit.w.c))+RD.stat('one batch reward',c('a1'),'fitted c '+Math.round(Wd.fit.a1.c));
+    $('du-toy-kv').textContent='K = '+k.toLocaleString('en-US')}
+  RD.seg($('du-toy-w'),v=>{st.H=v;draw()});
+  $('du-toy-k').addEventListener('input',e=>{st.ki=+e.target.value;draw()});
+  $('du-toy-run').addEventListener('click',()=>{const b=$('du-toy-run'),out=$('du-toy-live');b.disabled=true;out.textContent='running ...';
+    setTimeout(()=>{const t0=performance.now(),r=window.DUT.run(+st.H,1),ms=performance.now()-t0,rec=TY.widths[st.H].seed1;let worst=0;
+      ['w','a1','at'].forEach(m=>r.cos[m].forEach((v,i)=>{worst=Math.max(worst,Math.abs(v-rec[m][i]))}));
+      st.live={H:st.H,cos:r.cos};window.DUT_LAST={H:st.H,worst,cos:r.cos};
+      out.textContent='seed 1 at width '+st.H+' in '+(ms/1000).toFixed(1)+' s: squares; largest difference from the recorded seed-1 values '+worst.toExponential(1);
+      b.disabled=false;draw()},30)});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace wp-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('du-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('du-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+
+</script>
+</div></body></html>

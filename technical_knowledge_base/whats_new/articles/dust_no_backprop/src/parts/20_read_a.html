@@ -1,0 +1,48 @@
+<div class="tab" id="t-read" role="tabpanel">
+<style id="du-css">
+/* this page (prefix du): Dust in violet (--c4), weight-space ES in grey, backprop in ink; figure controls, the toy, tables */
+#t-read .du-d{color:var(--c4);font-weight:600}#t-read .du-e{color:var(--mute);font-weight:600}#t-read .du-b{color:var(--ink);font-weight:600}
+#t-read .du-ctl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:13px;color:var(--mute);margin:2px 0 4px}
+#t-read .du-ctl .seg{margin:2px 0}#t-read .du-ctl input[type=range]{flex:1 1 160px;min-width:120px}
+#t-read .du-ctl button.du-btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:4px 10px;cursor:pointer}
+#t-read .du-out{font-size:13.5px;color:var(--ink);margin:6px 0 0;min-height:2.6em}
+#t-read table.du-tab{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0}
+#t-read table.du-tab th,#t-read table.du-tab td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+#t-read table.du-tab td.n,#t-read table.du-tab th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#t-read table.du-tab th{font-size:12.5px;color:var(--mute);font-weight:600}
+#t-read .du-scroll{overflow-x:auto}
+#t-read .box{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:0 10px 10px 0;padding:8px 12px;margin:10px 0;background:var(--card);font-size:14px}
+#t-read .box b.lab{display:inline-block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin-right:6px}
+#t-read .du-pred{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:14px}
+#t-read .du-pred summary{cursor:pointer;color:var(--acc)}
+#t-read .du-svg svg{display:block;max-width:100%;height:auto}
+</style>
+@@CARD@@
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> add independent noise to a layer's outputs at <i>every token</i>, score each token's noise by the change in <i>that token's</i> loss, and average over many noisy forward passes: this estimates the error backprop would deliver to the layer, the update is formed as backprop forms it (error times input), and since every token is a separate trial, one pass runs thousands of trials where weight-space evolution strategies run one.</p>
+<p class="small"><b>You need:</b> that a layer's weight gradient is the error arriving at its output times its stored input, an outer product, and that a backward pass costs about two forward passes ({{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}, sections 5 and 8); SGD with momentum and Adam ({{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}); a cosine between two vectors. Helpful, not required: the score-function estimator, reward times noise ({{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}).</p>
+<p class="small"><b>New terms:</b> <b>zeroth-order method</b> (uses loss values only, never derivatives); <b>evolution strategies, ES</b> (perturb the weights at random; the reward-weighted average perturbation estimates the gradient); <b>node perturbation</b> (perturb a layer's outputs instead of its weights); <b>draw</b> (one forward pass in which every token gets its own noise); <b>population K</b> (draws per update); <b>EGGROLL</b> (a recent weight-space ES method with cheap low-rank perturbations, the baseline); <b>cosine to backprop</b> (1: the exact gradient's direction; 0: no better than chance).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-hero">
+<div class="t">Each token is its own trial: jitter it, score it by its own loss, average the trials</div>
+<div class="du-svg" id="du-hero-svg"></div>
+<figcaption>One layer y<sub>t</sub> = W x<sub>t</sub> over six tokens, one draw. Each token's output gets its own noise; the change in that token's loss scores it (orange: up, green: down); the scored noise averaged over K draws estimates the output error <i>&gcirc;<sub>t</sub></i>, and &Sigma;<sub>t</sub> <i>&gcirc;<sub>t</sub> x<sub>t</sub><sup>&#8868;</sup></i> is the update. Backprop gets <i>&gcirc;<sub>t</sub></i> from one backward pass, Dust from K forward passes. Schematic, illustrative values.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-bet">The bet</a><a href="#s-mech">Estimator</a><a href="#s-dim">Why per token</a><a href="#s-tune">Cost</a><a href="#s-res">Results</a><a href="#s-egg">10^3 to 10^4</a><a href="#s-size">Model size</a><a href="#s-cos">Cosines</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<section id="s-bet"><h2>The bet: search may beat gradients once compute is plentiful</h2>
+[[ah:introduction|1 Introduction]]
+<p><b>The post argues that backprop and differentiability help while compute is scarce and may limit learning once it is plentiful</b>, citing the bitter lesson and AlphaGo Zero ({{in the article|ar:general methods that scale with compute eventually win}}). It does not try to be compute-efficient, nor to train the models it would enable, such as long-looped transformers ({{in the article|ar:We do not attempt to make it compute-efficient enough}}). So every "competitive with backprop" below is at equal tokens, not equal compute.</p>
+</section>
+
+<div class="s3sp"><div class="s3L"><section id="s-mech"><h2>The estimator: reward-weighted noise is the layer's output error</h2>
+[[ah:credit-assignment|2.2 Credit Assignment]]
+<p><b>For a linear layer y<sub>t</sub> = W x<sub>t</sub>, Dust adds Gaussian noise &sigma;a<sub>t</sub> to the output at every token and runs the forward pass</b> ({{in the article|ar:we jitter its output at all tokens}}). Token t's reward is its centred loss reduction c<sub>t</sub> (the mean perturbed loss there across draws, minus this draw's), plus, with a decay &gamma;, the reductions at later tokens its jitter reaches through attention:</p>
+<div class="fm"><div class="eq">r<sub>t</sub> = &Sigma;<sub>s&ge;t</sub> &gamma;<sup>s&minus;t</sup> c<sub>s</sub>, &nbsp; &gcirc;<sub>t</sub> = &minus;(1/K&sigma;) &Sigma;<sub>i</sub> r<sub>t</sub><sup>(i)</sup> a<sub>t</sub><sup>(i)</sup>, &nbsp; &Gcirc;<sub>W</sub> = &Sigma;<sub>t</sub> &gcirc;<sub>t</sub> x<sub>t</sub><sup>&#8868;</sup></div></div>
+<p><b>The middle term is the idea: the reward-weighted noise, averaged over K draws, points along the error at the layer's output</b> (Equations 1 to 3); it is REINFORCE for a Gaussian policy with a baseline ({{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}). The last term is backprop's outer product with the same cached input: "The only difference is that it gets the output error from the chain rule and we get it from the population" ({{in the article|ar:The only difference is that it gets}}). Each draw's error has no preferred direction, so the signal grows as K and the error as &radic;K ({{in the article|ar:the gradient adds up linearly while the errors}}); the table beside this shows one token converging.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-tok">
+<div class="t">One token's estimated error closes in on the exact one as draws accumulate</div>
+<div class="du-scroll" id="du-tok-tab"></div>
+<figcaption>Token 1 of the toy below (width 32, seed 1): four of the 32 entries of the error at the hidden pre-activations, exact and estimated from K draws with per-token credit. Computed by the page's code, checked against our Python port.</figcaption>
+</figure></div></div></div>

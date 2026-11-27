@@ -122,3 +122,11 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] pretraining_progress_data: Topic: data-curation-and-datasets (20_read_a.html line 3): "barely interact" holds in score points only; add the joint 15x; 39_tab_more.html line 48: 12 min.
 - [ ] pretraining_progress_data: Topic: llm-training-and-post-training (20_read.html lines 113 and 193): add the joint 15x and the score-points qualifier; 39_tab_more.html line 65: 12 min.
 - [ ] pretraining_progress_data: Quality classifiers and data selection: with the OLMo-2 recipe only FineWeb-Edu and Ultra-FineWeb exceed 3x (8.6x printed; 4.8x and 5.4x from the curves).
+- [ ] raschka_text_classification: Other notable providers, the Jev paragraph: "vendor-reported with no independent evaluation" is untrue now; add the IMDb run (one run), Hume's measurements, the BTZSC and enterprise results, Jev 1.14 (14 October).
+- [ ] raschka_text_classification: LLM-as-judge, decision models: qualify "every verdict carries its own confidence" (Jev rounded to two decimals; 61% of values exactly 0 or 1 in one test).
+- [ ] raschka_text_classification: RL for LLMs, the closed "RL for Calibrated Decisions" block: name RLCR (Damani et al. 2025), R = c - (q - c)^2, with its Table 1 numbers.
+- [ ] raschka_text_classification: Families and objectives: a decoder's classification head reads the last non-padding token; DeepSeek-V4.1-Flash as a current encoder-decoder (section 5); a hosted decision model among the choices (section 9).
+- [ ] raschka_text_classification: Sequence models: ULMFiT in Further reading. Guardrails: a decision model screening for prompt injection was steered by one ordinary sentence in one test.
+- [ ] dust_no_backprop: Matrix calculus and backprop section 4 (mc-s4): the third option (node perturbation with per-token credit keeps the outer product; cost grows with the population); Werfel, Xie and Seung's factors; Dust in Further reading.
+- [ ] dust_no_backprop: Optimisers and learning-rate schedulers section 5 (s-evid): Dust level with SGD backprop at 10M tokens (+0.05) but 0.40 behind once both use Adam (Noise benchmark).
+- [ ] dust_no_backprop: Policy gradients and actor-critic (optional): the score-function estimator per token on activations is how Dust trains with no backward pass.

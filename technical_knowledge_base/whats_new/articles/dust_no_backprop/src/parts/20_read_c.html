@@ -1,0 +1,60 @@
+
+<div class="s3sp"><div class="s3L"><section id="s-size"><h2>Model size: bigger Dust models reach lower loss, but fall further behind backprop</h2>
+[[ah:overparameterization|4.1 Overparameterization]]
+<p><b>Zeroth-order methods are expected to fail on large networks</b>, since one reward per pass must cover more perturbed dimensions ({{in the article|ar:the variance of the gradient estimate grows with the number of perturbed dimensions}}). The post trains four sizes, 2.0M to 243M parameters, at 10M tokens. <b>Among Dust runs bigger is usually better:</b> from 256 draws up the loss falls from 2M to 38M parameters, 243M is slightly worse, and past 1k draws the larger models gain about 30% more from population ({{in the article|ar:Bigger models are often more population-efficient, not less}}).</p>
+<p><b>Against backprop at the same size the picture reverses</b>, which the post mentions in one sentence ({{in the article|ar:the gap to backprop at the same population and model size increases}}): at every population the largest model trails its backprop most (0.67 at 64 draws, 0.04 at 16k; the smallest 0.53 and &minus;0.01). And 10M tokens starves 243M parameters even under backprop (5.048, worse than 38M's 5.015), so this cannot show how Dust does where a large model pays off. Per-token noise grows with width, not parameter count, which may keep the decline gentle. These runs used an earlier protocol (Appendix F).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-size">
+<div class="t">At every population the largest model trails its own backprop the most</div>
+<div class="du-svg" id="du-size-svg"></div>
+<figcaption>Dust's test loss minus backprop's for the same model size, against population, at 10M tokens (Figure 4's cells, our subtraction). At 64 draws: 2.0M +0.525, 7.3M +0.490, 38M +0.543, 243M +0.671; at 16,384: &minus;0.009, &minus;0.001, +0.021, +0.038. Backprop per size: 5.180, 5.066, 5.015, 5.048.</figcaption>
+</figure></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-cos"><h2>Backprop-like gradients: cosines that rise with population, measured on backprop's checkpoints</h2>
+[[ah:emergence-of-backprop-like-gradients|4.2 Emergence of Backprop-Like Gradients]]
+<p><b>The post measures the cosine between Dust's estimate and the exact gradient, per layer type, at populations 64 to 128k</b>, on checkpoints <i>backprop</i> trained to 10M, 100M and 1B tokens, and fits cos(K) = c<sub>max</sub>/&radic;(1 + c/K) to each (RMSE 0.003 to 0.037 at 100M; {{in the article|ar:on backprop-trained checkpoints spanning two orders of magnitude}}). The curves barely move from 10M to 1B tokens, which it calls encouraging for scaling. EGGROLL's estimate stays below 0.05 at 128k for every type but the head.</p>
+<p><b>At the training population the cosines are moderate</b> (beside this): about 0.5 for MLP and attention outputs and the token embedding, 0.16 for keys, 0.98 for the head. Several ceilings sit below 1 (0.67 for value gates): those estimates are biased, consistent with interference and decayed credit. The post calls this a good property, a different trajectory that "can even be better" ({{in the article|ar:in fact a good property}}); the evidence for better is the 100k and 1M results. And "up to 1B tokens" is a measurement on backprop's weights; Dust's longest run is 20M tokens.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="du-cos">
+<div class="t">At the training population, most layer types get about half of backprop's direction</div>
+<div class="du-svg" id="du-cos-svg"></div>
+<figcaption>Cosine at K = 16,384 (bar) and the fitted ceiling (tick) on the 100M-token backprop checkpoint, calculated from Appendix G: MLP out 0.51 (ceiling 0.88), MLP in 0.43 (0.86), attention out 0.57 (0.87), query 0.42 (1.00), key 0.16 (1.00), value 0.26 (0.88), value gate 0.34 (0.67), value embedding 0.18 (1.00), token embedding 0.49 (0.73), head 0.98 (1.00). Right: c, the population reaching 71% of the ceiling.</figcaption>
+</figure></div></div></div>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up:</b></p>
+<ul>
+<li><b>The mechanism is simple, standard and public</b> (MIT code). The toy here reproduces its core argument independently: per-token credit needs about d<sub>in</sub> times fewer passes than weight noise.</li>
+<li><b>The lead over weight-space ES is measured</b>: EGGROLL-Transformer at 16k passes never reaches Dust at 64 draws from 1M tokens up; only the size of the multiple is extrapolated.</li>
+<li><b>The protocol is careful for a blog post:</b> three seeds per cell, every cell tuned on a stated grid with stated rejection rules, backprop on the same grid (Appendix F). The authors call the 20M limit loosely constrained and say Dust needs "orders of magnitude more compute efficiency". Both count in their favour.</li>
+</ul>
+<p><b>Where it is weaker:</b></p>
+<ul>
+<li><b>"Competitive with backprop" rests on short runs against constant-rate SGD.</b> The measured wins are at 6 and 61 updates; under Adam no measured point is below backprop, and the lab's own benchmark puts Dust 0.40 behind at 10M tokens. A challenger's gain shrinking against a stronger baseline is the familiar pattern ({{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}).</li>
+<li><b>The trend runs the wrong way.</b> At 16k draws the gap goes from &minus;0.04 to +0.17 between 61 and 1,221 updates. The one sub-backprop number at 20M is a limit through a still-falling ladder whose top cell alone had an extra tuning campaign ({{Appendix F|https://qlabs.sh/research/dust/appendix.html#tuning}}).</li>
+<li><b>Compute is never reported.</b> By our count an update costs 19 to 4,900 backprop updates, and the wins are at 4,900. At equal compute backprop is not close.</li>
+<li><b>The scale is small:</b> 37.7M parameters and 20M tokens at most; 243M only at 10M tokens, data-starved, with the largest gap.</li>
+<li><b>Little is checkable from the release:</b> the repository is a minimal version for two budgets, with no logs, results, EGGROLL port, Adam runs or cosine code.</li>
+</ul>
+<p class="box"><b class="lab">Verdict</b>Believe that per-token node perturbation gives far better gradient estimates per forward pass than weight-space ES, and that with tens of thousands of draws it trains a small transformer about as well as constant-rate SGD backprop over a short run. Do not read it as matching backprop in general: the gap opens with training and with Adam, an update costs thousands of backprop updates, and nothing here exceeds 243M parameters or 20M training tokens.</p>
+
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p class="small">Hacker News: 280 points and 82 comments (read 27 November 2026), mostly on whether derivative-free optimisation can matter and on the brain. No independent replication or measured rebuttal was found by 27 November; the repository's two open issues are questions.</p>
+@@RESP@@
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li>{{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}} says reverse mode wins because its cost does not grow with the number of weights. It gains the third option this post scales up: estimate each layer's output error from forward passes (node perturbation, per-token credit) and keep the outer product; the cost grows with the population instead, about 0.3K backprop updates here, and Werfel et al.'s factors give the scaling.</li>
+<li>{{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}} gains a clean case for its evidence section: a method level with SGD backprop at 10M tokens (+0.05) and 0.40 behind once both use Adam (Noise benchmark).</li>
+<li>{{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}} can note that the score-function estimator with a baseline, applied per token to a layer's activations, is how Dust trains a transformer without a backward pass.</li>
+</ul>
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026)</summary><div class="b">
+@@SINCE@@
+</div></details>
+<details class="mist"><summary>How this page checked its numbers</summary><div class="b">
+<p>The post's text is unchanged since its first archived copy (5 October 2026, 21:21 UTC, six minutes after the Hacker News submission): four distinct archived copies from 5 to 9 October extract to the same text; only a site label was added. Table 1, Table 2 and Table 8 are transcribed from the appendix; Figure 3's and Figure 4's values from the figures' own data attributes. <code>src/recompute.py</code> derives every gap, update count, cosine at 16k and the compute count from them. The toy's code (<code>parts/22_js_du_toy_core.js</code>) wrote the recorded curves in node (<code>src/toy/record.mjs</code>); <code>src/toy/toy_port.py</code>, an independent numpy port with its own copy of the generator, recomputes seed 1 at widths 8 and 32 and agrees to 5&times;10<sup>&minus;7</sup>; <code>src/check_page.mjs</code> also reruns the toy in the browser and compares. The author's code was read, not run.</p>
+</div></details>
+</section>
