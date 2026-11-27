@@ -1,0 +1,57 @@
+
+<section id="s-fix"><h2>4. The fix: a pool that holds the window, and a rejection that stops before the handoff</h2>
+[[ar:we made the pool hold the full context|Immediate remediation]]
+<p><b>Either change alone closes this path; Cloudflare made both.</b> The configuration took GLM-5.3 to its GLM-5.2 settings, freeing memory for a prefill pool of about 2.04 million tokens, so a prompt that fits the window fits the pool. The engine patch exists because {{Relying on pool size alone is fragile|ar:Relying on pool size alone is fragile}}: quantization, parallelism, CUDA graphs or a new model version all move the pool, so a request with a pending rejection is now {{retired at the disaggregation admission queue|ar:retired at the disaggregation admission queue, with its original error}} before any transfer. Both were checked against the researcher's script and {{our own canary-marker tests|ar:our own canary-marker tests}} (a known marker in the prompt that the reply must reflect).</p>
+<div class="ck-tw"><table class="ck-tab" id="ck-prs">
+<tr><th>Change</th><th>What it does</th><th>Status (27 November)</th></tr>
+<tr><td>Cloudflare config, 9 Sep</td><td>Prefill pool about 2.04M tokens</td><td>In production</td></tr>
+<tr><td>Cloudflare patch, 9 Sep</td><td>Retires a rejected request at admission</td><td>In production; upstream as #38704</td></tr>
+<tr><td>{{#36988|https://github.com/sgl-project/sglang/pull/36988}}</td><td>Retires an aborted request before its KV reaches decode (written for a failing vision encoder)</td><td>Merged 6 Sep; v0.5.20</td></tr>
+<tr><td>{{#38935|https://github.com/sgl-project/sglang/pull/38935}}</td><td>Retires it at both admission doors: "a waste-and-latency fix, not a correctness fix"</td><td>Merged 16 Sep; v0.5.21</td></tr>
+<tr><td>{{#38704|https://github.com/sgl-project/sglang/pull/38704}}</td><td>Cloudflare's admission fix plus a transferred-length check</td><td>Closed unmerged 10 Oct; length check declined</td></tr>
+</table></div>
+<p><b>The post credits the upstream fix accurately but quietly:</b> {{The fix was already on SGLang main in #36988|ar:The fix was already on SGLang main in #36988}}. #38935's author is plainer: after #36988 the stale-KV symptom does not reproduce on main, so #38935 only saves a wasted handshake and, when both workers refuse, a 300-second decode timeout.</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><figure class="card wp-fig" id="ck-race">
+<div class="t" id="ck-race-t">Freed at abort, a slot can be reused while the aborted request's write is still on its way</div>
+<div class="seg" id="ck-race-m" role="group" aria-label="Release policy"><button data-m="free" class="on">Free at abort (before)</button><button data-m="hold">Hold until drained (deferred release)</button></div>
+<div id="ck-race-svg"></div>
+<div class="an-cap" id="ck-race-cap"></div>
+<div class="an-ctl" id="ck-race-ctl"></div>
+<figcaption>Ten slots of one decode pool, request A's transfer from prefill aborted half way. Illustrative sizes; the order of events and the rule follow SGLang's companion post ("The Problem: When Is a KVCache Slot Actually Free?" and "Deferred Release"), which reproduced the overlap on two H200s.</figcaption>
+</figure></div><div class="s3L">
+<section id="s-class"><h2>5. The wider class: a page freed, reused or read while something still claims it</h2>
+[[ar:a class of KV cache memory-safety bugs|Ongoing hardening effort]]
+<p><b>This incident belongs to a family Cloudflare had been fixing for months:</b> {{a page is freed, reused, or read while something else still has a claim on it|ar:a page is freed, reused, or read while something else still has a claim on it}}. Inside one decode node, generation, host offload, the transfer receiver and abort paths can all hold a page (Cloudflare's fixes #24226, #30899, #30937). Across nodes, prefill writes KV straight into decode's memory by one-sided RDMA, and {{the writes already sent cannot be recalled|ar:the writes already sent cannot be recalled}}:</p>
+<ol class="sx" id="sx-race-free">
+<li><b>A transfer in flight.</b> Prefill streams A's KV into slots 3 to 7 on decode: two chunks have landed, one is posted to the network card, two wait in prefill's queue.</li>
+<li><b>Abort, slots freed.</b> A's client disconnects; decode aborts A and returns slots 3 to 7 to the allocator at once.</li>
+<li><b>Reused.</b> The allocator gives those slots to request B, whose own KV is written there.</li>
+<li><b>A late write lands.</b> A's posted chunk arrives in slot 5, now B's; nothing reports an error.</li>
+<li><b>B decodes on A's keys and values.</b> Garbage, or fragments of A's prompt in B's reply.</li>
+</ol>
+<ol class="sx" id="sx-race-hold" hidden>
+<li><b>A transfer in flight.</b> Prefill streams A's KV into slots 3 to 7 on decode: two chunks have landed, one is posted to the network card, two wait in prefill's queue.</li>
+<li><b>Abort, slots held.</b> Decode tells every prefill rank to abort; queued chunks are dropped, and A's slots stay reserved.</li>
+<li><b>The late write lands harmlessly.</b> The posted chunk arrives in slot 5, still A's, quarantined and never read.</li>
+<li><b>Drained, then released.</b> Prefill's count of outstanding writes reaches zero and it replies ABORT_ACK; only then does decode free the slots (a 30-second default timeout is the fallback).</li>
+<li><b>B gets clean slots.</b> Every slot B reads was written by B; SGLang's harness gave output identical to the baseline, byte for byte.</li>
+</ol>
+<p><b>The incident's bug was the deterministic cousin of this race:</b> a rejected request {{went through the handoff every time|ar:went through the handoff every time, rather than by a timing accident}}, with the same result. Deferred release became SGLang's default in v0.5.21, at no measurable throughput cost (within ±2% over 21 runs on 2×H100, SGLang's post).</p>
+<details class="mist"><summary>Cloudflare's hardening since the incident</summary><div class="b"><p>Deferred release extended to every failure type and to prefill's source pages (SGLang's analysis judged that path already safe); bounded Mooncake transfer batches, so one call cannot outlast the release timeout; a load balancer that {{no longer aborts on a client disconnect|ar:Changed our load balancer so a client disconnect no longer aborts}}, holding prefill until it finishes and decode until the first token; and a check on every disaggregated deployment change covering pool against window, deferred release on both roles, batch bounds and required patches.</p></div></details>
+</section></div></div>
+
+<section id="s-ops"><h2>6. What any operator should check, and the longer-term fix</h2>
+[[ar:Measure your KV pool and compare it to your context length|What we recommend to other operators]]
+<p><b>The post's five recommendations for anyone running disaggregated SGLang</b>, the first being {{the check we did not enforce|ar:This is the check we did not enforce}}:</p>
+<ol>
+<li><b>Pool against window on every node</b>, from the engine's start-up log, after any change to weights, quantization, parallelism or memory fraction; lower the context length if the pool is smaller. {{Do not rely on a proxy to enforce the limit|ar:Do not rely on a proxy to enforce the limit}}.</li>
+<li><b>v0.5.22 or later</b>, or backport #36988 and #38935.</li>
+<li><b>Deferred KV release on both roles</b> (default since v0.5.21) and bounded Mooncake batches.</li>
+<li><b>Corruption detection</b> (<code>--disaggregation-enable-kv-checksum</code>, <code>--kv-canary</code>), which {{do not yet cover every model architecture|ar:do not yet cover every model architecture}}, GLM 5.3 included.</li>
+<li><b>Fewer aborts mid-transfer</b>: let the load balancer carry a request to its first token.</li>
+</ol>
+<p><b>The general lesson: test content, not status.</b> A canary marker in a long prompt that the answer must repeat would have failed; a 200 where a 400 was expected, and a reply faster than its prefill could take, were the signs.</p>
+<p><b>Longer term, the engine should refuse to read a page it does not own.</b> In Cloudflare's prototype {{Every physical KV page carries a tag|ar:Every physical KV page carries a tag}} that changes on reallocation, checked before decode reads; under 1% overhead, tested on GLM 5.2 in mid-August and {{disabled it shortly afterwards due to reliability issues|ar:disabled it shortly afterwards due to reliability issues}}, about two weeks before GLM-5.3 launched. SGLang's checksum (#39500) checks only the handoff; tags would check every read. Cloudflare also plans to prove its RDMA transfer protocol safe with formal methods.</p>
+</section>

@@ -1,0 +1,64 @@
+
+<div class="s3sp"><div class="s3L"><section id="s-what"><h2>1. Thirteen days, 155 responses, one endpoint</h2>
+[[ar:Gadi Evron submitted a report on September 8|What happened]]
+<p><b>For thirteen days, long prompts to one Workers AI model could be answered from other customers' data.</b> GLM-5.3 (<code>@cf/zai-org/glm-5.3</code>) launched on 27 August 2026; on 8 September Gadi Evron of Knostic reported through HackerOne that very long prompts sometimes returned text from other users' sessions. Cloudflare reproduced it the next morning, {{took the model offline within 40 minutes|ar:took the model offline within 40 minutes of declaring an incident}} of declaring an incident, and restored it at 19:40 UTC the same day. {{In total, 155 responses were affected|ar:In total, 155 responses were affected}}, all to prompts over 681,280 tokens; no other model was.</p>
+<p><b>Cloudflare reads the traffic as ordinary use, not an attack:</b> outside its own and the researcher's tests, the requests were {{consistent in timing and volume with ordinary long-context use|ar:consistent in timing and volume with ordinary long-context use}}. The timeline on the right adds what the post mentions only in passing: the engine bug was reported publicly seven weeks before launch, and the change that stops it reached SGLang's main branch two days before the report.</p>
+
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="ck-tl">
+<div class="t">The bug was public before the launch and fixed upstream before the report</div>
+<div id="ck-tl-svg"></div>
+<div class="wp-lg"><span><i style="background:var(--c1)"></i>Cloudflare</span><span><i style="background:var(--c2)"></i>SGLang project</span><span><i style="background:var(--c3)"></i>researcher</span></div>
+<figcaption>From the post's timeline (UTC), SGLang's post, GitHub and SGLang's release dates; spaced by event, not to scale. Shaded: the 13 days of exposure. Every event, in full, is in the closed list below.</figcaption>
+<details class="mist"><summary>The timeline as a list</summary><div class="b"><p>6 July: issue #30233 reports the bug (GLM-5.2, 1M window). 3 August: Cloudflare's post on page-tag integrity checks. Mid-August: tags tested on GLM 5.2, then disabled. 27 August: GLM-5.3 launches with pool 681,280 below window 1,048,576. 5 September: #30233 closed for inactivity; v0.5.19 released without the fix. 6 September: #36988 merged. 8 September 23:11: report. 9 September: incident 13:22, model private 14:00, restored 19:40. 16 September: #38935 and #39500 merged. 18 September: v0.5.20 with #36988. 2 October: v0.5.21, deferred release on by default. 19 October: v0.5.22. 26 October: coordinated disclosure.</p></div></details>
+</figure></div></div></div>
+
+<section id="s-config"><h2>2. Issue one: a context window larger than the pool behind it</h2>
+[[ar:We were aware of this size mismatch|Issue one: misconfiguration]]
+<p><b>The pool and the window are two numbers nothing ties together.</b> SGLang sizes the KV pool {{from whatever GPU memory remains|ar:SGLang sizes it at startup from whatever GPU memory remains}} after the weights load; the advertised context length is a separate setting, and {{Nothing forces the two to agree|ar:Nothing forces the two to agree}}. On GLM-5.3's prefill nodes the pool came to 681,280 tokens against a 1,048,576-token window: 65% of it. Why a million-token cache is that large is {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}'s calculator.</p>
+<p><b>Cloudflare knew, and expected an error.</b> The pool size is in SGLang's start-up log and metrics, and the gap was known before launch; {{We expected the engine to return an error|ar:We expected the engine to return an error for any prompt it could not process}}, and long-context benchmarks returned HTTP 200. The tests {{only validated HTTP response codes and engine performance|ar:we only validated HTTP response codes and engine performance at long contexts}}, never the output; by section 3's mechanism those successful tests were most likely answered from other requests' cache too.</p>
+<p><b>The engine did refuse the prompts, inside.</b> Drag the prompt past 681,274 tokens in the figure at the top. The refusal was real; what went wrong is where the refused request went next.</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><figure class="card wp-fig" id="ck-hand">
+<div class="t" id="ck-hand-t">A rejected request passed both admission queues and decoded from pages it never wrote</div>
+<div class="seg" id="ck-hand-m" role="group" aria-label="Which request"><button data-m="ok">Valid request</button><button data-m="bug" class="on">Rejected, before the fix</button><button data-m="fix">Rejected, after the fix</button></div>
+<div id="ck-hand-svg"></div>
+<div class="an-cap" id="ck-hand-cap"></div>
+<div class="an-ctl" id="ck-hand-ctl"></div>
+<figcaption>One request whose prompt fills 8 KV pages, as in the post's own diagram. Pages start with what earlier requests A, B and C left in them (hatched): the pool is never cleared. Green: KV written by this request. Redrawn from the post's figure (which carries no open licence), with a third mode from SGLang's fix #38935.</figcaption>
+</figure></div><div class="s3L">
+<section id="s-bug"><h2>3. Issue two: a rejected request looked live to both admission queues</h2>
+[[ar:A rejected request reported itself as live|Issue two: SGLang bug]]
+<p><b>Freed KV pages keep their contents.</b> A request gets pages from a shared pool when admitted and returns them when done, and {{Pages are not currently zeroed between requests|ar:Pages are not currently zeroed between requests}}: the next owner overwrites them. That is standard and needed for speed, so the engine's record of who owns which page is the only isolation between users (the block pool: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 1).</p>
+<p><b>The rejection path was built for one machine.</b> <code>Req.set_finish_with_abort</code> stores the error in <code>to_finish</code> and {{swapped the prompt for a one-token placeholder|ar:swapped the prompt for a one-token placeholder}}, so the request drains through the normal batch. {{On a single-node deployment this worked|ar:On a single-node deployment this worked}}. In disaggregated mode both workers' admission queues ask <code>req.finished()</code>, which reads a different field, <code>finished_reason</code>, so a refused request looked live (<code>schedule_batch.py</code> at v0.5.19, {{L1359-1361 and L1927-1946|https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/schedule_batch.py#L1927-L1946}}):</p>
+<ol class="sx" id="sx-hand-bug">
+<li><b>Bootstrap.</b> The router tells decode the prompt is 8 pages long; decode reserves 8 pages, still holding earlier requests' data.</li>
+<li><b>Prefill admission.</b> The rejection sits in <code>to_finish</code>, <code>finished()</code> returns False, and the request is admitted.</li>
+<li><b>Forward pass on one token.</b> The prompt is already the placeholder, so prefill computes KV for a single token.</li>
+<li><b>Transfer.</b> One page crosses to decode with the "transfer complete" signal.</li>
+<li><b>Decode admission.</b> The same <code>finished()</code> check, the same blind spot: the handoff is accepted.</li>
+<li><b>Attention over all 8 pages.</b> {{Only page P0 had been written by this request|ar:Only page P0 had been written by this request}}; P1 to P7 hold other users' prompts and partial answers.</li>
+<li><b>Response.</b> HTTP 200 instead of 400, a coherent reply, <code>prompt_tokens</code> matching the long prompt, faster than an 8-page prefill could be, and other users' content in it.</li>
+</ol>
+<ol class="sx" id="sx-hand-ok" hidden>
+<li><b>Bootstrap.</b> The router tells decode the prompt is 8 pages long; decode reserves 8 pages, still holding earlier requests' data.</li>
+<li><b>Prefill admission.</b> A valid request: <code>finished()</code> is False, correctly, and it is admitted.</li>
+<li><b>Forward pass.</b> Prefill computes KV for all 8 pages of the prompt.</li>
+<li><b>Transfer.</b> All 8 pages cross over RDMA, then the done signal.</li>
+<li><b>Decode admission.</b> The handoff is accepted; every reserved page now holds this request's KV, and nothing earlier survives.</li>
+<li><b>Attention over all 8 pages.</b> Every page read was written by this request.</li>
+<li><b>Response.</b> HTTP 200, a correct answer, normal prefill latency.</li>
+</ol>
+<ol class="sx" id="sx-hand-fix" hidden>
+<li><b>Refused at intake.</b> The scheduler refuses the prompt as before: error stored, placeholder swapped in.</li>
+<li><b>Retired at the prefill door.</b> <code>PrefillBootstrapQueue.add</code> now asks whether a request is aborted and holds nothing; this one is, so it is retired with its original error.</li>
+<li><b>No forward pass.</b> No bootstrap handshake, no metadata buffer, no stub computation.</li>
+<li><b>No transfer.</b> Nothing is sent, so decode can never be told "complete".</li>
+<li><b>Decode never commits.</b> Its reservation is released when the router cancels the pair (or its own door retires the request, when decode also refuses it).</li>
+<li><b>No read.</b> No page this request did not write is ever attended over.</li>
+<li><b>Response.</b> HTTP 400 with the length error the scheduler wrote in step 1.</li>
+</ol>
+<p><b>In the real incident the reservation was thousands of pages.</b> With 64-token pages a 700,000-token prompt reserves 10,938 pages on decode, and one placeholder token was all it wrote, so the reply was conditioned on 699,999 tokens of other requests' leftovers. {{Every request over the threshold behaved this way|ar:Every request over the threshold behaved this way}}: a deterministic path, not a race.</p>
+<p><b>The same bug was already on file.</b> It {{had been reported to SGLang by another user as issue #30233|ar:had been reported to SGLang by another user as issue #30233}} on 6 July, on a GLM-5.2 deployment with the same 1,048,576-token window and a 284,928-token pool, root cause traced and a patch proposed; it was closed for inactivity on 5 September. {{GLM 5.3 was the only model affected|ar:GLM 5.3 was the only model affected by this bug}} because every other deployment had pools larger than its window.</p>
+</section></div></div>

@@ -1,0 +1,22 @@
+<div class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> a serving engine reuses KV cache pages without clearing them, so isolation between users rests on its bookkeeping alone; Cloudflare accepted prompts its prefill pool could not hold, SGLang refused them internally yet still completed the handoff to decode with one token of real cache, and decode answered from reserved pages still holding earlier users' keys and values.</p>
+<p class="small"><b>You need:</b> paged KV memory, a pool of fixed-size pages handed out and reclaimed by the engine ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, sections 1 and 2); prefill and decode on separate GPUs with the KV cache copied between them ({{Distributed and disaggregated serving|n:3c65c17b0d0d8170bd7cdf47af0ec07b}}, section 6); SGLang's pool flags ({{SGLang|n:3c65c17b0d0d81e691e4ce9f9b5d1fad}}, section 7).</p>
+<p class="small"><b>New terms:</b> <b>KV pool</b> (GPU memory SGLang reserves for KV pages at start-up, sized from what the weights leave free); <b>rejection path</b> (SGLang refusing a request inside the scheduler: record the error, swap the prompt for a one-token placeholder, let it drain through the batch); <b>admission queue</b> (the door each disaggregated worker passes a request through); <b>bootstrap</b> (the router announcing a request's length to decode, which reserves pages); <b>deferred release</b> (keeping an aborted request's pages reserved until no remote write can still land in them).</p>
+<p class="ck-pred small"><b>Predict before you drag:</b> a 700,000-token prompt, pool as launched, engine before the fix. Of the keys and values decode attends over while it writes the reply, how much did this request write itself?</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="ck-pool">
+<div class="t">The window promised 1,048,576 tokens; the prefill pool held 681,280, and every prompt in between took the rejection path</div>
+<div id="ck-pool-svg"></div>
+<div class="ck-ctl">
+<label class="small" for="ck-L">Prompt length</label><input type="range" id="ck-L" min="1000" max="1040000" step="1000" value="500000" aria-label="Prompt length in tokens"> <b id="ck-L-v">500,000</b>
+</div>
+<div class="ck-ctl">
+<div class="seg" id="ck-cfg" role="group" aria-label="Pool size"><button data-m="launch" class="on">Pool as launched</button><button data-m="fixed">Pool after the fix</button></div>
+<div class="seg" id="ck-eng" role="group" aria-label="Engine"><button data-m="old" class="on">Engine before the fix</button><button data-m="new">Fixed engine</button></div>
+</div>
+<div class="ck-out" id="ck-pool-out"></div>
+<figcaption>SGLang v0.5.19 refuses a prompt of at least min(window − 1, pool − 1) − 5 tokens, 681,274 here ({{tp_worker.py L543-556|https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/tp_worker.py#L543-L556}}, {{utils.py L219|https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/utils.py#L219}}). Fixed pool: 2,040,000 tokens (the post's "about 2.04 million"). Page size 64 is illustrative (issue #30233's GLM-5.2 deployment; Cloudflare gives none). Computed exactly, checked against <code>src/recompute.py</code>.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-what">What happened</a><a href="#s-config">Misconfiguration</a><a href="#s-bug">The engine bug</a><a href="#s-fix">The fix</a><a href="#s-class">The bug class</a><a href="#s-ops">For operators</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>

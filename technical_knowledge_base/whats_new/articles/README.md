@@ -20,3 +20,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Dust: Pretraining Transformers Without Backpropagation](dust_no_backprop/) (Samip Dahal, Bishwas Mandal, Serdar Gulbahar, Akshay Vegesna, qlabs; 5 October 2026)
 - [The plunging price of thought](plunging_price_of_thought/) (Luke Emberson and David Roodman, Epoch AI; 22 September 2026)
 - [Score Centering: Understanding and Fixing Instability in RL](wolfe_score_centering/) (Cameron R. Wolfe, Deep (Learning) Focus; 9 November 2026)
+- [Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang](cloudflare_kv_cache_exposure/) (Kevin Flansburg and Michelle Chen, Cloudflare; 26 October 2026)

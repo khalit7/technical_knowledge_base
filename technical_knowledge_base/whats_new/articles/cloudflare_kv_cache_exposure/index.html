@@ -1,0 +1,784 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2733;--mute:#5f6b7a;--line:#e1e4e9;--soft:#f0f2f5;--acc:#2a62a8;--acc2:#dde8f6;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8;--shadow:0 1px 2px rgba(20,35,60,.06),0 8px 24px rgba(20,35,60,.07);--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121519;--card:#1a1e24;--ink:#e6e9ee;--mute:#9aa4b2;--line:#2c323b;--soft:#20252c;--acc:#7aaee8;--acc2:#1f334b;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:980px;margin:0 auto;padding:28px 20px 56px}
+h1{font-family:var(--serif);font-size:clamp(28px,4.2vw,40px);line-height:1.12;margin:0;letter-spacing:-.005em}.sub{color:var(--mute);font-size:15px;line-height:1.55;max-width:46em;margin:12px 0 18px}
+h2{font-family:var(--serif);font-size:clamp(23px,3vw,29px);margin:64px 0 12px;line-height:1.2}h3{font-size:16px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}sub,sup{line-height:0}
+section>p,section>ul,section>ol{max-width:46em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 12px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.an-ctl button,.an-ctl select{border-radius:999px;padding:5px 14px}
+.an-play{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:13px;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 12px;white-space:nowrap}
+.nav a.cur{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin:20px 0;min-width:0}.card h4{font-size:15.5px;line-height:1.35;margin:0 0 8px}
+.co{border-left:4px solid var(--acc);background:var(--acc2);padding:12px 16px;border-radius:0 12px 12px 0;margin:18px 0}
+.co.warn{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg))}.co.key{border-left-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--bg))}
+.co .t{font-weight:600;font-size:14px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:0;border-radius:10px;padding:10px 12px;background:var(--soft);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:22px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:15px;border-radius:0;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:9px 14px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--line);border-radius:20px;background:var(--soft);padding:3px;gap:2px;margin:6px 0}.seg button{font:inherit;font-size:13px;background:transparent;color:var(--mute);border:0;border-radius:999px;padding:5px 13px;cursor:pointer}.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(20,35,60,.15)}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:10px 0}.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-cap{background:var(--soft);border-left:4px solid var(--acc);border-radius:0 10px 10px 0;padding:10px 14px;margin:8px 0;font-size:14.5px}
+figure.ph{margin:20px 0}figure.ph img{display:block;width:100%;height:auto;border-radius:10px}figure.ph figcaption{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.5}
+figure.ph.side{float:right;width:min(380px,40%);margin:6px 0 14px 26px}section{display:flow-root}.card,details,.tw,.fm{clear:both}.co{display:flow-root}
+@media (max-width:700px){figure.ph.side{float:none;width:auto;margin:16px 0}}
+/* eased steps: RD.anim adds rd-fwd to the card when the step moves forward; marks drawn with class rd-new ease in, rd-gone fade out, and the caption fades in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
+@media (max-width:520px){body{font-size:15px}h1{font-size:26px}h2{margin-top:48px}.w{padding:20px 14px 40px}.card{padding:14px;border-radius:12px}.seg button{padding:5px 10px}code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100%;overflow-x:auto;overflow-y:hidden}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style><script id="kb-buddy">
+// ---- AI buddy loader: the small script every page carries (apply_buddy.py writes it as the marked kb-buddy block in the head part) ----
+// It loads the buddy (html_utils/kb_buddy.js, one shared file) on every page once the page has loaded. The buddy's toolbar is all it adds:
+// without a Claude key or a GitHub token, the toolbar's Claude and sync buttons say so and open the field to add it.
+// Where it is: on the site, build_site.py writes data-src (the site root's kb_buddy.js, with a version stamp); opened from the repo,
+// the path to html_utils/kb_buddy.js is worked out from the folder technical_knowledge_base in the page's own address.
+// No literal closing-head or opening-body tag may appear in this file: build_site.py inserts its bar at the first of each.
+(function(){
+  if (window.__kbBuddyLoader) return; window.__kbBuddyLoader = 1;
+  // keep WebGL drawing buffers readable, so the buddy can capture a 3D view between frames; this must run before the page's own scripts
+  try { var gc = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function(t, o){ if (/webgl/i.test(String(t))) o = Object.assign({}, o, {preserveDrawingBuffer:true}); return gc.call(this, t, o) } } catch(e) {}
+  var me = document.currentScript, src = me && me.getAttribute('data-src');
+  if (!src) { var h = location.href.split('#')[0], i = h.lastIndexOf('/technical_knowledge_base/'); src = i < 0 ? null : h.slice(0, i + 1) + 'html_utils/kb_buddy.js' }
+  function load(){ if (!src) return; var tag = document.createElement('script'); tag.src = src; tag.async = true; document.head.appendChild(tag) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script><!--/kb-buddy-->
+</head><body><div class="w">
+<style id="kb-split">
+/* The split layout (standing rule, 2026-11-06): a section with a visual is two columns, the explanation on the left and the visual on the right,
+   sticky while its section is read; a section without a visual is full width. Below 1100 px the visual sits at the top of its section
+   (a stage stays under the section nav while its steps are read; a figure card scrolls with the text). Classes are prefixed s3 to avoid page classes. */
+.s3sp{position:relative;margin-top:8px}
+.s3R{display:contents}
+.stg{position:sticky;top:50px;z-index:3;height:min(44vh,330px);min-height:250px;margin:6px 0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.stg-top{display:flex;justify-content:space-between;gap:10px;padding:8px 12px 0;font:11.5px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.stg-top span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.stg-top span:last-child{white-space:nowrap}
+.stg-cv{position:relative;flex:1;min-height:0}
+.stg canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}.stg canvas.dr{cursor:grabbing}
+.stg-rv{position:absolute;right:8px;top:4px;font-size:12px;padding:2px 10px;border-radius:999px}
+.stg-hint{position:absolute;right:10px;bottom:4px;font:11px ui-monospace,Menlo,monospace;color:var(--mute);pointer-events:none;letter-spacing:.04em}
+.stg-bar{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 10px 8px;border-top:1px solid var(--line);margin:0}
+.stg .stg-bar.an-ctl{flex-wrap:nowrap!important}.stg .stg-bar button{padding:4px 11px;font-size:13px;white-space:nowrap}.stg .stg-bar input.stg-r{flex:1 1 40px!important;min-width:30px!important;width:auto}.stg .stg-bar select{font-size:12.5px;padding:3px 6px}
+/* the step list: the explanation of the animation, one item per step; the current step is marked, a click jumps to it */
+ol.sx{list-style:none;counter-reset:sx;padding:0;margin:12px 0 18px;max-width:46em}
+ol.sx>li{counter-increment:sx;position:relative;padding:8px 12px 8px 40px;margin:0 0 4px;border-radius:10px;border-left:3px solid transparent;cursor:pointer;color:var(--mute);transition:background .25s,color .25s,border-color .25s}
+ol.sx>li::before{content:counter(sx);position:absolute;left:10px;top:9px;width:21px;height:21px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:600 12px/19px ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;text-align:center;color:var(--mute)}
+ol.sx>li b{color:var(--ink)}
+ol.sx>li.done{color:var(--ink)}ol.sx>li.done::before{background:var(--soft)}
+ol.sx>li.on{background:var(--card);color:var(--ink);border-left-color:var(--acc);box-shadow:var(--shadow)}ol.sx>li.on::before{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+ol.sx>li:hover{background:var(--soft)}ol.sx>li.on:hover{background:var(--card)}
+ol.sx>li:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sxh{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 0}
+.s3chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.s3chips button{border-radius:999px;padding:3px 12px;font-size:13.5px}
+.s3chips button.on{background:var(--c2);border-color:var(--c2);color:var(--bg)}
+.s3q{color:var(--c2);font-weight:600}.s3k{color:var(--c6);font-weight:600}.s3v{color:var(--c4);font-weight:600}
+/* a compact 2D animation card (about 320 px tall or less on a phone) that should stay in view while its step list is read: put it first in .s3R with class s3stick */
+@media (max-width:1099px){.s3stick{position:sticky;top:50px;z-index:3}}
+.s3side .card{margin-top:6px}
+@media (min-width:1100px){
+  .w:has(.tab:not([hidden]) .s3sp){max-width:1380px}
+  /* text outside a split keeps a readable line length on the widened page (2026-11-06) */
+  .w:has(.tab:not([hidden]) .s3sp) .tab :is(p,ul,ol,dl,blockquote):not(.s3sp *):not(.card *):not(td *):not(th *):not(li *):not(.stat *){max-width:52em}
+  .s3sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:40px;align-items:stretch}
+  .s3L{grid-column:1;grid-row:1;min-width:0}
+  .s3R{display:block;grid-column:2;grid-row:1;min-width:0}
+  .stg{top:58px;height:min(calc(100vh - 80px),660px);margin:20px 0 0}
+  .s3side{position:sticky;top:58px;margin-top:20px}
+  .s3L section>h2:first-child{margin-top:44px}
+}
+@media (max-width:520px){.stg{top:50px;height:min(52vh,400px);min-height:270px;border-radius:12px}.stg-bar{gap:4px;padding:5px 6px 6px}.stg .stg-bar button{padding:4px 9px}.stg .stg-bar select{padding:3px 4px}.stg-hint{display:none}ol.sx>li{padding:7px 10px 7px 36px}ol.sx>li::before{left:7px}}
+</style>
+<style id="wp-css">
+/* article page: the headline card (generated by mk_article.py), "in the article" margin labels, figure cards. Copied from the paper pages' card look. */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0 8px;background:var(--card);box-shadow:var(--shadow)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.hero h1{margin:6px 0 6px}
+.hero .au{font-size:13.5px;line-height:1.45;color:var(--mute)}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hero-l{font-size:13.5px;margin-top:8px}.hero-n{font-size:12.5px;color:var(--mute);margin-top:6px}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:22px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}.hn .stat .k{font-size:12.5px;color:var(--ink)}
+.where{display:inline-block;margin:0 0 6px;font-size:12px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:1px 7px;text-decoration:none;background:var(--bg)}
+.where:before{content:"in the article: ";opacity:.75}
+a.where:visited{color:var(--mute)}.where:hover{color:var(--acc);border-color:var(--acc)}
+.wp-fig .t{font-weight:600;font-size:15px;line-height:1.35;margin-bottom:6px}
+.wp-fig figcaption,.wp-cap{font-size:13px;color:var(--mute);line-height:1.5;margin-top:8px}
+.wp-fig{margin:0}
+.wp-lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}.wp-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.wp-hl{color:var(--c2);font-weight:600}
+.wp-resp{list-style:none;padding:0;margin:10px 0}.wp-resp li{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 8px;background:var(--card)}
+.wp-resp .by{font-size:12.5px;color:var(--mute)}.wp-resp .kind{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin-right:6px;border:1px solid var(--line);background:var(--soft);color:var(--ink)}
+.wp-toyout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;margin:8px 0}
+.wp-toyout .stat .v{font-size:19px}
+#t-read details.mist .b p,#t-read details.mist .b li{font-size:14px}
+blockquote.wp-q{margin:10px 0;padding:6px 14px;border-left:3px solid var(--line);color:var(--ink);font-style:italic}
+/* this page (prefix ck): the pool check, the handoff and race animations, the timeline */
+.ck-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px}
+.ck-ctl input[type=range]{flex:1 1 180px;min-width:140px}
+.ck-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:8px;margin:8px 0}
+.ck-out .stat .v{font-size:18px}
+.ck-bad{color:var(--bad)}.ck-ok{color:var(--good)}
+.ck-pred{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;background:var(--soft)}
+table.ck-tab{border-collapse:collapse;font-size:13.5px;width:100%;margin:6px 0}
+table.ck-tab th,table.ck-tab td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+table.ck-tab th{font-weight:600;color:var(--mute);font-size:12.5px}
+.ck-tw{overflow-x:auto}
+</style>
+<div class="crumb"><a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a> · 2026 · <span id="rt">Reading: 13 min, plus 2 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The article</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<div class="hero" id="hero">
+<div class="hero-k">Article · postmortem · The Cloudflare Blog</div>
+<h1>Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang</h1>
+<div class="au">Kevin Flansburg, Michelle Chen (Cloudflare) · published 26 October 2026</div>
+<p class="tk"><b>In one line:</b> From 27 August to 9 September 2026, Workers AI&#x27;s GLM-5.3 endpoint advertised a 1,048,576-token window on a 681,280-token prefill KV pool; prompts over the pool took SGLang&#x27;s rejection path, which in disaggregated mode still handed decode one token of cache, and decode answered from reserved pages still holding earlier requests&#x27; data. Cloudflare counts 155 affected responses; the fix enlarged the pool and retires rejected requests before the handoff, as SGLang&#x27;s main branch already did two days before the report.</p>
+<div class="hn">
+<div class="stat"><div class="v">155 <span class="u">responses affected</span></div><div class="k">27 August to 9 September 2026, all to prompts over 681,280 tokens</div><div class="d">Cloudflare&#x27;s count; no sign of deliberate exploitation · <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=In%20total%2C%20155%20responses%20were%20affected" target="_blank" rel="noopener noreferrer">in the article: the opening</a></div></div>
+<div class="stat"><div class="v">681,280 <span class="u">tokens of prefill KV pool</span></div><div class="k">behind a 1,048,576-token context window: 65% of what the window promised</div><div class="d">sized from memory the weights leave free, not from the window · <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=the%20KV%20cache%20pool%20on%20our%20prefill%20GPUs%20only%20had%20room%20for%20681%2C280%20tokens" target="_blank" rel="noopener noreferrer">in the article: What happened</a></div></div>
+<div class="stat"><div class="v">about 2.04M <span class="u">tokens after the fix</span></div><div class="k">the prefill pool after the fix, about twice the window</div><div class="d">plus an engine patch that refuses before the KV handoff · <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=the%20prefill%20KV%20pool%20now%20holds%20about%202.04%20million%20tokens" target="_blank" rel="noopener noreferrer">in the article: Immediate remediation</a></div></div>
+</div>
+<p class="tk"><b>How far to trust it:</b> Believe the mechanism and the fix: SGLang&#x27;s own source, pull requests and companion post confirm every step. Read 155 as a count of affected replies, method unstated, saying nothing about whose data surfaced; and note that the mismatch was known before launch and the bug public since 6 July. <a href="#s-trust">The evidence, judged</a>.</p>
+<div class="hero-l"><a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/" target="_blank" rel="noopener noreferrer">read it (16 min)</a> · <a href="https://www.lmsys.org/blog/2026-10-26-cf-security" target="_blank" rel="noopener noreferrer">SGLang security update: improving request isolation</a> · <a href="https://news.ycombinator.com/item?id=50252159" target="_blank" rel="noopener noreferrer">discussion (182 points, 79 comments on 27 November 2026)</a></div>
+</div>
+
+<div class="s3sp"><div class="s3L"><section id="s-core">
+<p class="lead"><b>The idea in one sentence:</b> a serving engine reuses KV cache pages without clearing them, so isolation between users rests on its bookkeeping alone; Cloudflare accepted prompts its prefill pool could not hold, SGLang refused them internally yet still completed the handoff to decode with one token of real cache, and decode answered from reserved pages still holding earlier users' keys and values.</p>
+<p class="small"><b>You need:</b> paged KV memory, a pool of fixed-size pages handed out and reclaimed by the engine (<a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>, sections 1 and 2); prefill and decode on separate GPUs with the KV cache copied between them (<a href="https://app.notion.com/p/3c65c17b0d0d8170bd7cdf47af0ec07b" target="_blank" rel="noopener noreferrer">Distributed and disaggregated serving</a>, section 6); SGLang's pool flags (<a href="https://app.notion.com/p/3c65c17b0d0d81e691e4ce9f9b5d1fad" target="_blank" rel="noopener noreferrer">SGLang</a>, section 7).</p>
+<p class="small"><b>New terms:</b> <b>KV pool</b> (GPU memory SGLang reserves for KV pages at start-up, sized from what the weights leave free); <b>rejection path</b> (SGLang refusing a request inside the scheduler: record the error, swap the prompt for a one-token placeholder, let it drain through the batch); <b>admission queue</b> (the door each disaggregated worker passes a request through); <b>bootstrap</b> (the router announcing a request's length to decode, which reserves pages); <b>deferred release</b> (keeping an aborted request's pages reserved until no remote write can still land in them).</p>
+<p class="ck-pred small"><b>Predict before you drag:</b> a 700,000-token prompt, pool as launched, engine before the fix. Of the keys and values decode attends over while it writes the reply, how much did this request write itself?</p>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="ck-pool">
+<div class="t">The window promised 1,048,576 tokens; the prefill pool held 681,280, and every prompt in between took the rejection path</div>
+<div id="ck-pool-svg"></div>
+<div class="ck-ctl">
+<label class="small" for="ck-L">Prompt length</label><input type="range" id="ck-L" min="1000" max="1040000" step="1000" value="500000" aria-label="Prompt length in tokens"> <b id="ck-L-v">500,000</b>
+</div>
+<div class="ck-ctl">
+<div class="seg" id="ck-cfg" role="group" aria-label="Pool size"><button data-m="launch" class="on">Pool as launched</button><button data-m="fixed">Pool after the fix</button></div>
+<div class="seg" id="ck-eng" role="group" aria-label="Engine"><button data-m="old" class="on">Engine before the fix</button><button data-m="new">Fixed engine</button></div>
+</div>
+<div class="ck-out" id="ck-pool-out"></div>
+<figcaption>SGLang v0.5.19 refuses a prompt of at least min(window − 1, pool − 1) − 5 tokens, 681,274 here (<a href="https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/tp_worker.py#L543-L556" target="_blank" rel="noopener noreferrer">tp_worker.py L543-556</a>, <a href="https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/utils.py#L219" target="_blank" rel="noopener noreferrer">utils.py L219</a>). Fixed pool: 2,040,000 tokens (the post's "about 2.04 million"). Page size 64 is illustrative (issue #30233's GLM-5.2 deployment; Cloudflare gives none). Computed exactly, checked against <code>src/recompute.py</code>.</figcaption>
+</figure></div></div></div>
+<nav class="nav" id="rd-nav"><a href="#s-core">Core idea</a><a href="#s-what">What happened</a><a href="#s-config">Misconfiguration</a><a href="#s-bug">The engine bug</a><a href="#s-fix">The fix</a><a href="#s-class">The bug class</a><a href="#s-ops">For operators</a><a href="#s-trust">Believe?</a><a href="#s-resp">Responses</a><a href="#s-kb">Moves the KB</a></nav>
+
+<div class="s3sp"><div class="s3L"><section id="s-what"><h2>1. Thirteen days, 155 responses, one endpoint</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Gadi%20Evron%20submitted%20a%20report%20on%20September%208" target="_blank" rel="noopener noreferrer" class="where">What happened</a>
+<p><b>For thirteen days, long prompts to one Workers AI model could be answered from other customers' data.</b> GLM-5.3 (<code>@cf/zai-org/glm-5.3</code>) launched on 27 August 2026; on 8 September Gadi Evron of Knostic reported through HackerOne that very long prompts sometimes returned text from other users' sessions. Cloudflare reproduced it the next morning, <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=took%20the%20model%20offline%20within%2040%20minutes%20of%20declaring%20an%20incident" target="_blank" rel="noopener noreferrer">took the model offline within 40 minutes</a> of declaring an incident, and restored it at 19:40 UTC the same day. <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=In%20total%2C%20155%20responses%20were%20affected" target="_blank" rel="noopener noreferrer">In total, 155 responses were affected</a>, all to prompts over 681,280 tokens; no other model was.</p>
+<p><b>Cloudflare reads the traffic as ordinary use, not an attack:</b> outside its own and the researcher's tests, the requests were <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=consistent%20in%20timing%20and%20volume%20with%20ordinary%20long%2Dcontext%20use" target="_blank" rel="noopener noreferrer">consistent in timing and volume with ordinary long-context use</a>. The timeline on the right adds what the post mentions only in passing: the engine bug was reported publicly seven weeks before launch, and the change that stops it reached SGLang's main branch two days before the report.</p>
+
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="ck-tl">
+<div class="t">The bug was public before the launch and fixed upstream before the report</div>
+<div id="ck-tl-svg"></div>
+<div class="wp-lg"><span><i style="background:var(--c1)"></i>Cloudflare</span><span><i style="background:var(--c2)"></i>SGLang project</span><span><i style="background:var(--c3)"></i>researcher</span></div>
+<figcaption>From the post's timeline (UTC), SGLang's post, GitHub and SGLang's release dates; spaced by event, not to scale. Shaded: the 13 days of exposure. Every event, in full, is in the closed list below.</figcaption>
+<details class="mist"><summary>The timeline as a list</summary><div class="b"><p>6 July: issue #30233 reports the bug (GLM-5.2, 1M window). 3 August: Cloudflare's post on page-tag integrity checks. Mid-August: tags tested on GLM 5.2, then disabled. 27 August: GLM-5.3 launches with pool 681,280 below window 1,048,576. 5 September: #30233 closed for inactivity; v0.5.19 released without the fix. 6 September: #36988 merged. 8 September 23:11: report. 9 September: incident 13:22, model private 14:00, restored 19:40. 16 September: #38935 and #39500 merged. 18 September: v0.5.20 with #36988. 2 October: v0.5.21, deferred release on by default. 19 October: v0.5.22. 26 October: coordinated disclosure.</p></div></details>
+</figure></div></div></div>
+
+<section id="s-config"><h2>2. Issue one: a context window larger than the pool behind it</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=We%20were%20aware%20of%20this%20size%20mismatch" target="_blank" rel="noopener noreferrer" class="where">Issue one: misconfiguration</a>
+<p><b>The pool and the window are two numbers nothing ties together.</b> SGLang sizes the KV pool <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=SGLang%20sizes%20it%20at%20startup%20from%20whatever%20GPU%20memory%20remains" target="_blank" rel="noopener noreferrer">from whatever GPU memory remains</a> after the weights load; the advertised context length is a separate setting, and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Nothing%20forces%20the%20two%20to%20agree" target="_blank" rel="noopener noreferrer">Nothing forces the two to agree</a>. On GLM-5.3's prefill nodes the pool came to 681,280 tokens against a 1,048,576-token window: 65% of it. Why a million-token cache is that large is <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>'s calculator.</p>
+<p><b>Cloudflare knew, and expected an error.</b> The pool size is in SGLang's start-up log and metrics, and the gap was known before launch; <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=We%20expected%20the%20engine%20to%20return%20an%20error%20for%20any%20prompt%20it%20could%20not%20process" target="_blank" rel="noopener noreferrer">We expected the engine to return an error</a>, and long-context benchmarks returned HTTP 200. The tests <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=we%20only%20validated%20HTTP%20response%20codes%20and%20engine%20performance%20at%20long%20contexts" target="_blank" rel="noopener noreferrer">only validated HTTP response codes and engine performance</a>, never the output; by section 3's mechanism those successful tests were most likely answered from other requests' cache too.</p>
+<p><b>The engine did refuse the prompts, inside.</b> Drag the prompt past 681,274 tokens in the figure at the top. The refusal was real; what went wrong is where the refused request went next.</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><figure class="card wp-fig" id="ck-hand">
+<div class="t" id="ck-hand-t">A rejected request passed both admission queues and decoded from pages it never wrote</div>
+<div class="seg" id="ck-hand-m" role="group" aria-label="Which request"><button data-m="ok">Valid request</button><button data-m="bug" class="on">Rejected, before the fix</button><button data-m="fix">Rejected, after the fix</button></div>
+<div id="ck-hand-svg"></div>
+<div class="an-cap" id="ck-hand-cap"></div>
+<div class="an-ctl" id="ck-hand-ctl"></div>
+<figcaption>One request whose prompt fills 8 KV pages, as in the post's own diagram. Pages start with what earlier requests A, B and C left in them (hatched): the pool is never cleared. Green: KV written by this request. Redrawn from the post's figure (which carries no open licence), with a third mode from SGLang's fix #38935.</figcaption>
+</figure></div><div class="s3L">
+<section id="s-bug"><h2>3. Issue two: a rejected request looked live to both admission queues</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=A%20rejected%20request%20reported%20itself%20as%20live" target="_blank" rel="noopener noreferrer" class="where">Issue two: SGLang bug</a>
+<p><b>Freed KV pages keep their contents.</b> A request gets pages from a shared pool when admitted and returns them when done, and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Pages%20are%20not%20currently%20zeroed%20between%20requests" target="_blank" rel="noopener noreferrer">Pages are not currently zeroed between requests</a>: the next owner overwrites them. That is standard and needed for speed, so the engine's record of who owns which page is the only isolation between users (the block pool: <a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>, section 1).</p>
+<p><b>The rejection path was built for one machine.</b> <code>Req.set_finish_with_abort</code> stores the error in <code>to_finish</code> and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=swapped%20the%20prompt%20for%20a%20one%2Dtoken%20placeholder" target="_blank" rel="noopener noreferrer">swapped the prompt for a one-token placeholder</a>, so the request drains through the normal batch. <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=On%20a%20single%2Dnode%20deployment%20this%20worked" target="_blank" rel="noopener noreferrer">On a single-node deployment this worked</a>. In disaggregated mode both workers' admission queues ask <code>req.finished()</code>, which reads a different field, <code>finished_reason</code>, so a refused request looked live (<code>schedule_batch.py</code> at v0.5.19, <a href="https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/managers/schedule_batch.py#L1927-L1946" target="_blank" rel="noopener noreferrer">L1359-1361 and L1927-1946</a>):</p>
+<ol class="sx" id="sx-hand-bug">
+<li><b>Bootstrap.</b> The router tells decode the prompt is 8 pages long; decode reserves 8 pages, still holding earlier requests' data.</li>
+<li><b>Prefill admission.</b> The rejection sits in <code>to_finish</code>, <code>finished()</code> returns False, and the request is admitted.</li>
+<li><b>Forward pass on one token.</b> The prompt is already the placeholder, so prefill computes KV for a single token.</li>
+<li><b>Transfer.</b> One page crosses to decode with the "transfer complete" signal.</li>
+<li><b>Decode admission.</b> The same <code>finished()</code> check, the same blind spot: the handoff is accepted.</li>
+<li><b>Attention over all 8 pages.</b> <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Only%20page%20P0%20had%20been%20written%20by%20this%20request" target="_blank" rel="noopener noreferrer">Only page P0 had been written by this request</a>; P1 to P7 hold other users' prompts and partial answers.</li>
+<li><b>Response.</b> HTTP 200 instead of 400, a coherent reply, <code>prompt_tokens</code> matching the long prompt, faster than an 8-page prefill could be, and other users' content in it.</li>
+</ol>
+<ol class="sx" id="sx-hand-ok" hidden>
+<li><b>Bootstrap.</b> The router tells decode the prompt is 8 pages long; decode reserves 8 pages, still holding earlier requests' data.</li>
+<li><b>Prefill admission.</b> A valid request: <code>finished()</code> is False, correctly, and it is admitted.</li>
+<li><b>Forward pass.</b> Prefill computes KV for all 8 pages of the prompt.</li>
+<li><b>Transfer.</b> All 8 pages cross over RDMA, then the done signal.</li>
+<li><b>Decode admission.</b> The handoff is accepted; every reserved page now holds this request's KV, and nothing earlier survives.</li>
+<li><b>Attention over all 8 pages.</b> Every page read was written by this request.</li>
+<li><b>Response.</b> HTTP 200, a correct answer, normal prefill latency.</li>
+</ol>
+<ol class="sx" id="sx-hand-fix" hidden>
+<li><b>Refused at intake.</b> The scheduler refuses the prompt as before: error stored, placeholder swapped in.</li>
+<li><b>Retired at the prefill door.</b> <code>PrefillBootstrapQueue.add</code> now asks whether a request is aborted and holds nothing; this one is, so it is retired with its original error.</li>
+<li><b>No forward pass.</b> No bootstrap handshake, no metadata buffer, no stub computation.</li>
+<li><b>No transfer.</b> Nothing is sent, so decode can never be told "complete".</li>
+<li><b>Decode never commits.</b> Its reservation is released when the router cancels the pair (or its own door retires the request, when decode also refuses it).</li>
+<li><b>No read.</b> No page this request did not write is ever attended over.</li>
+<li><b>Response.</b> HTTP 400 with the length error the scheduler wrote in step 1.</li>
+</ol>
+<p><b>In the real incident the reservation was thousands of pages.</b> With 64-token pages a 700,000-token prompt reserves 10,938 pages on decode, and one placeholder token was all it wrote, so the reply was conditioned on 699,999 tokens of other requests' leftovers. <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Every%20request%20over%20the%20threshold%20behaved%20this%20way" target="_blank" rel="noopener noreferrer">Every request over the threshold behaved this way</a>: a deterministic path, not a race.</p>
+<p><b>The same bug was already on file.</b> It <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=had%20been%20reported%20to%20SGLang%20by%20another%20user%20as%20issue%20%2330233" target="_blank" rel="noopener noreferrer">had been reported to SGLang by another user as issue #30233</a> on 6 July, on a GLM-5.2 deployment with the same 1,048,576-token window and a 284,928-token pool, root cause traced and a patch proposed; it was closed for inactivity on 5 September. <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=GLM%205.3%20was%20the%20only%20model%20affected%20by%20this%20bug" target="_blank" rel="noopener noreferrer">GLM 5.3 was the only model affected</a> because every other deployment had pools larger than its window.</p>
+</section></div></div>
+
+<section id="s-fix"><h2>4. The fix: a pool that holds the window, and a rejection that stops before the handoff</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=we%20made%20the%20pool%20hold%20the%20full%20context" target="_blank" rel="noopener noreferrer" class="where">Immediate remediation</a>
+<p><b>Either change alone closes this path; Cloudflare made both.</b> The configuration took GLM-5.3 to its GLM-5.2 settings, freeing memory for a prefill pool of about 2.04 million tokens, so a prompt that fits the window fits the pool. The engine patch exists because <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Relying%20on%20pool%20size%20alone%20is%20fragile" target="_blank" rel="noopener noreferrer">Relying on pool size alone is fragile</a>: quantization, parallelism, CUDA graphs or a new model version all move the pool, so a request with a pending rejection is now <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=retired%20at%20the%20disaggregation%20admission%20queue%2C%20with%20its%20original%20error" target="_blank" rel="noopener noreferrer">retired at the disaggregation admission queue</a> before any transfer. Both were checked against the researcher's script and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=our%20own%20canary%2Dmarker%20tests" target="_blank" rel="noopener noreferrer">our own canary-marker tests</a> (a known marker in the prompt that the reply must reflect).</p>
+<div class="ck-tw"><table class="ck-tab" id="ck-prs">
+<tr><th>Change</th><th>What it does</th><th>Status (27 November)</th></tr>
+<tr><td>Cloudflare config, 9 Sep</td><td>Prefill pool about 2.04M tokens</td><td>In production</td></tr>
+<tr><td>Cloudflare patch, 9 Sep</td><td>Retires a rejected request at admission</td><td>In production; upstream as #38704</td></tr>
+<tr><td><a href="https://github.com/sgl-project/sglang/pull/36988" target="_blank" rel="noopener noreferrer">#36988</a></td><td>Retires an aborted request before its KV reaches decode (written for a failing vision encoder)</td><td>Merged 6 Sep; v0.5.20</td></tr>
+<tr><td><a href="https://github.com/sgl-project/sglang/pull/38935" target="_blank" rel="noopener noreferrer">#38935</a></td><td>Retires it at both admission doors: "a waste-and-latency fix, not a correctness fix"</td><td>Merged 16 Sep; v0.5.21</td></tr>
+<tr><td><a href="https://github.com/sgl-project/sglang/pull/38704" target="_blank" rel="noopener noreferrer">#38704</a></td><td>Cloudflare's admission fix plus a transferred-length check</td><td>Closed unmerged 10 Oct; length check declined</td></tr>
+</table></div>
+<p><b>The post credits the upstream fix accurately but quietly:</b> <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=The%20fix%20was%20already%20on%20SGLang%20main%20in%20%2336988" target="_blank" rel="noopener noreferrer">The fix was already on SGLang main in #36988</a>. #38935's author is plainer: after #36988 the stale-KV symptom does not reproduce on main, so #38935 only saves a wasted handshake and, when both workers refuse, a 300-second decode timeout.</p>
+</section>
+
+<div class="s3sp"><div class="s3R"><figure class="card wp-fig" id="ck-race">
+<div class="t" id="ck-race-t">Freed at abort, a slot can be reused while the aborted request's write is still on its way</div>
+<div class="seg" id="ck-race-m" role="group" aria-label="Release policy"><button data-m="free" class="on">Free at abort (before)</button><button data-m="hold">Hold until drained (deferred release)</button></div>
+<div id="ck-race-svg"></div>
+<div class="an-cap" id="ck-race-cap"></div>
+<div class="an-ctl" id="ck-race-ctl"></div>
+<figcaption>Ten slots of one decode pool, request A's transfer from prefill aborted half way. Illustrative sizes; the order of events and the rule follow SGLang's companion post ("The Problem: When Is a KVCache Slot Actually Free?" and "Deferred Release"), which reproduced the overlap on two H200s.</figcaption>
+</figure></div><div class="s3L">
+<section id="s-class"><h2>5. The wider class: a page freed, reused or read while something still claims it</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=a%20class%20of%20KV%20cache%20memory%2Dsafety%20bugs" target="_blank" rel="noopener noreferrer" class="where">Ongoing hardening effort</a>
+<p><b>This incident belongs to a family Cloudflare had been fixing for months:</b> <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=a%20page%20is%20freed%2C%20reused%2C%20or%20read%20while%20something%20else%20still%20has%20a%20claim%20on%20it" target="_blank" rel="noopener noreferrer">a page is freed, reused, or read while something else still has a claim on it</a>. Inside one decode node, generation, host offload, the transfer receiver and abort paths can all hold a page (Cloudflare's fixes #24226, #30899, #30937). Across nodes, prefill writes KV straight into decode's memory by one-sided RDMA, and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=the%20writes%20already%20sent%20cannot%20be%20recalled" target="_blank" rel="noopener noreferrer">the writes already sent cannot be recalled</a>:</p>
+<ol class="sx" id="sx-race-free">
+<li><b>A transfer in flight.</b> Prefill streams A's KV into slots 3 to 7 on decode: two chunks have landed, one is posted to the network card, two wait in prefill's queue.</li>
+<li><b>Abort, slots freed.</b> A's client disconnects; decode aborts A and returns slots 3 to 7 to the allocator at once.</li>
+<li><b>Reused.</b> The allocator gives those slots to request B, whose own KV is written there.</li>
+<li><b>A late write lands.</b> A's posted chunk arrives in slot 5, now B's; nothing reports an error.</li>
+<li><b>B decodes on A's keys and values.</b> Garbage, or fragments of A's prompt in B's reply.</li>
+</ol>
+<ol class="sx" id="sx-race-hold" hidden>
+<li><b>A transfer in flight.</b> Prefill streams A's KV into slots 3 to 7 on decode: two chunks have landed, one is posted to the network card, two wait in prefill's queue.</li>
+<li><b>Abort, slots held.</b> Decode tells every prefill rank to abort; queued chunks are dropped, and A's slots stay reserved.</li>
+<li><b>The late write lands harmlessly.</b> The posted chunk arrives in slot 5, still A's, quarantined and never read.</li>
+<li><b>Drained, then released.</b> Prefill's count of outstanding writes reaches zero and it replies ABORT_ACK; only then does decode free the slots (a 30-second default timeout is the fallback).</li>
+<li><b>B gets clean slots.</b> Every slot B reads was written by B; SGLang's harness gave output identical to the baseline, byte for byte.</li>
+</ol>
+<p><b>The incident's bug was the deterministic cousin of this race:</b> a rejected request <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=went%20through%20the%20handoff%20every%20time%2C%20rather%20than%20by%20a%20timing%20accident" target="_blank" rel="noopener noreferrer">went through the handoff every time</a>, with the same result. Deferred release became SGLang's default in v0.5.21, at no measurable throughput cost (within ±2% over 21 runs on 2×H100, SGLang's post).</p>
+<details class="mist"><summary>Cloudflare's hardening since the incident</summary><div class="b"><p>Deferred release extended to every failure type and to prefill's source pages (SGLang's analysis judged that path already safe); bounded Mooncake transfer batches, so one call cannot outlast the release timeout; a load balancer that <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Changed%20our%20load%20balancer%20so%20a%20client%20disconnect%20no%20longer%20aborts" target="_blank" rel="noopener noreferrer">no longer aborts on a client disconnect</a>, holding prefill until it finishes and decode until the first token; and a check on every disaggregated deployment change covering pool against window, deferred release on both roles, batch bounds and required patches.</p></div></details>
+</section></div></div>
+
+<section id="s-ops"><h2>6. What any operator should check, and the longer-term fix</h2>
+<a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Measure%20your%20KV%20pool%20and%20compare%20it%20to%20your%20context%20length" target="_blank" rel="noopener noreferrer" class="where">What we recommend to other operators</a>
+<p><b>The post's five recommendations for anyone running disaggregated SGLang</b>, the first being <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=This%20is%20the%20check%20we%20did%20not%20enforce" target="_blank" rel="noopener noreferrer">the check we did not enforce</a>:</p>
+<ol>
+<li><b>Pool against window on every node</b>, from the engine's start-up log, after any change to weights, quantization, parallelism or memory fraction; lower the context length if the pool is smaller. <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Do%20not%20rely%20on%20a%20proxy%20to%20enforce%20the%20limit" target="_blank" rel="noopener noreferrer">Do not rely on a proxy to enforce the limit</a>.</li>
+<li><b>v0.5.22 or later</b>, or backport #36988 and #38935.</li>
+<li><b>Deferred KV release on both roles</b> (default since v0.5.21) and bounded Mooncake batches.</li>
+<li><b>Corruption detection</b> (<code>--disaggregation-enable-kv-checksum</code>, <code>--kv-canary</code>), which <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=do%20not%20yet%20cover%20every%20model%20architecture" target="_blank" rel="noopener noreferrer">do not yet cover every model architecture</a>, GLM 5.3 included.</li>
+<li><b>Fewer aborts mid-transfer</b>: let the load balancer carry a request to its first token.</li>
+</ol>
+<p><b>The general lesson: test content, not status.</b> A canary marker in a long prompt that the answer must repeat would have failed; a 200 where a 400 was expected, and a reply faster than its prefill could take, were the signs.</p>
+<p><b>Longer term, the engine should refuse to read a page it does not own.</b> In Cloudflare's prototype <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=Every%20physical%20KV%20page%20carries%20a%20tag" target="_blank" rel="noopener noreferrer">Every physical KV page carries a tag</a> that changes on reallocation, checked before decode reads; under 1% overhead, tested on GLM 5.2 in mid-August and <a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/#:~:text=disabled%20it%20shortly%20afterwards%20due%20to%20reliability%20issues" target="_blank" rel="noopener noreferrer">disabled it shortly afterwards due to reliability issues</a>, about two weeks before GLM-5.3 launched. SGLang's checksum (#39500) checks only the handoff; tags would check every read. Cloudflare also plans to prove its RDMA transfer protocol safe with formal methods.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>The mechanism holds up independently of Cloudflare:</b> every step of section 3 is in SGLang's v0.5.19 source, another user reported the same failure in July, #38935's tests cover both doors, and the maintainers' post agrees. The post is candid about the known mismatch and the status-only tests, and unchanged across every archived copy.</p>
+<p><b>What it leaves out or frames generously:</b></p>
+<ul>
+<li><b>The 155 counts receivers, by a method not stated.</b> Since every over-limit request took the path, it is most likely the count of over-limit GLM-5.3 requests in the 13 days; whether the tests are inside it is unclear. Nothing is said about how many customers' prompts surfaced in those replies, what data, or whether they were told; the status notice at the time spoke of "increased errors".</li>
+<li><b>"Two overlapping issues" spreads the cause evenly; the timeline does not.</b> The engine bug was public from 6 July and fixed on SGLang's main on 6 September. What only Cloudflare controlled was launching with a pool it knew was too small and testing status codes instead of output.</li>
+<li><b>The integrity check that would have caught it was off.</b> The August post presented page tags as built; this one says they were disabled before GLM-5.3 launched.</li>
+<li><b>Which release fixed it is stated two ways:</b> "Issue two" opens with v0.5.21; the same section and the table give v0.5.20 for #36988, as GitHub does.</li>
+</ul>
+<p><b>Verdict:</b> believe the mechanism, the timeline and the fix, corroborated by code Cloudflare did not write. Treat 155 as a count of affected replies, not a measure of whose data was exposed, and read the post as an honest account of a known risk accepted at launch rather than an unforeseeable engine bug.</p>
+</section>
+
+<section id="s-resp"><h2>What the responses said</h2>
+<p class="small">Hacker News (read 27 November): 182 points, 79 comments, most of them arguing that the title names the model rather than the endpoint.</p>
+<ul class="wp-resp">
+<li><span class="kind">companion post</span><a href="https://www.lmsys.org/blog/2026-10-26-cf-security" target="_blank" rel="noopener noreferrer">SGLang security update: improving request isolation</a><div class="by">the SGLang team (RadixArk), 26 October 2026</div><p>Agrees on the mechanism and credits #36988 with the fix; declined the transferred-length check Cloudflare proposed (both sides compute the length from the same prefill accounting) and judged prefill&#x27;s source pages already safe. The researcher&#x27;s report, &quot;available soon&quot;, was not found by 27 November.</p></li>
+<li><span class="kind">author&#x27;s reply</span><a href="https://news.ycombinator.com/item?id=50253832" target="_blank" rel="noopener noreferrer">We name the model because customers need to know which endpoint was affected</a><div class="by">kflansburg (Kevin Flansburg, an author), Hacker News, 27 October 2026</div><p>The post never blames the model; it names it so customers know which endpoint was hit. The title was not changed.</p></li>
+<li><span class="kind">critique</span><a href="https://news.ycombinator.com/item?id=50259711" target="_blank" rel="noopener noreferrer">An expected error that came back as success should have been investigated</a><div class="by">ComputerGuru and yunohn, Hacker News, 27 October 2026</div><p>Success where an error was expected should itself have been investigated; the post concedes its tests checked status and speed only.</p></li>
+<li><span class="kind">reader&#x27;s reading</span><a href="https://news.ycombinator.com/item?id=50254347" target="_blank" rel="noopener noreferrer">A normal multi-turn 1M session would work fine</a><div class="by">hedgehog, Hacker News, 27 October 2026</div><p>Says only single prefills over 681k were hit. Wrong by SGLang&#x27;s code: the check counts the whole prompt, cached or not.</p></li>
+<li><span class="kind">question</span><a href="https://news.ycombinator.com/item?id=50261215" target="_blank" rel="noopener noreferrer">Were the customers whose data leaked told?</a><div class="by">alxsm, Hacker News, 27 October 2026</div><p>Million-token prompts often carry whole repositories and secrets; the post does not say whether the exposed customers were identified or told.</p></li>
+<li><span class="kind">related research</span><a href="https://www.greaterwrong.com/posts/7wzWuLP3HhyBLmKfo" target="_blank" rel="noopener noreferrer">Models Can Communicate via Inference Servers Despite Being Sandboxed</a><div class="by">Niranjan Deshpande and David Africa, LessWrong, 19 November 2026</div><p>Not a reply: on working engines, SGLang included, a shared prefix cache lets two models signal through numerical fingerprints (1,221 of 1,221 games with a fine-tuned reader). Per-user cache isolation closes it.</p></li>
+</ul>
+
+</section>
+
+<section id="s-kb"><h2>Where it moves the knowledge base</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>: a freed page keeps its contents, so ownership bookkeeping is the only isolation between users.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d8170bd7cdf47af0ec07b" target="_blank" rel="noopener noreferrer">Distributed and disaggregated serving</a>: the handoff's two failure modes (a refusal that still hands off, an abort whose writes outlive the slots), and "pool at least the window on every node" in the section 9 checklist.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81e691e4ce9f9b5d1fad" target="_blank" rel="noopener noreferrer">SGLang</a>: the pool flags set a limit the context length does not; disaggregated deployments need v0.5.22 or the backports.</li>
+<li><a href="https://app.notion.com/p/3f15c17b0d0d81ad9fb7d1dd74217335" target="_blank" rel="noopener noreferrer">Agent security</a>: below the agent's threat model sits the shared inference server, where a bug can move one tenant's prompt into another's reply with no attacker.</li>
+</ul>
+</section>
+
+<details class="mist" id="s-since"><summary>Since the article (checked 27 November 2026): the engine and the fix</summary><div class="b"><ul><li><a href="https://github.com/sgl-project/sglang/pull/45973" target="_blank" rel="noopener noreferrer">PR #45973: failed NIXL and MORI sends no longer acknowledged as drained</a> (23 October 2026): The last fix in SGLang&#x27;s disclosure timeline, merged 23 October and listed in the v0.5.23 release notes (2 November): the race&#x27;s protection for the two transfer backends #43719 did not cover.</li><li><a href="https://github.com/sgl-project/sglang/pull/46435" target="_blank" rel="noopener noreferrer">Draft #46435: optionally zero KV pages on free</a> (17 November 2026): Opened by Kevin Flansburg on 25 October (an opt-in flag that zeroes freed pages, so a read of a page a request does not own returns zeros, not another request&#x27;s KV; MLA and DSA pools only) and closed unmerged on 17 November. No merged zero-on-free by 27 November.</li><li><a href="https://github.com/sgl-project/sglang/pull/38704" target="_blank" rel="noopener noreferrer">Cloudflare&#x27;s #38704: honor admission aborts before KV handoff</a> (10 October 2026): Closed unmerged on 10 October; #38935 took its admission approach, and the transferred-length check it added was declined upstream.</li></ul>
+</div></details>
+
+<details class="mist"><summary>Provenance: what was read, fetched and compared</summary><div class="b">
+<p>The post was fetched on 27 November 2026 and its main text extracted to <code>src/inputs/article.txt</code> (3,635 words, 16 minutes at 230 words a minute; the 2 November tech-news issue quoted 12). Its metadata gives publication on 26 October 2026 at 22:01 UTC and a modification on 27 October at 08:31. Five Wayback Machine copies (26 October 22:02 UTC, 27 October 04:45 and 09:12, 28 October, 16 November) were extracted the same way: the text is identical in all of them and in the live page, so the modification did not change the prose. Every "in the article" link is a text fragment checked against the extract at build time.</p>
+<p>Read on GitHub on 27 November: issue #30233 (body, root cause, proposed patch, closure); pull requests #36988, #38935 and #38704 (descriptions, changed files, comments, merge state); #38935's test file <code>test_admission_abort_not_enqueued.py</code>; draft #46435; SGLang's source at v0.5.19 (<code>schedule_batch.py</code>, <code>tp_worker.py</code>, <code>managers/utils.py</code>) and at v0.5.22 (<code>disaggregation/utils.py</code> <code>is_unadmitted_reject</code>, <code>disaggregation/prefill.py</code>); the release dates of v0.5.11 to v0.5.23. Also read: SGLang's companion post in full; Cloudflare's 3 August post (its integrity-check section); the Cloudflare status incident; the Hacker News item and all its comments through the API (submitted 26 October 22:41 UTC); the LessWrong post via GreaterWrong with its comments.</p>
+<p>Figures: the post carries no open licence, so its diagram is redrawn, not embedded, and the hero is computed from the post's numbers and SGLang's source. Not found: the researcher's own report (SGLang's post calls it "available soon"); Cloudflare's own page size, which is why the hero labels 64 illustrative.</p>
+</div></details>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden><section id="s-more">
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab; links checked 27 November 2026. Reading time of the resources below: 2h 59m.</p>
+<h3>The article</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://blog.cloudflare.com/kv-cache-exposure-remediation/" target="_blank" rel="noopener noreferrer">Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang</a></div><p><span class="mute">Kevin Flansburg, Michelle Chen (Cloudflare):</span> The post itself (The Cloudflare Blog, published 26 October 2026). Its diagram of the healthy and the rejected handoff (eight pages, the two admission queues) is worth opening there; this page redraws it as a step animation with a third, fixed mode.</p><p class="rt">(16 min)</p></div>
+<div class="sp"><div class="n"><a href="https://www.lmsys.org/blog/2026-10-26-cf-security" target="_blank" rel="noopener noreferrer">SGLang security update: improving request isolation</a></div><p><span class="mute">Kevin Flansburg, Michelle Chen (Cloudflare):</span> The engine maintainers&#x27; half of the coordinated disclosure, published the same day: the admission fix in their words, and most of it on the related race (an aborted transfer&#x27;s late RDMA writes landing in reused slots), its deterministic reproduction, deferred release, checksums and their measured cost.</p><p class="rt">(25 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=50252159" target="_blank" rel="noopener noreferrer">Hacker News: &quot;Cross-request KV cache exposure in the GLM-5.3 Workers AI model (155 responses)&quot;</a></div><p>182 points, 79 comments (read 27 November 2026), submitted 26 October 2026.</p><p class="rt">(20 min)</p></div>
+</div><h3>Responses, in date order</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://www.lmsys.org/blog/2026-10-26-cf-security" target="_blank" rel="noopener noreferrer">SGLang security update: improving request isolation</a></div><p><span class="mute">the SGLang team (RadixArk), 26 October 2026, companion post:</span> Agrees on the mechanism and credits #36988 with the fix; declined the transferred-length check Cloudflare proposed (both sides compute the length from the same prefill accounting) and judged prefill&#x27;s source pages already safe. The researcher&#x27;s report, &quot;available soon&quot;, was not found by 27 November.</p><p class="rt">(25 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=50253832" target="_blank" rel="noopener noreferrer">We name the model because customers need to know which endpoint was affected</a></div><p><span class="mute">kflansburg (Kevin Flansburg, an author), Hacker News, 27 October 2026, author&#x27;s reply:</span> The post never blames the model; it names it so customers know which endpoint was hit. The title was not changed.</p><p class="rt">(1 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=50259711" target="_blank" rel="noopener noreferrer">An expected error that came back as success should have been investigated</a></div><p><span class="mute">ComputerGuru and yunohn, Hacker News, 27 October 2026, critique:</span> Success where an error was expected should itself have been investigated; the post concedes its tests checked status and speed only.</p><p class="rt">(2 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=50254347" target="_blank" rel="noopener noreferrer">A normal multi-turn 1M session would work fine</a></div><p><span class="mute">hedgehog, Hacker News, 27 October 2026, reader&#x27;s reading:</span> Says only single prefills over 681k were hit. Wrong by SGLang&#x27;s code: the check counts the whole prompt, cached or not.</p><p class="rt">(1 min)</p></div>
+<div class="sp"><div class="n"><a href="https://news.ycombinator.com/item?id=50261215" target="_blank" rel="noopener noreferrer">Were the customers whose data leaked told?</a></div><p><span class="mute">alxsm, Hacker News, 27 October 2026, question:</span> Million-token prompts often carry whole repositories and secrets; the post does not say whether the exposed customers were identified or told.</p><p class="rt">(1 min)</p></div>
+<div class="sp"><div class="n"><a href="https://www.greaterwrong.com/posts/7wzWuLP3HhyBLmKfo" target="_blank" rel="noopener noreferrer">Models Can Communicate via Inference Servers Despite Being Sandboxed</a></div><p><span class="mute">Niranjan Deshpande and David Africa, LessWrong, 19 November 2026, related research:</span> Not a reply: on working engines, SGLang included, a shared prefix cache lets two models signal through numerical fingerprints (1,221 of 1,221 games with a fine-tuned reader). Per-user cache isolation closes it.</p><p class="rt">(11 min)</p></div>
+</div><h3>Since the article (the engine and the fix, checked 27 November 2026)</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/pull/45973" target="_blank" rel="noopener noreferrer">PR #45973: failed NIXL and MORI sends no longer acknowledged as drained</a></div><p><span class="mute">23 October 2026:</span> The last fix in SGLang&#x27;s disclosure timeline, merged 23 October and listed in the v0.5.23 release notes (2 November): the race&#x27;s protection for the two transfer backends #43719 did not cover.</p><p class="rt">(5 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/pull/46435" target="_blank" rel="noopener noreferrer">Draft #46435: optionally zero KV pages on free</a></div><p><span class="mute">17 November 2026:</span> Opened by Kevin Flansburg on 25 October (an opt-in flag that zeroes freed pages, so a read of a page a request does not own returns zeros, not another request&#x27;s KV; MLA and DSA pools only) and closed unmerged on 17 November. No merged zero-on-free by 27 November.</p><p class="rt">(5 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/pull/38704" target="_blank" rel="noopener noreferrer">Cloudflare&#x27;s #38704: honor admission aborts before KV handoff</a></div><p><span class="mute">10 October 2026:</span> Closed unmerged on 10 October; #38935 took its admission approach, and the transferred-length check it added was declined upstream.</p><p class="rt">(10 min)</p></div>
+</div><h3>What it rests on</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/issues/30233" target="_blank" rel="noopener noreferrer">Issue #30233: aborted prefill requests (input too long) cause decode to generate garbage from incomplete KV cache</a></div><p><span class="mute">an SGLang user, 6 July 2026 (third-party):</span> The same bug, reported seven weeks before the launch on a GLM-5.2 deployment with a 1,048,576-token context and a 284,928-token pool, with the root cause traced line by line and a proposed patch; closed for inactivity on 5 September.</p><p class="rt">(10 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/pull/36988" target="_blank" rel="noopener noreferrer">PR #36988: Retire aborted disaggregated prefill results</a></div><p><span class="mute">SGLang, merged 6 September 2026 (maker):</span> Written for a failing vision encoder, not this incident; it retires an aborted request when its prefill result returns, so its stub KV never reaches decode. The change that stops the exposure, released in v0.5.20 on 18 September.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/sgl-project/sglang/pull/38935" target="_blank" rel="noopener noreferrer">PR #38935: Do not admit intake-rejected requests to a PD handoff</a></div><p><span class="mute">SGLang, merged 16 September 2026 (maker):</span> Retires a rejected request at both admission doors. Its description calls itself &quot;a waste-and-latency fix, not a correctness fix&quot;: after #36988 the stale-KV symptom no longer reproduced on main. Its tests cover the doors, re-entering preempted requests, and single-node mode left alone.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://blog.cloudflare.com/smaller-faster-safer-models/" target="_blank" rel="noopener noreferrer">Smaller, faster, safer: running Kimi and GLM at scale</a></div><p><span class="mute">Cloudflare, 3 August 2026 (maker):</span> The earlier post describing the disaggregated GLM deployment and the page-tag integrity check (under 1% overhead), which the incident post says was disabled after mid-August tests.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://www.cloudflarestatus.com/incidents/jsvvrtk5hvym" target="_blank" rel="noopener noreferrer">Cloudflare status: Workers AI increased errors</a></div><p><span class="mute">Cloudflare, 9 September 2026 (maker):</span> The public notice during the incident: investigating at 14:25 UTC, identified at 15:02, resolved at 20:09; it speaks of errors on GLM 5.3, not of data exposure.</p><p class="rt">(2 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/kvcache-ai/Mooncake" target="_blank" rel="noopener noreferrer">Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving</a></div><p><span class="mute">Qin et al., FAST 2025 (third-party):</span> The transfer engine between Cloudflare&#x27;s prefill and decode pools, and the design it comes from.</p><p class="rt">(1 hour)</p></div>
+</div><h3>In this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a></div><p>Owns paged attention, the block pool and its free list, admission and preemption: the machinery whose bookkeeping failed here.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8170bd7cdf47af0ec07b" target="_blank" rel="noopener noreferrer">Distributed and disaggregated serving</a></div><p>Owns splitting prefill from decode and the KV transfer between them (section 6), the handoff this bug went through.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e691e4ce9f9b5d1fad" target="_blank" rel="noopener noreferrer">SGLang: radix cache, cache-aware scheduling, large-scale serving</a></div><p>Owns SGLang as a system: its pool flags (--mem-fraction-static, --max-total-tokens), transfer backends and versions.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context: KV cache growth and compression</a></div><p>Owns KV cache sizing: why a million-token window needs a pool that large, and what it costs per token.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f15c17b0d0d81ad9fb7d1dd74217335" target="_blank" rel="noopener noreferrer">Agent security: permissions, sandboxes, prompt injection, egress</a></div><p>Owns the agent&#x27;s threat model; this incident sits one layer below it, in the shared inference server every agent&#x27;s prompts pass through.</p></div>
+</div><p class="small mute">This page is one of the <a href="https://app.notion.com/p/4255c17b0d0d81b68b15d5f90da34991" target="_blank" rel="noopener noreferrer">Articles</a>: articles worth a page of their own, each with its argument, its evidence judged and what others replied.</p>
+</section></div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){if(/ResizeObserver loop/.test(e.message||""))return;window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* _gen_data.js */
+// Generated by mk_article.py from article.json (and DATA_EXTRA); do not edit by hand.
+window.ARTICLE={"title":"Cross-request KV cache exposure in the GLM-5.3 Workers AI model, and our remediation with SGLang","url":"https://blog.cloudflare.com/kv-cache-exposure-remediation/","published":"2026-10-26","fetched":"2026-11-27","recompute":{"ctx":1048576,"pool_launch":681280,"pool_fixed":2040000,"page":64,"limit_launch":681274,"limit_fixed":1048570,"pool_over_ctx_launch":0.64971923828125,"pool_over_ctx_fixed":1.94549560546875,"cases":[{"L":500000,"pool":"launch","fixed_engine":false,"route":"normal","http":200,"reserved":7813,"written_tokens":500000,"written_pages":7813,"stale_tokens":0,"own_share":1.0},{"L":500000,"pool":"launch","fixed_engine":true,"route":"normal","http":200,"reserved":7813,"written_tokens":500000,"written_pages":7813,"stale_tokens":0,"own_share":1.0},{"L":500000,"pool":"fixed","fixed_engine":false,"route":"normal","http":200,"reserved":7813,"written_tokens":500000,"written_pages":7813,"stale_tokens":0,"own_share":1.0},{"L":500000,"pool":"fixed","fixed_engine":true,"route":"normal","http":200,"reserved":7813,"written_tokens":500000,"written_pages":7813,"stale_tokens":0,"own_share":1.0},{"L":681273,"pool":"launch","fixed_engine":false,"route":"normal","http":200,"reserved":10645,"written_tokens":681273,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":681273,"pool":"launch","fixed_engine":true,"route":"normal","http":200,"reserved":10645,"written_tokens":681273,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":681273,"pool":"fixed","fixed_engine":false,"route":"normal","http":200,"reserved":10645,"written_tokens":681273,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":681273,"pool":"fixed","fixed_engine":true,"route":"normal","http":200,"reserved":10645,"written_tokens":681273,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":681274,"pool":"launch","fixed_engine":false,"route":"rejected, handed off anyway","http":200,"reserved":10645,"written_tokens":1,"written_pages":1,"stale_tokens":681273,"own_share":1.4678381972598396e-06},{"L":681274,"pool":"launch","fixed_engine":true,"route":"rejected, retired before handoff","http":400,"reserved":0,"written_tokens":0,"written_pages":0,"stale_tokens":0,"own_share":null},{"L":681274,"pool":"fixed","fixed_engine":false,"route":"normal","http":200,"reserved":10645,"written_tokens":681274,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":681274,"pool":"fixed","fixed_engine":true,"route":"normal","http":200,"reserved":10645,"written_tokens":681274,"written_pages":10645,"stale_tokens":0,"own_share":1.0},{"L":700000,"pool":"launch","fixed_engine":false,"route":"rejected, handed off anyway","http":200,"reserved":10938,"written_tokens":1,"written_pages":1,"stale_tokens":699999,"own_share":1.4285714285714286e-06},{"L":700000,"pool":"launch","fixed_engine":true,"route":"rejected, retired before handoff","http":400,"reserved":0,"written_tokens":0,"written_pages":0,"stale_tokens":0,"own_share":null},{"L":700000,"pool":"fixed","fixed_engine":false,"route":"normal","http":200,"reserved":10938,"written_tokens":700000,"written_pages":10938,"stale_tokens":0,"own_share":1.0},{"L":700000,"pool":"fixed","fixed_engine":true,"route":"normal","http":200,"reserved":10938,"written_tokens":700000,"written_pages":10938,"stale_tokens":0,"own_share":1.0},{"L":1000000,"pool":"launch","fixed_engine":false,"route":"rejected, handed off anyway","http":200,"reserved":15625,"written_tokens":1,"written_pages":1,"stale_tokens":999999,"own_share":1e-06},{"L":1000000,"pool":"launch","fixed_engine":true,"route":"rejected, retired before handoff","http":400,"reserved":0,"written_tokens":0,"written_pages":0,"stale_tokens":0,"own_share":null},{"L":1000000,"pool":"fixed","fixed_engine":false,"route":"normal","http":200,"reserved":15625,"written_tokens":1000000,"written_pages":15625,"stale_tokens":0,"own_share":1.0},{"L":1000000,"pool":"fixed","fixed_engine":true,"route":"normal","http":200,"reserved":15625,"written_tokens":1000000,"written_pages":15625,"stale_tokens":0,"own_share":1.0}]}};
+
+
+</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (2026-11-06),
+// pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (time on each step, default 3600 so its caption can be read), label, list (id of the ol.sx step list on the left), auto (false: a widget, never autoplays), start (the step it opens on)}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
+    // the step list on the left: one item per step, the current one marked, a click jumps to it (and stops autoplay)
+    function bindList(id){const L=id&&document.getElementById(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;(st.lis||[]).forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+      if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||3600)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3600)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    $('f').addEventListener('click',()=>{st.user=true;setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
+    $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
+    // o.auto===false makes it a widget the reader drives (the long-replay rule, case b): it never plays by itself
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    bindList(o.list);
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
+      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
+      go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||12)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+
+</script>
+<script>/* 22_js_ck_pool.js */
+// The pool check (top of Reading): which path a prompt takes, from the post's numbers and SGLang's v0.5.19 length rule.
+// Same rule as src/recompute.py; check_page.mjs compares CK_POOL.path with inputs/recompute.json (window.ARTICLE.recompute).
+(function(){
+  const CTX=1048576,POOL={launch:681280,fixed:2040000},PAGE=64;
+  const limit=(ctx,pool)=>Math.min(ctx-1,pool-1)-5;
+  function path(L,pool,fixedEngine){
+    const lim=limit(CTX,pool),reserved=Math.ceil(L/PAGE);
+    if(L<lim)return {route:'normal',http:200,reserved:reserved,written_tokens:L,written_pages:reserved,stale_tokens:0,own_share:1};
+    if(fixedEngine)return {route:'rejected, retired before handoff',http:400,reserved:0,written_tokens:0,written_pages:0,stale_tokens:0,own_share:null};
+    return {route:'rejected, handed off anyway',http:200,reserved:reserved,written_tokens:1,written_pages:1,stale_tokens:L-1,own_share:1/L};
+  }
+  window.CK_POOL={path:path,limit:limit,CTX:CTX,POOL:POOL,PAGE:PAGE};
+  const el=document.getElementById('ck-pool-svg');if(!el)return;
+  const out=document.getElementById('ck-pool-out'),sl=document.getElementById('ck-L'),lv=document.getElementById('ck-L-v');
+  const S={cfg:'launch',eng:'old'};
+  const f=n=>n.toLocaleString('en-US');
+  function draw(){
+    const L=+sl.value,pool=POOL[S.cfg],lim=limit(CTX,pool),W=RD.width(el),narrow=W<520;
+    const x0=12,x1=W-12,MAX=2100000,X=v=>x0+(x1-x0)*v/MAX;
+    let s='';
+    const rows=[['context window',CTX,'none','var(--ink)',30],['prefill KV pool',pool,'var(--soft)','var(--mute)',78]];
+    rows.forEach(([name,v,fill,st,y])=>{
+      s+='<rect x="'+X(0)+'" y="'+y+'" width="'+(X(v)-X(0))+'" height="22" rx="4" fill="'+(fill==='none'?'var(--card)':fill)+'" stroke="'+st+'" stroke-width="1.5"/>';
+      s+=RD.t(X(0)+6,y-6,name+': '+f(v)+' tokens',{fs:12,fill:'var(--ink)'});
+    });
+    if(lim<CTX-6){s+='<rect x="'+X(lim)+'" y="30" width="'+(X(CTX)-X(lim))+'" height="22" fill="var(--bad)" fill-opacity=".22"/>';
+      s+=RD.t((X(lim)+X(CTX))/2,46,narrow?'refused':'refused inside',{a:'middle',fs:12,fill:'var(--bad)',w:600})}
+    const xp=X(L),rej=L>=lim;
+    s+='<line x1="'+xp+'" x2="'+xp+'" y1="20" y2="112" stroke="'+(rej?'var(--bad)':'var(--good)')+'" stroke-width="2.5"/>';
+    const lab=(narrow?'':'prompt ')+f(L);s+=RD.t(Math.min(Math.max(xp,x0+40),x1-40),128,lab,{a:'middle',fs:12,fill:rej?'var(--bad)':'var(--good)',w:600});
+    [0,500000,1000000,1500000,2000000].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="138" y2="143" stroke="var(--line)"/>'+RD.t(X(v),156,v?(v/1e6)+'M':'0',{a:v?'middle':'start',fs:11,fill:'var(--mute)'})});
+    el.innerHTML=RD.svg(W,162,s,'Prompt of '+f(L)+' tokens against a '+f(CTX)+'-token window and a '+f(pool)+'-token prefill pool');
+    lv.textContent=f(L);
+    const r=path(L,pool,S.eng==='new');
+    const share=r.own_share===null?'nothing read':(r.own_share===1?'100%':(100*r.own_share).toPrecision(2)+'% (1 token)');
+    out.innerHTML=RD.stat('Path',r.route==='normal'?'<span class="ck-ok">normal</span>':'<span class="'+(r.http===400?'ck-ok':'ck-bad')+'">'+(r.http===400?'refused, retired':'refused, handed off')+'</span>','limit '+f(lim)+' tokens')+
+      RD.stat('Client receives','HTTP '+r.http,r.route==='normal'?'a real answer':(r.http===400?'the length error':'should have been 400'))+
+      RD.stat('Decode pages reserved',f(r.reserved),'64 tokens each')+
+      RD.stat('Written by this request',f(r.written_tokens)+(r.written_tokens===1?' token':' tokens'),r.stale_tokens?f(r.stale_tokens)+' tokens of leftovers read':'no leftovers read')+
+      RD.stat('Share of attended KV that is its own',share,'');
+  }
+  sl.addEventListener('input',draw);
+  RD.seg(document.getElementById('ck-cfg'),m=>{S.cfg=m;draw()});
+  RD.seg(document.getElementById('ck-eng'),m=>{S.eng=m;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+</script>
+<script>/* 23_js_ck_tl.js */
+// Section 1's timeline: one row per event, spaced by event (not to scale); the exposure span shaded. Every event is also in the caption.
+(function(){
+  const el=document.getElementById('ck-tl-svg');if(!el)return;
+  // [date, who (1 Cloudflare, 2 SGLang, 3 researcher), short label, long label]
+  const E=[
+    ['6 Jul',2,'#30233 reports the bug','Issue #30233 reports the bug (GLM-5.2, 1M window)'],
+    ['3 Aug',1,'page-tag checks announced','Cloudflare announces page-tag integrity checks'],
+    ['mid-Aug',1,'tags tested, then disabled','Page tags tested on GLM 5.2, then disabled'],
+    ['27 Aug',1,'GLM-5.3 launches, pool &lt; window','GLM-5.3 launches: pool 681,280 &lt; window 1,048,576'],
+    ['5 Sep',2,'#30233 closed; v0.5.19','#30233 closed for inactivity; v0.5.19 released'],
+    ['6 Sep',2,'#36988 merged (the fix)','#36988 merged on main: the change that stops it'],
+    ['8 Sep',3,'report via HackerOne','Report via HackerOne (23:11)'],
+    ['9 Sep',1,'offline, then restored','Incident 13:22, private 14:00, restored 19:40'],
+    ['16 Sep',2,'#38935 merged','#38935 (admission doors) and #39500 (checksum) merged'],
+    ['18 Sep',2,'v0.5.20 ships #36988','v0.5.20 released with #36988'],
+    ['2 Oct',2,'v0.5.21','v0.5.21: deferred release on by default'],
+    ['19 Oct',2,'v0.5.22','v0.5.22: the version Cloudflare recommends'],
+    ['26 Oct',1,'coordinated disclosure','Coordinated disclosure: Cloudflare and SGLang']];
+  const col=w=>['','var(--c1)','var(--c2)','var(--c3)'][w];
+  function draw(){
+    const W=RD.width(el),narrow=W<430,rh=26,y0=14,H=y0+E.length*rh+6,xa=narrow?62:72;
+    let s='';
+    const ya=y0+3*rh+rh/2-9,yb=y0+7*rh+rh/2+9; // 27 Aug to 9 Sep
+    s+='<rect x="'+(xa-10)+'" y="'+ya+'" width="'+(W-xa+6)+'" height="'+(yb-ya)+'" rx="6" fill="var(--bad)" fill-opacity=".09"/>';
+    s+='<line x1="'+xa+'" x2="'+xa+'" y1="'+y0+'" y2="'+(H-6)+'" stroke="var(--line)" stroke-width="2"/>';
+    E.forEach((e,i)=>{const y=y0+i*rh+rh/2;
+      s+=RD.t(xa-12,y+4,e[0],{a:'end',fs:12,fill:'var(--mute)'});
+      s+='<circle cx="'+xa+'" cy="'+y+'" r="5.5" fill="'+col(e[1])+'"/>';
+      s+=RD.t(xa+12,y+4,narrow?e[2]:e[3],{fs:12,fill:'var(--ink)',w:(i===3||i===5||i===7)?600:400});
+    });
+    el.innerHTML=RD.svg(W,H,s,'Timeline of the bug, the fix and the incident, 6 July to 26 October 2026');
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+</script>
+<script>/* 24_js_ck_hand.js */
+// Section 3: the prefill-to-decode handoff of one 8-page request, three modes (valid, rejected before the fix, rejected after #38935).
+// Redrawn from the post's diagram; the step lists are sx-hand-ok, sx-hand-bug and sx-hand-fix in 20_read_b.html.
+(function(){
+  const el=document.getElementById('ck-hand-svg');if(!el)return;
+  const cap=document.getElementById('ck-hand-cap'),tt=document.getElementById('ck-hand-t');
+  const OWN=['A','A','B','B','B','C','C','C'];  // earlier requests that last used each page (illustrative)
+  const OC={A:'var(--c4)',B:'var(--c5)',C:'var(--c6)'};
+  const TITLE={ok:'A valid request overwrites every page it reserved before decode reads them',
+    bug:'A rejected request passed both admission queues and decoded from pages it never wrote',
+    fix:'After the fix a rejected request is retired at the first door, and decode reads nothing'};
+  const NAMES=['Bootstrap','Prefill admission','Forward pass','Transfer','Decode admission','Attention','Response'];
+  const NAMES_FIX=['Refused at intake','Prefill door','No forward pass','No transfer','Decode never commits','No read','Response'];
+  let mode='bug';
+  function badge(x,y,txt,kind){const c=kind==='bad'?'var(--bad)':kind==='good'?'var(--good)':'var(--mute)';
+    const w=txt.length*7+16;return '<g class="rd-new"><rect x="'+(x-w)+'" y="'+(y-14)+'" width="'+w+'" height="20" rx="10" fill="'+c+'" fill-opacity=".14" stroke="'+c+'"/>'+RD.t(x-w/2,y+1,txt,{a:'middle',fs:11.5,fill:c,w:600})+'</g>'}
+  function draw(i){
+    const W=RD.width(el),pad=10,inner=W-2*pad,c=Math.max(26,Math.min(54,Math.floor((inner-24-7*6)/8))),gap=6;
+    const gx=pad+12+Math.max(0,Math.floor((inner-24-(8*c+7*gap))/2));
+    let s='<defs><pattern id="ck-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink)" stroke-opacity=".28" stroke-width="2"/></pattern></defs>';
+    const fix=mode==='fix',bug=mode==='bug';
+    // client
+    let y=6;s+='<rect x="'+pad+'" y="'+y+'" width="'+inner+'" height="44" rx="10" fill="var(--card)" stroke="var(--line)"/>';
+    s+=RD.t(pad+12,y+18,'Client',{fs:13,w:600})+RD.t(pad+12,y+35,'long prompt, 8 pages',{fs:12,fill:'var(--mute)'});
+    if(i===6){const t=mode==='ok'?['HTTP 200: correct answer','good']:bug?['HTTP 200, should be 400','bad']:['HTTP 400: length error','good'];s+=badge(pad+inner-10,y+26,t[0],t[1])}
+    // prefill
+    y=64;const hp=88;s+='<rect x="'+pad+'" y="'+y+'" width="'+inner+'" height="'+hp+'" rx="10" fill="var(--card)" stroke="'+(i>=1&&i<=2?'var(--ink)':'var(--line)')+'"/>';
+    s+=RD.t(pad+12,y+20,'Prefill node',{fs:13,w:600});
+    if(i>=1||(fix&&i>=0)){const t=mode==='ok'?['admitted','good']:bug?['admitted: finished() = False','bad']:(i>=1?['retired at the door','good']:['refused: placeholder','neutral']);s+=badge(pad+inner-10,y+18,t[0],t[1])}
+    for(let k=0;k<8;k++){const x=gx+k*(c+gap),yy=y+38;const on=i>=2&&(mode==='ok'||(bug&&k===0));
+      s+='<rect x="'+x+'" y="'+yy+'" width="'+c+'" height="'+Math.min(c,40)+'" rx="5" fill="'+(on?'var(--ink)':'none')+'" fill-opacity="'+(on?'.78':'0')+'" stroke="var(--line)" stroke-dasharray="'+(on?'0':'4 3')+'"'+(on?' class="rd-new"':'')+'/>'}
+    // transfer label
+    const ty=y+hp+18;let tl='',tc='var(--mute)';
+    if(i>=3){tl=mode==='ok'?'8 pages + "transfer complete"':bug?'1 page + "transfer complete"':'nothing sent';tc=bug?'var(--bad)':'var(--mute)'}
+    else if(i===0&&!fix)tl='bootstrap: decode reserves 8 pages';
+    else if(i===0)tl='the router has announced the request to decode';
+    s+=RD.t(W/2,ty,(i>=3&&!fix?'↓ ':'')+tl,{a:'middle',fs:12,fill:tc,w:i===3?600:400});
+    // decode
+    y=ty+12;const hd=124;s+='<rect x="'+pad+'" y="'+y+'" width="'+inner+'" height="'+hd+'" rx="10" fill="var(--card)" stroke="'+(i>=3?'var(--ink)':'var(--line)')+'"/>';
+    s+=RD.t(pad+12,y+20,'Decode node',{fs:13,w:600});
+    if(i>=4){const t=mode==='ok'?['admitted','good']:bug?['admitted: same check','bad']:['never committed','good'];s+=badge(pad+inner-10,y+18,t[0],t[1])}
+    const reserved=!(fix&&i>=4),py=y+36,ph=Math.min(c,44);
+    for(let k=0;k<8;k++){const x=gx+k*(c+gap);const own=i>=3&&(mode==='ok'||(bug&&k===0));
+      if(own)s+='<rect class="rd-new" x="'+x+'" y="'+py+'" width="'+c+'" height="'+ph+'" rx="5" fill="var(--good)" fill-opacity=".35" stroke="var(--good)" stroke-width="2"/>';
+      else{s+='<rect x="'+x+'" y="'+py+'" width="'+c+'" height="'+ph+'" rx="5" fill="'+OC[OWN[k]]+'" fill-opacity=".22" stroke="'+(reserved?'var(--ink)':'var(--line)')+'" stroke-width="'+(reserved?1.5:1)+'"/>';
+        s+='<rect x="'+x+'" y="'+py+'" width="'+c+'" height="'+ph+'" rx="5" fill="url(#ck-hatch)"/>'}
+      s+=RD.t(x+c/2,py+ph/2+4,own?'P'+k:(c>=34?'P'+k+' '+OWN[k]:OWN[k]),{a:'middle',fs:12,fill:'var(--ink)',w:own?600:400});
+    }
+    // attention bracket
+    const by=py+ph+10;
+    if(i>=5){const x0=gx,x1=gx+8*c+7*gap;const col=mode==='ok'?'var(--good)':bug?'var(--bad)':'var(--mute)';
+      if(!fix)s+='<path class="rd-new" d="M'+x0+' '+by+' v6 H'+x1+' v-6" fill="none" stroke="'+col+'" stroke-width="2"/>';
+      s+=RD.t(W/2,by+24,mode==='ok'?(W<480?'reads P0 to P7: all its own':'attention reads P0 to P7: all written by this request'):bug?(W<480?'reads P0 to P7: 7 stale pages':'attention reads P0 to P7: 7 of 8 hold A, B and C’s data'):'no page is read',{a:'middle',fs:12,fill:col,w:600});
+    }else s+=RD.t(W/2,by+24,reserved?(W<480?'8 pages reserved, never cleared':'reserved for this request: 8 pages, never cleared'):'reservation released',{a:'middle',fs:12,fill:'var(--mute)'});
+    const H=y+hd+8;
+    el.innerHTML=RD.svg(W,H,s,'Prefill to decode handoff, '+mode+' mode, step '+(i+1)+' of 7');
+    cap.textContent='Step '+(i+1)+' of 7: '+(fix?NAMES_FIX:NAMES)[i]+'.';
+  }
+  const A=RD.anim({card:'ck-hand',ctl:'ck-hand-ctl',n:7,draw:draw,ms:4200,label:'Handoff step',list:'sx-hand-bug'});
+  RD.seg(document.getElementById('ck-hand-m'),m=>{mode=m;tt.textContent=TITLE[m];
+    ['ok','bug','fix'].forEach(k=>{document.getElementById('sx-hand-'+k).hidden=k!==m});A.reset(7,'sx-hand-'+m)});
+  RD.onResize(()=>A.redraw());
+})();
+
+</script>
+<script>/* 25_js_ck_race.js */
+// Section 5: the aborted-transfer race on one decode pool, freed at abort against held until drained (deferred release).
+// Order of events from SGLang's companion post; sizes illustrative. Step lists: sx-race-free and sx-race-hold in 20_read_c.html.
+(function(){
+  const el=document.getElementById('ck-race-svg');if(!el)return;
+  const cap=document.getElementById('ck-race-cap'),tt=document.getElementById('ck-race-t');
+  const TITLE={free:'Freed at abort, a slot can be reused while the aborted request’s write is still on its way',
+    hold:'Held until every launched write has drained, the late write lands in a slot nobody reads'};
+  const NAMES={free:['A transfer in flight','Abort: slots freed','Reused by B','A late write lands','B decodes on A’s KV'],
+    hold:['A transfer in flight','Abort: slots held','The late write lands','Drained, then released','B gets clean slots']};
+  let mode='free';
+  // slot contents per step: '' other running request, 'A' A's KV, 'a' reserved for A, not written yet, 'B' B's KV, 'X' A's KV inside B's cache, 'f' free (old bytes stay)
+  function slots(i){const s=['o','o','A','A','a','a','a','o','o','o'];
+    if(mode==='free'){
+      if(i>=1)for(let k=2;k<=6;k++)s[k]='f';
+      if(i>=2)for(let k=2;k<=6;k++)s[k]='B';
+      if(i>=3)s[4]='X';
+    }else{
+      if(i>=2)s[4]='A';
+      if(i>=3)for(let k=2;k<=6;k++)s[k]='f';
+      if(i>=4)for(let k=2;k<=6;k++)s[k]='B';
+    }
+    return s}
+  // A's five chunks on the prefill side: 'L' landed, 'N' posted to the network card, 'Q' queued, 'D' dropped
+  function chunks(i){if(i===0)return ['L','L','N','Q','Q'];
+    if(mode==='free')return i>=3?['L','L','L','Q','Q']:['L','L','N','Q','Q'];
+    return i>=2?['L','L','L','D','D']:['L','L','N','D','D']}
+  function draw(i){
+    const W=RD.width(el),pad=10,inner=W-2*pad,c=Math.max(26,Math.min(54,Math.floor((inner-20-9*5)/10))),gap=5;
+    const gx=pad+10+Math.max(0,Math.floor((inner-20-(10*c+9*gap))/2));
+    let s='';
+    // prefill lane
+    let y=6;s+='<rect x="'+pad+'" y="'+y+'" width="'+inner+'" height="'+(c+44)+'" rx="10" fill="var(--card)" stroke="var(--line)"/>';
+    s+=RD.t(pad+12,y+18,'Prefill: request A’s five KV chunks',{fs:13,w:600});
+    const ch=chunks(i),CL={L:['landed','var(--good)'],N:['on the NIC','var(--c2)'],Q:['queued','var(--mute)'],D:['dropped','var(--mute)']};
+    const cw=Math.min(2*c+gap,Math.floor((inner-24-4*gap)/5));
+    ch.forEach((k,j)=>{const x=pad+12+j*(cw+gap),yy=y+28;
+      s+='<rect x="'+x+'" y="'+yy+'" width="'+cw+'" height="'+(c-4)+'" rx="5" fill="'+CL[k][1]+'" fill-opacity="'+(k==='N'?'.3':'.14')+'" stroke="'+CL[k][1]+'" stroke-dasharray="'+(k==='D'?'4 3':'0')+'"/>';
+      s+=RD.t(x+cw/2,yy+(c-4)/2+4,cw>=70?'a'+(j+1)+' '+CL[k][0]:(k==='N'?'NIC':k==='D'?'×':'a'+(j+1)),{a:'middle',fs:12,fill:'var(--ink)'})});
+    // messages between
+    y=y+c+44+18;let msg='';
+    if(mode==='free')msg=['writes stream into decode slots 3 to 7','client disconnects: decode frees slots 3 to 7','allocator hands slots 3 to 7 to request B','a3 lands in slot 5, now B’s','B attends over slot 5: A’s keys and values'][i];
+    else msg=['writes stream into decode slots 3 to 7','ABORT sent; a4, a5 dropped; slots held','a3 lands in slot 5, still held for A','writes drained: ABORT_ACK, slots released','B gets slots 3 to 7 and writes its own KV'][i];
+    s+=RD.t(W/2,y,msg,{a:'middle',fs:12,fill:(mode==='free'&&i>=3)?'var(--bad)':'var(--ink)',w:600});
+    // decode pool
+    y+=12;const hd=c+58;s+='<rect x="'+pad+'" y="'+y+'" width="'+inner+'" height="'+hd+'" rx="10" fill="var(--card)" stroke="var(--line)"/>';
+    s+=RD.t(pad+12,y+18,'Decode KV pool: slots 1 to 10',{fs:13,w:600});
+    const held=mode==='hold'&&i>=1&&i<=2;
+    const sl=slots(i),py=y+28;
+    sl.forEach((k,j)=>{const x=gx+j*(c+gap);
+      const F={o:['var(--line)','.35','var(--line)','0'],A:['var(--c2)','.45','var(--c2)','0'],a:['var(--c2)','.08','var(--c2)','4 3'],B:['var(--c1)','.4','var(--c1)','0'],X:['var(--bad)','.45','var(--bad)','0'],f:['var(--c2)','.12','var(--mute)','4 3']}[k];
+      const cls=(i>0&&((mode==='free'&&((i===2&&k==='B')||(i===3&&k==='X')))||(mode==='hold'&&((i===2&&j===4)||(i===4&&k==='B')))))?' class="rd-new"':'';
+      s+='<rect'+cls+' x="'+x+'" y="'+py+'" width="'+c+'" height="'+c+'" rx="5" fill="'+F[0]+'" fill-opacity="'+F[1]+'" stroke="'+F[2]+'" stroke-width="'+(k==='X'?2.5:1.2)+'" stroke-dasharray="'+F[3]+'"/>';
+      s+=RD.t(x+c/2,py+c/2+4,k==='o'?'':k==='X'?'A!':k==='f'?'free':k==='a'?'A?':k,{a:'middle',fs:c<34&&k==='f'?11:12,fill:'var(--ink)',w:k==='X'?700:400});
+      s+=RD.t(x+c/2,py+c+14,String(j+1),{a:'middle',fs:11,fill:'var(--mute)'});
+    });
+    if(held){const x0=gx+2*(c+gap)-3,x1=gx+7*(c+gap)-gap+3;s+='<rect x="'+x0+'" y="'+(py-4)+'" width="'+(x1-x0)+'" height="'+(c+8)+'" rx="7" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 3"/>'+RD.t((x0+x1)/2,py+c+28,'held: not reusable',{a:'middle',fs:12,fill:'var(--ink)',w:600})}
+    else if(i===4){const ok=mode==='hold';s+=RD.t(W/2,py+c+28,ok?'B reads only its own KV':'no error raised: B’s output is corrupted',{a:'middle',fs:12,fill:ok?'var(--good)':'var(--bad)',w:600})}
+    const H=y+hd+6;
+    el.innerHTML=RD.svg(W,H,s,'Aborted transfer and slot reuse, '+mode+' mode, step '+(i+1)+' of 5');
+    cap.textContent='Step '+(i+1)+' of 5: '+NAMES[mode][i]+'.';
+  }
+  const A=RD.anim({card:'ck-race',ctl:'ck-race-ctl',n:5,draw:draw,ms:4200,label:'Race step',list:'sx-race-free'});
+  RD.seg(document.getElementById('ck-race-m'),m=>{mode=m;tt.textContent=TITLE[m];
+    ['free','hold'].forEach(k=>{document.getElementById('sx-race-'+k).hidden=k!==m});A.reset(5,'sx-race-'+m)});
+  RD.onResize(()=>A.redraw());
+})();
+
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace ck-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('ck-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('ck-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+
+</script>
+</div></body></html>
