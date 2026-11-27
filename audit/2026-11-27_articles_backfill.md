@@ -103,3 +103,10 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] qorl_query_plans: RL for LLMs section 3 (optional): the anchored variant as a worked noisy continuous reward (0.05 soft threshold on log speedup, leave-one-out baseline floored at zero).
 - [ ] qorl_query_plans: Reward Hacking (optional): the -3 invalid-output penalty taught the policy to return Postgres's default plan.
 - [ ] all articles: mk_article.py since_label field (QORL's copy) is the way to generalise the Since heading.
+- [ ] transformers_from_memory: Beyond attention section 2 (Schlag "overcapacity"): interference over signal about sqrt(M/d_k), capacity about d_k; least-squares store as the offline limit of the delta rule (capacity 2 d_k); Further reading.
+- [ ] transformers_from_memory: The transformer from zero, FFN and attention sections: the memory reading (FFN as V^T sigma(K x); softmax as the all-powers limit); the sqrt(d) scale as sharpness beta = sqrt(d_k).
+- [ ] transformers_from_memory: Topic: llm-architecture, "behaves like a key-value memory (Geva et al. 2021)": the Transformer paper said it first in v2 and v3.
+- [ ] transformers_from_memory: Attention Is All You Need paper page: note the v2/v3 "Two Feed-Forward Layers = Attention over Parameters" appendix and its Table 5 (AOP1 4.92/25.5, AOP2 4.86/25.9, base 4.92/25.8; text says 8 heads where the table says 16).
+- [ ] transformers_from_memory: Activation functions, squared ReLU row: an unrelated key's weight drops from about d^-1/2 to about d^-1.
+- [ ] transformers_from_memory: Positional Encodings and Long context: the log M logit scalings (Su 2021, Qwen LogN, Scalable-Softmax) beside YaRN's temperature; Qwen2.5-1M defines YaRN's s as inference over training length.
+- [ ] all articles: extract_article.py from transformers_from_memory is the robust version (self-closing svg, bare < in TeX, unquoted ids): make it the reference copy.

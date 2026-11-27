@@ -1,4 +1,4 @@
-# Training a 4B model to produce 81% faster query plans than Postgres (QORL)
+# Training a 4B model to produce 81% faster query plans than Postgres
 
 Notion: https://app.notion.com/p/4255c17b0d0d81ba9793c5617250e2b9 (a child page of Articles, 4255c17b0d0d81b68b15d5f90da34991)
 Site: https://khalit7.github.io/technical_knowledge_base/whats_new/articles/qorl_query_plans/

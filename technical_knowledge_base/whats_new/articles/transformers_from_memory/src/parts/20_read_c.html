@@ -1,0 +1,70 @@
+<div class="s3sp"><div class="s3L"><section id="s-lab">
+<h2>10. Run it: every capacity, recomputed in your browser</h2>
+<p><b>The figure repeats the article's experiment from scratch:</b> M random unit keys and values in d dimensions, 48 stored-key queries, the median ratio (as the author's code takes it), three seeds, M = 4 to 16,384; solid lines measured, dashed lines the article's Gaussian estimate continued to 2 million, open circles where a measured line crosses 1. It opens on curves recorded by this page's <code>src/recompute.py</code> (the same code and random numbers); the button or another d computes live.</p>
+<p><b>At d = 64 the defaults reproduce the article independently</b> (our code, our seeds): 67 against 64, 128, 124 against 128, 2,853 against about 2,700 and 2,961 against about 2,900; cubed ReLU and softmax stay below 1 in range (0.65 and 0.11 at 16,384). The medians sit a little above the estimates for the sharp stores because a few large terms dominate their sums.</p>
+<p><b>Predict, then switch d from 64 to 32.</b> Which capacity falls furthest: the matrix's, the squared ReLU's or softmax's? Then try 16.</p>
+<details class="mist"><summary>The answer</summary><div class="b"><p>The matrix halves (64 to 32), the squared ReLU quarters (2,731 to 683 by the estimate; 768 measured), and softmax falls about a hundredfold, from e<sup>14</sup> ≈ 1.2 million to e<sup>2√32 − 2</sup> ≈ 11,000 (11,553 measured), because its capacity is exponential in √d. At d = 16 softmax holds about 400 (563 measured), fewer than the cubed ReLU's 546 to 838: the ladder's order is not fixed, it depends on the head size. Small heads lose most where attention is strongest.</p></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="card wp-fig" id="am-lab">
+<div class="t">Interference grows like √M for every store; the stores differ only in height, so capacity is where each line meets 1</div>
+<div class="seg" id="am-lab-d" role="group" aria-label="Key dimension d"><button data-m="16">d = 16</button><button data-m="32">d = 32</button><button data-m="64" class="on">d = 64</button></div>
+<div id="am-lab-svg"></div>
+<div class="small" id="am-lab-st" aria-live="polite"></div>
+<button type="button" class="am-btn" id="am-lab-run">Recompute this d live</button>
+<div class="tw" id="am-lab-tab"></div>
+<figcaption>Measured here in the browser (exact arithmetic on seeded random vectors; nothing trained). Theory column: d, 2d, 2d (ReLU), 2d²/3, the shared-gate SwiGLU's Gaussian estimate, 2d³/15 and e<sup>2√d − 2</sup>. "Beyond 16,384" means the measured line stays below 1 in range; the article's d = 64 column is quoted from its closing table.</figcaption>
+</figure></div></div></div>
+
+<section id="s-trust">
+<h2>How much of this to believe</h2>
+<p><b>The mathematics and the numbers hold.</b> Every capacity comes out of our independent run, out of the Gaussian estimates and out of the author's released five-seed data (closed block below). The derivations are standard (random-walk sums, projection identities, the Gaussian moment generating function), the code is public and runs in under a minute, the post is unchanged since its first archived copy (16 October 2026), and the one historical claim, the Transformer appendix, is right in every detail.</p>
+<p><b>What "capacity" measures is narrower than the ladder suggests.</b> It is the number of memories one readout can sum over before the crosstalk from random wrong memories is as long as the right one, and the stores spend very different amounts of storage to get there:</p>
+<div class="tw"><table>
+<thead><tr><th>store at d<sub>k</sub> = d<sub>v</sub> = 64</th><th>memories at capacity</th><th>numbers it keeps</th><th>numbers per memory</th></tr></thead>
+<tbody>
+<tr><td>outer product, one 64 × 64 matrix</td><td>64</td><td>4,096</td><td>64</td></tr>
+<tr><td>optimal linear, one 64 × 64 matrix</td><td>128</td><td>4,096</td><td>32</td></tr>
+<tr><td>squared-ReLU MLP, one hidden unit per memory</td><td>about 2,731</td><td>about 349,600</td><td>128</td></tr>
+<tr><td>softmax attention, one cached key and value per token</td><td>about 1.2 million</td><td>about 154 million</td><td>128</td></tr>
+</tbody></table></div>
+<p class="small">Derived: an MLP or cache row holds one key and one value, 64 + 64 numbers; 2,731 × 128 and 1,202,604 × 128 (inputs/recompute.json).</p>
+<ul>
+<li><b>Per number kept, the matrix is the most compact store, not the worst.</b> What the nonlinear stores buy is that adding rows does not ruin recall (why attention can find one token among a million); "an MLP improves capacity" means more rows read cleanly, not more facts per parameter. A real FFN has about 4d hidden units, not 2,700 per 64 dimensions, so it relies on the superposition the article mentions but does not analyse; footnote 3 notes that with argmax decoding a d × d matrix holds about d² facts.</li>
+<li><b>Every number assumes random keys and values and a query equal to a stored key.</b> Real keys are correlated and real queries only near their key. With a query 0.9 similar to its key, softmax's capacity falls to e<sup>2β(0.9 − β/d)</sup> ≈ 242,802 (derived), and at M = 1,024 its measured ratio more than doubles (0.027 to 0.061) while the matrix's moves from 3.97 to 4.43: the sharpest stores are the most sensitive to a noisy query. The author's code has this option; the post plots only exact queries.</li>
+<li><b>Nothing is trained</b>, and "ratio = 1" is a convention: the capacities describe the readout's arithmetic, not what gradient descent writes, as the author says himself (closing section and his reply below).</li>
+<li><b>Small slips:</b> the shared-gate SwiGLU is not the SwiGLU models use (separate gate weights), which the article says; the YaRN rule's 5.9 × 10<sup>−5</sup> at 2 million is rounded to "about 10<sup>−4</sup>"; the title's "you could have invented" is a teaching device, not history (softmax attention entered from alignment in machine translation, Bahdanau et al. 2014).</li>
+</ul>
+<p><b>Verdict.</b> Believe the derivations and every number, and use the article as the clearest single argument for why softmax attention can recall one item among a million and why sharper activations help MLPs. Read its capacities as rows read cleanly from random vectors with exact queries, not as storage per parameter, and not as a description of trained layers.</p>
+</section>
+
+<section id="s-resp">
+<h2>What the responses said</h2>
+<p>No rebuttal, replication or blog response was found (web search, 27 November 2026); a Chinese translation appeared on 机器之心, linked from the post. The Hacker News thread had 670 points and 152 comments on 27 November 2026 (submitted 16 October 19:01 UTC; a dated reading); most of it is praise or an argument about mathematical notation. The substantive points:</p>
+@@RESP@@
+</section>
+
+<section id="s-kb">
+<h2>Where it moves the knowledge base</h2>
+<p>It contradicts nothing on our pages; it gives three of them a quantitative reason they lack.</p>
+<ul>
+<li>{{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}: its section 2 says, with Schlag et al., that the state overfills once the sequence exceeds the key dimension; it gains the number (interference over signal √(M/d<sub>k</sub>), capacity about d<sub>k</sub>), the least-squares store as the offline limit the delta rule approaches (capacity 2d<sub>k</sub>, exact up to d<sub>k</sub>), and this article in Further reading.</li>
+<li>{{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}: its FFN and attention sections gain the memory reading in two sentences (the FFN as Vᵀσ(Kx), softmax as the all-powers limit with capacity e<sup>2β(1 − β/d)</sup>), and its √d section the article's reading of the scale as the sharpness β = √d<sub>k</sub>.</li>
+<li>{{Topic: llm-architecture|n:3fd5c17b0d0d8172b490dc9f9ac281df}}: its sentence that the FFN "behaves like a key-value memory" (Geva et al.) gains the Transformer v2 and v3 appendix as the first statement of it, and the article.</li>
+<li>{{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}: a note that v2 and v3 carried the attention-over-parameters appendix and Table 5 (above), absent from v7, which the page reads.</li>
+<li>{{Activation functions|n:3c65c17b0d0d819f8049c255e6f206e2}}: squared ReLU gains its reason in this frame (crowd weight d<sup>−1</sup> instead of d<sup>−1/2</sup>).</li>
+<li>{{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}} and {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}: the log M logit scalings (Su, LogN, SSMax) as a family beside YaRN's temperature, with the article's simulation as the reason they work.</li>
+</ul>
+</section>
+
+<details class="mist" id="s-checks"><summary>The article's numbers, recomputed (depth)</summary><div class="b">
+<ul>
+<li>Gaussian estimates at d = 64 (capacity = σ(1)² / E[σ(s)²], s ~ N(0, 1/64)): linear 64; ReLU 128; squared ReLU 2,730.7; shared-gate SwiGLU 2,863.9; cubed ReLU 34,952.5; exponential e<sup>14</sup> = 1,202,604; truncated exponentials with 2, 3 and 4 terms 40.5, 448.3 and 3,089.1 (article: about 40, 450 and 3,100).</li>
+<li>Measured here (3 seeds, 48 queries, median): d = 64: 67.1, 128.0, 123.7, 2,852.8, 2,960.9; cubed ReLU and softmax below 1 at 16,384 (0.649 and 0.111). d = 32: 35.7, 64.3, 66.7, 767.6, 794.7, 5,218.5, 11,553.3. d = 16: 16.1, 32.6, 36.6, 208.5, 199.2, 837.7, 562.7 (order: outer product, optimal, ReLU, squared ReLU, SwiGLU, cubed ReLU, softmax).</li>
+<li>The author's released data (crosstalk.json, 5 seeds), crossings by the same log-log interpolation: 67.8, 128.7, 136.0, 2,813, 2,901; softmax 1.225 million (ratio 0.936 at 1,048,576 and 1.254 at 2,097,152); with log M scaling 0.0037 (Su and LogN) and 5.9 × 10<sup>−5</sup> (YaRN) at 2,097,152.</li>
+<li>Softmax closed form at β = 8, d = 64: 2β(1 − β/d) = 16 × 0.875 = 14; e<sup>14</sup> / 64 = 18,791 ("nearly 20,000 times"). With query similarity ρ = 0.9: e<sup>2β(ρ − β/d)</sup> = e<sup>12.4</sup> = 242,802.</li>
+</ul></div></details>
+
+<details class="mist" id="s-prov"><summary>Provenance: what was read, fetched and compared</summary><div class="b">
+<p>Read on 27 November 2026: the post (fetched that day; dated 15 October 2026 in its page data; 4,276 words with formulas and figure labels, 19 minutes at 230 words a minute), its footnotes and three collapsed asides; the code repository (README, crosstalk.py and data/crosstalk.json at commit 5defb8d, 15 October 2026; no licence file, so its data is cited, not copied); all 152 Hacker News comments through the item API; arXiv 1706.03762 v1 to v5 (the appendix is in v2 and v3) and its submission history; the Qwen2.5-1M report (arXiv 2501.15383, section 5.1) for the YaRN rule's definition; the arXiv titles of the papers in Further reading. The two earliest Wayback copies (16 October 2026, 18:16 and 19:06 UTC) carry the same text as the current post.</p>
+<p>Not checked: the 1% hidden-unit activation figure (Li et al.), and the bits-per-parameter estimates of Morris et al. and Allen-Zhu and Li, all quoted from the article. Hacker News commenters are not named here; they are readers, not authors of published responses.</p>
+</div></details>

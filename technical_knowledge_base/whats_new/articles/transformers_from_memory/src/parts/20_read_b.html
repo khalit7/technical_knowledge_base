@@ -1,0 +1,59 @@
+<section id="s-yard">
+<h2>1. One yardstick: interference over signal</h2>
+[[ar:the interference-to-signal ratio, which measures how much|Introduction]]
+<p><b>The article judges every layer by {{the interference-to-signal ratio|ar:the interference-to-signal ratio, which measures how much}}: the length of what the wrong memories add to a recall, over the length of the right value.</b> A store holds M pairs (key k<sub>i</sub>, value v<sub>i</sub>) and, queried with k<sub>j</sub>, should return v<sub>j</sub>; its capacity is the M at which the ratio reaches 1. Everything is run at key dimension d<sub>k</sub> = 64 with random unit keys and values, and the promised ladder is {{a jump from about 64 memories|ar:a jump from about 64 memories}} to about 2,700 to over a million.</p>
+</section>
+
+<section id="s-outer">
+<h2>2. The outer-product store fills at d</h2>
+[[ah:an-outer-product-memory-store|An outer product memory store]]
+<p><b>The simplest store is one matrix, W = Σ<sub>i</sub> v<sub>i</sub>k<sub>i</sub><sup>⊤</sup>, read as Wx = Σ<sub>i</sub> v<sub>i</sub>(k<sub>i</sub>·x).</b> {{So recall is a lookup by similarity|ar:So recall is a lookup by similarity}}. A gradient step on a linear layer, W ← W − η ȳx<sup>⊤</sup>, is such a write, and the same matrix is linear attention's state, which {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}} animates (its Fig. 2). Queried with a stored unit key, the answer is v<sub>j</sub> (signal) plus Σ<sub>i≠j</sub> v<sub>i</sub>(k<sub>i</sub>·k<sub>j</sub>) (interference). Random keys have similarities of about ±1/√d<sub>k</sub>, and M − 1 such terms add like a random walk, so the ratio is about √(M/d<sub>k</sub>) and capacity is d<sub>k</sub> = 64: past that {{we cannot get perfect recall once we store more|ar:we cannot get perfect recall once we store more}}. The article's {{bar figure|ah:interactive}} shows one recall's weights piling up as M passes 64.</p>
+</section>
+
+<section id="s-two">
+<h2>3. Two ways to reduce interference</h2>
+[[ah:how-do-we-reduce-interference|How do we reduce interference?]]
+<p><b>Short of {{a bigger key dimension|ar:The brute-force way is to make the key dimension}}, store more carefully (cancel the keys' overlap: section 4) or recall more selectively (damp keys that barely match: sections 5 to 7).</b></p>
+</section>
+
+<section id="s-lsq">
+<h2>4. The optimal linear store doubles capacity, and no more</h2>
+[[ah:the-optimal-linear-memory-store|The optimal linear memory store]]
+<p><b>Fit every memory at once, min<sub>W</sub> Σ‖Wk<sub>i</sub> − v<sub>i</sub>‖², and W = VᵀK(KᵀK)<sup>−1</sup>: the same store with the query first multiplied by the inverse key covariance.</b> {{This whitens the keys, so the store|ar:This whitens the keys, so the store}} stops over-weighting shared directions (least squares and the pseudo-inverse: {{Linear algebra for ML|n:3c65c17b0d0d81d89c26e1dab2fcb701}}, section 7). It is exact up to M = d<sub>k</sub>; past that the article derives, from the projection P = K(KᵀK)<sup>−1</sup>Kᵀ (trace d<sub>k</sub>, P² = P), a ratio of √(M/d<sub>k</sub> − 1), so its {{capacity is twice as large as before|ar:capacity is twice as large as before}}: 128. The online form of this fit is the delta rule, owned by {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}} (section 3, Fig. 3).</p>
+</section>
+
+<section id="s-mlp">
+<h2>5. A nonlinearity on each similarity is a two-layer MLP</h2>
+[[ah:mlp-as-a-nonlinear-memory-store|MLP as a nonlinear memory store]]
+<p><b>Weight by σ(k<sub>i</sub>·x) instead, f(x) = Vᵀσ(Kx), and {{We just rediscovered a two-layer MLP from first principles|ar:We just rediscovered a two-layer MLP from first principles}}:</b> one hidden unit per key, the output matrix's columns as values. ReLU zeroes negative similarities (capacity 128); squared ReLU also crushes small positive ones ({{A similarity of 0.1 becomes 0.01|ar:A similarity of 0.1 becomes 0.01}}). Squared ReLU is ReLU(Kx) ⊙ Kx, a GLU whose gate shares the input weights; SwiGLU, as in our {{transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, gives the gate its own weights and a Swish. Trained FFNs behaving this way is Geva et al.'s measurement, which the {{architecture root|n:3fd5c17b0d0d8172b490dc9f9ac281df}} cites; the article adds that real MLPs store facts {{in superposition|ar:MLPs store facts in superposition}}, which the one-memory-per-unit picture does not cover. Its aside that the Transformer paper said this first, then cut it ({{the passage is gone from every later version|ar:The passage is gone from every later version}}), is correct (closed block).</p>
+<details class="mist" id="s-aop"><summary>Checked: the Transformer paper's lost appendix (depth)</summary><div class="b">
+<p>arXiv v2 (19 June 2017) and v3 (20 June) of Attention Is All You Need end with "Two Feed-Forward Layers = Attention over Parameters": the FFN is "a kind of attention" with ReLU for softmax and the rows of W<sub>1</sub> and W<sub>2</sub> as keys and values. Replacing every FFN with attention over 1,536 or 512 learned key-value pairs per head, at matched parameters (65M), gave in Table 5: base perplexity 4.92 and BLEU 25.8 (newstest2013, development), AOP1 4.92 and 25.5, AOP2 4.86 and 25.9, both trained 16 hours against 12. v4 (30 June 2017), v5 and v7 have no such appendix; our {{paper page|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} reads v7. One slip in it: the text gives the second model 8 heads, Table 5 gives 16.</p>
+</div></details>
+</section>
+
+<section id="s-pow">
+<h2>6. Higher powers: capacity grows like d<sup>p</sup></h2>
+[[ah:reducing-interference-with-higher-powers|Reducing interference with higher powers]]
+<p><b>With σ = ReLU<sup>p</sup> the target keeps weight 1 while a typical other key falls to about d<sub>k</sub><sup>−p/2</sup>, so capacity is about d<sub>k</sub><sup>p</sup>.</b> With the half-normal moments the constants are 2d<sub>k</sub> (ReLU), 2d<sub>k</sub><sup>2</sup>/3 ≈ 2,731 (squared) and 2d<sub>k</sub><sup>3</sup>/15 ≈ 34,953 (cubed). The shared-gate SwiGLU, s²/(1 + e<sup>−s</sup>), lands at about 2,900: {{its capacity nearly matches the squared ReLU|ar:its capacity nearly matches the squared ReLU}}, for a reason the article does not give (closed block).</p>
+<details class="mist" id="s-swish"><summary>Why the shared-gate SwiGLU matches the squared ReLU (depth)</summary><div class="b">
+<p>Near s = 0 the sigmoid is about ½ on both sides, so the curve acts like s²/2 for negative similarities too instead of zeroing them. The crowd's mean-square weight is then 3/(4d<sub>k</sub><sup>2</sup>), half the squared ReLU's 3/(2d<sub>k</sub><sup>2</sup>), while the target's weight is 1/(1 + e<sup>−1</sup>) = 0.73, a factor 0.73² = 0.53; the two nearly cancel. Gaussian estimate 2,864, measured 2,961 here, 2,901 in the author's data.</p>
+</div></details>
+</section>
+
+<section id="s-att">
+<h2>7. All powers at once: the exponential is softmax attention</h2>
+[[ah:self-attention-as-a-non-parametric-memory-store|Self-attention as a non-parametric memory store]]
+<p><b>Use {{the exponential, a weighted sum of every power|ar:the exponential is a weighted sum of every power}}, e<sup>βs</sup> = Σ<sub>p</sub>(βs)<sup>p</sup>/p!, and capacity becomes e<sup>2β(1 − β/d<sub>k</sub>)</sup>, exponential in β.</b> The derivation uses E[e<sup>ts</sup>] = e<sup>t²/(2d<sub>k</sub>)</sup> for a normal similarity, giving the ratio √M · e<sup>β²/d<sub>k</sub> − β</sup>. At attention's β = √d<sub>k</sub> = 8 that is e<sup>14</sup> ≈ 1.2 million, {{nearly 20,000 times the linear store|ar:nearly 20,000 times the linear store}} (the author's run crosses 1 at about 1.23 million). Truncated series show the ladder from inside: {{with 2 terms, the capacity is about 40|ar:With 2 terms, the capacity is about 40}}, with 3 about 450, with 4 about 3,100. Normalising the weights changes no ratio, and the result is Vᵀ softmax(βKx). Unlike an MLP, its keys and values come from the context, one per token, so M is the context length ({{what makes self-attention non-parametric|ar:what makes self-attention non-parametric}}); the price is the KV cache that {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} sizes. Standard attention's division by √d<sub>k</sub>, with q and k of length about √d<sub>k</sub>, is β = √d<sub>k</sub> for unit vectors (footnotes 6 and 7).</p>
+</section>
+
+<section id="s-long">
+<h2>8. Long context: raise β with log M</h2>
+[[ah:handling-many-key-value-pairs-in-long-context|Handling many key-value pairs in long context]]
+<p><b>Since capacity is exponential in β, a longer context needs only a slowly growing β.</b> A huge β would make {{softmax a hard argmax that picks only the most similar key|ar:softmax becomes a hard argmax that picks only the most similar key}}, with no gradient to the rest, so the rules {{scale the attention logits with|ar:Scaling the attention logits with}} log M against a reference length L: Su (2021) by log M / log L everywhere (Scalable-Softmax learns the factor), the original Qwen's LogN only past L, Qwen2.5-1M by YaRN's (0.1 ln(M/L) + 1)² (YaRN's temperature: {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}). In the author's simulation (β = 8 at L = 1,024) plain softmax passes 1 near 1.2 million memories; Su's and Qwen's rules hold the ratio at about 0.004 at 2 million, YaRN's at 5.9 × 10<sup>−5</sup> (rounded in the article to "about 10<sup>−4</sup>").</p>
+</section>
+
+<section id="s-close">
+<h2>9. The closing table and the author's own limits</h2>
+[[ah:closing-thoughts|Closing thoughts]]
+<p><b>The article ends on the ladder as a table (64, 128, 128, about 2,700, 2,900, 35,000, 1.2 million, and more than 2 million with log M scaling) and on two caveats:</b> {{Our capacity estimate only counts how many random vectors|ar:Our capacity estimate only counts how many random vectors}} one layer recalls, and {{we haven't actually considered the training data at all|ar:we haven’t actually considered the training data at all}}. For trained models it points to bits per parameter (Morris et al. about 3.6, Allen-Zhu and Li about 2 for facts; quoted, not checked here), then a reading list that seeds our Further reading.</p>
+</section>
