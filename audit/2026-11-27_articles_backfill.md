@@ -82,3 +82,7 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] raschka_positional_embeddings: Positional Encodings section 2, learned-table paragraph: GPT-2 Medium's table is 0.30% of weights at 1,024 positions, 22.4% at 100,000 (derived).
 - [ ] raschka_positional_embeddings: Positional Encodings section 4 or LLM Architecture Gallery: Raschka's gallery census of 9 November 2026 as a dated reading (directions only).
 - [ ] raschka_positional_embeddings: Positional Encodings Further reading: the article (40 min), with the article page linked.
+- [ ] neural_networks_already_clean: Activation functions, gated units: SwiGLU's double-negative quadrant (gate and value negative give at most about 0.278 x |value|); about 4% of Qwen3-32B neurons topped by it (essay), about a third of activations in Qwen3.6-35B-A3B (companion paper), linked to reasoning collapse when ablated.
+- [ ] neural_networks_already_clean: Activation functions, "Inside real models" (sparse activations): the companion's functional sparsity holds for loss, not for reasoning.
+- [ ] neural_networks_already_clean: Mixture of experts, beside "routing tracks the token, not the topic": the essay's agent-judged finding that Qwen3.6's 10,240 experts are narrowly themed (a different measure; an extension).
+- [ ] neural_networks_already_clean: The transformer from zero (optional): a feed-forward unit's negative pole carries meaning and can gate between routes.
