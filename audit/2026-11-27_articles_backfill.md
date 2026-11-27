@@ -92,3 +92,9 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] end_to_end_4bit_training: Fair Cast paper page: the same dead zone on the released NVFP4 weights (miles issue comment, 24 Nov).
 - [ ] end_to_end_4bit_training: Mixture of experts: dispatch in NVFP4, combine in S2F6 after a Hadamard rotation.
 - [ ] end_to_end_4bit_training: Other notable providers, Inkling 2 Small: the model card's "pretrained ... in NVFP4" overstates the post (only expert forward matmuls).
+- [ ] qwenputer: Beyond attention section 3, after "With unit keys and beta = 1, S k returns exactly v": with the gate at 1 and one-hot keys a head is an exact addressable memory of d_k rows (Qwenputer runs a RISC-V CPU on it); Further reading entry; section 8 may note the d_k-rows limit.
+- [ ] qwenputer: Alibaba: Qwen, the 3:1 hybrid part: Further reading line (Qwen3.5-4B is Qwenputer's base).
+- [ ] qwenputer: Building a harness (optional): a tool call whose response the model's own compiled layers write (the host still runs a driver).
+- [ ] qwenputer: weight_space_programming article.json kb list: add the Qwenputer page (both ways).
+- [ ] qwenputer: 2026-11-02 issue: link its Qwenputer line to the article page.
+- [ ] all articles: mk_article.py heads the Since block "Since the article (papers that build on it)"; generalise the heading in the reference and every copy.

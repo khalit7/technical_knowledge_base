@@ -10,3 +10,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 - [Understanding Positional Embeddings in Modern LLMs](raschka_positional_embeddings/) (Sebastian Raschka, Ahead of AI; 15 November 2026)
 - [Neural Networks Are Already Clean](neural_networks_already_clean/) (Nick Cammarata, Goodfire; 15 October 2026)
 - [End-to-End 4-Bit Training](end_to_end_4bit_training/) (Jack Cook and others, Thinking Machines Lab; 13 November 2026)
+- [Qwenputer: a fully functioning, deterministic RISC-V CPU inside Qwen3.5](qwenputer/) (Divyansh Agrawal; 22 October 2026)
