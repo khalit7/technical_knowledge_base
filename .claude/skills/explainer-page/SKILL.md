@@ -17,6 +17,7 @@ The repository is the source of truth. Every page is one interactive `index.html
 | A new topic and a few lines on what Khalid wants to learn | [understand/reader.md](understand/reader.md) (ask the opening questions), then research and curriculum | [page-kinds/topic-root.md](page-kinds/topic-root.md) + children [page-kinds/topic-child.md](page-kinds/topic-child.md), run with [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md) |
 | One new child page under an existing root | read the root and siblings, then research | [page-kinds/topic-child.md](page-kinds/topic-child.md) |
 | A paper (title, arXiv link or PDF) | [understand/research.md](understand/research.md) (read the paper and its tables) | [page-kinds/paper.md](page-kinds/paper.md) |
+| An article (a blog post, explainer, essay or postmortem worth its own page) | [understand/research.md](understand/research.md) (read the article and its responses) | [page-kinds/article.md](page-kinds/article.md) |
 | A tech-news issue (written by the `update-kb` skill's periodic pass) | sources of the window | [page-kinds/tech-news.md](page-kinds/tech-news.md) |
 | Merge, fold or retire an existing page | [page-kinds/migrate-or-fold.md](page-kinds/migrate-or-fold.md) | the kind it becomes |
 | An audit or rebuild of a page already in the repo (condense, restructure, re-visualise) | [teaching/teaching-contract.md](teaching/teaching-contract.md) (knowledge ledger, `html_utils/ledger.py`), the measurement `html_utils/audit_pages.mjs` | the kind it is |

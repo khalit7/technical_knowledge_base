@@ -65,7 +65,7 @@ def concepts():
         pages[str(f.parent.relative_to(KB))] = txt
     for name, (rx, need) in CONCEPTS.items():
         hits = sorted(((len(re.findall(rx, t)), p) for p, t in pages.items()), reverse=True)
-        hits = [(n, p) for n, p in hits if n >= need and "/papers/" not in p and "/tech_news/" not in p]
+        hits = [(n, p) for n, p in hits if n >= need and "/papers/" not in p and "/articles/" not in p and "/tech_news/" not in p]
         print(f"\n{name}: taught on {len(hits)} pages")
         for n, p in hits[:12]:
             print(f"  {n:4}  {p}")

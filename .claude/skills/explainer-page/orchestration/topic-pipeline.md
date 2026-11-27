@@ -8,6 +8,7 @@ The lead plans, briefs, verifies, commits, publishes and keeps the log. Agents r
 - A root with labs and several children: yes, follow this file.
 - One child page, one paper, one tech-news issue, one rebuild: see "Single page" at the end.
 - A batch of papers: one agent per paper with [briefs/paper-agent.md](briefs/paper-agent.md), about four at a time (end of this file).
+- A batch of articles: one agent per article with [briefs/article-agent.md](briefs/article-agent.md), at most three at a time.
 - Never launch the Workflow tool without Khalid's explicit opt-in. Plain subagents (the Agent tool) are fine.
 
 ## 1. Opening questions and the teaching plan

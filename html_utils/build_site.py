@@ -1,6 +1,6 @@
 """Build the public reading site from the repo: every page's index.html (and img/), a home page with the whole tree,
 links between pages rewritten from Notion URLs to site paths, and a small bar on each page (home, breadcrumb, search).
-The home page opens with What's new (the tech-news issues and papers, html_utils/whats_new.py), then the learning map
+The home page opens with What's new (the tech-news issues, papers and articles, html_utils/whats_new.py), then the learning map
 (html_utils/learning_map.py): the build fails when the prerequisite graph has an error, or when an issue or paper lacks
 the data its What's new card needs (whats_new.check).
 
@@ -52,7 +52,7 @@ READER_CSS = (ROOT / "html_utils/kb_reader.css").read_text()
 PDFJS_VERSION = "6.5.438"   # html_utils/lib/pdfjs (its README says how to update it); published in a folder named by its version
 PDFJS = BASE + f"lib/pdfjs-{PDFJS_VERSION}/"
 THEME = re.search(r"<style>.*?</style>", (ROOT / ".claude/skills/explainer-page/build/templates/01_head.html").read_text(), re.S).group(0)
-NEWS, PAPERS = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers"
+NEWS, PAPERS, ARTICLES = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers", "technical_knowledge_base/whats_new/articles"
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]  # What's new sits above them
 
 
@@ -179,7 +179,7 @@ def home():
             body += (f'<div class="sec s{k}"><h3><i></i>{html.escape(sec)}<span>{n} pages</span></h3><ul>'
                      + "".join(tree(r) for r in rs) + "</ul></div>")
     npages, ntopics, hours = stats()
-    body = (whats_new.home(pages, url, by_id, by_path[NEWS], by_path[PAPERS]) + learning_map.section(url, KB)
+    body = (whats_new.home(pages, url, by_id, by_path[NEWS], by_path[PAPERS], by_path.get(ARTICLES)) + learning_map.section(url, KB)
             + f'<details class="all"><summary>All pages by section<span>{nsec} pages</span></summary><div class="secs">{body}</div></details>')
 
     return f"""<!doctype html><html lang="en" data-kb-home><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -323,8 +323,9 @@ def main():
             n += 1
             if p.get("reader"):
                 reader(p)
-        else:  # a parent with no page of its own (Papers, Tech news): its children as cards (html_utils/whats_new.py)
+        else:  # a parent with no page of its own (Papers, Tech news, Articles): its children as cards (html_utils/whats_new.py)
             main_ = (whats_new.papers_index(pages, url, by_id) if p["path"] == PAPERS else whats_new.news_index(pages, url) if p["path"] == NEWS
+                     else whats_new.articles_index(pages, url, by_id) if p["path"] == ARTICLES
                      else "<h1>" + html.escape(p["title"]) + "</h1><ul>" + "".join(f'<li><a href="{url(c)}">{html.escape(c["title"])}</a></li>' for c in children(p)) + "</ul>")
             (dst / "index.html").write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                                             f'<title>{html.escape(p["title"])}</title><style>{whats_new.PAGE_CSS}\n{whats_new.CSS}</style>{BAR_CSS}{APP}</head>'

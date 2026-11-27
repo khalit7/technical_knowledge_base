@@ -4,5 +4,6 @@ A heading at the top of the Notion root page, and the first thing on the site's 
 
 - `tech_news/`: Tech news, one issue per weekly window
 - `papers/`: Papers
+- `articles/`: Articles, the best technical articles of each window, one page each (added 2026-11-27)
 
 Renamed from "Reference" on 2026-10-27: it holds the newest material and is read most. Retired 2026-10-19: Updates and Tracker; Known gaps and Visuals were already deleted in Notion.

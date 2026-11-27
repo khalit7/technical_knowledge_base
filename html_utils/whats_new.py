@@ -1,6 +1,6 @@
-"""What's new: the tech-news issues and the papers, the first block on the site's home page (above the learning map),
-and the two index pages under it (Tech news, Papers). Called by build_site.py; reads pages.json, each issue's
-src/issue.md (or live.md for the older issues) and each paper's src/paper.json.
+"""What's new: the tech-news issues, the papers and the articles, the first block on the site's home page (above the
+learning map), and the three index pages under it (Tech news, Papers, Articles). Called by build_site.py; reads pages.json,
+each issue's src/issue.md (or live.md for the older issues), each paper's src/paper.json and each article's src/article.json.
 
 usage: python3 html_utils/whats_new.py check    the data each card needs (also run by build_site.py, which stops on a problem)
 """
@@ -10,9 +10,11 @@ from pathlib import Path
 import learning_map
 
 ROOT = Path(__file__).resolve().parent.parent
-NEWS, PAPERS = "/whats_new/tech_news/", "/whats_new/papers/"
+NEWS, PAPERS, ARTICLES = "/whats_new/tech_news/", "/whats_new/papers/", "/whats_new/articles/"
 MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 HOME_PAPERS = 6
+HOME_ARTICLES = 6
+ARTICLE_NEED = ("title", "url", "author", "site", "published", "takeaway")   # article.json fields every card needs
 
 
 def plain(s):
@@ -79,9 +81,22 @@ def _when(j):
     return (0, 0, 0), ""
 
 
+def _tops(j, pages, url, by_id):
+    """a paper's or article's topics: (short name, section index, url) for each that is a page"""
+    sec = {s: k for k, s in enumerate(learning_map.SECTIONS)}
+    tops = []
+    for t in j.get("topics", []):
+        q = by_id.get(t.get("id", "").split("#")[0].replace("-", ""))
+        if q:
+            r = q
+            while r and not r.get("section"):  # the topic root carries the section
+                r = next((x for x in pages if x["path"] == r["path"].rsplit("/", 1)[0]), None)
+            tops.append((learning_map.topic_name(q["title"]).split(":")[0], sec.get(r.get("section")) if r else None, url(q)))
+    return tops
+
+
 def papers(pages, url, by_id, latest=None):
     """every paper page, newest first by publication; in_issue marks the papers the latest issue links"""
-    sec = {s: k for k, s in enumerate(learning_map.SECTIONS)}
     issue_src = (ROOT / latest["p"]["path"] / "index.html").read_text(errors="replace") if latest else ""
     out = []
     for p in pages:
@@ -90,16 +105,36 @@ def papers(pages, url, by_id, latest=None):
             continue
         j = json.loads(f.read_text())
         key, when = _when(j)
-        tops = []
-        for t in j.get("topics", []):
-            q = by_id.get(t.get("id", "").split("#")[0].replace("-", ""))
-            if q:
-                r = q
-                while r and not r.get("section"):  # the topic root carries the section
-                    r = next((x for x in pages if x["path"] == r["path"].rsplit("/", 1)[0]), None)
-                tops.append((learning_map.topic_name(q["title"]).split(":")[0], sec.get(r.get("section")) if r else None, url(q)))
+        tops = _tops(j, pages, url, by_id)
         out.append({"p": p, "u": url(p), "key": key, "when": when, "title": j.get("title") or p["title"],
                     "take": j.get("takeaway", ""), "lab": j.get("lab", ""), "tops": tops,
+                    "new": p["id"].replace("-", "") in issue_src})
+    out.sort(key=lambda r: r["key"], reverse=True)
+    return out
+
+
+def _pub(j):
+    """an article's publication date (article.json "published", YYYY-MM-DD), or None"""
+    try:
+        return dt.date.fromisoformat(str(j.get("published", ""))[:10])
+    except ValueError:
+        return None
+
+
+def articles(pages, url, by_id, latest=None):
+    """every article page, newest first by publication; new marks the articles the latest issue links"""
+    issue_src = (ROOT / latest["p"]["path"] / "index.html").read_text(errors="replace") if latest else ""
+    out = []
+    for p in pages:
+        f = ROOT / p["path"] / "src/article.json"
+        if ARTICLES not in "/" + p["path"] + "/" or not f.exists() or not (ROOT / p["path"] / "index.html").exists():
+            continue
+        j = json.loads(f.read_text())
+        d = _pub(j) or dt.date.min
+        by = j.get("author", "").split(",")[0].split(" (")[0].strip()
+        out.append({"p": p, "u": url(p), "key": (d.year, d.month, d.day), "d": d,
+                    "when": day(d) if d != dt.date.min else "", "title": j.get("title") or p["title"],
+                    "take": j.get("takeaway", ""), "lab": by, "site": j.get("site", ""), "tops": _tops(j, pages, url, by_id),
                     "new": p["id"].replace("-", "") in issue_src})
     out.sort(key=lambda r: r["key"], reverse=True)
     return out
@@ -136,6 +171,24 @@ def check(pages=None):
         if j.get("arxiv") and rd.split("v")[0] != str(j["arxiv"]).split("v")[0]:
             bad.append(f'{p["path"]}: pages.json "reader": {{"arxiv": "<id>v<n>"}} missing or not the paper.json arxiv id {j["arxiv"]} '
                        f'(its latest version: https://export.arxiv.org/api/query?id_list={j["arxiv"]})')
+    for p in pages:
+        f = ROOT / p["path"] / "src/article.json"
+        if ARTICLES not in "/" + p["path"] + "/" or p.get("status") == "not_migrated":
+            continue
+        if not f.exists():
+            if (ROOT / p["path"] / "index.html").exists():
+                bad.append(f'{p["path"]}: no src/article.json (the Articles cards read it; page-kinds/article.md)')
+            continue
+        j = json.loads(f.read_text())
+        miss = [k for k in ARTICLE_NEED if not j.get(k)]
+        if j.get("published") and not _pub(j):
+            miss.append(f'published "{j["published"]}" is not YYYY-MM-DD')
+        ids = [t.get("id", "").split("#")[0].replace("-", "") for t in j.get("topics", [])]
+        if not ids:
+            miss.append("topics")
+        miss += [f"topic id {t} not in pages.json" for t in ids if t not in by_id]
+        if miss:
+            bad.append(f'{p["path"]}/src/article.json: ' + ", ".join(miss))
     return bad
 
 
@@ -144,7 +197,7 @@ def _paper_card(r, tag="li"):
     chips = "".join(f'<span class="wn-chip{f" s{s}" if s is not None else ""}"><i></i>{html.escape(n)}</span>' for n, s, _ in r["tops"][:2])
     badge = '<span class="wn-new">In the latest issue</span>' if r["new"] else ""
     lab = html.escape(r["lab"].split(",")[0].split(" (")[0]) if r["lab"] else ""
-    meta = " · ".join(x for x in (html.escape(r["when"]), lab) if x)
+    meta = " · ".join(x for x in (html.escape(r["when"]), lab, html.escape(r.get("site", ""))) if x)
     return (f'<{tag} class="wn-pc{f" s{k}" if k is not None else ""}"><a href="{r["u"]}">'
             f'{badge}<span class="wn-pm">{meta}</span><b>{html.escape(r["title"])}</b>'
             f'<span class="wn-pt">{html.escape(r["take"])}</span><span class="wn-chips">{chips}</span></a></{tag}>')
@@ -155,7 +208,7 @@ def _issue_list(rows):
                    f'<span>{html.escape(r["top"][0]) if r["top"] else html.escape(r["p"]["title"])}</span></a></li>' for r in rows)
 
 
-def home(pages, url, by_id, news_page, papers_page):
+def home(pages, url, by_id, news_page, papers_page, articles_page=None):
     """the What's new block for the home page"""
     iss = issues(pages, url)
     if not iss:
@@ -174,11 +227,17 @@ def home(pages, url, by_id, news_page, papers_page):
             f'<a class="wn-all" href="{url(news_page)}">All {len(iss)} issues<i aria-hidden="true"></i></a></nav>')
     cards = "".join(_paper_card(r) for r in ps[:HOME_PAPERS])
     sub = f"{nnew} from the latest issue, " if nnew else ""
+    arts = articles(pages, url, by_id, L) if articles_page else []
+    anew = sum(r["new"] for r in arts)
+    arow = (f'<div class="wn-ph"><h3>Newest articles</h3><span>{f"{anew} from the latest issue, " if anew else ""}newest first by publication</span>'
+            f'<a class="wn-all" href="{url(articles_page)}">All {len(arts)} article{"s" if len(arts) != 1 else ""}<i aria-hidden="true"></i></a></div>'
+            f'<ul class="wn-papers">{"".join(_paper_card(r) for r in arts[:HOME_ARTICLES])}</ul>') if arts else ""
     return f"""<section id="new" class="wn" data-pagefind-ignore>
-<div class="wn-h"><h2>What's new</h2><p>The weekly tech news, and the papers worth a page of their own.</p></div>
+<div class="wn-h"><h2>What's new</h2><p>The weekly tech news, and the papers and articles worth a page of their own.</p></div>
 <div class="wn-grid">{lead}{past}</div>
 <div class="wn-ph"><h3>Newest papers</h3><span>{sub}newest first by publication</span><a class="wn-all" href="{url(papers_page)}">All {len(ps)} papers<i aria-hidden="true"></i></a></div>
 <ul class="wn-papers">{cards}</ul>
+{arow}
 </section>"""
 
 
@@ -211,7 +270,26 @@ def papers_index(pages, url, by_id):
             f'scoped to what the paper shows. Newest first by publication.</p><nav class="wn-jump" aria-label="Years">{jump}</nav></header>{body}</ul>')
 
 
-# tokens for the two index pages (the home page has its own); the section colours are learning_map's
+def articles_index(pages, url, by_id):
+    """the Articles page: every article as a card, grouped by month of publication, newest first"""
+    iss = issues(pages, url)
+    rows = articles(pages, url, by_id, iss[0] if iss else None)
+    months, body = [], ""
+    for r in rows:
+        m = f"{MON[r['d'].month - 1]} {r['d'].year}" if r["d"] != dt.date.min else "Undated"
+        if m not in months:
+            months.append(m)
+            mid = m.replace(" ", "-").lower()
+            n = sum(1 for x in rows if (f"{MON[x['d'].month - 1]} {x['d'].year}" if x["d"] != dt.date.min else "Undated") == m)
+            body += ("</ul>" if len(months) > 1 else "") + f'<h2 class="wn-y" id="m-{mid}">{m}<span>{n}</span></h2><ul class="wn-papers wn-all-p">'
+        body += _paper_card(r)
+    jump = "".join(f'<a href="#m-{m.replace(" ", "-").lower()}">{m}</a>' for m in months)
+    return (f'<header class="wn-ph1"><h1>Articles</h1><p>{len(rows)} article{"s" if len(rows) != 1 else ""}, each with its own page: the argument, the evidence, what others '
+            f'replied, and a takeaway scoped to what the article shows. Newest first by publication.</p><nav class="wn-jump" aria-label="Months">{jump}</nav></header>'
+            + (body + "</ul>" if rows else '<p>No articles yet.</p>'))
+
+
+# tokens for the index pages (the home page has its own); the section colours are learning_map's
 PAGE_CSS = """:root{--bg:#fff;--ink:#2f3437;--mute:#6f6e69;--line:#e9e9e7;--acc:#2f6fb5;--card:#fff;--cardln:rgba(31,35,40,.10);
  --s0:#3072c1;--s1:#b0540e;--s2:#1c8742;--s3:#8559b2;--s4:#ae4976}
 @media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--acc:#6ea8e6;--card:#212123;--cardln:rgba(255,255,255,.08);color-scheme:dark;

@@ -4,7 +4,7 @@ prerequisites ("prereqs" in technical_knowledge_base/pages.json, a list of page 
 usage: python3 html_utils/learning_map.py check     validate the prerequisite graph (exit 1 on an error)
        build_site.py imports it: check() fails the build on an error; section(url) returns the map's HTML.
 
-What is in the map: every built topic page (status html_only, not under Papers or Tech news).
+What is in the map: every built topic page (status html_only, not under Papers, Articles or Tech news).
 Graph rules (check):
   errors   an unknown prereq id, a prereq that is not a built topic page, a self-loop, a cycle (printed)
   warnings a built topic page with no "prereqs" key (treated as none), a prereq given by an old id (alias),
