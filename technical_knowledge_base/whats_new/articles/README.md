@@ -7,3 +7,4 @@ The best technical articles of each window (long-form posts, explainers, essays 
 
 ## Pages
 - [Sparks of Weight-Space Programming](weight_space_programming/) (Takehi, Teoh, Zhang, Khattab, MIT CSAIL; 2 November 2026)
+- [Understanding Positional Embeddings in Modern LLMs](raschka_positional_embeddings/) (Sebastian Raschka, Ahead of AI; 15 November 2026)

@@ -75,3 +75,10 @@ Each line: the article page, the page to edit, what. Ticked when done.
 - [ ] weight_space_programming: Alibaba: Qwen: dated fact that Qwen3.5-0.8B loops in thinking mode (93.0% of MATH-500 answers hit 32,768 tokens with the recommended sampling).
 - [ ] weight_space_programming: Policy gradients and actor-critic: Further reading entry (the Kinetix car stuck in a PPO local minimum).
 - [ ] weight_space_programming: Safety and honesty benchmarks: Further reading entry (sycophancy not detectable from weights alone, detectable from attention patterns).
+- [ ] raschka_positional_embeddings: Positional Encodings section 3 ("Cost and the one check"): add the shift test (scores at positions + 3, assert_close) as the cheap check.
+- [ ] raschka_positional_embeddings: Positional Encodings section 1, beside the NoPE probe: the 1/prefix-length toy (uniform attention averages a first-token feature to 1/3 at position 2, 1/4 at position 3).
+- [ ] raschka_positional_embeddings: Positional Encodings section 4: MiniMax-M3 row (head_dim 128, rotary_dim 64, partial_rotary_factor 0.5, rope_theta 5,000,000, 1,048,576 positions, config read 2026-11-27); Fractional Rotation (arXiv 2603.11611); the reasons for partial RoPE stay MLA and content channels.
+- [ ] raschka_positional_embeddings: Positional Encodings section 2 and the six-scheme table: Inkling (15 July 2026) as the 2026 return of a learned relative bias (query dependence unconfirmed).
+- [ ] raschka_positional_embeddings: Positional Encodings section 2, learned-table paragraph: GPT-2 Medium's table is 0.30% of weights at 1,024 positions, 22.4% at 100,000 (derived).
+- [ ] raschka_positional_embeddings: Positional Encodings section 4 or LLM Architecture Gallery: Raschka's gallery census of 9 November 2026 as a dated reading (directions only).
+- [ ] raschka_positional_embeddings: Positional Encodings Further reading: the article (40 min), with the article page linked.
